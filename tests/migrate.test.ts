@@ -37,7 +37,7 @@ after(async () => {
 
 describe('runMigrations', () => {
   it('creates the whole schema on a fresh database and records each file', async () => {
-    assert.deepEqual(await runMigrations(db), ['001_baseline']);
+    assert.deepEqual(await runMigrations(db), migrationFiles().map((f) => f.replace(/\.sql$/, '')));
     assert.deepEqual(await tables(), ['fetch_runs', 'job_events', 'jobs', 'schema_migrations']);
     assert.deepEqual(await recorded(), migrationFiles().map((f) => f.replace(/\.sql$/, '')));
     // The baseline's later columns are there too.
@@ -49,8 +49,9 @@ describe('runMigrations', () => {
   it('upgrades a database made by the old schema.sql without losing data', async () => {
     await db.query(readFileSync(join(MIGRATIONS_DIR, '001_baseline.sql'), 'utf8'));
     await db.query(`INSERT INTO jobs (id, source, company, title, url, status) VALUES ('old', 's', 'c', 't', 'u', 'applied')`);
-    assert.deepEqual(await runMigrations(db), ['001_baseline']);
-    assert.deepEqual(await recorded(), ['001_baseline']);
+    // Every file still runs once: the baseline re-runs harmlessly (IF NOT EXISTS), later files add their changes.
+    assert.deepEqual(await runMigrations(db), migrationFiles().map((f) => f.replace(/\.sql$/, '')));
+    assert.deepEqual(await recorded(), migrationFiles().map((f) => f.replace(/\.sql$/, '')));
     assert.deepEqual((await db.query('SELECT id, status FROM jobs')).rows, [{ id: 'old', status: 'applied' }]);
   });
 

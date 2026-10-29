@@ -7,6 +7,15 @@ export type JobStatus =
 /** A drafted answer to one application-form question (`bot answer`). */
 export type FormAnswer = { question: string; answer: string; needs_input: boolean; note: string };
 
+/** Interview prep for one job (`bot prep`), drawn only from the job description and cv/master.json. */
+export type InterviewPrep = {
+  technical: { question: string; hint: string }[];  // hint: what to emphasise from the CV
+  behavioural: { question: string; situation: string; task: string; action: string; result: string }[]; // STAR, CV facts only
+  company: { brief: string; verify: string[] };     // from the posting and company name only; verify = unsure points
+  questions_to_ask: string[];
+  requirements: { requirement: string; evidence: string; gap: boolean }[]; // evidence from the CV, or why it is a gap
+};
+
 /** One row of the `jobs` table (src/migrations). */
 export type Job = {
   id: string;
@@ -42,6 +51,9 @@ export type Job = {
   ai_flags: string[] | null;
   ai_scored_at: Date | null;
   form_answers: FormAnswer[];
+  interview_prep: InterviewPrep | null;
+  interview_prep_at: Date | null;
+  alerted_at: Date | null; // macOS alert sent for a `strong` AI verdict (once per job)
 };
 
 /** A posting as a source adapter returns it, before scoring. */

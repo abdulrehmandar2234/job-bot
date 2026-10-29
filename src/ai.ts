@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { config } from './config.ts';
 import { APPLICANT_EXAMPLE_FILE, APPLICANT_FILE, loadSettings } from './settings.ts';
-import type { FormAnswer, Job } from './types.ts';
+import type { FormAnswer, InterviewPrep, Job } from './types.ts';
 import { masterRaw } from './cv/versions.ts';
 import type { Cv } from './cv/render.ts';
 
@@ -166,4 +166,58 @@ https://www.linkedin.com/in/abdulrehman-dar/
   const res = await askClaude<{ letter: string }>(`CV:\n${cvText()}\n\nJOB:\n${jobText(job)}`,
     { type: 'object', properties: { letter: { type: 'string' } }, required: ['letter'] }, config.ai.letterModel, system);
   return res.letter.trim() + '\n';
+}
+
+const str = { type: 'string' };
+const PREP_SCHEMA = {
+  type: 'object',
+  properties: {
+    technical: {
+      type: 'array', minItems: 4, maxItems: 8,
+      items: { type: 'object', properties: { question: str, hint: { type: 'string', description: 'What to emphasise from the CV.' } },
+        required: ['question', 'hint'] },
+    },
+    behavioural: {
+      type: 'array', minItems: 3, maxItems: 6,
+      items: { type: 'object', properties: { question: str, situation: str, task: str, action: str, result: str },
+        required: ['question', 'situation', 'task', 'action', 'result'] },
+    },
+    company: {
+      type: 'object',
+      properties: {
+        brief: { type: 'string', description: 'What the posting itself says about the company, product and team.' },
+        verify: { type: 'array', items: str, description: 'Points to verify before the interview.' },
+      },
+      required: ['brief', 'verify'],
+    },
+    questions_to_ask: { type: 'array', minItems: 3, maxItems: 8, items: str },
+    requirements: {
+      type: 'array', maxItems: 12,
+      items: { type: 'object', properties: {
+        requirement: str,
+        evidence: { type: 'string', description: 'Matching CV experience, or what is missing when gap is true.' },
+        gap: { type: 'boolean' },
+      }, required: ['requirement', 'evidence', 'gap'] },
+    },
+  },
+  required: ['technical', 'behavioural', 'company', 'questions_to_ask', 'requirements'],
+};
+
+/** Interview prep for one job: likely questions, STAR stories, a company brief and a requirement map. */
+export function aiInterviewPrep(job: Job): Promise<InterviewPrep> {
+  const system = `You help one candidate prepare for a job interview. Rules:
+- Use ONLY facts in the CV. Never invent employers, projects, numbers, skills, certifications or years. Never claim a skill
+  or experience the CV does not show; if the job asks for it, mark that requirement as a gap and say so honestly.
+- technical: questions this interviewer is likely to ask for this job's stack and level; each hint says which concrete CV
+  experience to emphasise (or, for a gap, how to answer honestly).
+- behavioural: common behavioural questions, each with a STAR story (situation, task, action, result) built only from CV
+  facts. Never make up outcomes or numbers the CV does not state.
+- company: you have NO web access and no research. Write the brief ONLY from the job description and the company name:
+  product, team, stack and what they emphasise. Do not add facts about the company from memory (size, funding, founders,
+  customers, news). Put anything you are unsure of, or that the candidate should check, in verify as "Verify before
+  interview: ...".
+- questions_to_ask: thoughtful questions the candidate can ask them, specific to this posting.
+- requirements: the job's key requirements, each mapped to CV evidence, or gap true with what is missing.
+- Plain text in every string, no markdown, concise.`;
+  return askClaude<InterviewPrep>(`CV:\n${cvText()}\n\nJOB:\n${jobText(job)}`, PREP_SCHEMA, config.ai.letterModel, system);
 }

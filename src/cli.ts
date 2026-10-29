@@ -24,6 +24,7 @@ const commands: Record<string, () => Promise<Command>> = {
   prepare: async () => (await import('./commands/prepare.ts')).prepare,
   'ai:score': async () => (await import('./commands/ai.ts')).aiScore,
   answer: async () => (await import('./commands/ai.ts')).answer,
+  prep: async () => (await import('./commands/prep.ts')).prep,
   custom: async () => (await import('./commands/cv.ts')).custom,
   mark: async () => (await import('./commands/mark.ts')).mark,
   'cv:default': async () => (await import('./commands/cv.ts')).cvDefault,
@@ -47,6 +48,7 @@ if (!load) {
   prepare <id> [--cv cluster]     default CV (or --cv version) + AI cover letter (--template for the plain one)
   ai:score [--id x] [--limit n]   AI fit review of matching jobs via local Claude CLI (--all to redo)
   answer <id> [--file q.txt]      AI drafts answers to pasted form questions (--clear to reset)
+  prep <id>                       AI interview prep: likely questions, STAR stories, company brief, gaps
   custom <id> --overrides f.json  one-off CV for a single job
   add [--file job.json]           add job found in browser (JSON or stdin)
   mark <id> <status> [note]       applied | interview | offer | rejected | skipped
