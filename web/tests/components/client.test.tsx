@@ -110,6 +110,27 @@ describe('CopyButton', () => {
     expect(screen.getByRole('button')).toHaveTextContent('Copy');
   });
 
+  it('says the copy failed, then resets, when the clipboard refuses the write', async () => {
+    const writeText = vi.fn().mockRejectedValue(new DOMException('Document is not focused', 'NotAllowedError'));
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    vi.useFakeTimers();
+    render(<CopyButton text="Hello recruiter" />);
+
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Copy' })); });
+    expect(writeText).toHaveBeenCalledWith('Hello recruiter');
+    expect(screen.getByRole('button')).toHaveTextContent('Copy failed');
+
+    act(() => { vi.advanceTimersByTime(1500); });
+    expect(screen.getByRole('button')).toHaveTextContent('Copy');
+  });
+
+  it('says the copy failed when there is no clipboard API (plain http, old browser)', async () => {
+    Object.defineProperty(navigator, 'clipboard', { value: undefined, configurable: true });
+    render(<CopyButton text="x" />);
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Copy' })); });
+    expect(screen.getByRole('button')).toHaveTextContent('Copy failed');
+  });
+
   it('uses a custom label', () => {
     render(<CopyButton text="x" label="Copy answer" />);
     expect(screen.getByRole('button', { name: 'Copy answer' })).toHaveAttribute('type', 'button');
