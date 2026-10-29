@@ -3,6 +3,7 @@ import type { Job } from '@/lib/db';
 import type { TaskKind } from '@/lib/tasks';
 import { SubmitButton } from './client';
 import { Busy } from './tasks';
+import { SkipButton } from './skip-button';
 
 /** Buttons shown for a job, depending on where it is in the pipeline. `busy`: the job's running background tasks. */
 export function JobActions({ job, busy = [] }: { job: Job; busy?: readonly TaskKind[] }) {
@@ -38,7 +39,7 @@ export function JobActions({ job, busy = [] }: { job: Job; busy?: readonly TaskK
 
       {(job.status === 'new' || job.status === 'prepared') && <>
         {status('applied', 'Mark applied ✓', 'btn-good')}
-        {status('skipped', 'Skip')}
+        <SkipButton id={job.id} />
       </>}
       {job.status === 'applied' && <>
         {status('interview', 'Got interview')}

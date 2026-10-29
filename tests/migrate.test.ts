@@ -40,7 +40,7 @@ describe('runMigrations', () => {
     const all = migrationFiles().map((f) => f.replace(/\.sql$/, ''));
     assert.deepEqual(await runMigrations(db), all);
     const t = await tables();
-    for (const name of ['fetch_runs', 'job_events', 'jobs', 'schema_migrations', 'tasks']) assert.ok(t.includes(name), name);
+    for (const name of ['contacts', 'fetch_runs', 'job_events', 'jobs', 'schema_migrations', 'tasks']) assert.ok(t.includes(name), name);
     assert.deepEqual(await recorded(), migrationFiles().map((f) => f.replace(/\.sql$/, '')));
     // The baseline's later columns are there too.
     await db.query(`INSERT INTO jobs (id, source, company, title, url) VALUES ('a', 's', 'c', 't', 'u')`);

@@ -128,6 +128,17 @@ describe('job list page', () => {
     expect(form.querySelector('select[name="sort"]')).toHaveValue('score');
   });
 
+  it('badges a card when you know someone at the company to ask for a referral', async () => {
+    await insertJob({ id: 'pg-ref-a', title: 'TG Ref A', company: 'Refco Inc.' });
+    await insertJob({ id: 'pg-ref-b', title: 'TG Ref B', company: 'Other' });
+    const applied = await insertJob({ id: 'pg-ref-c', title: 'TG Ref C', company: 'REFCO', status: 'applied' });
+    await pool.query(`INSERT INTO contacts (job_id, name, referral_status) VALUES ($1, 'Rita', 'to ask')`, [applied]);
+    await renderPage();
+    const card = (t: string) => cards().find((li) => li.textContent!.includes(t))!;
+    expect(within(card('TG Ref A')).getByText('🤝 Ask Rita for a referral')).toBeInTheDocument();
+    expect(card('TG Ref B')).not.toHaveTextContent('referral');
+  });
+
   it('searches company and title, case-insensitively', async () => {
     await insertJob({ id: 's-1', title: 'TG Laravel Developer', company: 'Acme' });
     await insertJob({ id: 's-2', title: 'TG Node Engineer', company: 'LaravelShop' });

@@ -11,6 +11,9 @@ import { Busy, TaskBar } from '@/components/tasks';
 import { SalaryTag } from '@/components/salary';
 import { AtsCheck } from '@/components/ats-check';
 import { loadExpectations } from '@/lib/salary';
+import { Contacts, ReferralReminder } from '@/components/contacts';
+import { allContacts } from '@/lib/contacts-db';
+import { SKIP_LABEL } from '@/lib/skips';
 import { AiReview, Chips, COUNTRIES, fmtDate, Posted, PostedOn, Score, STATUS_LABEL } from '@/components/ui';
 
 export default function Page(props: PageProps<'/jobs/[id]'>) {
@@ -26,7 +29,7 @@ export default function Page(props: PageProps<'/jobs/[id]'>) {
 
 async function JobDetail({ params }: { params: PageProps<'/jobs/[id]'>['params'] }) {
   const id = decodeURIComponent((await params).id);
-  const [job, events, tasks] = await Promise.all([getJob(id), jobEvents(id), openTasks(id)]);
+  const [job, events, tasks, contacts] = await Promise.all([getJob(id), jobEvents(id), openTasks(id), allContacts()]);
   if (!job) notFound();
   const busy = tasks.filter(isActive).map((t) => t.kind);
   const primaryId = job.duplicate_of ?? job.id;
@@ -54,6 +57,8 @@ async function JobDetail({ params }: { params: PageProps<'/jobs/[id]'>['params']
       <TaskBar tasks={tasks} job={job.id} />
 
       <JobActions job={job} busy={busy} />
+
+      <ReferralReminder job={job} contacts={contacts} />
 
       <AiReview job={job} />
 
@@ -133,6 +138,8 @@ async function JobDetail({ params }: { params: PageProps<'/jobs/[id]'>['params']
         </form>
       </section>
 
+      <Contacts job={job} contacts={contacts} />
+
       <section className="space-y-2">
         <h2 className="font-medium">Notes</h2>
         <form action={saveNotes} className="space-y-2">
@@ -150,7 +157,7 @@ async function JobDetail({ params }: { params: PageProps<'/jobs/[id]'>['params']
             {events.map((e) => (
               <li key={e.id}>
                 {new Date(e.at).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })} —{' '}
-                {e.from_status ?? '—'} → <b>{e.to_status}</b>{e.note && ` (${e.note})`}
+                {e.from_status ?? '—'} → <b>{e.to_status}</b>{e.reason && ` · ${SKIP_LABEL[e.reason]}`}{e.note && ` (${e.note})`}
               </li>
             ))}
           </ul>

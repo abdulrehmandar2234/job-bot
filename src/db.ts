@@ -1,8 +1,8 @@
 import pg from 'pg';
 import { runMigrations } from './migrate.ts';
-import type { Job, JobStatus } from './types.ts';
+import type { Job, JobStatus, SkipReason } from './types.ts';
 
-export type { FormAnswer, Job, JobStatus } from './types.ts';
+export type { FormAnswer, Job, JobStatus, SkipReason } from './types.ts';
 
 /** Every job status, in pipeline order; the dashboard's STATUSES must match (tests/statuses.test.ts). */
 export const JOB_STATUSES = ['new', 'prepared', 'applied', 'interview', 'offer', 'rejected', 'skipped', 'filtered'] as const satisfies readonly JobStatus[];
@@ -107,7 +107,11 @@ export async function getJob(id: string) {
   return rows[0];
 }
 
-export async function setStatus(id: string, status: JobStatus, note?: string) {
+/** Every skip reason; the dashboard's SKIP_REASONS must match (web/tests/lib/skips.test.ts). */
+export const SKIP_REASONS = ['stack', 'seniority', 'salary', 'location', 'company', 'language', 'other'] as const satisfies readonly SkipReason[];
+
+/** Changes a job's status and logs it in job_events, in one transaction. `reason` is kept only for skips. */
+export async function setStatus(id: string, status: JobStatus, note?: string, reason?: SkipReason) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -116,8 +120,8 @@ export async function setStatus(id: string, status: JobStatus, note?: string) {
     await client.query(`UPDATE jobs SET status = $2,
       applied_at = CASE WHEN $2 = 'applied' THEN now() ELSE applied_at END
       WHERE id = $1`, [id, status]);
-    await client.query('INSERT INTO job_events (job_id, from_status, to_status, note) VALUES ($1, $2, $3, $4)',
-      [id, rows[0]?.status ?? null, status, note ?? null]);
+    await client.query('INSERT INTO job_events (job_id, from_status, to_status, note, reason) VALUES ($1, $2, $3, $4, $5)',
+      [id, rows[0]?.status ?? null, status, note ?? null, status === 'skipped' ? reason ?? null : null]);
     await client.query('COMMIT');
   } catch (e) {
     await client.query('ROLLBACK');

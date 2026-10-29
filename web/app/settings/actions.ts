@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { refresh } from 'next/cache';
 import { BOT_ROOT, runBot } from '@/lib/bot';
 import { readApplicant, readConfig } from '@/lib/settings';
+import { skipInsights } from '@/lib/skip-insights';
 import { mergeApplicant, mergeConfig, type SettingsError, type SettingsKind } from '@/lib/settings-form';
 
 // The bot's `settings:save` command is the only writer and validator of config.json and cv/applicant.json.
@@ -84,4 +85,18 @@ export async function saveJson(_prev: SaveState, fd: FormData): Promise<SaveStat
   const json = String(fd.get('json') ?? '');
   if (json.length > 1_000_000) return fail('Too large');
   return save(kind, json);
+}
+
+/**
+ * A "Skip patterns" suggestion from /analytics, after the user confirmed it: appends the pattern to roleExclude.
+ * Only a pattern the current skip history still suggests is accepted, so a forged POST cannot set anything else.
+ */
+export async function addRoleExclude(_prev: SaveState, fd: FormData): Promise<SaveState> {
+  const cur = readConfig();
+  if (!cur.data) return unreadable('config.json', cur.error);
+  const roleExclude = typeof cur.data.roleExclude === 'string' ? cur.data.roleExclude : '';
+  const pattern = fd.get('pattern');
+  const { suggestions } = await skipInsights(roleExclude);
+  if (typeof pattern !== 'string' || !suggestions.some((s) => s.pattern === pattern)) return fail('That suggestion is no longer valid.');
+  return save('config', JSON.stringify({ ...cur.data, roleExclude: roleExclude ? `${roleExclude}|${pattern}` : pattern }, null, 2));
 }

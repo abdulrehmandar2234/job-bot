@@ -2,6 +2,9 @@ import Link from 'next/link';
 import { Suspense } from 'react';
 import { DIMENSIONS, funnel, median, MIN_N, recentFetchRuns, responseDays, responseRates, weeklyActivity } from '@/lib/analytics';
 import { FetchRuns, FunnelChart, RateTable, Section, WeeklyBars } from '@/components/analytics';
+import { SkipPatterns } from '@/components/skip-patterns';
+import { readConfig } from '@/lib/settings';
+import { skipInsights } from '@/lib/skip-insights';
 
 export default function Page() {
   return (
@@ -16,8 +19,10 @@ export default function Page() {
 }
 
 async function Analytics() {
-  const [f, rates, weeks, days, runs] = await Promise.all([
+  const roleExclude = readConfig().data?.roleExclude;
+  const [f, rates, weeks, days, runs, skips] = await Promise.all([
     funnel(), Promise.all(DIMENSIONS.map(responseRates)), weeklyActivity(), responseDays(), recentFetchRuns(),
+    skipInsights(typeof roleExclude === 'string' ? roleExclude : null),
   ]);
   const med = median(days.map((d) => d.days));
 
@@ -50,6 +55,9 @@ async function Analytics() {
       )}
       <Section title="Activity" sub="Last 12 weeks">
         <WeeklyBars weeks={weeks} />
+      </Section>
+      <Section id="skips" title="Skip patterns" sub="Why you skip jobs, and what roleExclude could filter out for you">
+        <SkipPatterns insights={skips} />
       </Section>
       <Section id="fetch" title="Fetch health" sub="Last 7 fetch runs">
         <FetchRuns runs={runs} />

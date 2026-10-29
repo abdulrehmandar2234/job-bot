@@ -9,6 +9,8 @@ import { TaskBar } from '@/components/tasks';
 import { isActive, openTasks } from '@/lib/tasks';
 import { SalaryFilter, salaryParams, SalaryTag } from '@/components/salary';
 import { loadExpectations } from '@/lib/salary';
+import { ReferralBadge } from '@/components/contacts';
+import { allContacts } from '@/lib/contacts-db';
 import { ago, AiReview, Chips, COUNTRIES, fmtDate, Posted, PostedOn, Score, STATUS_LABEL } from '@/components/ui';
 
 export default function Page(props: PageProps<'/'>) {
@@ -63,7 +65,7 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<'/'>['searc
     listJobs({ status, country, min, q, days, sort, ...salary.filter }), statusCounts(), lastRun(), weekStats(), openTasks(),
   ]);
   const busy = (id: string) => tasks.filter((t) => t.job_id === id && isActive(t)).map((t) => t.kind);
-  const postings = await postingsFor(jobs.map((j) => j.id));
+  const [postings, contacts] = await Promise.all([postingsFor(jobs.map((j) => j.id)), allContacts()]);
   const tabHref = (s: string) => {
     const p = new URLSearchParams({
       status: s, ...(country && { country }), ...(min && { min: String(min) }), ...(q && { q }),
@@ -141,6 +143,7 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<'/'>['searc
                 </p>
                 <SalaryTag job={j} expected={expected} />
                 <PostedOn postings={postings.get(j.id) ?? []} />
+                <ReferralBadge job={j} contacts={contacts} />
                 {j.filter_reason && <p className="text-sm text-rose-700 dark:text-rose-400">✗ {j.filter_reason}</p>}
                 <AiReview job={j} />
                 <Chips items={j.matched} tone="good" />
