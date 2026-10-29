@@ -1,0 +1,330 @@
+{
+  "cvFileName": "abdulrehman_dar_resume.pdf",
+  "autoCvVersions": false,
+  "chromePath": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+  "minScore": 45,
+  "maxAgeDays": 14,
+  "ai": {
+    "enabled": true,
+    "claudePath": "/Users/abdulrehmandar/.local/bin/claude",
+    "scoreModel": "haiku",
+    "letterModel": "sonnet",
+    "maxScorePerRun": 80,
+    "concurrency": 2
+  },
+  "linkedin": {
+    "enabled": true,
+    "keywords": [
+      "laravel",
+      "php",
+      "node.js",
+      "nestjs",
+      "react",
+      "next.js",
+      "full stack developer",
+      "mern"
+    ],
+    "locations": [
+      "United Arab Emirates",
+      "Saudi Arabia",
+      "Netherlands"
+    ],
+    "remoteFrom": "Pakistan",
+    "pagesPerSearch": 2
+  },
+  "remote": {
+    "enabled": true,
+    "boards": [
+      "himalayas",
+      "remotive",
+      "remoteok"
+    ],
+    "himalayasQueries": [
+      "laravel",
+      "php",
+      "node",
+      "nestjs",
+      "react",
+      "next.js",
+      "full stack",
+      "mern",
+      "typescript",
+      "vue"
+    ],
+    "allow": "worldwide|anywhere|global|pakistan|south asia|\\basia\\b|apac|asia[- ]pacific|\\bmena\\b|middle east|gmt ?\\+ ?5|\\bpkt\\b|emea|international",
+    "deny": "\\b(us|usa|u\\.s\\.?)\\b|united states|north america|americas|canada|\\buk\\b|united kingdom|\\beu\\b|europe|latam|latin america|south america|mexico|brazil|argentina|colombia|india|philippines|australia|germany|poland|spain|portugal|ireland|france|romania|ukraine",
+    "flag": "emea|international|not stated"
+  },
+  "countries": {
+    "AE": {
+      "name": "UAE",
+      "visa": "employer",
+      "match": "dubai|abu dhabi|sharjah|\\buae\\b|united arab emirates|emirates"
+    },
+    "SA": {
+      "name": "Saudi Arabia",
+      "visa": "employer",
+      "match": "riyadh|jeddah|jedda|dammam|khobar|saudi|\\bksa\\b"
+    },
+    "NL": {
+      "name": "Netherlands",
+      "visa": "ind-register",
+      "match": "amsterdam|rotterdam|utrecht|eindhoven|the hague|den haag|netherlands|nederland|\\bnl\\b"
+    }
+  },
+  "companies": [
+    {
+      "name": "Careem",
+      "ats": "greenhouse",
+      "token": "careem"
+    },
+    {
+      "name": "Tamara",
+      "ats": "greenhouse",
+      "token": "tamara"
+    },
+    {
+      "name": "Lean Technologies",
+      "ats": "ashby",
+      "token": "leantech"
+    },
+    {
+      "name": "Ziina",
+      "ats": "ashby",
+      "token": "ziina"
+    },
+    {
+      "name": "Adyen",
+      "ats": "greenhouse",
+      "token": "adyen"
+    },
+    {
+      "name": "Mollie",
+      "ats": "ashby",
+      "token": "mollie"
+    },
+    {
+      "name": "bol.com",
+      "ats": "greenhouse",
+      "token": "bolcom"
+    },
+    {
+      "name": "Catawiki",
+      "ats": "greenhouse",
+      "token": "catawiki"
+    },
+    {
+      "name": "Miro",
+      "ats": "greenhouse",
+      "token": "realtimeboardglobal"
+    },
+    {
+      "name": "Bynder",
+      "ats": "ashby",
+      "token": "bynder"
+    },
+    {
+      "name": "Mendix",
+      "ats": "lever",
+      "token": "mendix"
+    },
+    {
+      "name": "Typeform",
+      "ats": "greenhouse",
+      "token": "typeform"
+    },
+    {
+      "name": "Elastic",
+      "ats": "greenhouse",
+      "token": "elastic",
+      "indName": "elasticsearch B.V."
+    },
+    {
+      "name": "GitLab",
+      "ats": "greenhouse",
+      "token": "gitlab"
+    },
+    {
+      "name": "Datadog",
+      "ats": "greenhouse",
+      "token": "datadog"
+    },
+    {
+      "name": "MongoDB",
+      "ats": "greenhouse",
+      "token": "mongodb"
+    },
+    {
+      "name": "Stripe",
+      "ats": "greenhouse",
+      "token": "stripe"
+    },
+    {
+      "name": "Databricks",
+      "ats": "greenhouse",
+      "token": "databricks"
+    },
+    {
+      "name": "Celonis",
+      "ats": "greenhouse",
+      "token": "celonis"
+    },
+    {
+      "name": "Grafana Labs",
+      "ats": "greenhouse",
+      "token": "grafanalabs"
+    },
+    {
+      "name": "HelloFresh",
+      "ats": "greenhouse",
+      "token": "hellofresh"
+    },
+    {
+      "name": "Dataiku",
+      "ats": "greenhouse",
+      "token": "dataiku"
+    },
+    {
+      "name": "Salla",
+      "ats": "workable",
+      "token": "salla"
+    },
+    {
+      "name": "Foodics",
+      "ats": "workable",
+      "token": "foodics"
+    },
+    {
+      "name": "Lucidya",
+      "ats": "workable",
+      "token": "lucidya"
+    },
+    {
+      "name": "Tamatem",
+      "ats": "workable",
+      "token": "tamatem"
+    },
+    {
+      "name": "Unifonic",
+      "ats": "recruitee",
+      "token": "unifonic"
+    },
+    {
+      "name": "bunq",
+      "ats": "recruitee",
+      "token": "bunq"
+    },
+    {
+      "name": "Fastned",
+      "ats": "recruitee",
+      "token": "fastned"
+    },
+    {
+      "name": "LINKIT",
+      "ats": "recruitee",
+      "token": "linkit"
+    },
+    {
+      "name": "CM.com",
+      "ats": "recruitee",
+      "token": "cmcom"
+    },
+    {
+      "name": "Mijndomein",
+      "ats": "recruitee",
+      "token": "mijndomein"
+    },
+    {
+      "name": "Channable",
+      "ats": "recruitee",
+      "token": "channable"
+    },
+    {
+      "name": "Vandebron",
+      "ats": "recruitee",
+      "token": "vandebron"
+    },
+    {
+      "name": "Nmbrs",
+      "ats": "recruitee",
+      "token": "nmbrs"
+    },
+    {
+      "name": "TicketSwap",
+      "ats": "recruitee",
+      "token": "ticketswap"
+    },
+    {
+      "name": "Effectory",
+      "ats": "recruitee",
+      "token": "effectory"
+    },
+    {
+      "name": "Shiftbase",
+      "ats": "recruitee",
+      "token": "shiftbase"
+    },
+    {
+      "name": "Eventix",
+      "ats": "recruitee",
+      "token": "eventix"
+    },
+    {
+      "name": "Coolblue",
+      "ats": "smartrecruiters",
+      "token": "coolblue"
+    },
+    {
+      "name": "Delivery Hero",
+      "ats": "smartrecruiters",
+      "token": "deliveryhero"
+    },
+    {
+      "name": "Namshi",
+      "ats": "smartrecruiters",
+      "token": "namshi"
+    },
+    {
+      "name": "Picnic",
+      "ats": "smartrecruiters",
+      "token": "picnic"
+    },
+    {
+      "name": "Polarsteps",
+      "ats": "ashby",
+      "token": "polarsteps"
+    },
+    {
+      "name": "Docplanner",
+      "ats": "ashby",
+      "token": "docplanner"
+    },
+    {
+      "name": "IMC Trading",
+      "ats": "greenhouse",
+      "token": "imc"
+    },
+    {
+      "name": "Dnata",
+      "ats": "recruitee",
+      "token": "dnata"
+    },
+    {
+      "name": "Almosafer",
+      "ats": "smartrecruiters",
+      "token": "almosafer"
+    },
+    {
+      "name": "Shipa",
+      "ats": "workable",
+      "token": "shipa"
+    },
+    {
+      "name": "Seera",
+      "ats": "smartrecruiters",
+      "token": "seera"
+    }
+  ],
+  "roleInclude": "engineer|developer|full.?stack|back.?end|front.?end|software|web|php|laravel|node|react",
+  "roleExclude": "data scien|machine learning|\\bml\\b|ios|android|mobile|\\bqa\\b|quality|\\btest|\\bsre\\b|site reliability|devops|platform engineer|infrastructure|security|\\binterns?(hip)?\\b|graduate|working student|trainee|manager|director|head of|\\bvp\\b|principal|sales|support|analyst|designer|embedded|hardware|firmware|golang|\\bgo\\b|\\bjava\\b|scala|rust|\\.net|c#|c\\+\\+|kotlin|swift|ruby|elixir|python|data engineer|solutions engineer|customer|account|advocate|value engineer|solutions? engineer|analytics|professional services|research|application engineer|sales engineer|support engineer|react native|wordpress|woocommerce|shopify|marketing|database engineer|dba\\b"
+}

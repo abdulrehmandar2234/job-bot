@@ -1,0 +1,20 @@
+{
+  "_help": "Facts for application-form answers that are not in the CV. Leave a value null and the AI writes [FILL: ...] instead of guessing.",
+  "currentLocation": "Lahore, Pakistan",
+  "languages": "English, Urdu",
+  "needsVisaSponsorship": "Yes, for onsite roles in UAE, Saudi Arabia and the Netherlands. No sponsorship needed for remote roles.",
+  "willingToRelocate": "Yes, to UAE, Saudi Arabia or the Netherlands",
+  "nationality": null,
+  "noticePeriod": null,
+  "earliestStartDate": null,
+  "currentSalary": null,
+  "expectedSalary": {
+    "AE": null,
+    "SA": null,
+    "NL": null,
+    "remote": null
+  },
+  "workingHoursForRemote": null,
+  "howDidYouHear": null,
+  "other": {}
+}

@@ -1,0 +1,21 @@
+{
+  "name": "job-bot",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Local job hunting bot: fetch jobs (UAE, Saudi, Netherlands), filter, score, pick CV version, track applications",
+  "scripts": {
+    "bot": "node --no-warnings --env-file-if-exists=.env src/cli.ts",
+    "web": "npm --prefix web run dev",
+    "test": "DATABASE_URL=postgres://postgres@127.0.0.1:5432/job_bot_test_bot node --no-warnings --test --test-concurrency=1 'tests/**/*.test.ts'",
+    "test:web": "npm --prefix web test",
+    "test:all": "npm test && npm run test:web"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "dependencies": {
+    "pg": "^8.23.1",
+    "playwright-core": "^1.64.1"
+  }
+}

@@ -1,0 +1,16 @@
+node_modules/
+web/node_modules/
+web/.next/
+*.tsbuildinfo
+.DS_Store
+
+# Secrets and local settings
+.env
+.env.*
+web/.env*.local
+
+# Personal data that stays on this Mac
+cv/applicant.json
+applications/
+data/
+cv/versions/

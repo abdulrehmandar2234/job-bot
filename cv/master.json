@@ -1,0 +1,102 @@
+{
+  "name": "Abdul Rehman Dar",
+  "title": "Senior Full Stack Engineer",
+  "contact": {
+    "phone": "+92 321 4979646",
+    "email": "abdulrehmandar2234@gmail.com",
+    "location": "Lahore, Pakistan",
+    "linkedin": "https://www.linkedin.com/in/abdulrehman-dar/"
+  },
+  "summary": "Senior Full Stack Engineer with 7+ years of experience designing and building scalable, high-performance web applications across the MERN stack (Node.js, NestJS, React, Next.js, MongoDB) and PHP/Laravel. Currently building LLM-powered recruitment features (AI screening and AI interviews) at Qureos on NestJS and Next.js, with prior fintech experience delivering KYC, portfolio management, and compliance features for a regulated robo-advisory platform in Laravel. Strong record of developing RESTful and GraphQL APIs, optimizing database performance, leading code reviews, and mentoring engineers in agile teams.",
+  "skills": [
+    { "group": "Languages & Runtimes", "items": ["PHP", "JavaScript", "TypeScript", "Node.js"] },
+    { "group": "Frameworks & Libraries", "items": ["Laravel", "Nest.js", "Express.js", "React.js", "Next.js", "Redux", "Vue.js", "Livewire", "Filament", "Inertia.js", "Alpine.js", "Tailwind CSS", "jQuery"] },
+    { "group": "Databases & ORMs", "items": ["MongoDB", "PostgreSQL", "MySQL", "Mongoose", "Sequelize", "TypeORM", "Prisma", "Eloquent"] },
+    { "group": "APIs & Web", "items": ["REST APIs", "GraphQL", "OAuth", "JWT", "Passport.js", "Web Scraping"] },
+    { "group": "AI Tools & Agentic Development", "items": ["OpenAI GPT APIs", "LLM feature development", "AI Agents", "Agent Skills", "Prompt Engineering", "Plugins", "Cursor", "Claude"] },
+    { "group": "DevOps & Tools", "items": ["AWS", "Docker", "Git", "Bitbucket", "Jira"] },
+    { "group": "Testing & Practices", "items": ["Pest", "PHPUnit", "Jest", "Mocha", "Unit & Integration Testing", "Agile/Scrum", "Code Review", "CI/CD"] }
+  ],
+  "experience": [
+    {
+      "role": "Senior Software Engineer",
+      "company": "Qureos",
+      "location": "Remote",
+      "dates": "Feb 2026 — Present",
+      "tags": ["nest", "next", "mern", "ai", "mongo"],
+      "bullets": [
+        "Serve as module owner of AI Screening and AI Interview on Qureos, an AI-powered recruitment platform built on the MERN stack with a NestJS back end, Next.js front end, and MongoDB — owning features end-to-end from PRD review and technical design through estimation, development, and release.",
+        "Build LLM-powered candidate screening using OpenAI GPT APIs that evaluates applicants against recruiter-defined criteria and ranks them automatically, helping recruiters shortlist significantly faster.",
+        "Engineered screening pipelines that handle bulk runs of up to 5,000–10,000 candidates per request, with credit/quota-based controls to keep per-candidate LLM costs predictable at scale.",
+        "Contribute technical specifications and effort estimations to PRDs, collaborating with product managers, designers, and engineers in an agile workflow to ship production-ready features.",
+        "Write automated unit and integration tests and participate in code reviews to uphold code quality and stability."
+      ]
+    },
+    {
+      "role": "Senior Software Engineer",
+      "company": "Abyan Capital",
+      "location": "",
+      "dates": "Jun 2024 — Dec 2025",
+      "tags": ["laravel", "php", "fintech"],
+      "bullets": [
+        "Built core investor-facing features for Abyan's robo-advisory investment platform using PHP/Laravel, including KYC onboarding, portfolio management, and CMA regulatory sections.",
+        "Translated business requirements into Jira tickets with technical breakdowns and estimations, delivering features through structured agile sprints alongside business and product teams.",
+        "Led code reviews and drove refactoring and optimization initiatives that improved performance and maintainability of the existing codebase.",
+        "Implemented security measures to protect sensitive financial data and support compliance with industry standards.",
+        "Debugged production issues and wrote automated tests to ensure application functionality and stability."
+      ]
+    },
+    {
+      "role": "Senior Software Engineer",
+      "company": "INVOZONE",
+      "location": "",
+      "dates": "Jan 2022 — Jun 2024",
+      "tags": ["laravel", "mern"],
+      "bullets": [
+        "Worked as a dedicated engineer outsourced directly to international clients, owning projects end-to-end across both Laravel and the MERN stack (Node.js, Express.js, React, MongoDB) — either independently with direct client collaboration or embedded within the client's existing team.",
+        "Vettted (freelance SEO marketplace): developed and maintained marketplace features supporting daily transactions between SEO freelancers and buyers.",
+        "Ticket Picker (event ticket management): built ticket and client-management workflows and integrated Skybox and ManyChat APIs for streamlined, personalized client communication.",
+        "The Good Goal (sustainability app): developed goal-tracking features surfacing weekly and cumulative environmental-impact progress to users.",
+        "Mentored junior developers on the bench and within project teams, promoting knowledge sharing and code quality."
+      ]
+    },
+    {
+      "role": "Software Engineer",
+      "company": "Ashlar Global",
+      "location": "",
+      "dates": "Apr 2021 — Dec 2021",
+      "tags": ["laravel", "mern", "react"],
+      "bullets": [
+        "Worked on Equipbid, an online auction marketplace serving Kansas, Missouri, and nationwide buyers and sellers of used equipment, machinery, vehicles, and furniture.",
+        "Delivered new auction features and scaled and improved existing modules to support a growing user base, using Laravel and the MERN stack.",
+        "Optimized database performance across MongoDB and MySQL, reducing response times and improving application efficiency.",
+        "Built responsive, user-friendly front-end interfaces with React and Redux, meeting usability and accessibility standards."
+      ]
+    },
+    {
+      "role": "Software Engineer",
+      "company": "Weanio Technologies",
+      "location": "",
+      "dates": "Mar 2019 — Mar 2021",
+      "tags": ["laravel", "php"],
+      "bullets": [
+        "Delivered server-side features across multiple client projects in a services environment, engineering performant, secure back-end logic with PHP/Laravel.",
+        "Improved application performance through caching strategies and database query optimization, reducing load times.",
+        "Designed user authentication and authorization systems using OAuth and JWT to strengthen security and protect user data.",
+        "Implemented unit and integration tests to improve code quality and reduce bugs."
+      ]
+    }
+  ],
+  "projects": [
+    { "name": "Qureos", "url": "https://www.qureos.com/", "tags": ["ai", "nest", "next", "mern"], "text": "An AI-powered job search and recruitment platform that connects job seekers with companies through intelligent matching and streamlined hiring workflows. Offers AI-matched job recommendations, one-click applications, and interview preparation for candidates, alongside AI-driven candidate screening and ranking that helps recruiters shortlist and hire faster." },
+    { "name": "Abyan Robo Advisory", "url": "https://www.abyancapital.sa/", "tags": ["laravel", "fintech"], "text": "A robo-advisory platform that automates investing by analyzing individual risk profiles and financial goals to build and manage diversified portfolios. Features include automated portfolio management and rebalancing, personalized investment plans, streamlined onboarding, real-time portfolio tracking, and access to multiple asset classes including sukuks, real estate, and local and international equities." },
+    { "name": "Vettted", "url": "https://vettted.com/", "tags": ["marketplace"], "text": "A freelance marketplace connecting SEO experts with buyers. Freelancers sign up to sell their SEO services while the platform facilitates daily transactions and growth opportunities for both freelancers and clients." },
+    { "name": "Ticket Picker", "url": "https://ticketrescue.com/", "tags": ["integrations"], "text": "A ticket-management platform that addresses limitations of existing ticketing systems such as Skybox, helping organize, track, and manage event tickets and client details in one place. Integrates with Skybox and ManyChat for streamlined communication and personalized client interactions." },
+    { "name": "The Good Goal", "url": "https://www.thegoodgoalapp.com/", "tags": ["mobile-web"], "text": "A sustainability app that challenges users to reduce their environmental impact, surfacing weekly and cumulative “Good Goals” achieved so users can track progress over time." },
+    { "name": "Equipbid", "url": "https://equip-bid.com/", "tags": ["marketplace", "laravel", "mern"], "text": "An online auction marketplace serving Kansas, Missouri, and nationwide for buying and selling used equipment, machinery, vehicles, furniture, and more." }
+  ],
+  "education": [
+    { "school": "University of Management & Technology", "degree": "Masters, Artificial Intelligence", "dates": "Oct 2025 — Present" },
+    { "school": "National College of Business Administration and Economics", "degree": "Bachelors, Information Technology", "dates": "Jan 2017 — Dec 2021" }
+  ]
+}
