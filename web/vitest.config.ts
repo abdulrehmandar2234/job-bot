@@ -16,5 +16,6 @@ export default defineConfig({
     setupFiles: ['tests/setup.ts'],
     // The test database is shared with the bot's own tests: one file at a time.
     fileParallelism: false,
+    coverage: { provider: 'v8', include: ['app/**', 'components/**', 'lib/**'], reporter: ['text-summary', 'html'] },
   },
 });

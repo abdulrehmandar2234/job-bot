@@ -67,7 +67,7 @@ export function cvHtml(cv: Cv): string {
 }
 
 export async function renderPdf(cv: Cv, outFile: string) {
-  const browser = await chromium.launch({ executablePath: config.chromePath, headless: true });
+  const browser = await chromium.launch({ executablePath: process.env.JOB_BOT_CHROME || config.chromePath, headless: true });
   try {
     const page = await browser.newPage();
     await page.setContent(cvHtml(cv), { waitUntil: 'load' });

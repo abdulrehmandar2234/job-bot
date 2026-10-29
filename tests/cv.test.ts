@@ -61,7 +61,7 @@ describe('CV template', () => {
     assert.match(html, /@page \{ size: A4/);
   });
 
-  it('renders a PDF with Chrome', { skip: !existsSync(config.chromePath) && 'Chrome not installed', timeout: 60_000 }, async () => {
+  it('renders a PDF with Chrome', { skip: !existsSync(process.env.JOB_BOT_CHROME || config.chromePath) && 'Chrome not installed', timeout: 60_000 }, async () => {
     const out = join(mkdtempSync(join(tmpdir(), 'jobbot-cv-')), config.cvFileName);
     await renderPdf(master, out);
     assert.equal(readFileSync(out).subarray(0, 5).toString(), '%PDF-');
