@@ -171,6 +171,57 @@ describe('company job boards (ATS)', () => {
     assert.ok(!net.calls.some((u) => u.includes('/p2') || u.includes('/p3')));
   });
 
+  it('smartrecruiters: a failed detail call skips that posting and keeps the rest, as a partial error', async () => {
+    const p = (id: string) => ({
+      id,
+      name: 'Senior Backend Engineer',
+      location: { fullLocation: 'Riyadh, Saudi Arabia' },
+      releasedDate: daysAgo(1),
+    });
+    net = mockFetch({
+      'postings?limit=100': { totalFound: 3, content: [p('p1'), p('p2'), p('p3')] },
+      'postings/p1': { postingUrl: 'https://s/p1', jobAd: { sections: {} } },
+      'postings/p3': { postingUrl: 'https://s/p3', jobAd: { sections: {} } },
+    });
+    const jobs = await fetchCompany(co('smartrecruiters'));
+    assert.deepEqual(
+      jobs.map((j) => j.id),
+      ['smartrecruiters:acme:p1', 'smartrecruiters:acme:p3'],
+    );
+    assert.match(jobs.partialError ?? '', /^partial: kept 2 postings; 1 of 3 details failed \(first: p2: .*404/);
+  });
+
+  it('smartrecruiters: a failed later list page keeps the postings already listed', async () => {
+    const p = (id: string) => ({
+      id,
+      name: 'Senior Backend Engineer',
+      location: { fullLocation: 'Riyadh, Saudi Arabia' },
+      releasedDate: daysAgo(1),
+    });
+    net = mockFetch({
+      'postings?limit=100&offset=0': { totalFound: 150, content: [p('p1')] },
+      'postings?limit=100&offset=100': () => new Response('', { status: 400 }),
+      'postings/p1': { postingUrl: 'https://s/p1', jobAd: { sections: {} } },
+    });
+    const jobs = await fetchCompany(co('smartrecruiters'));
+    assert.deepEqual(
+      jobs.map((j) => j.id),
+      ['smartrecruiters:acme:p1'],
+    );
+    assert.match(jobs.partialError ?? '', /list stopped after 1 postings: .*400/);
+  });
+
+  it('smartrecruiters: still throws when every detail call fails', async () => {
+    const p = (id: string) => ({
+      id,
+      name: 'Senior Backend Engineer',
+      location: { fullLocation: 'Riyadh, Saudi Arabia' },
+      releasedDate: daysAgo(1),
+    });
+    net = mockFetch({ 'postings?limit=100': { totalFound: 1, content: [p('p1')] } });
+    await assert.rejects(fetchCompany(co('smartrecruiters')), /1 of 1 details failed/);
+  });
+
   it('throws on HTTP errors so the fetch run records them', async () => {
     net = mockFetch({});
     await assert.rejects(fetchCompany(co('greenhouse')), /404/);
@@ -309,6 +360,32 @@ describe('remote boards', () => {
     assert.ok(net.calls.every((u) => u.includes('country=PK')));
   });
 
+  it('himalayas: a 429 on a later page keeps the pages already fetched and stops', async () => {
+    const now = Math.floor(Date.now() / 1000);
+    const hit = (slug: string) => ({
+      guid: `https://himalayas.app/companies/acme/jobs/${slug}`,
+      companyName: 'Acme',
+      title: 'Dev',
+      pubDate: now - 86400,
+    });
+    net = mockFetch({
+      'himalayas.app/jobs/api/search': (url: string) =>
+        /page=1$/.test(url) && url.includes('q=laravel') ? { jobs: [hit('a'), hit('b')] } : new Response('', { status: 429 }),
+    });
+    const jobs = await BOARDS.himalayas();
+    assert.deepEqual(
+      jobs.map((j) => j.id),
+      ['himalayas:acme/jobs/a', 'himalayas:acme/jobs/b'],
+    );
+    assert.match(jobs.partialError ?? '', /^partial: kept 2 postings, then .*429.*page=2/);
+    assert.ok(!net.calls.some((u) => u.includes('q=php')));
+  });
+
+  it('himalayas: a 429 on the very first page is still an error', async () => {
+    net = mockFetch({ 'himalayas.app': () => new Response('', { status: 429 }) });
+    await assert.rejects(BOARDS.himalayas(), /429/);
+  });
+
   it('remotive: marks unstated regions', async () => {
     net = mockFetch({
       'remotive.com': {
@@ -393,6 +470,21 @@ describe('arbeitnow', () => {
     assert.equal(jobs[0].source, 'arbeitnow');
     assert.equal(jobs[0].posted_at, new Date((now - 3600) * 1000).toISOString());
     assert.equal(net.calls.length, 2);
+  });
+
+  it('a failed later page keeps the earlier pages as a partial result', async () => {
+    net = mockFetch({
+      'arbeitnow.com/api/job-board-api': (url: string) =>
+        url.endsWith('page=1')
+          ? { data: [job('ams-dev', { location: 'Amsterdam' })], links: { next: 'https://www.arbeitnow.com/api/job-board-api?page=2' } }
+          : new Response('', { status: 404 }),
+    });
+    const jobs = await BOARDS.arbeitnow();
+    assert.deepEqual(
+      jobs.map((j) => j.id),
+      ['arbeitnow:ams-dev'],
+    );
+    assert.match(jobs.partialError ?? '', /404/);
   });
 
   it('stops paging once postings are older than maxAgeDays', async () => {
@@ -521,6 +613,40 @@ describe('linkedin (guest search)', () => {
     net = mockFetch({ linkedin: () => new Response('', { status: 429 }) });
     await assert.rejects(linkedin(), /429 LinkedIn rate limit: stopping LinkedIn for today/);
     assert.equal(net.calls.length, 1);
+  });
+
+  it('a 429 during the detail loop stops LinkedIn but keeps the details already fetched', async () => {
+    net = mockFetch({
+      'seeMoreJobPostings/search': (url: string) =>
+        new URL(url).searchParams.get('keywords') === 'laravel'
+          ? card('111', 'Laravel Developer') + card('333', 'PHP Developer') + card('444', 'Node Developer')
+          : '',
+      'jobPosting/111': '<div class="show-more-less-html__markup">Laravel</div>\n<button>',
+      'jobPosting/333': () => new Response('', { status: 429 }),
+      'jobPosting/444': '<div class="show-more-less-html__markup">Node</div>\n<button>',
+    });
+    const jobs = await linkedin();
+    assert.deepEqual(
+      jobs.map((j) => j.id),
+      ['linkedin:111'],
+    );
+    assert.match(jobs.partialError ?? '', /429 LinkedIn rate limit: stopping LinkedIn for today/);
+    assert.equal(net.calls.filter((u) => u.includes('jobPosting/333')).length, 1); // no retry
+    assert.ok(!net.calls.some((u) => u.includes('jobPosting/444')));
+  });
+
+  it('a detail that fails otherwise is skipped; the others are still fetched', async () => {
+    net = mockFetch({
+      'seeMoreJobPostings/search': (url: string) =>
+        new URL(url).searchParams.get('keywords') === 'laravel' ? card('111', 'Laravel Developer') + card('333', 'PHP Developer') : '',
+      'jobPosting/111': '<div class="show-more-less-html__markup">Laravel</div>\n<button>',
+    });
+    const jobs = await linkedin();
+    assert.deepEqual(
+      jobs.map((j) => j.id),
+      ['linkedin:111'],
+    );
+    assert.match(jobs.partialError ?? '', /1 details failed \(first: 333: .*404/);
   });
 
   it('still retries a LinkedIn 5xx and keeps its browser headers', async () => {

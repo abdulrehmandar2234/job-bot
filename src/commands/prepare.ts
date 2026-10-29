@@ -1,6 +1,6 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { config, path } from '../config.ts';
-import { getJob, pool, setStatus } from '../db.ts';
+import { getJob, pool, setStatus, type JobStatus } from '../db.ts';
 import { cvFile, versionFor } from '../cv/versions.ts';
 import { PROFILES } from '../cv/profiles.ts';
 import { coverLetter } from '../cover.ts';
@@ -8,6 +8,9 @@ import { aiCoverLetter } from '../ai.ts';
 import { isOpen } from '../sources/open.ts';
 import { record } from './open.ts';
 import { slug, today, type Flags } from './shared.ts';
+
+/** Statuses that `prepare` moves to `prepared`; later stages keep their status. */
+export const PREPARABLE: readonly JobStatus[] = ['new', 'filtered', 'skipped', 'expired'];
 
 /** Picks or builds the CV version and writes a cover letter. Does not apply. */
 export async function prepare(args: string[], flags: Flags) {
@@ -60,7 +63,11 @@ export async function prepare(args: string[], flags: Flags) {
   );
   await pool.query('UPDATE jobs SET cv_version = $2, cover_letter = $3, cover_letter_ai = $4 WHERE id = $1', [j.id, id, letter, aiLetter]);
   // Preparing a filtered/skipped/expired job is a manual override, so it moves into the pipeline too.
-  if (['new', 'filtered', 'skipped', 'expired'].includes(j.status)) await setStatus(j.id, 'prepared', `CV: ${id}`);
+  // j.status was read before the open check and the AI call (minutes); a status set meanwhile (e.g. applied) wins.
+  if (PREPARABLE.includes(j.status)) {
+    const moved = await setStatus(j.id, 'prepared', `CV: ${id}`, undefined, { expectFrom: PREPARABLE });
+    if (!moved) console.log(`Status changed meanwhile, left as ${(await getJob(j.id))?.status ?? j.status}.`);
+  }
   console.log(`${j.company} — ${j.title}`);
   console.log(`CV version : ${id}${created ? ' (newly generated)' : ''}`);
   if (id === 'default' && j.cluster && j.cluster !== 'default')

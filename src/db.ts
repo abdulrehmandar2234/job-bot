@@ -202,12 +202,26 @@ export const SKIP_REASONS = [
   'other',
 ] as const satisfies readonly SkipReason[];
 
-/** Changes a job's status and logs it in job_events, in one transaction. `reason` is kept only for skips. */
-export async function setStatus(id: string, status: JobStatus, note?: string, reason?: SkipReason) {
+/**
+ * Changes a job's status and logs it in job_events, in one transaction. `reason` is kept only for skips. With `expectFrom`, the change only applies when the current
+ * status (read under a row lock) is one of those statuses: bot steps pass the statuses they decided from, so a status
+ * the user set in the meantime is never overwritten. Returns whether the status was changed.
+ */
+export async function setStatus(
+  id: string,
+  status: JobStatus,
+  note?: string,
+  reason?: SkipReason,
+  { expectFrom }: { expectFrom?: readonly JobStatus[] } = {},
+): Promise<boolean> {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    const { rows } = await client.query<{ status: string }>('SELECT status FROM jobs WHERE id = $1 FOR UPDATE', [id]);
+    const { rows } = await client.query<{ status: JobStatus }>('SELECT status FROM jobs WHERE id = $1 FOR UPDATE', [id]);
+    if (expectFrom && !(rows[0] && expectFrom.includes(rows[0].status))) {
+      await client.query('ROLLBACK');
+      return false;
+    }
     // The note belongs to the history entry; jobs.notes is the user's own free-text field (edited in the dashboard).
     await client.query(
       `UPDATE jobs SET status = $2,
@@ -223,6 +237,7 @@ export async function setStatus(id: string, status: JobStatus, note?: string, re
       status === 'skipped' ? (reason ?? null) : null,
     ]);
     await client.query('COMMIT');
+    return true;
   } catch (e) {
     await client.query('ROLLBACK');
     throw e;
