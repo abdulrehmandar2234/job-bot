@@ -46,6 +46,12 @@ describe('CLI', () => {
     assert.ok(await getJob(id));
   });
 
+  it('points the HTTP cache outside the repo (tests/helpers.ts), so no test writes data/http-cache', () => {
+    const dir = process.env.JOB_BOT_HTTP_CACHE ?? '';
+    assert.ok(dir.startsWith(tmpdir()), dir);
+    assert.ok(!dir.startsWith(path()), dir);
+  });
+
   it('add scores matching jobs and explains filtered ones', async () => {
     const out = await bot(['add', '--file', addFile([posting(), posting({ url: 'https://www.bayt.com/2', title: 'Sales Manager' })])]);
     assert.match(out, /AE\s+new\s+Testco Cli — Senior Laravel Developer/);
