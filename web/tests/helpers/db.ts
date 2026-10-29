@@ -23,6 +23,7 @@ export async function insertJob(row: JobRow) {
     status: 'new', score: 50, ...row, id,
   };
   if (data.form_answers) data.form_answers = JSON.stringify(data.form_answers);
+  if (data.interview_prep) data.interview_prep = JSON.stringify(data.interview_prep);
   const cols = Object.keys(data);
   await pool.query(`INSERT INTO jobs (${cols.join(', ')}) VALUES (${cols.map((_, i) => `$${i + 1}`).join(', ')})`,
     cols.map((c) => data[c]));
