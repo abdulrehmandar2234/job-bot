@@ -3,10 +3,15 @@ import { render, screen, within } from '@testing-library/react';
 import { cloneElement, Fragment, isValidElement, type ReactElement, type ReactNode } from 'react';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import Page from '@/app/page';
-import { statusCounts, type Status } from '@/lib/db';
+import { pool, statusCounts, type Status } from '@/lib/db';
 import { cleanupDb, closeDb, daysAgo, ensureSchema, insertFetchRun, insertJob } from '../helpers/db';
 
-vi.mock('@/app/actions', () => ({ fetchNow: vi.fn(), setStatus: vi.fn(), prepare: vi.fn(), aiReview: vi.fn() }));
+vi.mock('@/app/actions', () => ({ fetchNow: vi.fn(), setStatus: vi.fn(), prepare: vi.fn(), aiReview: vi.fn(), dismissTask: vi.fn() }));
+// TaskWatcher (a client component) needs the app router; the page tests render outside Next.
+vi.mock('next/navigation', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('next/navigation')>()),
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
 
 /**
  * Page is a sync shell with async server components inside <Suspense> (the Dashboard, and the fetch warning in the
@@ -207,5 +212,20 @@ describe('job list page', () => {
     await renderPage({ q: 'no-such-company-xyz' });
     expect(screen.getByText('No jobs here.')).toBeInTheDocument();
     expect(cards()).toHaveLength(0);
+  });
+
+  it('shows running tasks and failures above the stats, and the job card in progress', async () => {
+    const job = await insertJob({ id: 'busy', title: 'TG busy', company: 'Busyco' });
+    await pool.query(`INSERT INTO tasks (kind, job_id, status) VALUES ('fetch', NULL, 'queued'), ('prepare', $1, 'queued')`, [job]);
+    await pool.query(`INSERT INTO tasks (kind, job_id, status, error) VALUES ('ai_review', $1, 'failed', 'Claude is offline')`, [job]);
+
+    await renderPage();
+    const working = screen.getAllByRole('status').find((s) => s.textContent!.startsWith('Working…'))!;
+    expect(working).toHaveTextContent('Fetching new jobs · Preparing CV + letter (Busyco — TG busy)');
+    expect(screen.getByRole('alert')).toHaveTextContent(/AI reviewing \(Busyco — TG busy\) failed\s*Claude is offline/);
+    const card = cards().find((li) => li.textContent!.includes('TG busy'))!;
+    expect(within(card).getByRole('status')).toHaveTextContent('Preparing CV + letter…');
+    expect(within(card).queryByRole('button', { name: 'Prepare CV + letter' })).not.toBeInTheDocument();
+    expect(within(card).getByRole('button', { name: 'AI review' })).toBeInTheDocument();
   });
 });

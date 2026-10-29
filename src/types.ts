@@ -73,3 +73,24 @@ export type JobEvent = { id: number; at: Date; from_status: string | null; to_st
 
 /** One row of `fetch_runs` (the dashboard reads the fields below). */
 export type FetchRun = { started_at: Date; finished_at: Date | null; checked: number; inserted: number; new_matches: number };
+
+/** A background task kind: what `task:run` runs (src/tasks.ts). */
+export type TaskKind = 'fetch' | 'prepare' | 'ai_review' | 'answers' | 'rescore';
+export type TaskStatus = 'queued' | 'running' | 'done' | 'failed';
+
+/** One row of `tasks`. `args` holds the command's options, e.g. { cv } for prepare or { questions } for answers. */
+export type Task = {
+  id: number;
+  kind: TaskKind;
+  job_id: string | null;
+  args: Record<string, string>;
+  status: TaskStatus;
+  output: string | null;
+  error: string | null;
+  pid: number | null;
+  dismissed: boolean;
+  created_at: Date;
+  started_at: Date | null;
+  deadline: Date | null;
+  finished_at: Date | null;
+};

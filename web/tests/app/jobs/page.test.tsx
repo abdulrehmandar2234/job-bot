@@ -8,6 +8,12 @@ import { cleanupDb, closeDb, ensureSchema, insertJob, PREFIX } from '../../helpe
 
 vi.mock('@/app/actions', () => ({
   setStatus: vi.fn(), prepare: vi.fn(), aiReview: vi.fn(), saveNotes: vi.fn(), draftAnswers: vi.fn(), clearAnswers: vi.fn(),
+  dismissTask: vi.fn(),
+}));
+// TaskWatcher (a client component) needs the app router; the page tests render outside Next.
+vi.mock('next/navigation', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('next/navigation')>()),
+  useRouter: () => ({ refresh: vi.fn() }),
 }));
 
 /**
@@ -96,5 +102,51 @@ describe('job page', () => {
     await insertJob({ id: 'page:with/slash', title: 'Encoded' });
     await renderJob(PREFIX + 'page:with/slash');
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Encoded');
+  });
+
+  describe('background tasks', () => {
+    const addTask = (kind: string, status = 'running', error: string | null = null) => pool.query(
+      `INSERT INTO tasks (kind, job_id, status, error, deadline) VALUES ($1, $2, $3, $4, now() + interval '5 minutes')`,
+      [kind, id, status, error]);
+    const statuses = () => screen.queryAllByRole('status').map((s) => s.textContent);
+
+    it('shows "Preparing CV + letter…" and "Drafting answers…" in place of the buttons while they run', async () => {
+      await insertJob({ id });
+      await addTask('prepare');
+      await addTask('answers', 'queued');
+      await renderJob(id);
+      expect(statuses()).toEqual(['Working… Preparing CV + letter · Drafting answers', 'Preparing CV + letter…', 'Drafting answers…']);
+      expect(screen.queryByRole('button', { name: 'Prepare CV + letter' })).not.toBeInTheDocument();
+      expect(within(answersSection()).queryByRole('button', { name: 'Draft answers' })).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'AI review' })).toBeInTheDocument();
+    });
+
+    it('shows "Rewriting letter…" for a prepared job', async () => {
+      await insertJob({ id, cv_version: 'default', cover_letter: 'Dear Acme' });
+      await addTask('prepare');
+      await renderJob(id);
+      expect(screen.queryByRole('button', { name: 'Rewrite letter' })).not.toBeInTheDocument();
+      expect(statuses()).toContain('Rewriting letter…');
+    });
+
+    it('shows the buttons again once the task is done, and only this job\'s tasks', async () => {
+      await insertJob({ id });
+      await insertJob({ id: 'page-other' });
+      await addTask('prepare', 'done');
+      await pool.query(`INSERT INTO tasks (kind, job_id) VALUES ('answers', $1), ('fetch', NULL)`, [PREFIX + 'page-other']);
+      await renderJob(id);
+      expect(statuses()).toEqual([]);
+      expect(screen.getByRole('button', { name: 'Prepare CV + letter' })).toBeInTheDocument();
+      expect(within(answersSection()).getByRole('button', { name: 'Draft answers' })).toBeInTheDocument();
+    });
+
+    it('shows a failure with its error and a dismiss button', async () => {
+      await insertJob({ id });
+      await addTask('answers', 'failed', 'Claude is offline');
+      await renderJob(id);
+      const alert = screen.getByRole('alert');
+      expect(alert).toHaveTextContent(/^Drafting answers failed\s*Claude is offline\s*Dismiss$/);
+      expect(within(answersSection()).getByRole('button', { name: 'Draft answers' })).toBeInTheDocument();
+    });
   });
 });

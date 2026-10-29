@@ -32,6 +32,7 @@ const commands: Record<string, () => Promise<Command>> = {
   versions: async () => (await import('./commands/cv.ts')).versions,
   'settings:check': async () => (await import('./commands/settings.ts')).settingsCheck,
   'settings:save': async () => (await import('./commands/settings.ts')).settingsSave,
+  'task:run': async () => (await import('./commands/task.ts')).taskRun,
 };
 // Commands that only touch files: no database connection or migrations.
 const NO_DB = ['settings:check', 'settings:save'];
@@ -57,7 +58,8 @@ if (!load) {
   versions                        list CV versions and usage
   stats
   settings:check --kind config|applicant [--file x.json]   validate settings (JSON result)
-  settings:save --kind config|applicant [--file x.json]    validate, then save if valid`);
+  settings:save --kind config|applicant [--file x.json]    validate, then save if valid
+  task:run <id>                   run a queued background task (the dashboard starts these)`);
 } else {
   try {
     const run = await load();

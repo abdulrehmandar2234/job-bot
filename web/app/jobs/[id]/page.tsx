@@ -3,9 +3,11 @@ import { notFound } from 'next/navigation';
 import { Suspense } from 'react';
 import { clearAnswers, draftAnswers, prepare, saveNotes } from '@/app/actions';
 import { getJob, jobEvents, postingsFor } from '@/lib/db';
+import { isActive, openTasks } from '@/lib/tasks';
 import { CopyButton, SubmitButton } from '@/components/client';
 import { JobActions } from '@/components/job-actions';
 import { InterviewPrep } from '@/components/interview-prep';
+import { Busy, TaskBar } from '@/components/tasks';
 import { AiReview, Chips, COUNTRIES, fmtDate, Posted, PostedOn, Score, STATUS_LABEL } from '@/components/ui';
 
 export default function Page(props: PageProps<'/jobs/[id]'>) {
@@ -21,8 +23,9 @@ export default function Page(props: PageProps<'/jobs/[id]'>) {
 
 async function JobDetail({ params }: { params: PageProps<'/jobs/[id]'>['params'] }) {
   const id = decodeURIComponent((await params).id);
-  const [job, events] = await Promise.all([getJob(id), jobEvents(id)]);
+  const [job, events, tasks] = await Promise.all([getJob(id), jobEvents(id), openTasks(id)]);
   if (!job) notFound();
+  const busy = tasks.filter(isActive).map((t) => t.kind);
   const primaryId = job.duplicate_of ?? job.id;
   const postings = (await postingsFor([primaryId])).get(primaryId) ?? [];
   const answers = job.form_answers ?? [];
@@ -44,7 +47,9 @@ async function JobDetail({ params }: { params: PageProps<'/jobs/[id]'>['params']
         </div>
       </header>
 
-      <JobActions job={job} />
+      <TaskBar tasks={tasks} job={job.id} />
+
+      <JobActions job={job} busy={busy} />
 
       <AiReview job={job} />
 
@@ -66,11 +71,13 @@ async function JobDetail({ params }: { params: PageProps<'/jobs/[id]'>['params']
                 {job.cover_letter_ai ? '· written by AI from this job description' : '· template'}</span>
             </h2>
             <div className="flex gap-2">
-              <form action={prepare}>
-                <input type="hidden" name="id" value={job.id} />
-                {job.cv_version && <input type="hidden" name="cv" value={job.cv_version} />}
-                <SubmitButton pendingText="Rewriting… (~20s)">Rewrite letter</SubmitButton>
-              </form>
+              {busy.includes('prepare') ? <Busy>Rewriting letter…</Busy> : (
+                <form action={prepare}>
+                  <input type="hidden" name="id" value={job.id} />
+                  {job.cv_version && <input type="hidden" name="cv" value={job.cv_version} />}
+                  <SubmitButton pendingText="Starting…">Rewrite letter</SubmitButton>
+                </form>
+              )}
               <CopyButton text={job.cover_letter} />
             </div>
           </div>
@@ -115,7 +122,9 @@ async function JobDetail({ params }: { params: PageProps<'/jobs/[id]'>['params']
           <input type="hidden" name="id" value={job.id} />
           <textarea name="questions" rows={4} required className="input w-full"
             placeholder={'Paste the questions from the application form, e.g.\nHow many years of experience do you have with Laravel?\nDo you require visa sponsorship? Yes / No\nWhy do you want to work with us?'} />
-          <SubmitButton pendingText="AI writing answers… (~15s)">Draft answers</SubmitButton>
+          {busy.includes('answers')
+            ? <Busy>Drafting answers…</Busy>
+            : <SubmitButton pendingText="Starting…">Draft answers</SubmitButton>}
         </form>
       </section>
 

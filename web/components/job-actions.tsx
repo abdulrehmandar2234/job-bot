@@ -1,9 +1,11 @@
 import { aiReview, prepare, setStatus } from '@/app/actions';
 import type { Job } from '@/lib/db';
+import type { TaskKind } from '@/lib/tasks';
 import { SubmitButton } from './client';
+import { Busy } from './tasks';
 
-/** Buttons shown for a job, depending on where it is in the pipeline. */
-export function JobActions({ job }: { job: Job }) {
+/** Buttons shown for a job, depending on where it is in the pipeline. `busy`: the job's running background tasks. */
+export function JobActions({ job, busy = [] }: { job: Job; busy?: readonly TaskKind[] }) {
   const status = (to: string, label: string, extra = '') => (
     <form action={setStatus}>
       <input type="hidden" name="id" value={job.id} />
@@ -16,19 +18,21 @@ export function JobActions({ job }: { job: Job }) {
     <div className="flex flex-wrap items-center gap-2">
       <a href={job.url} target="_blank" rel="noreferrer" className="btn btn-primary">Open job ↗</a>
 
-      {job.cv_version ? (
+      {busy.includes('prepare') ? (
+        <Busy>Preparing CV + letter…</Busy>
+      ) : job.cv_version ? (
         <a href={`/api/cv/${job.cv_version}`} target="_blank" className="btn">CV ({job.cv_version})</a>
       ) : (
         <form action={prepare}>
           <input type="hidden" name="id" value={job.id} />
-          <SubmitButton pendingText="AI writing letter… (~20s)">{job.status === 'filtered' ? 'Prepare anyway' : 'Prepare CV + letter'}</SubmitButton>
+          <SubmitButton pendingText="Starting…">{job.status === 'filtered' ? 'Prepare anyway' : 'Prepare CV + letter'}</SubmitButton>
         </form>
       )}
 
-      {job.ai_score == null && (
+      {busy.includes('ai_review') ? <Busy>AI reviewing…</Busy> : job.ai_score == null && (
         <form action={aiReview}>
           <input type="hidden" name="id" value={job.id} />
-          <SubmitButton pendingText="AI reviewing… (~15s)">AI review</SubmitButton>
+          <SubmitButton pendingText="Starting…">AI review</SubmitButton>
         </form>
       )}
 
