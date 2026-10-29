@@ -198,7 +198,9 @@ npm run bot -- prepare <id> [--cv laravel] [--template]
 npm run bot -- answer <id> [--file q.txt] [--clear]
 npm run bot -- prep <id>                      # AI interview prep (questions, STAR stories, brief, gaps)
 npm run bot -- custom <id> --overrides o.json # one-off CV for a single job
-npm run bot -- mark <id> applied|interview|offer|rejected|skipped ["note"]
+npm run bot -- mark <id> applied|interview|offer|rejected|skipped ["note"] [--reason stack|seniority|salary|location|company|language|other]
+npm run bot -- contacts <id>                  # a job's contacts, plus people you know at the same company
+npm run bot -- contact:add <id> --name "Jane" [--role recruiter] [--email x] [--linkedin https://...] [--referral "to ask"]
 npm run bot -- add [--file job.json]          # add a job manually (JSON or stdin)
 npm run bot -- discover <company...> [--add]
 npm run bot -- cv:default | cv:build [cluster...] | versions
