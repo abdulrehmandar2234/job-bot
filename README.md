@@ -309,4 +309,4 @@ npm run typecheck    # tsc for the bot (src/, tests/) and the dashboard (web/)
 
 ## Roadmap
 
-See [ROADMAP.md](ROADMAP.md) for improvement ideas.
+See [ROADMAP.md](ROADMAP.md) for what is done and what is still open.
