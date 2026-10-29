@@ -53,3 +53,20 @@ export function describeResult(r) {
 export function missingFields(job) {
   return ['title', 'company', 'url'].filter((k) => !String(job?.[k] ?? '').trim());
 }
+
+/**
+ * Downloads the prepared CV PDF for a form's CV field. Resolves to { name, type, base64 } or null when it cannot
+ * be read (the panel then fills everything else).
+ */
+export async function fetchCv(url, name = 'CV.pdf', fetchImpl = fetch) {
+  try {
+    const res = await fetchImpl(url);
+    if (!res.ok) return null;
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    let bin = '';
+    for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+    return { name, type: 'application/pdf', base64: btoa(bin) };
+  } catch {
+    return null;
+  }
+}

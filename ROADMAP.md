@@ -21,7 +21,7 @@ Nothing planned right now. Ideas from real use go here.
 - **ATS keyword check:** `bot ats <id>` and on the job page (src/ats.ts).
 - **Salary extraction:** src/salary.ts; shown on cards, minimum-salary filter on the job list.
 - **Contacts per job:** `bot contacts` / `contact:add`, and on the job page with referral reminders.
-- **Chrome extension:** `extension/` (send a job, apply helper side panel; never fills in forms).
+- **Chrome extension:** `extension/` (send a job, apply helper side panel, form auto-fill that never submits).
 
 ### Code and architecture
 

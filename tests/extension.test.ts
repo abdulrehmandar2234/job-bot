@@ -1,7 +1,8 @@
 // Pure logic of the Chrome extension (extension/lib/*.js): no browser, no chrome.* and no dashboard needed.
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { describeResult, lookupJob, missingFields, OFFLINE, sendJob } from '../extension/lib/api.js';
+import { describeResult, fetchCv, lookupJob, missingFields, OFFLINE, sendJob } from '../extension/lib/api.js';
+import { pickOption, planFill, similarity, splitName } from '../extension/lib/fill.js';
 import { findJobPosting, guessFromTitle, jobFromPage, jobFromPosting, postingLocation } from '../extension/lib/jobposting.js';
 import { cleanText, decodeEntities, htmlToText } from '../extension/lib/text.js';
 import { isHttpUrl, normalizeUrl, sourceFromUrl } from '../extension/lib/url.js';
@@ -272,5 +273,174 @@ describe('api', () => {
   it('lists missing required fields', () => {
     assert.deepEqual(missingFields(job), []);
     assert.deepEqual(missingFields({ ...job, title: '  ', company: undefined }), ['title', 'company']);
+  });
+});
+
+// ---- auto-fill planning (lib/fill.js): which empty field gets which value; nothing is ever submitted ----
+
+describe('auto-fill plan', () => {
+  const field = (index: number, over: Record<string, unknown> = {}) => ({
+    index,
+    tag: 'input',
+    type: 'text',
+    label: '',
+    aria: '',
+    placeholder: '',
+    name: '',
+    id: '',
+    autocomplete: '',
+    empty: true,
+    options: [],
+    ...over,
+  });
+  const data = {
+    profile: {
+      name: 'Sara Ann Khan',
+      email: 'sara@example.com',
+      phone: '+971 50 000 0000',
+      linkedin: 'https://linkedin.com/in/sara',
+      location: 'Dubai, UAE',
+    },
+    cover_letter: 'Dear Acme Hiring Team, ...',
+    answers: [
+      { question: 'Why do you want to work at Acme?', answer: 'Because of the payments platform.', needs_input: false, note: '' },
+      { question: 'What is your notice period?', answer: '[FILL: notice period]', needs_input: true, note: '' },
+      { question: 'Years of experience with Laravel', answer: '7', needs_input: false, note: '' },
+    ],
+    cv: { name: 'Sara_Khan_CV.pdf', type: 'application/pdf', base64: 'JVBERi0=' },
+  };
+
+  it('splits a full name into first and last', () => {
+    assert.deepEqual(splitName('Abdul Rehman Dar'), { first: 'Abdul Rehman', last: 'Dar' });
+    assert.deepEqual(splitName('  Cher '), { first: 'Cher', last: '' });
+    assert.deepEqual(splitName(undefined), { first: '', last: '' });
+  });
+
+  it('fills profile fields by label, name attribute or autocomplete, last name before name', () => {
+    const { fills } = planFill(
+      [
+        field(0, { label: 'First Name' }),
+        field(1, { name: 'job_application[last_name]' }),
+        field(2, { label: 'Name' }),
+        field(3, { type: 'email', label: 'Email address' }),
+        field(4, { type: 'tel', autocomplete: 'tel' }),
+        field(5, { label: 'LinkedIn Profile' }),
+        field(6, { placeholder: 'Current location' }),
+        field(7, { autocomplete: 'given-name', label: 'Something odd' }),
+      ],
+      data,
+    );
+    assert.deepEqual(
+      fills.map((f) => [f.index, f.value, f.source]),
+      [
+        [0, 'Sara Ann', 'profile'],
+        [1, 'Khan', 'profile'],
+        [2, 'Sara Ann Khan', 'profile'],
+        [3, 'sara@example.com', 'profile'],
+        [4, '+971 50 000 0000', 'profile'],
+        [5, 'https://linkedin.com/in/sara', 'profile'],
+        [6, 'Dubai, UAE', 'profile'],
+        [7, 'Sara Ann', 'profile'],
+      ],
+    );
+  });
+
+  it('puts the cover letter only in a textarea, drafted answers by question, and the CV in a resume file input', () => {
+    const { fills, skipped } = planFill(
+      [
+        field(0, { tag: 'textarea', type: 'textarea', label: 'Cover Letter' }),
+        field(1, { label: 'Cover letter (link)' }),
+        field(2, { tag: 'textarea', type: 'textarea', label: 'Why do you want to work at Acme?' }),
+        field(3, { label: 'Notice period' }),
+        field(4, { type: 'file', label: 'Resume/CV' }),
+        field(5, { type: 'file', label: 'Portfolio' }),
+      ],
+      data,
+    );
+    assert.deepEqual(
+      fills.map((f) => [f.index, f.kind, f.source]),
+      [
+        [0, 'text', 'cover letter'],
+        [2, 'text', 'answer'],
+        [4, 'file', 'CV'],
+      ],
+    );
+    // The notice-period answer needs the user's input, so it is left for them.
+    assert.deepEqual(skipped, ['Cover letter (link)', 'Notice period']);
+  });
+
+  it('never touches filled fields, checkboxes, radios, passwords or hidden inputs', () => {
+    const { fills } = planFill(
+      [
+        field(0, { label: 'Email', empty: false }),
+        field(1, { type: 'checkbox', label: 'Email me updates' }),
+        field(2, { type: 'radio', label: 'Email' }),
+        field(3, { type: 'password', label: 'Email password' }),
+        field(4, { type: 'hidden', name: 'email' }),
+        field(5, { type: 'submit', label: 'Submit' }),
+      ],
+      data,
+    );
+    assert.deepEqual(fills, []);
+  });
+
+  it('picks a select option that matches, and skips the select otherwise', () => {
+    const options = [
+      { value: '', text: 'Select…' },
+      { value: '1', text: '0-2 years' },
+      { value: '7', text: '7' },
+    ];
+    const { fills, skipped } = planFill(
+      [
+        field(0, { tag: 'select', type: 'select', label: 'Years of experience with Laravel', options }),
+        field(1, { tag: 'select', type: 'select', label: 'Location', options }),
+      ],
+      data,
+    );
+    assert.deepEqual(fills, [{ index: 0, kind: 'select', value: '7', label: 'Years of experience with Laravel', source: 'answer' }]);
+    assert.deepEqual(skipped, ['Location']);
+    assert.equal(pickOption([{ value: 'ae', text: 'United Arab Emirates' }], 'united arab emirates'), 'ae');
+    assert.equal(pickOption([{ value: 'x', text: 'Yes' }], ''), null);
+  });
+
+  it('uses each drafted answer once, and needs a close question match', () => {
+    assert.ok(similarity('Why do you want to work at Acme?', 'Why do you want to work at Acme') === 1);
+    assert.ok(similarity('Phone', 'Why do you want to work at Acme?') === 0);
+    const { fills } = planFill(
+      [
+        field(0, { tag: 'textarea', type: 'textarea', label: 'Why do you want to work at Acme?' }),
+        field(1, { tag: 'textarea', type: 'textarea', label: 'Why Acme? Why do you want to work here' }),
+        field(2, { label: 'Tell us about a project' }),
+      ],
+      data,
+    );
+    assert.deepEqual(
+      fills.map((f) => f.index),
+      [0],
+    );
+  });
+
+  it('fills nothing from a missing profile value or without a CV', () => {
+    const { fills } = planFill([field(0, { label: 'Phone' }), field(1, { type: 'file', label: 'Resume' })], {
+      profile: { name: 'Sara Khan', phone: '' },
+      answers: [],
+      cv: null,
+    });
+    assert.deepEqual(fills, []);
+  });
+});
+
+describe('fetchCv', () => {
+  it('returns the PDF as base64 with its file name, or null when it cannot be read', async () => {
+    const pdf = new TextEncoder().encode('%PDF-');
+    const ok = await fetchCv('http://localhost:3100/api/cv/default?download', 'Sara_CV.pdf', async () => new Response(pdf));
+    assert.deepEqual(ok, { name: 'Sara_CV.pdf', type: 'application/pdf', base64: 'JVBERi0=' });
+    assert.equal(await fetchCv('x', 'a.pdf', async () => new Response('no', { status: 404 })), null);
+    assert.equal(
+      await fetchCv('x', 'a.pdf', async () => {
+        throw new TypeError('offline');
+      }),
+      null,
+    );
   });
 });

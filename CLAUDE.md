@@ -5,6 +5,7 @@ Local job-search helper: Node CLI bot (`src/`, TypeScript run directly by Node 2
 ## Rules
 
 - The bot never applies to a job. It finds, scores and prepares (CV, cover letter, form answers). The user applies himself.
+- The Chrome extension may type prepared values into empty form fields when the user clicks "Fill this form". It never overwrites a filled field, never clicks a button and never submits a form.
 - Prefer public APIs over scraping, and pace requests (`src/sources/http.ts` `sleep`) so no site blocks the bot. Never automate logins, account creation or CAPTCHAs.
 - Every new feature or edit ships with tests in the same change:
   - Backend: `tests/*.test.ts` (node:test), run with `npm test` (database `job_bot_test_bot`).

@@ -1,5 +1,6 @@
 import type { NextRequest } from 'next/server';
-import { findJobByUrl, isExtensionOrigin, isHttpUrl } from '@/lib/extension';
+import { cvFileName } from '@/lib/bot';
+import { fillProfile, findJobByUrl, isExtensionOrigin, isHttpUrl } from '@/lib/extension';
 
 // The Chrome extension's "Apply helper" side panel asks here which job the open tab is, and what was prepared for it.
 // Only the extension may read this (cover letters and answers are personal); web pages cannot forge Origin.
@@ -33,9 +34,11 @@ export async function GET(req: NextRequest) {
     ai_summary: j.ai_summary,
     cv_version: j.cv_version,
     cv_url: j.cv_version ? `${base}/api/cv/${encodeURIComponent(j.cv_version)}?download` : null,
+    cv_file_name: cvFileName(),
     cover_letter: j.cover_letter,
     form_answers: j.form_answers ?? [],
     dashboard_url: `${base}/jobs/${encodeURIComponent(j.id)}`,
+    profile: fillProfile(), // for "Fill this form": typed only into empty fields, never submitted
   };
   return Response.json({ job }, { headers: { ...cors(origin), 'cache-control': 'no-store' } });
 }
