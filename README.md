@@ -188,6 +188,7 @@ npm run bot -- add [--file job.json]          # add a job manually (JSON or stdi
 npm run bot -- discover <company...> [--add]
 npm run bot -- cv:default | cv:build [cluster...] | versions
 npm run bot -- sponsors:update | stats | dedupe
+npm run bot -- settings:check|settings:save --kind config|applicant [--file x.json]  # validate (and save) settings, JSON result
 ```
 
 `add` JSON format:
@@ -226,14 +227,19 @@ launchctl bootout gui/$(id -u)/com.abdulrehman.job-bot.fetch
 | `ai`                        | Claude path, models, `maxScorePerRun`, concurrency            |
 | `cvFileName`, `autoCvVersions`, `chromePath` | CV output settings                           |
 
+Both files are validated on load, so a typo stops the bot with the file and field name. Set `JOB_BOT_CONFIG` / `JOB_BOT_APPLICANT` to use other files.
+
 After changing filters, run `npm run bot -- rescore`.
 
 ## Project structure
 
 ```
 src/
-  cli.ts            command entry point
+  cli.ts            command entry point: flags, command registry, dedupe after changes
+  commands/         one file per command (or small group of related commands)
   config.ts         loads config.json
+  settings.ts       zod schemas for config.json and cv/applicant.json
+  types.ts          row types shared with the dashboard
   match.ts          filters, keyword score, CV cluster
   db.ts             Postgres access, upsert, status changes, dedupe
   migrate.ts        migration runner (applied on start)

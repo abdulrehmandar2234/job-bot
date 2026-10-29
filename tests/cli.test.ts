@@ -1,9 +1,9 @@
 import { after, before, beforeEach, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
 import { daysAgo, TEST_DB } from './helpers.ts';
 import { getJob, migrate, pool } from '../src/db.ts';
@@ -150,5 +150,93 @@ describe('CLI', () => {
 
   it('prints help for unknown commands', async () => {
     assert.match(await bot(['nope']), /Commands:[\s\S]*answer <id>/);
+  });
+});
+
+// Exit code and output of a run that may fail.
+const botExit = (args: string[], env: Record<string, string> = {}) => bot(args, env).then(
+  (stdout) => ({ code: 0, stdout, stderr: '' }),
+  (e: { code: number; stdout: string; stderr: string }) => ({ code: e.code, stdout: e.stdout, stderr: e.stderr }));
+
+describe('CLI settings', () => {
+  // Never the worktree's own config.json / cv/applicant.json: JOB_BOT_CONFIG / JOB_BOT_APPLICANT point at temp copies.
+  const realConfig = readFileSync(path('config.json'), 'utf8');
+  const target = () => {
+    const d = mkdtempSync(join(tmp, 'settings-'));
+    const config = join(d, 'config.json');
+    writeFileSync(config, realConfig);
+    return { config, applicant: join(d, 'applicant.json'), env: { JOB_BOT_CONFIG: config, JOB_BOT_APPLICANT: join(d, 'applicant.json') } };
+  };
+  const json = (o: unknown) => { const f = join(tmp, `in-${Math.random()}.json`); writeFileSync(f, JSON.stringify(o)); return f; };
+  const badConfig = () => ({ ...JSON.parse(realConfig), maxAgeDays: 'two weeks' });
+
+  it('settings:check prints {ok:true} for a valid file and errors with paths for a bad one', async () => {
+    const t = target();
+    const ok = await botExit(['settings:check', '--kind', 'config', '--file', t.config], t.env);
+    assert.deepEqual([ok.code, JSON.parse(ok.stdout)], [0, { ok: true }]);
+    const bad = await botExit(['settings:check', '--kind', 'config', '--file', json(badConfig())], t.env);
+    assert.equal(bad.code, 1);
+    assert.deepEqual(JSON.parse(bad.stdout), { ok: false, errors: [{ path: 'maxAgeDays', message: 'Invalid input: expected number, received string' }] });
+    const example = await botExit(['settings:check', '--kind', 'applicant', '--file', path('cv', 'applicant.example.json')], t.env);
+    assert.deepEqual(JSON.parse(example.stdout), { ok: true });
+  });
+
+  it('settings:check reports bad --kind, missing files and invalid JSON as JSON errors', async () => {
+    const t = target();
+    const kind = await botExit(['settings:check', '--kind', 'cv', '--file', t.config], t.env);
+    assert.deepEqual([kind.code, JSON.parse(kind.stdout).errors[0].path], [1, '--kind']);
+    const missing = await botExit(['settings:check', '--kind', 'config', '--file', join(tmp, 'nope.json')], t.env);
+    assert.deepEqual([missing.code, JSON.parse(missing.stdout).errors[0].path], [1, '--file']);
+    const f = join(tmp, 'broken.json');
+    writeFileSync(f, '{ "minScore": ');
+    const broken = await botExit(['settings:check', '--kind', 'config', '--file', f], t.env);
+    assert.equal(broken.code, 1);
+    assert.match(JSON.parse(broken.stdout).errors[0].message, /^invalid JSON/);
+  });
+
+  it('settings:save replaces the target only when valid', async () => {
+    const t = target();
+    const changed = { ...JSON.parse(realConfig), minScore: 61 };
+    const saved = await botExit(['settings:save', '--kind', 'config', '--file', json(changed)], t.env);
+    assert.deepEqual([saved.code, JSON.parse(saved.stdout)], [0, { ok: true }]);
+    assert.equal(readFileSync(t.config, 'utf8'), JSON.stringify(changed, null, 2) + '\n');
+
+    const refused = await botExit(['settings:save', '--kind', 'config', '--file', json(badConfig())], t.env);
+    assert.equal(refused.code, 1);
+    assert.equal(JSON.parse(readFileSync(t.config, 'utf8')).minScore, 61);
+    assert.deepEqual(readdirSync(dirname(t.config)), ['config.json']); // no temp file left behind
+  });
+
+  it('settings:save --kind applicant writes the applicant file, from stdin too', async () => {
+    const t = target();
+    const facts = { noticePeriod: '1 month', expectedSalary: { AE: 'AED 25,000' } };
+    const p = run(process.execPath, ['--no-warnings', 'src/cli.ts', 'settings:save', '--kind', 'applicant'], {
+      cwd: path(), env: { ...process.env, ...t.env },
+    });
+    p.child.stdin!.end(JSON.stringify(facts));
+    assert.deepEqual(JSON.parse((await p).stdout), { ok: true });
+    assert.deepEqual(JSON.parse(readFileSync(t.applicant, 'utf8')), facts);
+  });
+
+  it('an invalid config.json stops other commands with the file and field, but settings commands still work', async () => {
+    const t = target();
+    writeFileSync(t.config, JSON.stringify(badConfig()));
+    const list = await botExit(['list'], t.env);
+    assert.equal(list.code, 1);
+    assert.ok(list.stderr.includes(`Invalid settings file ${t.config}:\n  - maxAgeDays: Invalid input: expected number`));
+    const fixed = await botExit(['settings:save', '--kind', 'config', '--file', json(JSON.parse(realConfig))], t.env);
+    assert.deepEqual(JSON.parse(fixed.stdout), { ok: true });
+    assert.equal((await botExit(['list'], t.env)).code, 0);
+  });
+
+  it('answer refuses an invalid applicant file with a clear message', async () => {
+    const t = target();
+    writeFileSync(t.applicant, JSON.stringify({ noticePeriod: ['1 month'] }));
+    const id = idOf(await bot(['add', '--file', addFile([posting()])]));
+    const q = join(tmp, 'q-applicant.txt');
+    writeFileSync(q, 'Notice period?');
+    const out = await botExit(['answer', id, '--file', q], { ...t.env, FAKE_CLAUDE_OUT: JSON.stringify({ answers: [] }) });
+    assert.equal(out.code, 1);
+    assert.match(out.stderr, /Invalid settings file .*applicant\.json:\n {2}- noticePeriod: /);
   });
 });
