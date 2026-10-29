@@ -68,8 +68,30 @@ export type RawJob = {
   posted_at: string | null;
 };
 
-/** One row of `job_events`: a status change. */
-export type JobEvent = { id: number; at: Date; from_status: string | null; to_status: string; note: string | null };
+/** Why the user skipped a job (optional, picked next to the Skip button). `location` covers visa too. */
+export type SkipReason = 'stack' | 'seniority' | 'salary' | 'location' | 'company' | 'language' | 'other';
+
+/** One row of `job_events`: a status change. `reason` is only set on skips. */
+export type JobEvent = {
+  id: number; at: Date; from_status: string | null; to_status: string; note: string | null; reason: SkipReason | null;
+};
+
+export type ContactRole = 'recruiter' | 'hiring manager' | 'referral' | 'other';
+export type ReferralStatus = 'none' | 'to ask' | 'asked' | 'agreed' | 'referred';
+
+/** One row of `contacts`: a person the user knows for a job. Only what the user typed; nobody is contacted. */
+export type Contact = {
+  id: number;
+  job_id: string;
+  name: string;
+  role: ContactRole;
+  email: string | null;
+  linkedin_url: string | null;
+  phone: string | null;
+  notes: string | null;
+  referral_status: ReferralStatus;
+  created_at: Date;
+};
 
 /** One row of `fetch_runs` (the dashboard reads the fields below). */
 export type FetchRun = { started_at: Date; finished_at: Date | null; checked: number; inserted: number; new_matches: number };

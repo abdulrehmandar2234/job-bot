@@ -27,6 +27,8 @@ const commands: Record<string, () => Promise<Command>> = {
   prep: async () => (await import('./commands/prep.ts')).prep,
   custom: async () => (await import('./commands/cv.ts')).custom,
   mark: async () => (await import('./commands/mark.ts')).mark,
+  contacts: async () => (await import('./commands/contacts.ts')).contacts,
+  'contact:add': async () => (await import('./commands/contacts.ts')).contactAdd,
   'cv:default': async () => (await import('./commands/cv.ts')).cvDefault,
   'cv:build': async () => (await import('./commands/cv.ts')).cvBuild,
   versions: async () => (await import('./commands/cv.ts')).versions,
@@ -52,6 +54,10 @@ if (!load) {
   custom <id> --overrides f.json  one-off CV for a single job
   add [--file job.json]           add job found in browser (JSON or stdin)
   mark <id> <status> [note]       applied | interview | offer | rejected | skipped
+                                  (skipped: --reason stack|seniority|salary|location|company|language|other)
+  contacts <id>                   contacts for a job, plus people you know at the same company
+  contact:add <id> --name "Jane Doe" [--role recruiter|"hiring manager"|referral|other] [--email x]
+                                  [--linkedin https://linkedin.com/in/x] [--phone x] [--notes x] [--referral "to ask"]
   cv:default                      rebuild default CV PDF from cv/master.json
   cv:build [cluster...]           pre-build CV versions
   versions                        list CV versions and usage

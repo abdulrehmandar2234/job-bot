@@ -38,7 +38,7 @@ after(async () => {
 describe('runMigrations', () => {
   it('creates the whole schema on a fresh database and records each file', async () => {
     assert.deepEqual(await runMigrations(db), migrationFiles().map((f) => f.replace(/\.sql$/, '')));
-    assert.deepEqual(await tables(), ['fetch_runs', 'job_events', 'jobs', 'schema_migrations']);
+    assert.deepEqual(await tables(), ['contacts', 'fetch_runs', 'job_events', 'jobs', 'schema_migrations']);
     assert.deepEqual(await recorded(), migrationFiles().map((f) => f.replace(/\.sql$/, '')));
     // The baseline's later columns are there too.
     await db.query(`INSERT INTO jobs (id, source, company, title, url) VALUES ('a', 's', 'c', 't', 'u')`);
