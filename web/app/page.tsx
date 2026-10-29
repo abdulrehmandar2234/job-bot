@@ -5,6 +5,8 @@ import { lastRun, listJobs, postingsFor, STATUSES, statusCounts, weekStats, type
 import { FetchWarning } from '@/components/analytics';
 import { BaytBookmarklet, SubmitButton } from '@/components/client';
 import { JobActions } from '@/components/job-actions';
+import { ReferralBadge } from '@/components/contacts';
+import { allContacts } from '@/lib/contacts-db';
 import { ago, AiReview, Chips, COUNTRIES, fmtDate, Posted, PostedOn, Score, STATUS_LABEL } from '@/components/ui';
 
 export default function Page(props: PageProps<'/'>) {
@@ -56,7 +58,7 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<'/'>['searc
   const [jobs, counts, run, week] = await Promise.all([
     listJobs({ status, country, min, q, days, sort }), statusCounts(), lastRun(), weekStats(),
   ]);
-  const postings = await postingsFor(jobs.map((j) => j.id));
+  const [postings, contacts] = await Promise.all([postingsFor(jobs.map((j) => j.id)), allContacts()]);
   const tabHref = (s: string) => {
     const p = new URLSearchParams({
       status: s, ...(country && { country }), ...(min && { min: String(min) }), ...(q && { q }),
@@ -131,6 +133,7 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<'/'>['searc
                   {j.visa && <span className="text-emerald-700 dark:text-emerald-400"> · ✓ {j.visa}</span>}
                 </p>
                 <PostedOn postings={postings.get(j.id) ?? []} />
+                <ReferralBadge job={j} contacts={contacts} />
                 {j.filter_reason && <p className="text-sm text-rose-700 dark:text-rose-400">✗ {j.filter_reason}</p>}
                 <AiReview job={j} />
                 <Chips items={j.matched} tone="good" />

@@ -6,6 +6,8 @@ import { getJob, jobEvents, postingsFor } from '@/lib/db';
 import { CopyButton, SubmitButton } from '@/components/client';
 import { JobActions } from '@/components/job-actions';
 import { InterviewPrep } from '@/components/interview-prep';
+import { Contacts, ReferralReminder } from '@/components/contacts';
+import { allContacts } from '@/lib/contacts-db';
 import { SKIP_LABEL } from '@/lib/skips';
 import { AiReview, Chips, COUNTRIES, fmtDate, Posted, PostedOn, Score, STATUS_LABEL } from '@/components/ui';
 
@@ -22,7 +24,7 @@ export default function Page(props: PageProps<'/jobs/[id]'>) {
 
 async function JobDetail({ params }: { params: PageProps<'/jobs/[id]'>['params'] }) {
   const id = decodeURIComponent((await params).id);
-  const [job, events] = await Promise.all([getJob(id), jobEvents(id)]);
+  const [job, events, contacts] = await Promise.all([getJob(id), jobEvents(id), allContacts()]);
   if (!job) notFound();
   const primaryId = job.duplicate_of ?? job.id;
   const postings = (await postingsFor([primaryId])).get(primaryId) ?? [];
@@ -46,6 +48,8 @@ async function JobDetail({ params }: { params: PageProps<'/jobs/[id]'>['params']
       </header>
 
       <JobActions job={job} />
+
+      <ReferralReminder job={job} contacts={contacts} />
 
       <AiReview job={job} />
 
@@ -119,6 +123,8 @@ async function JobDetail({ params }: { params: PageProps<'/jobs/[id]'>['params']
           <SubmitButton pendingText="AI writing answers… (~15s)">Draft answers</SubmitButton>
         </form>
       </section>
+
+      <Contacts job={job} contacts={contacts} />
 
       <section className="space-y-2">
         <h2 className="font-medium">Notes</h2>

@@ -3,7 +3,7 @@ import { render, screen, within } from '@testing-library/react';
 import { cloneElement, Fragment, isValidElement, type ReactElement, type ReactNode } from 'react';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import Page from '@/app/page';
-import { statusCounts, type Status } from '@/lib/db';
+import { pool, statusCounts, type Status } from '@/lib/db';
 import { cleanupDb, closeDb, daysAgo, ensureSchema, insertFetchRun, insertJob } from '../helpers/db';
 
 vi.mock('@/app/actions', () => ({ fetchNow: vi.fn(), setStatus: vi.fn(), prepare: vi.fn(), aiReview: vi.fn() }));
@@ -121,6 +121,17 @@ describe('job list page', () => {
     const form = screen.getByRole('button', { name: 'Apply filters' }).closest('form')!;
     expect(form.querySelector('select[name="country"]')).toHaveValue('');
     expect(form.querySelector('select[name="sort"]')).toHaveValue('score');
+  });
+
+  it('badges a card when you know someone at the company to ask for a referral', async () => {
+    await insertJob({ id: 'pg-ref-a', title: 'TG Ref A', company: 'Refco Inc.' });
+    await insertJob({ id: 'pg-ref-b', title: 'TG Ref B', company: 'Other' });
+    const applied = await insertJob({ id: 'pg-ref-c', title: 'TG Ref C', company: 'REFCO', status: 'applied' });
+    await pool.query(`INSERT INTO contacts (job_id, name, referral_status) VALUES ($1, 'Rita', 'to ask')`, [applied]);
+    await renderPage();
+    const card = (t: string) => cards().find((li) => li.textContent!.includes(t))!;
+    expect(within(card('TG Ref A')).getByText('🤝 Ask Rita for a referral')).toBeInTheDocument();
+    expect(card('TG Ref B')).not.toHaveTextContent('referral');
   });
 
   it('searches company and title, case-insensitively', async () => {

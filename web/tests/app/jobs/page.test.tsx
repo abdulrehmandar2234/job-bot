@@ -52,6 +52,21 @@ describe('job page', () => {
     expect(history).toHaveTextContent('new → applied (via site)');
   });
 
+  it('shows contacts, people known at the same company, the referral reminder and the skip reason', async () => {
+    await insertJob({ id, company: 'Acme Inc.', status: 'new' });
+    const other = await insertJob({ id: 'page-other', company: 'ACME', title: 'Frontend Engineer', url: 'https://example.com/o' });
+    await pool.query(`INSERT INTO contacts (job_id, name, role, referral_status) VALUES ($1, 'Jane', 'recruiter', 'asked'),
+      ($2, 'Sam', 'referral', 'to ask')`, [id, other]);
+    await pool.query(`INSERT INTO job_events (job_id, from_status, to_status, reason) VALUES ($1, 'new', 'skipped', 'stack')`, [id]);
+
+    await renderJob(id);
+    const contacts = screen.getByRole('heading', { name: /^Contacts/ }).closest('section')!;
+    expect(within(contacts).getByText('Jane').closest('li')).toHaveTextContent('referral: asked');
+    expect(contacts).toHaveTextContent('You know someone at Acme Inc.');
+    expect(screen.getByText(/for a referral before applying/)).toHaveTextContent('Ask Sam for a referral before applying (you added them on Frontend Engineer).');
+    expect(screen.getByRole('heading', { name: 'History' }).closest('section')).toHaveTextContent('new → skipped · Stack');
+  });
+
   it('shows only the draft form when there are no answers yet', async () => {
     await insertJob({ id });
     await renderJob(id);
