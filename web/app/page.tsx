@@ -14,6 +14,7 @@ export default function Page(props: PageProps<'/'>) {
           <h1 className="text-2xl font-semibold tracking-tight">Job Bot</h1>
           <p className="text-sm text-zinc-500">UAE · Saudi Arabia · Netherlands with visa sponsorship, plus remote roles open to Pakistan</p>
         </div>
+        <Link href="/settings" className="btn ml-auto">Settings</Link>
         <form action={fetchNow}>
           <SubmitButton pendingText="Fetching… (~10 min, keep this tab open)" className="btn-primary">Fetch new jobs</SubmitButton>
         </form>
