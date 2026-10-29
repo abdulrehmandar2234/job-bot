@@ -2,14 +2,18 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { NextRequest } from 'next/server';
 import { BOT_ROOT, runBot } from '@/lib/bot';
+import { findJobByUrl, isExtensionOrigin, isHttpUrl } from '@/lib/extension';
 
-// Receives jobs collected in the browser on job sites that block direct requests (e.g. Bayt)
-// and runs them through `bot add`, so the same filters and scoring apply.
-// Only these origins may post here; everything else is rejected.
+// Receives jobs collected in the browser and runs them through `bot add`, so the same filters and scoring apply:
+// - from the Bayt bookmarklet (and the job sites below): only urls on the posting site itself;
+// - from the job-bot Chrome extension (chrome-extension:// origin): any http(s) job url.
+// Every other origin is rejected. Browsers do not let web pages forge Origin, which is why this check works.
 const ALLOWED = ['https://www.bayt.com', 'https://www.linkedin.com', 'https://www.gulftalent.com', 'https://www.naukrigulf.com'];
 
+const allowed = (origin: string | null): origin is string => !!origin && (ALLOWED.includes(origin) || isExtensionOrigin(origin));
+
 const cors = (origin: string | null) => ({
-  'access-control-allow-origin': origin && ALLOWED.includes(origin) ? origin : 'null',
+  'access-control-allow-origin': allowed(origin) ? origin : 'null',
   'access-control-allow-methods': 'POST',
   'access-control-allow-headers': 'content-type',
   'access-control-allow-private-network': 'true',
@@ -20,30 +24,59 @@ export async function OPTIONS(req: NextRequest) {
 }
 
 type Incoming = { source?: string; company: string; title: string; location?: string; url: string; description?: string; posted_at?: string | null };
+type Valid = Required<Incoming>;
+
+/** What happened to one job sent by the extension, for its popup. */
+export type ImportResult = {
+  url: string; outcome: 'added' | 'filtered' | 'known' | 'error'; id?: string; status?: string;
+  score?: number; ai_score?: number | null; filter_reason?: string | null;
+};
+
+const result = (url: string, outcome: ImportResult['outcome'], j?: Awaited<ReturnType<typeof findJobByUrl>>): ImportResult =>
+  j ? { url, outcome, id: j.id, status: j.status, score: j.score, ai_score: j.ai_score, filter_reason: j.filter_reason } : { url, outcome };
 
 export async function POST(req: NextRequest) {
   const origin = req.headers.get('origin');
-  if (!origin || !ALLOWED.includes(origin)) return new Response('Forbidden origin', { status: 403 });
+  if (!allowed(origin)) return new Response('Forbidden origin', { status: 403 });
+  const extension = isExtensionOrigin(origin);
 
   const body = await req.json().catch(() => null);
   const jobs: Incoming[] = Array.isArray(body) ? body : [];
-  const valid = jobs.filter((j) => typeof j?.title === 'string' && typeof j?.company === 'string'
+  const valid: Valid[] = jobs.filter((j) => typeof j?.title === 'string' && typeof j?.company === 'string'
     // `origin + '/'`, so look-alike hosts (www.bayt.com.evil.io) and userinfo (www.bayt.com@evil.io) don't pass.
-    && typeof j?.url === 'string' && j.url.startsWith(`${origin}/`)).slice(0, 500)
+    && (extension ? isHttpUrl(j?.url) : typeof j?.url === 'string' && j.url.startsWith(`${origin}/`))).slice(0, 500)
     .map((j) => ({
-      source: String(j.source ?? new URL(origin).hostname.replace(/^www\.|\.com$/g, '')).slice(0, 30),
+      source: extension
+        ? (typeof j.source === 'string' && /^[a-z0-9-]{1,30}$/.test(j.source) ? j.source : 'extension')
+        : String(j.source ?? new URL(origin).hostname.replace(/^www\.|\.com$/g, '')).slice(0, 30),
       company: j.company.slice(0, 200), title: j.title.slice(0, 300), location: String(j.location ?? '').slice(0, 300),
       url: j.url, description: String(j.description ?? '').slice(0, 20000), posted_at: j.posted_at ?? null,
     }));
-  if (!valid.length) return new Response(JSON.stringify({ added: 0 }), { headers: cors(origin) });
+  if (!valid.length) return new Response(JSON.stringify(extension ? { added: 0, results: [] } : { added: 0 }), { headers: cors(origin) });
+  if (!extension) return Response.json(await add(valid), { headers: cors(origin) });
 
+  // The extension shows per job whether it was added (with its score), filtered (with the reason) or already known.
+  const results = new Map<Valid, ImportResult>();
+  for (const j of valid) {
+    const known = await findJobByUrl(j.url);
+    if (known) results.set(j, result(j.url, 'known', known));
+  }
+  const fresh = valid.filter((j) => !results.has(j));
+  const out = fresh.length ? await add(fresh) : { received: 0, matched: 0, log: '' };
+  for (const j of fresh) {
+    const saved = await findJobByUrl(j.url);
+    results.set(j, result(j.url, !saved ? 'error' : saved.status === 'filtered' ? 'filtered' : 'added', saved ?? undefined));
+  }
+  return Response.json({ ...out, received: valid.length, results: valid.map((j) => results.get(j)) }, { headers: cors(origin) });
+}
+
+/** Writes the jobs to an import file and runs `bot add --file` on it. */
+async function add(jobs: Valid[]) {
   const dir = join(BOT_ROOT, 'data', 'imports');
   await mkdir(dir, { recursive: true });
   const file = join(dir, `${new Date().toISOString().replace(/[:.]/g, '-')}.json`);
-  await writeFile(file, JSON.stringify(valid));
+  await writeFile(file, JSON.stringify(jobs));
   const out = await runBot(['add', '--file', file], 120_000);
   const matched = out.split('\n').filter((l) => /^\s*\d+\s/.test(l)).length;
-  return new Response(JSON.stringify({ received: valid.length, matched, log: out.slice(0, 4000) }), {
-    headers: { ...cors(origin), 'content-type': 'application/json' },
-  });
+  return { received: jobs.length, matched, log: out.slice(0, 4000) };
 }
