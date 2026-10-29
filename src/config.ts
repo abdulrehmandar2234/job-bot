@@ -6,7 +6,8 @@ export const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 export const path = (...p: string[]) => join(ROOT, ...p);
 
 export type Country = { name: string; visa: 'employer' | 'ind-register'; match: string };
-export const ATS = ['greenhouse', 'lever', 'ashby', 'recruitee', 'workable', 'smartrecruiters'] as const;
+// 'workday' (added for ROADMAP feature 4): token is "<tenant>/<wdN>/<site>", e.g. "acme/wd3/AcmeCareers".
+export const ATS = ['greenhouse', 'lever', 'ashby', 'recruitee', 'workable', 'smartrecruiters', 'workday'] as const;
 export type Company = { name: string; ats: (typeof ATS)[number]; token: string; indName?: string };
 export type Config = {
   cvFileName: string;
@@ -35,11 +36,17 @@ export type Config = {
   };
   remote: {
     enabled: boolean;
-    boards: string[];            // himalayas | remotive | remoteok
+    boards: string[];            // himalayas | remotive | remoteok | arbeitnow | adzuna
     himalayasQueries: string[];
     allow: string;               // remote regions that include the candidate's country
     deny: string;                // remote regions / phrases that exclude it
     flag: string;                // allowed, but worth double-checking
+  };
+  // New for ROADMAP feature 4 (sources); optional, so older config.json files still load.
+  adzuna?: {
+    countries: string[];         // Adzuna country codes; Adzuna has no 'ae' or 'sa' index
+    keywords?: string[];         // defaults to linkedin.keywords
+    pagesPerSearch: number;      // 50 results per page
   };
 };
 
