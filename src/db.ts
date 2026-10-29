@@ -9,7 +9,8 @@ export const JOB_STATUSES = ['new', 'prepared', 'applied', 'interview', 'offer',
 
 export type ScoredJob = Pick<Job,
   'id' | 'source' | 'company' | 'title' | 'location' | 'country' | 'url' | 'description' | 'score' | 'cluster' |
-  'matched' | 'missing' | 'visa' | 'flags' | 'status' | 'filter_reason'> & { posted_at: string | null };
+  'matched' | 'missing' | 'visa' | 'flags' | 'status' | 'filter_reason'> & { posted_at: string | null }
+  & Partial<Pick<Job, 'salary_min' | 'salary_max' | 'salary_currency' | 'salary_period'>>;
 
 if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL missing — add it to .env');
 export const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 4 });
@@ -82,18 +83,22 @@ export function duplicateLinks(rows: DedupeRow[]): [string, string][] {
 export async function upsertJob(j: ScoredJob): Promise<'inserted' | 'updated'> {
   const { rows } = await pool.query<{ inserted: boolean }>(`
     INSERT INTO jobs (id, source, company, title, location, country, url, description, posted_at,
-      score, cluster, matched, missing, visa, flags, status, filter_reason)
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+      score, cluster, matched, missing, visa, flags, status, filter_reason,
+      salary_min, salary_max, salary_currency, salary_period)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
     ON CONFLICT (id) DO UPDATE SET
       title = EXCLUDED.title, location = EXCLUDED.location, country = EXCLUDED.country, url = EXCLUDED.url,
       description = EXCLUDED.description, posted_at = EXCLUDED.posted_at, fetched_at = now(),
       score = EXCLUDED.score, cluster = EXCLUDED.cluster, matched = EXCLUDED.matched, missing = EXCLUDED.missing,
       visa = EXCLUDED.visa, flags = EXCLUDED.flags, filter_reason = EXCLUDED.filter_reason,
+      salary_min = EXCLUDED.salary_min, salary_max = EXCLUDED.salary_max,
+      salary_currency = EXCLUDED.salary_currency, salary_period = EXCLUDED.salary_period,
       -- Re-scoring may move a job between new <-> filtered, but only while the user hasn't acted on it.
       status = CASE WHEN jobs.status IN ('new', 'filtered') THEN EXCLUDED.status ELSE jobs.status END
     RETURNING (xmax = 0) AS inserted`,
     [j.id, j.source, j.company, j.title, j.location, j.country, j.url, j.description, j.posted_at,
-      j.score, j.cluster, j.matched, j.missing, j.visa, j.flags, j.status, j.filter_reason]);
+      j.score, j.cluster, j.matched, j.missing, j.visa, j.flags, j.status, j.filter_reason,
+      j.salary_min ?? null, j.salary_max ?? null, j.salary_currency ?? null, j.salary_period ?? null]);
   return rows[0].inserted ? 'inserted' : 'updated';
 }
 

@@ -42,6 +42,10 @@ export type Job = {
   ai_flags: string[] | null;
   ai_scored_at: Date | null;
   form_answers: FormAnswer[];
+  salary_min: number | null;      // salary range (src/salary.ts or the source's own data), in salary_currency
+  salary_max: number | null;
+  salary_currency: SalaryCurrency | null;
+  salary_period: SalaryPeriod | null;
 };
 
 /** A posting as a source adapter returns it, before scoring. */
@@ -54,7 +58,13 @@ export type RawJob = {
   url: string;
   description: string;
   posted_at: string | null;
+  salary?: Salary | null;  // structured salary from the source's API; else save() parses the description
 };
+
+export type SalaryCurrency = 'AED' | 'SAR' | 'EUR' | 'USD' | 'GBP' | 'PKR';
+export type SalaryPeriod = 'year' | 'month' | 'hour';
+/** A salary range. One end may be open ("up to AED 25k": min null). */
+export type Salary = { min: number | null; max: number | null; currency: SalaryCurrency; period: SalaryPeriod };
 
 /** One row of `job_events`: a status change. */
 export type JobEvent = { id: number; at: Date; from_status: string | null; to_status: string; note: string | null };

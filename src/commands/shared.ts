@@ -1,5 +1,6 @@
 import { upsertJob, type Job } from '../db.ts';
 import { scoreJob } from '../match.ts';
+import { parseSalary } from '../salary.ts';
 import type { RawJob } from '../types.ts';
 
 /** `--name value` flags; a flag without a value is 'true'. */
@@ -10,9 +11,10 @@ export type Command = (args: string[], flags: Flags) => Promise<void> | void;
 export const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 50);
 export const today = () => new Date().toLocaleDateString('en-CA'); // local YYYY-MM-DD
 
-/** Scores a posting and upserts it as new or filtered. */
-export function save(raw: RawJob) {
+/** Scores a posting and upserts it as new or filtered. A source's own salary data wins over parsing the text. */
+export function save({ salary: given, ...raw }: RawJob) {
   const s = scoreJob(raw);
+  const salary = given ?? parseSalary(`${raw.title}\n${raw.description}`);
   return upsertJob({
     ...raw,
     country: s.country,
@@ -24,6 +26,10 @@ export function save(raw: RawJob) {
     flags: s.flags,
     status: s.filterReason ? 'filtered' : 'new',
     filter_reason: s.filterReason,
+    salary_min: salary?.min ?? null,
+    salary_max: salary?.max ?? null,
+    salary_currency: salary?.currency ?? null,
+    salary_period: salary?.period ?? null,
   });
 }
 
