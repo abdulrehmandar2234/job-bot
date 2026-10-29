@@ -9,8 +9,10 @@ type OpenInfo = Pick<Job, 'status'> & Partial<Pick<Job, 'closed_at'>>;
 export function ExpiredBadge({ job }: { job: OpenInfo }) {
   if (job.status !== 'expired' && !job.closed_at) return null;
   return (
-    <span title={job.closed_at ? `Posting found closed on ${fmtDate(job.closed_at)}` : 'Posting closed'}
-      className="rounded-full bg-zinc-200 px-2 py-0.5 text-xs font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+    <span
+      title={job.closed_at ? `Posting found closed on ${fmtDate(job.closed_at)}` : 'Posting closed'}
+      className="rounded-full bg-zinc-200 px-2 py-0.5 text-xs font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+    >
       {job.status === 'expired' ? 'Expired' : 'Posting closed'}
     </span>
   );

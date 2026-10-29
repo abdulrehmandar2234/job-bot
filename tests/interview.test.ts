@@ -22,17 +22,34 @@ let notifyLog: string;
 async function bot(args: string[], env: Record<string, string> = {}) {
   const { stdout } = await run(process.execPath, ['--no-warnings', '--env-file-if-exists=.env', 'src/cli.ts', ...args], {
     cwd: path(),
-    env: { ...process.env, DATABASE_URL: TEST_DB, JOB_BOT_CLAUDE: FAKE_CLAUDE, FAKE_CLAUDE_LOG: claudeLog,
-      JOB_BOT_NOTIFY: FAKE_NOTIFY, FAKE_NOTIFY_LOG: notifyLog, ...env },
+    env: {
+      ...process.env,
+      DATABASE_URL: TEST_DB,
+      JOB_BOT_CLAUDE: FAKE_CLAUDE,
+      FAKE_CLAUDE_LOG: claudeLog,
+      JOB_BOT_NOTIFY: FAKE_NOTIFY,
+      FAKE_NOTIFY_LOG: notifyLog,
+      ...env,
+    },
     timeout: 60_000,
   });
   return stdout;
 }
 
-const claudeCalls = () => existsSync(claudeLog)
-  ? readFileSync(claudeLog, 'utf8').trim().split('\n').map((l) => JSON.parse(l) as { argv: string[]; stdin: string }) : [];
-const notes = () => existsSync(notifyLog)
-  ? readFileSync(notifyLog, 'utf8').trim().split('\n').map((l) => JSON.parse(l) as [string, string, string]) : [];
+const claudeCalls = () =>
+  existsSync(claudeLog)
+    ? readFileSync(claudeLog, 'utf8')
+        .trim()
+        .split('\n')
+        .map((l) => JSON.parse(l) as { argv: string[]; stdin: string })
+    : [];
+const notes = () =>
+  existsSync(notifyLog)
+    ? readFileSync(notifyLog, 'utf8')
+        .trim()
+        .split('\n')
+        .map((l) => JSON.parse(l) as [string, string, string])
+    : [];
 const arg = (argv: string[], name: string) => argv[argv.indexOf(name) + 1];
 
 /** A temp copy of config.json with `edit` applied, as env for the CLI. */
@@ -45,8 +62,19 @@ function configWith(edit: (c: { ai: Record<string, unknown> }) => void) {
 }
 
 async function insertJob(id: string, o: Record<string, unknown> = {}) {
-  const row = { id, source: 'greenhouse', company: 'Acme', title: 'Senior Laravel Developer', location: 'Dubai', country: 'AE',
-    url: `https://example.com/${id}`, description: 'Laravel, PHP, Vue.js and MySQL.', status: 'new', score: 70, ...o };
+  const row = {
+    id,
+    source: 'greenhouse',
+    company: 'Acme',
+    title: 'Senior Laravel Developer',
+    location: 'Dubai',
+    country: 'AE',
+    url: `https://example.com/${id}`,
+    description: 'Laravel, PHP, Vue.js and MySQL.',
+    status: 'new',
+    score: 70,
+    ...o,
+  };
   const cols = Object.keys(row);
   await pool.query(`INSERT INTO jobs (${cols.join(', ')}) VALUES (${cols.map((_, i) => `$${i + 1}`).join(', ')})`, Object.values(row));
   return id;
@@ -62,8 +90,7 @@ const PREP: InterviewPrep = {
     { requirement: 'Kubernetes', evidence: 'Not in the CV', gap: true },
   ],
 };
-const review = (verdict: string, score = 90) =>
-  JSON.stringify({ score, verdict, summary: 'Apply', reasons: [], gaps: [], red_flags: [] });
+const review = (verdict: string, score = 90) => JSON.stringify({ score, verdict, summary: 'Apply', reasons: [], gaps: [], red_flags: [] });
 
 before(migrate);
 beforeEach(async () => {
@@ -114,7 +141,15 @@ describe('prep', () => {
   it('reports unknown jobs and AI being off without calling Claude', async () => {
     assert.match(await bot(['prep', 'nope']), /Not found/);
     const id = await insertJob('prep:4');
-    assert.match(await bot(['prep', id], configWith((c) => { c.ai.enabled = false; })), /AI is off/);
+    assert.match(
+      await bot(
+        ['prep', id],
+        configWith((c) => {
+          c.ai.enabled = false;
+        }),
+      ),
+      /AI is off/,
+    );
     assert.deepEqual(claudeCalls(), []);
   });
 
@@ -132,8 +167,9 @@ describe('strong-match alerts (ai:score)', () => {
     const id = await insertJob('greenhouse:acme:1', { title: 'Senior "PHP" Dev', company: "O'Neil & Co" });
     const out = await bot(['ai:score'], { FAKE_CLAUDE_OUT: review('strong') });
     assert.match(out, /Alert: Strong match: Senior "PHP" Dev at O'Neil & Co \(UAE\)/);
-    assert.deepEqual(notes(), [['Job Bot', 'Strong match: Senior "PHP" Dev at O\'Neil & Co (UAE)',
-      'http://localhost:3100/jobs/greenhouse%3Aacme%3A1']]);
+    assert.deepEqual(notes(), [
+      ['Job Bot', 'Strong match: Senior "PHP" Dev at O\'Neil & Co (UAE)', 'http://localhost:3100/jobs/greenhouse%3Aacme%3A1'],
+    ]);
     assert.ok((await getJob(id))!.alerted_at);
   });
 
@@ -167,12 +203,22 @@ describe('strong-match alerts (ai:score)', () => {
 
   it('ai.alertStrong false turns alerts off; a missing setting means on', async () => {
     const off = await insertJob('a:off');
-    await bot(['ai:score'], { ...configWith((c) => { c.ai.alertStrong = false; }), FAKE_CLAUDE_OUT: review('strong') });
+    await bot(['ai:score'], {
+      ...configWith((c) => {
+        c.ai.alertStrong = false;
+      }),
+      FAKE_CLAUDE_OUT: review('strong'),
+    });
     assert.deepEqual(notes(), []);
     assert.equal((await getJob(off))!.alerted_at, null);
 
     await insertJob('a:default');
-    await bot(['ai:score'], { ...configWith((c) => { delete c.ai.alertStrong; }), FAKE_CLAUDE_OUT: review('strong') });
+    await bot(['ai:score'], {
+      ...configWith((c) => {
+        delete c.ai.alertStrong;
+      }),
+      FAKE_CLAUDE_OUT: review('strong'),
+    });
     assert.equal(notes().length, 1);
   });
 
@@ -189,14 +235,20 @@ describe('strong-match alerts (ai:score)', () => {
 });
 
 describe('notify', () => {
-  const job = (n: number, o: Partial<AlertJob> = {}): AlertJob =>
-    ({ id: `x:${n}`, title: `Dev ${n}`, company: `Co${n}`, country: 'NL', ...o });
+  const job = (n: number, o: Partial<AlertJob> = {}): AlertJob => ({
+    id: `x:${n}`,
+    title: `Dev ${n}`,
+    company: `Co${n}`,
+    country: 'NL',
+    ...o,
+  });
   const name = (c: string | null) => c ?? '?';
 
   it('strongAlerts sends up to three single notes and groups above that', () => {
     assert.equal(strongAlerts([job(1), job(2), job(3)], name).length, 3);
     assert.deepEqual(strongAlerts([job(1), job(2), job(3), job(4), job(5)], name), [
-      { title: 'Job Bot', message: '5 strong matches: Dev 1 at Co1, Dev 2 at Co2, Dev 3 at Co3…', url: 'http://localhost:3100' }]);
+      { title: 'Job Bot', message: '5 strong matches: Dev 1 at Co1, Dev 2 at Co2, Dev 3 at Co3…', url: 'http://localhost:3100' },
+    ]);
     assert.deepEqual(strongAlerts([], name), []);
   });
 
@@ -216,8 +268,9 @@ describe('notify', () => {
   it('quotes and backslashes reach AppleScript unchanged', { skip: process.platform !== 'darwin' }, async () => {
     const evil = 'Say "hi" \\" & do shell script "touch /tmp/pwned" & "';
     // Same argument layout as the real call, with `return` in place of `display notification`.
-    const args = osascriptArgs({ title: 'Job "Bot"', message: evil, url: 'u' })
-      .map((a) => (a.startsWith('display notification') ? 'return (item 1 of argv) & "|" & (item 2 of argv)' : a));
+    const args = osascriptArgs({ title: 'Job "Bot"', message: evil, url: 'u' }).map((a) =>
+      a.startsWith('display notification') ? 'return (item 1 of argv) & "|" & (item 2 of argv)' : a,
+    );
     const { stdout } = await run('osascript', args);
     assert.equal(stdout.trim(), `Job "Bot"|${evil}`);
   });
@@ -226,9 +279,14 @@ describe('notify', () => {
     const n = { title: 'T', message: 'M', url: 'http://localhost:3100/jobs/1' };
     assert.equal(notifyCommand(n, { JOB_BOT_NOTIFY: 'off' }), null);
     assert.deepEqual(notifyCommand(n, { JOB_BOT_NOTIFY: '/x/fake' }), ['/x/fake', ['T', 'M', n.url]]);
-    assert.deepEqual(notifyCommand(n, {}, (p) => p === '/opt/homebrew/bin/terminal-notifier'),
-      ['/opt/homebrew/bin/terminal-notifier', ['-title', 'T', '-message', 'M', '-open', n.url]]);
-    assert.deepEqual(notifyCommand(n, {}, () => false), ['osascript', osascriptArgs(n)]);
+    assert.deepEqual(
+      notifyCommand(n, {}, (p) => p === '/opt/homebrew/bin/terminal-notifier'),
+      ['/opt/homebrew/bin/terminal-notifier', ['-title', 'T', '-message', 'M', '-open', n.url]],
+    );
+    assert.deepEqual(
+      notifyCommand(n, {}, () => false),
+      ['osascript', osascriptArgs(n)],
+    );
   });
 
   it('notify logs a failing notifier instead of throwing', async () => {

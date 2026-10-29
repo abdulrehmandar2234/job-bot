@@ -26,11 +26,17 @@ export async function setStatus(formData: FormData) {
   try {
     await client.query('BEGIN');
     const { rows } = await client.query<{ status: string }>('SELECT status FROM jobs WHERE id = $1 FOR UPDATE', [id]);
-    await client.query(
-      `UPDATE jobs SET status = $2, applied_at = CASE WHEN $2 = 'applied' THEN now() ELSE applied_at END WHERE id = $1`,
-      [id, status]);
-    await client.query('INSERT INTO job_events (job_id, from_status, to_status, note, reason) VALUES ($1, $2, $3, $4, $5)',
-      [id, rows[0].status, status, note, reason]);
+    await client.query(`UPDATE jobs SET status = $2, applied_at = CASE WHEN $2 = 'applied' THEN now() ELSE applied_at END WHERE id = $1`, [
+      id,
+      status,
+    ]);
+    await client.query('INSERT INTO job_events (job_id, from_status, to_status, note, reason) VALUES ($1, $2, $3, $4, $5)', [
+      id,
+      rows[0].status,
+      status,
+      note,
+      reason,
+    ]);
     await client.query('COMMIT');
   } catch (e) {
     await client.query('ROLLBACK');
@@ -77,7 +83,9 @@ export async function aiReview(formData: FormData) {
  */
 export async function draftAnswers(formData: FormData) {
   const id = await assertJob(formData.get('id'));
-  const questions = String(formData.get('questions') ?? '').trim().slice(0, 8000);
+  const questions = String(formData.get('questions') ?? '')
+    .trim()
+    .slice(0, 8000);
   if (!questions) return;
   await enqueueTask('answers', id, { questions });
   refresh();

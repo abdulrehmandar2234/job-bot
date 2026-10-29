@@ -4,8 +4,13 @@ import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { belowExpectation, EUR_RATE, formatSalary, loadExpectations, parseExpectation, PER_YEAR, yearlyEur } from '@/lib/salary';
 
-const job = (min: number | null, max: number | null, cur: 'AED' | 'EUR' | 'USD' | 'SAR' | 'GBP' | 'PKR', per: 'year' | 'month' | 'hour', country = 'AE') =>
-  ({ salary_min: min, salary_max: max, salary_currency: cur, salary_period: per, country });
+const job = (
+  min: number | null,
+  max: number | null,
+  cur: 'AED' | 'EUR' | 'USD' | 'SAR' | 'GBP' | 'PKR',
+  per: 'year' | 'month' | 'hour',
+  country = 'AE',
+) => ({ salary_min: min, salary_max: max, salary_currency: cur, salary_period: per, country });
 
 describe('yearlyEur', () => {
   it('converts every currency to euros and every period to a year', () => {
@@ -38,7 +43,7 @@ describe('formatSalary', () => {
 });
 
 describe('expectations', () => {
-  it('reads a plain number in the country\'s currency: monthly in the Gulf, yearly elsewhere', () => {
+  it("reads a plain number in the country's currency: monthly in the Gulf, yearly elsewhere", () => {
     expect(parseExpectation(25000, 'AE')).toEqual({ amount: 25_000, currency: 'AED', period: 'month' });
     expect(parseExpectation(70000, 'NL')).toEqual({ amount: 70_000, currency: 'EUR', period: 'year' });
     expect(parseExpectation(90000, 'remote')).toEqual({ amount: 90_000, currency: 'USD', period: 'year' });
@@ -64,7 +69,8 @@ describe('expectations', () => {
     const file = join(dir, 'applicant.json');
     writeFileSync(file, JSON.stringify({ expectedSalary: { AE: 25000, SA: null, NL: 'EUR 70k', remote: 'ask me' } }));
     expect(loadExpectations(file)).toEqual({
-      AE: { amount: 25_000, currency: 'AED', period: 'month' }, NL: { amount: 70_000, currency: 'EUR', period: 'year' },
+      AE: { amount: 25_000, currency: 'AED', period: 'month' },
+      NL: { amount: 70_000, currency: 'EUR', period: 'year' },
     });
     expect(loadExpectations(join(dir, 'nope.json'))).toEqual({});
     writeFileSync(file, '{');
@@ -72,8 +78,10 @@ describe('expectations', () => {
   });
 
   it('flags a job only when the top of its range is below the expectation, across currencies', () => {
-    const expected = { AE: { amount: 25_000, currency: 'AED' as const, period: 'month' as const },
-      remote: { amount: 60_000, currency: 'EUR' as const, period: 'year' as const } };
+    const expected = {
+      AE: { amount: 25_000, currency: 'AED' as const, period: 'month' as const },
+      remote: { amount: 60_000, currency: 'EUR' as const, period: 'year' as const },
+    };
     expect(belowExpectation(job(18_000, 22_000, 'AED', 'month'), expected)).toBe(true);
     expect(belowExpectation(job(20_000, 26_000, 'AED', 'month'), expected)).toBe(false);
     expect(belowExpectation(job(250_000, 280_000, 'AED', 'year'), expected)).toBe(true);
@@ -82,6 +90,8 @@ describe('expectations', () => {
     expect(belowExpectation(job(50_000, 60_000, 'USD', 'year', 'RM'), expected)).toBe(true);
     // No expectation for the country, or no salary: no hint.
     expect(belowExpectation(job(1_000, 2_000, 'SAR', 'month', 'SA'), expected)).toBe(false);
-    expect(belowExpectation({ salary_min: null, salary_max: null, salary_currency: null, salary_period: null, country: 'AE' }, expected)).toBe(false);
+    expect(
+      belowExpectation({ salary_min: null, salary_max: null, salary_currency: null, salary_period: null, country: 'AE' }, expected),
+    ).toBe(false);
   });
 });

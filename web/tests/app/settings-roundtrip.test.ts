@@ -23,7 +23,9 @@ function configForm(cfg: Json, over: Record<string, string> = {}) {
   const fd = new FormData();
   for (const [name, type] of Object.entries(CONFIG_FIELDS)) {
     const v = get(cfg, name);
-    if (type === 'bool') { if (v === true) fd.set(name, 'on'); } else fd.set(name, Array.isArray(v) ? v.join('\n') : String(v ?? ''));
+    if (type === 'bool') {
+      if (v === true) fd.set(name, 'on');
+    } else fd.set(name, Array.isArray(v) ? v.join('\n') : String(v ?? ''));
   }
   (cfg.companies as Json[]).forEach((c, i) => {
     fd.set(`companies[${i}].orig`, String(i));
@@ -48,7 +50,9 @@ afterEach(() => {
   expect(readFileSync(REAL_CONFIG, 'utf8')).toBe(realConfigText);
   expect(tempFiles()).toEqual(startTemps);
 });
-afterAll(() => { rmSync(dir, { recursive: true, force: true }); });
+afterAll(() => {
+  rmSync(dir, { recursive: true, force: true });
+});
 
 describe('settings round-trip through the CLI', () => {
   it('saves a config form edit, keeps unknown keys and re-scores', async () => {
@@ -89,8 +93,12 @@ describe('settings round-trip through the CLI', () => {
     expect(await saveApplicant(null, fd)).toEqual({ ok: true, message: 'Saved.', errors: [] });
     const saved = JSON.parse(readFileSync(APPLICANT_FILE, 'utf8'));
     expect(saved).toMatchObject({
-      _help: expect.any(String), nationality: 'Pakistani', noticePeriod: null, currentLocation: null,
-      expectedSalary: { AE: '25,000 AED', SA: null, NL: null, remote: null }, other: {},
+      _help: expect.any(String),
+      nationality: 'Pakistani',
+      noticePeriod: null,
+      currentLocation: null,
+      expectedSalary: { AE: '25,000 AED', SA: null, NL: null, remote: null },
+      other: {},
     });
   }, 60_000);
 });

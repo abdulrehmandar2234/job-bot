@@ -28,8 +28,9 @@ beforeAll(async () => {
 afterAll(() => rmSync(root, { recursive: true, force: true }));
 
 const get = (version: string, query = '') =>
-  GET(new NextRequest(`http://localhost:3100/api/cv/${encodeURIComponent(version)}${query}`),
-    { params: Promise.resolve({ version }) } as Parameters<typeof GET>[1]);
+  GET(new NextRequest(`http://localhost:3100/api/cv/${encodeURIComponent(version)}${query}`), {
+    params: Promise.resolve({ version }),
+  } as Parameters<typeof GET>[1]);
 
 describe('GET /api/cv/[version]', () => {
   it('serves the default CV inline as an uncached PDF', async () => {

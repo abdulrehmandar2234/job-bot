@@ -8,7 +8,11 @@ const crcTable = Array.from({ length: 256 }, (_, n) => {
   for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
   return c >>> 0;
 });
-const crc = (buf) => { let c = 0xffffffff; for (const b of buf) c = crcTable[(c ^ b) & 0xff] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; };
+const crc = (buf) => {
+  let c = 0xffffffff;
+  for (const b of buf) c = crcTable[(c ^ b) & 0xff] ^ (c >>> 8);
+  return (c ^ 0xffffffff) >>> 0;
+};
 const chunk = (type, data) => {
   const out = Buffer.alloc(12 + data.length);
   out.writeUInt32BE(data.length, 0);
@@ -20,8 +24,11 @@ const chunk = (type, data) => {
 
 function png(size) {
   const px = (x, y) => {
-    const u = (x + 0.5) / size, v = (y + 0.5) / size; // 0..1
-    const r = 0.2, dx = Math.max(0, Math.abs(u - 0.5) - (0.5 - r)), dy = Math.max(0, Math.abs(v - 0.5) - (0.5 - r));
+    const u = (x + 0.5) / size,
+      v = (y + 0.5) / size; // 0..1
+    const r = 0.2,
+      dx = Math.max(0, Math.abs(u - 0.5) - (0.5 - r)),
+      dy = Math.max(0, Math.abs(v - 0.5) - (0.5 - r));
     if (dx * dx + dy * dy > r * r) return [0, 0, 0, 0]; // outside the rounded square
     const body = u > 0.2 && u < 0.8 && v > 0.36 && v < 0.78;
     const handle = u > 0.38 && u < 0.62 && v > 0.24 && v < 0.36 && !(u > 0.44 && u < 0.56 && v > 0.29);
@@ -36,7 +43,12 @@ function png(size) {
   ihdr.writeUInt32BE(size, 0);
   ihdr.writeUInt32BE(size, 4);
   ihdr.set([8, 6, 0, 0, 0], 8); // 8-bit RGBA
-  return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ihdr), chunk('IDAT', deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]);
+  return Buffer.concat([
+    Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+    chunk('IHDR', ihdr),
+    chunk('IDAT', deflateSync(raw)),
+    chunk('IEND', Buffer.alloc(0)),
+  ]);
 }
 
 for (const size of [16, 48, 128]) writeFileSync(new URL(`icon${size}.png`, import.meta.url), png(size));

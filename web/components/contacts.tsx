@@ -24,8 +24,10 @@ export function ReferralBadge({ job, contacts }: { job: JobRef; contacts: Compan
   const c = referralReminder(job, contacts);
   if (!c) return null;
   return (
-    <span title={`Ask ${c.name} for a referral before applying`}
-      className="inline-block rounded-full border border-sky-300 px-2 py-0.5 text-xs text-sky-700 dark:border-sky-800 dark:text-sky-300">
+    <span
+      title={`Ask ${c.name} for a referral before applying`}
+      className="inline-block rounded-full border border-sky-300 px-2 py-0.5 text-xs text-sky-700 dark:border-sky-800 dark:text-sky-300"
+    >
       🤝 Ask {c.name} for a referral
     </span>
   );
@@ -34,11 +36,21 @@ export function ReferralBadge({ job, contacts }: { job: JobRef; contacts: Compan
 function ContactLine({ c }: { c: CompanyContact }) {
   return (
     <div className="space-y-0.5">
-      <p><b>{c.name}</b> <span className="text-zinc-500">· {c.role}</span>
-        {c.referral_status !== 'none' && <span className="text-zinc-500"> · referral: {c.referral_status}</span>}</p>
+      <p>
+        <b>{c.name}</b> <span className="text-zinc-500">· {c.role}</span>
+        {c.referral_status !== 'none' && <span className="text-zinc-500"> · referral: {c.referral_status}</span>}
+      </p>
       <p className="flex flex-wrap gap-x-3 text-xs text-zinc-500">
-        {c.email && <a href={`mailto:${c.email}`} className="hover:underline">{c.email}</a>}
-        {c.linkedin_url && <a href={c.linkedin_url} target="_blank" rel="noreferrer" className="hover:underline">LinkedIn ↗</a>}
+        {c.email && (
+          <a href={`mailto:${c.email}`} className="hover:underline">
+            {c.email}
+          </a>
+        )}
+        {c.linkedin_url && (
+          <a href={c.linkedin_url} target="_blank" rel="noreferrer" className="hover:underline">
+            LinkedIn ↗
+          </a>
+        )}
         {c.phone && <span>{c.phone}</span>}
       </p>
       {c.notes && <p className="whitespace-pre-line text-xs text-zinc-500">{c.notes}</p>}
@@ -52,7 +64,10 @@ export function Contacts({ job, contacts }: { job: JobRef; contacts: CompanyCont
   return (
     <section className="space-y-3">
       <h2 className="font-medium">
-        Contacts <span className="text-xs font-normal text-zinc-500">· recruiters and referrals you know; only stored here, nobody is contacted</span>
+        Contacts{' '}
+        <span className="text-xs font-normal text-zinc-500">
+          · recruiters and referrals you know; only stored here, nobody is contacted
+        </span>
       </h2>
       {elsewhere.length > 0 && (
         <div className="space-y-2 rounded-xl border border-sky-200 p-3 text-sm dark:border-sky-900">
@@ -83,7 +98,9 @@ export function Contacts({ job, contacts }: { job: JobRef; contacts: CompanyCont
               </div>
               <details>
                 <summary className="cursor-pointer text-xs text-zinc-500">Edit</summary>
-                <div className="mt-2"><ContactForm jobId={job.id} contact={c} /></div>
+                <div className="mt-2">
+                  <ContactForm jobId={job.id} contact={c} />
+                </div>
               </details>
             </li>
           ))}
@@ -91,7 +108,9 @@ export function Contacts({ job, contacts }: { job: JobRef; contacts: CompanyCont
       )}
       <details className="rounded-xl border border-dashed border-zinc-300 p-3 text-sm dark:border-zinc-700">
         <summary className="cursor-pointer font-medium">Add contact</summary>
-        <div className="mt-3"><ContactForm jobId={job.id} /></div>
+        <div className="mt-3">
+          <ContactForm jobId={job.id} />
+        </div>
       </details>
     </section>
   );

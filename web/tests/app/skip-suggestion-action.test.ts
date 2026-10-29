@@ -54,7 +54,9 @@ beforeEach(async () => {
   }
   await insertJob({ id: 'sa-kept', title: 'Senior Engineer' });
 });
-afterEach(() => { vi.unstubAllEnvs(); });
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 afterAll(async () => {
   await closeDb();
   rmSync(BOT_ROOT, { recursive: true, force: true });
@@ -77,7 +79,11 @@ describe('addRoleExclude', () => {
 
   it('refuses any pattern that is not a current suggestion, without running the bot', async () => {
     for (const p of [undefined, '', '.*', '\\bstaff\\b', '\\bsenior\\b']) {
-      expect(await addRoleExclude(null, form(p)), String(p)).toEqual({ ok: false, message: 'That suggestion is no longer valid.', errors: [] });
+      expect(await addRoleExclude(null, form(p)), String(p)).toEqual({
+        ok: false,
+        message: 'That suggestion is no longer valid.',
+        errors: [],
+      });
     }
     // Once roleExclude covers the word, the suggestion is gone.
     writeFileSync(CONFIG_FILE, JSON.stringify({ ...CONFIG, roleExclude: 'principal' }));
@@ -88,7 +94,10 @@ describe('addRoleExclude', () => {
 
   it('refuses while config.json cannot be parsed', async () => {
     writeFileSync(CONFIG_FILE, '{ broken');
-    expect(await addRoleExclude(null, form('\\bprincipal\\b'))).toMatchObject({ ok: false, message: expect.stringContaining('cannot be read') });
+    expect(await addRoleExclude(null, form('\\bprincipal\\b'))).toMatchObject({
+      ok: false,
+      message: expect.stringContaining('cannot be read'),
+    });
     expect(bot).not.toHaveBeenCalled();
   });
 });

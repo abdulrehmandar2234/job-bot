@@ -11,9 +11,9 @@ const FOLD = { skillGroups: 3, roles: 2, bullets: 3, projects: 2 };
 
 export type AtsResult = {
   version: string;
-  present: string[];        // job keywords this version shows
-  hiddenButTrue: string[];  // on master.json, but not shown in this version: the actionable ones
-  missing: string[];        // not on master.json at all: real gaps, never to be added
+  present: string[]; // job keywords this version shows
+  hiddenButTrue: string[]; // on master.json, but not shown in this version: the actionable ones
+  missing: string[]; // not on master.json at all: real gaps, never to be added
 };
 export type AtsSuggestion = { version: string; shows: number; gains: string[] };
 export type AtsReport = AtsResult & { total: number; suggestion: AtsSuggestion | null };
@@ -34,8 +34,14 @@ export function foldText(cv: Cv): string {
   ].join('\n');
 }
 
-const fullText = (cv: Cv) => [cv.title, cv.summary, ...cv.skills.flatMap((g) => [g.group, ...g.items]),
-  ...cv.experience.flatMap((e) => [e.role, ...e.bullets]), ...cv.projects.map((p) => `${p.name} ${p.text}`)].join('\n');
+const fullText = (cv: Cv) =>
+  [
+    cv.title,
+    cv.summary,
+    ...cv.skills.flatMap((g) => [g.group, ...g.items]),
+    ...cv.experience.flatMap((e) => [e.role, ...e.bullets]),
+    ...cv.projects.map((p) => `${p.name} ${p.text}`),
+  ].join('\n');
 
 /** Compares a job's keywords with what one CV version shows. `cv` is that version's content. */
 export function atsCheck(jobText: string, master: Cv, cv: Cv, version: string): AtsResult {
@@ -63,7 +69,9 @@ export function atsReport(jobText: string, master: Cv, cv: Cv, version: string):
   return {
     ...res,
     total: res.present.length + res.hiddenButTrue.length + res.missing.length,
-    suggestion: best.version !== version && best.present.length > res.present.length
-      ? { version: best.version, shows: best.present.length, gains } : null,
+    suggestion:
+      best.version !== version && best.present.length > res.present.length
+        ? { version: best.version, shows: best.present.length, gains }
+        : null,
   };
 }

@@ -21,22 +21,24 @@ export async function taskRun(args: string[]) {
   let file: string | undefined;
   try {
     if (task.kind === 'answers') {
-      const questions = String(task.args.questions ?? '').trim().slice(0, QUESTIONS_CAP);
+      const questions = String(task.args.questions ?? '')
+        .trim()
+        .slice(0, QUESTIONS_CAP);
       if (!questions) throw new Error('No questions given.');
       mkdirSync(path('data', 'questions'), { recursive: true });
       file = path('data', 'questions', `${randomUUID()}.txt`);
       writeFileSync(file, questions);
     }
-    const { stdout, stderr } = await run(process.execPath,
+    const { stdout, stderr } = await run(
+      process.execPath,
       ['--no-warnings', '--env-file-if-exists=.env', 'src/cli.ts', ...cliArgs(task, file)],
-      { cwd: ROOT, timeout: TASK_TIMEOUT_MS[task.kind], maxBuffer: 10 * 1024 * 1024 });
+      { cwd: ROOT, timeout: TASK_TIMEOUT_MS[task.kind], maxBuffer: 10 * 1024 * 1024 },
+    );
     await finish(id, stdout + stderr);
     console.log(`[${new Date().toISOString()}] task ${id}: done`);
   } catch (e) {
     const err = e as ExecFileException & { stdout?: string; stderr?: string };
-    const message = err.killed
-      ? `Timed out after ${TASK_TIMEOUT_MS[task.kind] / 60_000} minutes.`
-      : err.stderr?.trim() || err.message;
+    const message = err.killed ? `Timed out after ${TASK_TIMEOUT_MS[task.kind] / 60_000} minutes.` : err.stderr?.trim() || err.message;
     await fail(id, message, err.stdout ?? '');
     console.log(`[${new Date().toISOString()}] task ${id}: failed: ${message.slice(0, 300)}`);
   } finally {

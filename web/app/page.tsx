@@ -20,14 +20,24 @@ export default function Page(props: PageProps<'/'>) {
       <header className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Job Bot</h1>
-          <p className="text-sm text-zinc-500">UAE · Saudi Arabia · Netherlands with visa sponsorship, plus remote roles open to Pakistan</p>
+          <p className="text-sm text-zinc-500">
+            UAE · Saudi Arabia · Netherlands with visa sponsorship, plus remote roles open to Pakistan
+          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Suspense fallback={null}><FetchWarning /></Suspense>
-          <Link href="/analytics" className="btn">Analytics</Link>
-          <Link href="/settings" className="btn">Settings</Link>
+          <Suspense fallback={null}>
+            <FetchWarning />
+          </Suspense>
+          <Link href="/analytics" className="btn">
+            Analytics
+          </Link>
+          <Link href="/settings" className="btn">
+            Settings
+          </Link>
           <form action={fetchNow}>
-            <SubmitButton pendingText="Starting…" className="btn-primary">Fetch new jobs</SubmitButton>
+            <SubmitButton pendingText="Starting…" className="btn-primary">
+              Fetch new jobs
+            </SubmitButton>
           </form>
         </div>
       </header>
@@ -36,11 +46,20 @@ export default function Page(props: PageProps<'/'>) {
         <div className="mt-3 space-y-3 text-zinc-600 dark:text-zinc-400">
           <p>Bayt blocks the bot, so Bayt jobs are collected from inside your browser:</p>
           <ol className="list-decimal space-y-1 pl-5">
-            <li>One time: drag this button to your bookmarks bar → <BaytBookmarklet /></li>
-            <li>Open Bayt and click the <b>Bayt → Job Bot</b> bookmark. A progress box appears in the corner (takes ~10 min; keep the tab open).</li>
-            <li>The first time, Chrome asks to allow bayt.com to reach this dashboard — click <b>Allow</b>.</li>
+            <li>
+              One time: drag this button to your bookmarks bar → <BaytBookmarklet />
+            </li>
+            <li>
+              Open Bayt and click the <b>Bayt → Job Bot</b> bookmark. A progress box appears in the corner (takes ~10 min; keep the tab
+              open).
+            </li>
+            <li>
+              The first time, Chrome asks to allow bayt.com to reach this dashboard — click <b>Allow</b>.
+            </li>
           </ol>
-          <a href="https://www.bayt.com/en/uae/jobs/laravel-jobs/" target="_blank" rel="noreferrer" className="btn">Open Bayt ↗</a>
+          <a href="https://www.bayt.com/en/uae/jobs/laravel-jobs/" target="_blank" rel="noreferrer" className="btn">
+            Open Bayt ↗
+          </a>
         </div>
       </details>
       <Suspense fallback={<p className="text-sm text-zinc-500">Loading jobs…</p>}>
@@ -63,14 +82,23 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<'/'>['searc
   const expected = loadExpectations();
 
   const [jobs, counts, run, week, tasks] = await Promise.all([
-    listJobs({ status, country, min, q, days, sort, ...salary.filter }), statusCounts(), lastRun(), weekStats(), openTasks(),
+    listJobs({ status, country, min, q, days, sort, ...salary.filter }),
+    statusCounts(),
+    lastRun(),
+    weekStats(),
+    openTasks(),
   ]);
   const busy = (id: string) => tasks.filter((t) => t.job_id === id && isActive(t)).map((t) => t.kind);
   const [postings, contacts] = await Promise.all([postingsFor(jobs.map((j) => j.id)), allContacts()]);
   const tabHref = (s: string) => {
     const p = new URLSearchParams({
-      status: s, ...(country && { country }), ...(min && { min: String(min) }), ...(q && { q }),
-      ...(days && { days: String(days) }), ...(sort === 'newest' && { sort }), ...salary.query,
+      status: s,
+      ...(country && { country }),
+      ...(min && { min: String(min) }),
+      ...(q && { q }),
+      ...(days && { days: String(days) }),
+      ...(sort === 'newest' && { sort }),
+      ...salary.query,
     });
     return `/?${p}`;
   };
@@ -87,10 +115,15 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<'/'>['searc
 
       <nav className="mb-4 flex gap-1 overflow-x-auto [scrollbar-width:none] border-b border-zinc-200 dark:border-zinc-800">
         {STATUSES.map((s) => (
-          <Link key={s} href={tabHref(s)}
-            className={`whitespace-nowrap border-b-2 px-3 py-2 text-sm ${s === status
-              ? 'border-zinc-900 font-medium dark:border-zinc-100'
-              : 'border-transparent text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100'}`}>
+          <Link
+            key={s}
+            href={tabHref(s)}
+            className={`whitespace-nowrap border-b-2 px-3 py-2 text-sm ${
+              s === status
+                ? 'border-zinc-900 font-medium dark:border-zinc-100'
+                : 'border-transparent text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100'
+            }`}
+          >
             {STATUS_LABEL[s]} <span className="text-zinc-400">{counts[s] ?? 0}</span>
           </Link>
         ))}
@@ -101,11 +134,19 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<'/'>['searc
         <input name="q" defaultValue={q} placeholder="Search company or title" className="input w-56" />
         <select name="country" defaultValue={country ?? ''} className="input">
           <option value="">All countries</option>
-          {Object.entries(COUNTRIES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          {Object.entries(COUNTRIES).map(([k, v]) => (
+            <option key={k} value={k}>
+              {v}
+            </option>
+          ))}
         </select>
         <select name="min" defaultValue={min ?? ''} className="input">
           <option value="">Any score</option>
-          {[50, 60, 70, 80].map((n) => <option key={n} value={n}>Score ≥ {n}</option>)}
+          {[50, 60, 70, 80].map((n) => (
+            <option key={n} value={n}>
+              Score ≥ {n}
+            </option>
+          ))}
         </select>
         <select name="days" defaultValue={days ?? ''} className="input">
           <option value="">Posted: any time</option>
@@ -118,7 +159,9 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<'/'>['searc
           <option value="newest">Newest first</option>
         </select>
         <SalaryFilter params={salary.params} />
-        <button className="btn">Apply filters</button>
+        <button type="submit" className="btn">
+          Apply filters
+        </button>
       </form>
 
       {jobs.length === 0 && <p className="py-10 text-center text-sm text-zinc-500">No jobs here.</p>}

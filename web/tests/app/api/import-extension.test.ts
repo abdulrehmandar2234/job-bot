@@ -25,14 +25,23 @@ const EXT = `chrome-extension://${EXTENSION_ID}`;
 const OTHER = 'chrome-extension://abcdefghijklmnopabcdefghijklmnop';
 const SITE = 'https://careers.extension-test.example';
 
-const post = (body: unknown, origin: string | null = EXT) => POST(new NextRequest('http://localhost:3100/api/import', {
-  method: 'POST',
-  headers: { 'content-type': 'application/json', ...(origin ? { origin } : {}) },
-  body: JSON.stringify(body),
-}));
+const post = (body: unknown, origin: string | null = EXT) =>
+  POST(
+    new NextRequest('http://localhost:3100/api/import', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...(origin ? { origin } : {}) },
+      body: JSON.stringify(body),
+    }),
+  );
 
-const job = (over: Record<string, unknown> = {}) =>
-  ({ source: 'extension', company: 'Acme', title: 'Backend Engineer', location: 'Dubai', url: `${SITE}/jobs/1`, ...over });
+const job = (over: Record<string, unknown> = {}) => ({
+  source: 'extension',
+  company: 'Acme',
+  title: 'Backend Engineer',
+  location: 'Dubai',
+  url: `${SITE}/jobs/1`,
+  ...over,
+});
 
 type Imported = { source: string; company: string; title: string; url: string };
 const imported = () => JSON.parse(readFileSync(bot.mock.calls[0][0][2], 'utf8')) as Imported[];
@@ -42,8 +51,16 @@ const fakeAdd = async (args: string[]) => {
   const jobs = JSON.parse(readFileSync(args[2], 'utf8')) as Imported[];
   for (const [i, j] of jobs.entries()) {
     const filtered = /filtered/.test(j.title);
-    await insertJob({ id: `ext-${Date.now()}-${i}`, source: j.source, company: j.company, title: j.title, url: j.url, score: filtered ? 0 : 72,
-      status: filtered ? 'filtered' : 'new', filter_reason: filtered ? 'location not in target countries (Mars)' : null });
+    await insertJob({
+      id: `ext-${Date.now()}-${i}`,
+      source: j.source,
+      company: j.company,
+      title: j.title,
+      url: j.url,
+      score: filtered ? 0 : 72,
+      status: filtered ? 'filtered' : 'new',
+      filter_reason: filtered ? 'location not in target countries (Mars)' : null,
+    });
   }
   return `  72  ${jobs[0]?.company} — ${jobs[0]?.title}\n`;
 };
@@ -61,7 +78,8 @@ afterAll(async () => {
 
 describe('POST /api/import from the Chrome extension', () => {
   it('allows only the pinned extension in the CORS preflight', async () => {
-    const preflight = (origin: string) => OPTIONS(new NextRequest('http://localhost:3100/api/import', { method: 'OPTIONS', headers: { origin } }));
+    const preflight = (origin: string) =>
+      OPTIONS(new NextRequest('http://localhost:3100/api/import', { method: 'OPTIONS', headers: { origin } }));
     expect((await preflight(EXT)).headers.get('access-control-allow-origin')).toBe(EXT);
     expect((await preflight(OTHER)).headers.get('access-control-allow-origin')).toBe('null');
   });
@@ -91,12 +109,14 @@ describe('POST /api/import from the Chrome extension', () => {
     expect([...hex].map((h) => String.fromCharCode(97 + parseInt(h, 16))).join('')).toBe(EXTENSION_ID);
   });
 
-  it.each([OTHER, 'chrome-extension://short', `moz-extension://${EXTENSION_ID}`, `${EXT}x`,
-    'https://evil.example'])('rejects origin %s', async (origin) => {
-    const res = await post([job()], origin);
-    expect(res.status).toBe(403);
-    expect(bot).not.toHaveBeenCalled();
-  });
+  it.each([OTHER, 'chrome-extension://short', `moz-extension://${EXTENSION_ID}`, `${EXT}x`, 'https://evil.example'])(
+    'rejects origin %s',
+    async (origin) => {
+      const res = await post([job()], origin);
+      expect(res.status).toBe(403);
+      expect(bot).not.toHaveBeenCalled();
+    },
+  );
 
   it('adds a job from any http(s) site and reports its score', async () => {
     const res = await post([job()]);
@@ -104,10 +124,28 @@ describe('POST /api/import from the Chrome extension', () => {
     expect(res.headers.get('access-control-allow-origin')).toBe(EXT);
     const body = await res.json();
     expect(body).toMatchObject({ received: 1, matched: 1 });
-    expect(body.results).toEqual([{ url: `${SITE}/jobs/1`, outcome: 'added', id: expect.stringMatching(new RegExp(`^${PREFIX}ext-`)),
-      status: 'new', score: 72, ai_score: null, filter_reason: null }]);
-    expect(imported()).toEqual([{ source: 'extension', company: 'Acme', title: 'Backend Engineer', location: 'Dubai',
-      url: `${SITE}/jobs/1`, description: '', posted_at: null }]);
+    expect(body.results).toEqual([
+      {
+        url: `${SITE}/jobs/1`,
+        outcome: 'added',
+        id: expect.stringMatching(new RegExp(`^${PREFIX}ext-`)),
+        status: 'new',
+        score: 72,
+        ai_score: null,
+        filter_reason: null,
+      },
+    ]);
+    expect(imported()).toEqual([
+      {
+        source: 'extension',
+        company: 'Acme',
+        title: 'Backend Engineer',
+        location: 'Dubai',
+        url: `${SITE}/jobs/1`,
+        description: '',
+        posted_at: null,
+      },
+    ]);
   });
 
   it('reports a filtered job with the reason', async () => {
@@ -119,8 +157,9 @@ describe('POST /api/import from the Chrome extension', () => {
     const id = await insertJob({ id: 'known', url: `${SITE}/jobs/7`, status: 'applied', score: 81, ai_score: 77 });
     const body = await (await post([job({ url: `${SITE}/jobs/7?utm_source=x#apply` })])).json();
     expect(bot).not.toHaveBeenCalled();
-    expect(body.results).toEqual([{ url: `${SITE}/jobs/7?utm_source=x#apply`, outcome: 'known', id, status: 'applied', score: 81,
-      ai_score: 77, filter_reason: null }]);
+    expect(body.results).toEqual([
+      { url: `${SITE}/jobs/7?utm_source=x#apply`, outcome: 'known', id, status: 'applied', score: 81, ai_score: 77, filter_reason: null },
+    ]);
   });
 
   it('adds only the unknown jobs of a mixed request and keeps the order', async () => {
@@ -131,14 +170,22 @@ describe('POST /api/import from the Chrome extension', () => {
   });
 
   it('keeps a slug source, else uses "extension"', async () => {
-    await post([job({ url: `${SITE}/a`, source: 'gulftalent' }), job({ url: `${SITE}/b`, source: 'Bad Source!' }),
-      job({ url: `${SITE}/c`, source: undefined })]);
+    await post([
+      job({ url: `${SITE}/a`, source: 'gulftalent' }),
+      job({ url: `${SITE}/b`, source: 'Bad Source!' }),
+      job({ url: `${SITE}/c`, source: undefined }),
+    ]);
     expect(imported().map((j) => j.source)).toEqual(['gulftalent', 'extension', 'extension']);
   });
 
   it('drops non-http(s) urls and jobs without title or company', async () => {
-    const res = await post([job({ url: 'javascript:alert(1)' }), job({ url: 'file:///etc/passwd' }), job({ url: '/relative' }),
-      job({ title: undefined }), job({ company: 3 })]);
+    const res = await post([
+      job({ url: 'javascript:alert(1)' }),
+      job({ url: 'file:///etc/passwd' }),
+      job({ url: '/relative' }),
+      job({ title: undefined }),
+      job({ company: 3 }),
+    ]);
     expect(await res.json()).toEqual({ added: 0, results: [] });
     expect(bot).not.toHaveBeenCalled();
   });

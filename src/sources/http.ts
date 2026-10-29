@@ -81,7 +81,10 @@ function writeCache(entry: Cached) {
 
 /** GET (or a read-only POST) with retries and, for GET, the conditional-request cache.
  * Resolves with the body text of a 2xx (or a 304 from cache). */
-export async function request(url: string, opts: RequestOptions = {}): Promise<{ status: number; body: string; fromCache: boolean; url: string }> {
+export async function request(
+  url: string,
+  opts: RequestOptions = {},
+): Promise<{ status: number; body: string; fromCache: boolean; url: string }> {
   const { attempts = 4, baseDelayMs = 1000, retryOn = retryable, timeoutMs = 30_000, method = 'GET' } = opts;
   const cache = method === 'GET' && (opts.cache ?? true);
   const host = new URL(url).host;
@@ -97,7 +100,9 @@ export async function request(url: string, opts: RequestOptions = {}): Promise<{
     let res: Response;
     try {
       res = await fetch(url, {
-        method, headers, signal: AbortSignal.timeout(timeoutMs),
+        method,
+        headers,
+        signal: AbortSignal.timeout(timeoutMs),
         body: method === 'POST' ? JSON.stringify(opts.body ?? {}) : undefined,
       });
     } catch (e) {

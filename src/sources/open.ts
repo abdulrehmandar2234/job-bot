@@ -18,17 +18,23 @@ const unknown = (reason: string): OpenResult => ({ state: 'unknown', reason });
 const OPTS: RequestOptions = { cache: false, attempts: 2, baseDelayMs: 2000, timeoutMs: 20_000 };
 
 /** Text a job page shows once it stops taking applications. Scripts and styles are ignored. */
-export const CLOSED_TEXT = new RegExp([
-  'no longer accepting applications',
-  '(job|posting|position|vacancy|listing|advert) (has )?expired',
-  '(job|position|role|vacancy) has been filled',
-  '(job|posting|position|vacancy|listing) is no longer (available|open|active)',
-  '(job|posting|position|vacancy) (has been|is) closed',
-  'applications (are|have) (now )?closed',
-].join('|'), 'i');
+export const CLOSED_TEXT = new RegExp(
+  [
+    'no longer accepting applications',
+    '(job|posting|position|vacancy|listing|advert) (has )?expired',
+    '(job|position|role|vacancy) has been filled',
+    '(job|posting|position|vacancy|listing) is no longer (available|open|active)',
+    '(job|posting|position|vacancy) (has been|is) closed',
+    'applications (are|have) (now )?closed',
+  ].join('|'),
+  'i',
+);
 
 export function closedText(html: string): string | null {
-  const text = html.replace(/<(script|style)\b[\s\S]*?<\/\1>/gi, ' ').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+  const text = html
+    .replace(/<(script|style)\b[\s\S]*?<\/\1>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ');
   return text.match(CLOSED_TEXT)?.[0].toLowerCase() ?? null;
 }
 
@@ -97,8 +103,10 @@ export function resetOpenChecks() {
 async function linkedin(postingId: string): Promise<OpenResult> {
   if (linkedinStopped) return unknown('LinkedIn rate limit hit earlier in this run');
   try {
-    return await page(`https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/${postingId}`, 'LinkedIn posting',
-      { headers: { 'user-agent': LINKEDIN_UA, 'accept-language': 'en' }, retryOn: (s) => s >= 500 });
+    return await page(`https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/${postingId}`, 'LinkedIn posting', {
+      headers: { 'user-agent': LINKEDIN_UA, 'accept-language': 'en' },
+      retryOn: (s) => s >= 500,
+    });
   } catch (e) {
     if (e instanceof HttpError && e.status === 429) {
       linkedinStopped = true;
@@ -149,8 +157,9 @@ export function openCheck(job: OpenJob): { url: string; run: () => Promise<OpenR
     case 'workable': {
       // Workable throttles hard (Cloudflare, sometimes as a 403), so its retries are slow; a 403 stays unknown.
       const url = `https://apply.workable.com/api/v1/widget/accounts/${t}`;
-      return via(url, () => listed(url, pid, 'Workable', (d) => (d.jobs ?? []).map((j: any) => j.shortcode),
-        { ...OPTS, baseDelayMs: 15_000 }));
+      return via(url, () =>
+        listed(url, pid, 'Workable', (d) => (d.jobs ?? []).map((j: any) => j.shortcode), { ...OPTS, baseDelayMs: 15_000 }),
+      );
     }
     case 'workday': {
       const url = workdayApiUrl(job.url);

@@ -17,11 +17,14 @@ export async function selectJobs(ids: string[], statuses: string[], limit?: numb
     const { rows } = await pool.query<CheckJob>(`SELECT ${cols} FROM jobs WHERE id = ANY($1)`, [ids]);
     return ids.flatMap((id) => rows.filter((r) => r.id === id));
   }
-  const { rows } = await pool.query<CheckJob>(`SELECT ${cols} FROM jobs
+  const { rows } = await pool.query<CheckJob>(
+    `SELECT ${cols} FROM jobs
     WHERE status = ANY($1) AND duplicate_of IS NULL
       AND (checked_open_at IS NULL OR checked_open_at < now() - make_interval(days => $2))
     ORDER BY checked_open_at NULLS FIRST, coalesce(ai_score, score) DESC, id
-    LIMIT $3`, [statuses, RECHECK_DAYS, limit ?? null]);
+    LIMIT $3`,
+    [statuses, RECHECK_DAYS, limit ?? null],
+  );
   return rows;
 }
 
@@ -37,8 +40,11 @@ const hostOf = (job: OpenJob) => {
  * Runs `check` for every job, at most `concurrency` at a time, and waits `delayMs` between two requests to the same
  * host. Results keep the order of `jobs`.
  */
-export async function checkAll<T extends OpenJob, R>(jobs: T[], check: (job: T) => Promise<R>,
-  { concurrency = 2, delayMs = 2000, wait = sleep } = {}): Promise<R[]> {
+export async function checkAll<T extends OpenJob, R>(
+  jobs: T[],
+  check: (job: T) => Promise<R>,
+  { concurrency = 2, delayMs = 2000, wait = sleep } = {},
+): Promise<R[]> {
   const nextAt = new Map<string, number>(); // host → earliest start of its next request
   const out: R[] = new Array(jobs.length);
   let i = 0;
@@ -65,16 +71,22 @@ export async function checkAll<T extends OpenJob, R>(jobs: T[], check: (job: T) 
 export async function record(job: CheckJob, r: OpenResult): Promise<Outcome> {
   if (r.state === 'unknown') return 'unknown';
   const isClosed = r.state === 'closed';
-  await pool.query(`UPDATE jobs SET checked_open_at = now(),
-    closed_at = CASE WHEN $2 THEN coalesce(closed_at, now()) ELSE NULL END WHERE id = $1`, [job.id, isClosed]);
+  await pool.query(
+    `UPDATE jobs SET checked_open_at = now(),
+    closed_at = CASE WHEN $2 THEN coalesce(closed_at, now()) ELSE NULL END WHERE id = $1`,
+    [job.id, isClosed],
+  );
   if (isClosed) {
     if (!EXPIRABLE.includes(job.status)) return job.status === 'expired' ? 'expired' : 'reported';
     await setStatus(job.id, 'expired', `posting closed (${r.reason})`);
     return 'expired';
   }
   if (job.status !== 'expired') return 'open';
-  const { rows } = await pool.query<{ from_status: JobStatus | null; note: string | null }>(`SELECT from_status, note
-    FROM job_events WHERE job_id = $1 AND to_status = 'expired' ORDER BY at DESC, id DESC LIMIT 1`, [job.id]);
+  const { rows } = await pool.query<{ from_status: JobStatus | null; note: string | null }>(
+    `SELECT from_status, note
+    FROM job_events WHERE job_id = $1 AND to_status = 'expired' ORDER BY at DESC, id DESC LIMIT 1`,
+    [job.id],
+  );
   // Only undo the bot's own verdict; a job you marked expired yourself stays expired.
   if (!rows[0]?.note?.startsWith('posting closed')) return 'open';
   const back = rows[0].from_status && EXPIRABLE.includes(rows[0].from_status) ? rows[0].from_status : 'new';
@@ -84,12 +96,19 @@ export async function record(job: CheckJob, r: OpenResult): Promise<Outcome> {
 }
 
 const LINE: Record<Outcome, string> = {
-  open: '✓ open    ', reopened: '↺ reopened', expired: '✗ expired ', reported: '! closed  ', unknown: '? unknown ',
+  open: '✓ open    ',
+  reopened: '↺ reopened',
+  expired: '✗ expired ',
+  reported: '! closed  ',
+  unknown: '? unknown ',
 };
 
 /** check:open [<id>...] [--status new,prepared] [--limit N]: marks postings that have closed as `expired`. */
 export async function checkOpen(args: string[], flags: Flags) {
-  const statuses = (flags.status ?? 'new,prepared').split(',').map((s) => s.trim()).filter(Boolean);
+  const statuses = (flags.status ?? 'new,prepared')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
   const limit = flags.limit === undefined ? undefined : Number(flags.limit);
   if (statuses.some((s) => !JOB_STATUSES.includes(s as JobStatus)) || (limit !== undefined && !(Number.isInteger(limit) && limit > 0))) {
     console.log(`Usage: check:open [<id>...] [--status ${JOB_STATUSES.join(',')}] [--limit N]`);
@@ -109,12 +128,16 @@ export async function checkOpen(args: string[], flags: Flags) {
     counts[outcome]++;
     // Open postings are only listed when you asked for specific jobs; the rest always are.
     if (outcome !== 'open' || args.length) {
-      const kept = outcome !== 'reported' ? ''
-        : ` — status ${job.status} kept${['applied', 'interview', 'offer'].includes(job.status) ? ', you are already in the process' : ''}`;
+      const kept =
+        outcome !== 'reported'
+          ? ''
+          : ` — status ${job.status} kept${['applied', 'interview', 'offer'].includes(job.status) ? ', you are already in the process' : ''}`;
       console.log(`${LINE[outcome]} ${job.company} — ${job.title} (${r.reason})${kept}\n      id: ${job.id}`);
     }
   });
-  console.log(`\n${jobs.length} checked: ${counts.open + counts.reopened} open${counts.reopened ? ` (${counts.reopened} reopened)` : ''}, `
-    + `${counts.expired} closed → expired, ${counts.reported} closed but status kept, `
-    + `${counts.unknown} unknown (checked again next run).`);
+  console.log(
+    `\n${jobs.length} checked: ${counts.open + counts.reopened} open${counts.reopened ? ` (${counts.reopened} reopened)` : ''}, ` +
+      `${counts.expired} closed → expired, ${counts.reported} closed but status kept, ` +
+      `${counts.unknown} unknown (checked again next run).`,
+  );
 }

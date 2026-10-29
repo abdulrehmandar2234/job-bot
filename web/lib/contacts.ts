@@ -12,11 +12,16 @@ export const CONTACT_ROLES = ['recruiter', 'hiring manager', 'referral', 'other'
 export const REFERRAL_STATUSES = ['none', 'to ask', 'asked', 'agreed', 'referred'] as const satisfies readonly ReferralStatus[];
 
 /** Same as the bot's normCompany (src/db.ts): "Acme Inc." and "ACME" are one company. */
-export const normCompany = (s: string) => s.toLowerCase()
-  .replace(/\.(io|com|ai|co)\b/g, ' ')
-  .replace(/\b([a-z])\.(?=[a-z]\b)/g, '$1') // B.V. / N.V. -> bv / nv
-  .replace(/\b(inc|llc|ltd|limited|co|corp|corporation|gmbh|bv|b v|nv|fze|fzco|fz llc|group|technologies|technology|tech|holding|holdings|operations|solutions|labs|software|systems|global|international)\b/g, ' ')
-  .replace(/[^a-z0-9]/g, '');
+export const normCompany = (s: string) =>
+  s
+    .toLowerCase()
+    .replace(/\.(io|com|ai|co)\b/g, ' ')
+    .replace(/\b([a-z])\.(?=[a-z]\b)/g, '$1') // B.V. / N.V. -> bv / nv
+    .replace(
+      /\b(inc|llc|ltd|limited|co|corp|corporation|gmbh|bv|b v|nv|fze|fzco|fz llc|group|technologies|technology|tech|holding|holdings|operations|solutions|labs|software|systems|global|international)\b/g,
+      ' ',
+    )
+    .replace(/[^a-z0-9]/g, '');
 
 export type ContactInput = Pick<Contact, 'name' | 'role' | 'email' | 'linkedin_url' | 'phone' | 'notes' | 'referral_status'>;
 
@@ -72,6 +77,9 @@ const ASK: readonly ReferralStatus[] = ['to ask', 'none'];
 export function referralReminder(job: { id: string; company: string; status: Status }, all: CompanyContact[]) {
   if (job.status !== 'new' && job.status !== 'prepared') return null;
   const { own, elsewhere } = contactsFor(job, all);
-  return [...own, ...elsewhere].filter((c) => ASK.includes(c.referral_status))
-    .sort((a, b) => ASK.indexOf(a.referral_status) - ASK.indexOf(b.referral_status))[0] ?? null;
+  return (
+    [...own, ...elsewhere]
+      .filter((c) => ASK.includes(c.referral_status))
+      .sort((a, b) => ASK.indexOf(a.referral_status) - ASK.indexOf(b.referral_status))[0] ?? null
+  );
 }

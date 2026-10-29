@@ -25,31 +25,44 @@ async function refresh() {
 }
 
 function renderJob(j) {
-  const verdict = j.ai_score != null ? `AI ${j.ai_score}${j.ai_verdict ? ` (${j.ai_verdict})` : ''} · keyword ${j.score}` : `score ${j.score}`;
+  const verdict =
+    j.ai_score != null ? `AI ${j.ai_score}${j.ai_verdict ? ` (${j.ai_verdict})` : ''} · keyword ${j.score}` : `score ${j.score}`;
   const answers = j.form_answers ?? [];
   return [
     h('h2', {}, `${j.company} — ${j.title}`),
     h('p', { className: 'meta' }, `Status: ${j.status} · ${verdict}`),
     j.ai_summary && h('p', {}, j.ai_summary),
-    h('div', { className: 'actions' },
+    h(
+      'div',
+      { className: 'actions' },
       link(j.dashboard_url, 'Open in dashboard'),
       // Applying is recorded on the dashboard, where the user also confirms it.
-      j.status !== 'applied' && link(j.dashboard_url, 'Mark applied (in dashboard)')),
+      j.status !== 'applied' && link(j.dashboard_url, 'Mark applied (in dashboard)'),
+    ),
     h('h2', {}, 'CV'),
     j.cv_url
       ? h('p', {}, `Version: ${j.cv_version} · `, link(j.cv_url, 'Download PDF'))
       : h('p', { className: 'hint' }, 'No CV prepared yet. Use "Prepare" on the dashboard.'),
     h('h2', {}, 'Cover letter'),
     j.cover_letter
-      ? h('div', { className: 'box' }, h('div', { className: 'row' }, h('span', { className: 'meta' }, 'Cover letter'), copyButton(j.cover_letter)),
-        h('pre', {}, j.cover_letter))
+      ? h(
+          'div',
+          { className: 'box' },
+          h('div', { className: 'row' }, h('span', { className: 'meta' }, 'Cover letter'), copyButton(j.cover_letter)),
+          h('pre', {}, j.cover_letter),
+        )
       : h('p', { className: 'hint' }, 'No cover letter yet.'),
     h('h2', {}, 'Form answers'),
     answers.length
-      ? answers.map((a) => h('div', { className: 'box' },
-        h('div', { className: 'row' }, h('b', {}, a.question), copyButton(a.answer)),
-        a.needs_input && h('p', { className: 'needs' }, `Check before using${a.note ? `: ${a.note}` : ''}`),
-        h('pre', {}, a.answer)))
+      ? answers.map((a) =>
+          h(
+            'div',
+            { className: 'box' },
+            h('div', { className: 'row' }, h('b', {}, a.question), copyButton(a.answer)),
+            a.needs_input && h('p', { className: 'needs' }, `Check before using${a.note ? `: ${a.note}` : ''}`),
+            h('pre', {}, a.answer),
+          ),
+        )
       : h('p', { className: 'hint' }, 'No answers drafted yet. Use "Draft answers" on the dashboard.'),
   ];
 }

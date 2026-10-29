@@ -1,6 +1,21 @@
 // Text helpers for job descriptions. Plain functions without DOM or chrome.* calls, so node:test can test them.
 
-const ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: '\u00a0', ndash: '–', mdash: '—', hellip: '…', rsquo: '’', lsquo: '‘', rdquo: '”', ldquo: '“', bull: '•' };
+const ENTITIES = {
+  amp: '&',
+  lt: '<',
+  gt: '>',
+  quot: '"',
+  apos: "'",
+  nbsp: '\u00a0',
+  ndash: '–',
+  mdash: '—',
+  hellip: '…',
+  rsquo: '’',
+  lsquo: '‘',
+  rdquo: '”',
+  ldquo: '“',
+  bull: '•',
+};
 
 /** Decodes named (common ones) and numeric HTML entities. */
 export function decodeEntities(s) {
@@ -18,7 +33,9 @@ export function cleanText(s) {
   return String(s ?? '')
     .replace(/\r\n?/g, '\n')
     .replace(/[\t\f\v  ​]+/g, ' ')
-    .split('\n').map((l) => l.trim()).join('\n')
+    .split('\n')
+    .map((l) => l.trim())
+    .join('\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
 }

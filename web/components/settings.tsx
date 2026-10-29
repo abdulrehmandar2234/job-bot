@@ -3,9 +3,7 @@
 import { startTransition, useActionState, useState, type FormEvent, type ReactNode } from 'react';
 import { saveApplicant, saveConfig, saveJson, type SaveState } from '@/app/settings/actions';
 import type { SettingsFile } from '@/lib/settings';
-import {
-  APPLICANT_FACTS, ATS, errorsFor, get, SALARY_KEYS, type Json, type SettingsError, type SettingsKind,
-} from '@/lib/settings-form';
+import { APPLICANT_FACTS, ATS, errorsFor, get, SALARY_KEYS, type Json, type SettingsError, type SettingsKind } from '@/lib/settings-form';
 
 type Action = (prev: SaveState, fd: FormData) => Promise<SaveState>;
 
@@ -27,13 +25,22 @@ function useSave(action: Action) {
 export function SaveStatus({ state, pending }: { state: SaveState; pending: boolean }) {
   if (pending) return <span className="text-sm text-zinc-500">Saving…</span>;
   if (!state) return null;
-  if (state.ok) return <span role="status" className="text-sm text-emerald-700 dark:text-emerald-400">{state.message}</span>;
+  if (state.ok)
+    return (
+      <span role="status" className="text-sm text-emerald-700 dark:text-emerald-400">
+        {state.message}
+      </span>
+    );
   return (
     <div role="alert" className="text-sm text-rose-700 dark:text-rose-400">
       <p className="font-medium">{state.message}</p>
       {state.errors.length > 0 && (
         <ul className="list-disc pl-5">
-          {state.errors.map((e, i) => <li key={i}><code>{e.path}</code>: {e.message}</li>)}
+          {state.errors.map((e, i) => (
+            <li key={i}>
+              <code>{e.path}</code>: {e.message}
+            </li>
+          ))}
         </ul>
       )}
     </div>
@@ -45,10 +52,22 @@ function FieldErrors({ errors }: { errors: SettingsError[] }) {
   return <p className="mt-1 text-xs text-rose-700 dark:text-rose-400">{errors.map((e) => e.message).join('; ')}</p>;
 }
 
-function Field({ label, name, errors, hint, children }:
-  { label: string; name: string; errors: SettingsError[]; hint?: string; children: ReactNode }) {
+function Field({
+  label,
+  name,
+  errors,
+  hint,
+  children,
+}: {
+  label: string;
+  name: string;
+  errors: SettingsError[];
+  hint?: string;
+  children: ReactNode;
+}) {
   const own = errorsFor(errors, name);
   return (
+    // biome-ignore lint/a11y/noLabelWithoutControl: the control is passed in as children
     <label className="block text-sm" data-invalid={own.length > 0 || undefined}>
       <span className="font-medium">{label}</span>
       {hint && <span className="ml-1 text-xs text-zinc-500">{hint}</span>}
@@ -82,7 +101,9 @@ function Check({ label, name, value }: { label: string; name: string; value: unk
 function SaveBar({ label, state, pending }: { label: string; state: SaveState; pending: boolean }) {
   return (
     <div className="flex flex-wrap items-start gap-3">
-      <button type="submit" disabled={pending} className={`btn btn-primary ${pending ? 'cursor-wait opacity-60' : ''}`}>{label}</button>
+      <button type="submit" disabled={pending} className={`btn btn-primary ${pending ? 'cursor-wait opacity-60' : ''}`}>
+        {label}
+      </button>
       <SaveStatus state={state} pending={pending} />
     </div>
   );
@@ -95,7 +116,8 @@ type CompanyRow = { key: number; orig: number; name: string; ats: string; token:
 function CompaniesEditor({ companies, errors }: { companies: unknown; errors: SettingsError[] }) {
   const list = Array.isArray(companies) ? (companies as Json[]) : [];
   const [rows, setRows] = useState<CompanyRow[]>(() =>
-    list.map((c, i) => ({ key: i, orig: i, name: text(c?.name), ats: text(c?.ats), token: text(c?.token) })));
+    list.map((c, i) => ({ key: i, orig: i, name: text(c?.name), ats: text(c?.ats), token: text(c?.token) })),
+  );
   const [next, setNext] = useState(list.length);
   const add = () => {
     setRows([...rows, { key: next, orig: -1, name: '', ats: ATS[0], token: '' }]);
@@ -117,7 +139,11 @@ function CompaniesEditor({ companies, errors }: { companies: unknown; errors: Se
             </div>
             <div>
               <select aria-label={`Company ${i + 1} ATS`} name={`${p}.ats`} defaultValue={r.ats} className={input}>
-                {options.map((a) => <option key={a} value={a}>{a}</option>)}
+                {options.map((a) => (
+                  <option key={a} value={a}>
+                    {a}
+                  </option>
+                ))}
               </select>
               <FieldErrors errors={errorsFor(errors, `${p}.ats`)} />
             </div>
@@ -125,12 +151,20 @@ function CompaniesEditor({ companies, errors }: { companies: unknown; errors: Se
               <input aria-label={`Company ${i + 1} token`} name={`${p}.token`} defaultValue={r.token} className={input} />
               <FieldErrors errors={errorsFor(errors, `${p}.token`)} />
             </div>
-            <button type="button" className="btn" aria-label={`Remove company ${i + 1}`}
-              onClick={() => setRows(rows.filter((x) => x.key !== r.key))}>✕</button>
+            <button
+              type="button"
+              className="btn"
+              aria-label={`Remove company ${i + 1}`}
+              onClick={() => setRows(rows.filter((x) => x.key !== r.key))}
+            >
+              ✕
+            </button>
           </div>
         );
       })}
-      <button type="button" className="btn" onClick={add}>+ Add company</button>
+      <button type="button" className="btn" onClick={add}>
+        + Add company
+      </button>
     </div>
   );
 }
@@ -138,7 +172,12 @@ function CompaniesEditor({ companies, errors }: { companies: unknown; errors: Se
 export function ConfigForm({ config }: { config: SettingsFile }) {
   const { state, pending, onSubmit, errors } = useSave(saveConfig);
   const c = config.data;
-  if (!c) return <p role="alert" className="text-sm text-rose-700">config.json cannot be read ({config.error}). Fix it under &quot;Advanced: edit JSON&quot;.</p>;
+  if (!c)
+    return (
+      <p role="alert" className="text-sm text-rose-700">
+        config.json cannot be read ({config.error}). Fix it under &quot;Advanced: edit JSON&quot;.
+      </p>
+    );
   const countries = Object.entries((c.countries ?? {}) as Record<string, Json>);
   const f = (name: string) => ({ name, errors });
   return (
@@ -165,8 +204,12 @@ export function ConfigForm({ config }: { config: SettingsFile }) {
 
         <Section title="Target countries">
           {countries.map(([code, country]) => (
-            <Field key={code} label={`${text(country?.name) || code} (${code}, visa: ${text(country?.visa)})`}
-              hint="location pattern" {...f(`countries.${code}.match`)}>
+            <Field
+              key={code}
+              label={`${text(country?.name) || code} (${code}, visa: ${text(country?.visa)})`}
+              hint="location pattern"
+              {...f(`countries.${code}.match`)}
+            >
               <input name={`countries.${code}.match`} defaultValue={text(country?.match)} className={`${input} font-mono text-xs`} />
             </Field>
           ))}
@@ -185,7 +228,13 @@ export function ConfigForm({ config }: { config: SettingsFile }) {
               <input name="linkedin.remoteFrom" defaultValue={text(get(c, 'linkedin.remoteFrom'))} className={input} />
             </Field>
             <Field label="Pages per search" hint="10 results each" {...f('linkedin.pagesPerSearch')}>
-              <input type="number" min={0} name="linkedin.pagesPerSearch" defaultValue={text(get(c, 'linkedin.pagesPerSearch'))} className={input} />
+              <input
+                type="number"
+                min={0}
+                name="linkedin.pagesPerSearch"
+                defaultValue={text(get(c, 'linkedin.pagesPerSearch'))}
+                className={input}
+              />
             </Field>
           </div>
         </Section>
@@ -222,7 +271,13 @@ export function ConfigForm({ config }: { config: SettingsFile }) {
               <textarea name="adzuna.keywords" rows={3} defaultValue={lines(get(c, 'adzuna.keywords'))} className={input} />
             </Field>
             <Field label="Adzuna pages per search" hint="50 results each" {...f('adzuna.pagesPerSearch')}>
-              <input type="number" min={0} name="adzuna.pagesPerSearch" defaultValue={text(get(c, 'adzuna.pagesPerSearch'))} className={input} />
+              <input
+                type="number"
+                min={0}
+                name="adzuna.pagesPerSearch"
+                defaultValue={text(get(c, 'adzuna.pagesPerSearch'))}
+                className={input}
+              />
             </Field>
           </div>
         </Section>
@@ -230,8 +285,11 @@ export function ConfigForm({ config }: { config: SettingsFile }) {
         <Section title="AI review">
           <Check label="Use the AI (local Claude CLI)" name="ai.enabled" value={get(c, 'ai.enabled')} />
           {/* Missing means on (src/settings.ts), so only an explicit false unchecks it. */}
-          <Check label="Alert me at once for strong matches (macOS notification)" name="ai.alertStrong"
-            value={get(c, 'ai.alertStrong') !== false} />
+          <Check
+            label="Alert me at once for strong matches (macOS notification)"
+            name="ai.alertStrong"
+            value={get(c, 'ai.alertStrong') !== false}
+          />
           <div className="grid gap-3 sm:grid-cols-3">
             <Field label="Score model" {...f('ai.scoreModel')}>
               <input name="ai.scoreModel" defaultValue={text(get(c, 'ai.scoreModel'))} className={input} />
@@ -257,10 +315,16 @@ export function ConfigForm({ config }: { config: SettingsFile }) {
 // ---- cv/applicant.json ----
 
 const FACT_LABEL: Record<(typeof APPLICANT_FACTS)[number], string> = {
-  currentLocation: 'Current location', languages: 'Languages', needsVisaSponsorship: 'Needs visa sponsorship',
-  willingToRelocate: 'Willing to relocate', nationality: 'Nationality', noticePeriod: 'Notice period',
-  earliestStartDate: 'Earliest start date', currentSalary: 'Current salary',
-  workingHoursForRemote: 'Working hours for remote roles', howDidYouHear: 'How did you hear about us',
+  currentLocation: 'Current location',
+  languages: 'Languages',
+  needsVisaSponsorship: 'Needs visa sponsorship',
+  willingToRelocate: 'Willing to relocate',
+  nationality: 'Nationality',
+  noticePeriod: 'Notice period',
+  earliestStartDate: 'Earliest start date',
+  currentSalary: 'Current salary',
+  workingHoursForRemote: 'Working hours for remote roles',
+  howDidYouHear: 'How did you hear about us',
 };
 
 type OtherRow = { key: number; name: string; value: string };
@@ -279,11 +343,24 @@ function OtherEditor({ other, errors }: { other: unknown; errors: SettingsError[
             <input aria-label={`Other fact ${i + 1} value`} name={`other[${i}].value`} defaultValue={r.value} className={input} />
             <FieldErrors errors={errorsFor(errors, `other.${r.name}`)} />
           </div>
-          <button type="button" className="btn" aria-label={`Remove other fact ${i + 1}`}
-            onClick={() => setRows(rows.filter((x) => x.key !== r.key))}>✕</button>
+          <button
+            type="button"
+            className="btn"
+            aria-label={`Remove other fact ${i + 1}`}
+            onClick={() => setRows(rows.filter((x) => x.key !== r.key))}
+          >
+            ✕
+          </button>
         </div>
       ))}
-      <button type="button" className="btn" onClick={() => { setRows([...rows, { key: next, name: '', value: '' }]); setNext(next + 1); }}>
+      <button
+        type="button"
+        className="btn"
+        onClick={() => {
+          setRows([...rows, { key: next, name: '', value: '' }]);
+          setNext(next + 1);
+        }}
+      >
         + Add fact
       </button>
     </div>
@@ -293,7 +370,12 @@ function OtherEditor({ other, errors }: { other: unknown; errors: SettingsError[
 export function ApplicantForm({ applicant }: { applicant: SettingsFile }) {
   const { state, pending, onSubmit, errors } = useSave(saveApplicant);
   const a = applicant.data;
-  if (!a) return <p role="alert" className="text-sm text-rose-700">applicant.json cannot be read ({applicant.error}). Fix it under &quot;Advanced: edit JSON&quot;.</p>;
+  if (!a)
+    return (
+      <p role="alert" className="text-sm text-rose-700">
+        applicant.json cannot be read ({applicant.error}). Fix it under &quot;Advanced: edit JSON&quot;.
+      </p>
+    );
   return (
     <form onSubmit={onSubmit} aria-label="Applicant facts" className="space-y-4">
       {applicant.example && (
@@ -340,8 +422,15 @@ export function JsonEditor({ kind, file }: { kind: SettingsKind; file: SettingsF
       <form onSubmit={onSubmit} aria-label={`Edit ${kind} JSON`} className="mt-3 space-y-3">
         <p className="text-xs text-zinc-500">{file.file}</p>
         <input type="hidden" name="kind" value={kind} />
-        <textarea key={file.text} name="json" aria-label={`${kind} JSON`} rows={20} defaultValue={file.text} spellCheck={false}
-          className={`${input} font-mono text-xs`} />
+        <textarea
+          key={file.text}
+          name="json"
+          aria-label={`${kind} JSON`}
+          rows={20}
+          defaultValue={file.text}
+          spellCheck={false}
+          className={`${input} font-mono text-xs`}
+        />
         <SaveBar label="Save JSON" state={state} pending={pending} />
       </form>
     </details>

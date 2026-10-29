@@ -21,8 +21,7 @@ const form = (fields: Record<string, string>) => {
   return fd;
 };
 /** Tasks for our job, plus job-less ones (fetch), oldest first. */
-const tasks = async () => (await pool.query<Task>(
-  `SELECT * FROM tasks WHERE job_id = $1 OR job_id IS NULL ORDER BY id`, [id])).rows;
+const tasks = async () => (await pool.query<Task>(`SELECT * FROM tasks WHERE job_id = $1 OR job_id IS NULL ORDER BY id`, [id])).rows;
 /** The worker each started task gets: `task:run <id>`. */
 const spawnedFor = (t: Task) => ['task:run', String(t.id)];
 
@@ -36,8 +35,12 @@ afterAll(closeDb);
 
 describe('job id validation (shared by every action)', () => {
   it.each([
-    ['setStatus', setStatus], ['saveNotes', saveNotes], ['prepare', prepare], ['aiReview', aiReview],
-    ['draftAnswers', draftAnswers], ['clearAnswers', clearAnswers],
+    ['setStatus', setStatus],
+    ['saveNotes', saveNotes],
+    ['prepare', prepare],
+    ['aiReview', aiReview],
+    ['draftAnswers', draftAnswers],
+    ['clearAnswers', clearAnswers],
   ] as const)('%s rejects a missing or unknown job', async (_, action) => {
     await expect(action(form({ status: 'applied', questions: 'Q?' }))).rejects.toThrow('Missing job id');
     await expect(action(form({ id: PREFIX + 'nope', status: 'applied', questions: 'Q?' }))).rejects.toThrow('Unknown job');

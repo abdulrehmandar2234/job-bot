@@ -14,16 +14,39 @@ const claudePath = () => process.env.JOB_BOT_CLAUDE || config.ai.claudePath;
 
 export function askClaude<T>(prompt: string, schema: object, model: string, system: string): Promise<T> {
   return new Promise((resolve, reject) => {
-    const child = spawn(claudePath(), [
-      '-p', '--model', model, '--output-format', 'json', '--json-schema', JSON.stringify(schema),
-      '--system-prompt', system, '--tools', '', '--strict-mcp-config', '--setting-sources', '', '--no-session-persistence',
-    ], { stdio: ['pipe', 'pipe', 'pipe'] });
+    const child = spawn(
+      claudePath(),
+      [
+        '-p',
+        '--model',
+        model,
+        '--output-format',
+        'json',
+        '--json-schema',
+        JSON.stringify(schema),
+        '--system-prompt',
+        system,
+        '--tools',
+        '',
+        '--strict-mcp-config',
+        '--setting-sources',
+        '',
+        '--no-session-persistence',
+      ],
+      { stdio: ['pipe', 'pipe', 'pipe'] },
+    );
     let out = '';
     let err = '';
-    const timer = setTimeout(() => { child.kill(); reject(new Error('claude timed out')); }, 180_000);
+    const timer = setTimeout(() => {
+      child.kill();
+      reject(new Error('claude timed out'));
+    }, 180_000);
     child.stdout.on('data', (d) => (out += d));
     child.stderr.on('data', (d) => (err += d));
-    child.on('error', (e) => { clearTimeout(timer); reject(e); });
+    child.on('error', (e) => {
+      clearTimeout(timer);
+      reject(e);
+    });
     child.on('close', (code) => {
       clearTimeout(timer);
       try {
@@ -51,12 +74,13 @@ export function cvText(): string {
   ].join('\n');
 }
 
-const jobText = (job: Job) => [
-  `TITLE: ${job.title}`,
-  `COMPANY: ${job.company}`,
-  `LOCATION: ${job.location}${job.country === 'RM' ? ' (remote; candidate would work from Pakistan)' : ''}`,
-  `DESCRIPTION:\n${job.description.slice(0, 12_000)}`,
-].join('\n');
+const jobText = (job: Job) =>
+  [
+    `TITLE: ${job.title}`,
+    `COMPANY: ${job.company}`,
+    `LOCATION: ${job.location}${job.country === 'RM' ? ' (remote; candidate would work from Pakistan)' : ''}`,
+    `DESCRIPTION:\n${job.description.slice(0, 12_000)}`,
+  ].join('\n');
 
 export type AiScore = {
   score: number;
@@ -136,12 +160,17 @@ Rules:
 - Years of experience: count from the CV dates; say "about N years" if unsure.
 - Free-text questions ("why this company", "describe a project"): 60-150 words, specific to this job and company, first
   person, plain text, no clichés. Link the job's requirements to concrete CV experience.
-- ${remote
-    ? 'Remote role: he works from Lahore, Pakistan (GMT+5).'
-    : 'Onsite role: he is in Lahore, Pakistan, would relocate, and needs employer visa sponsorship (answer sponsorship/right-to-work questions truthfully).'}`;
+- ${
+    remote
+      ? 'Remote role: he works from Lahore, Pakistan (GMT+5).'
+      : 'Onsite role: he is in Lahore, Pakistan, would relocate, and needs employer visa sponsorship (answer sponsorship/right-to-work questions truthfully).'
+  }`;
   const res = await askClaude<{ answers: FormAnswer[] }>(
     `CV:\n${cvText()}\n\nAPPLICANT FACTS (null = unknown):\n${applicantFacts()}\n\nJOB:\n${jobText(job)}\n\nFORM QUESTIONS:\n${questions.slice(0, 8000)}`,
-    ANSWERS_SCHEMA, config.ai.letterModel, system);
+    ANSWERS_SCHEMA,
+    config.ai.letterModel,
+    system,
+  );
   return res.answers;
 }
 
@@ -159,12 +188,18 @@ Best regards,
 Abdul Rehman Dar
 +92 321 4979646 | abdulrehmandar2234@gmail.com
 https://www.linkedin.com/in/abdulrehman-dar/
-- ${remote
-    ? 'This is a remote role: say he is based in Lahore, Pakistan (GMT+5) and has worked remotely with international clients and distributed teams.'
-    : 'This is an onsite role: say he is based in Lahore, Pakistan, ready to relocate, and would need employer visa sponsorship.'}
+- ${
+    remote
+      ? 'This is a remote role: say he is based in Lahore, Pakistan (GMT+5) and has worked remotely with international clients and distributed teams.'
+      : 'This is an onsite role: say he is based in Lahore, Pakistan, ready to relocate, and would need employer visa sponsorship.'
+  }
 - Confident and specific, no clichés like "I am writing to express my interest".`;
-  const res = await askClaude<{ letter: string }>(`CV:\n${cvText()}\n\nJOB:\n${jobText(job)}`,
-    { type: 'object', properties: { letter: { type: 'string' } }, required: ['letter'] }, config.ai.letterModel, system);
+  const res = await askClaude<{ letter: string }>(
+    `CV:\n${cvText()}\n\nJOB:\n${jobText(job)}`,
+    { type: 'object', properties: { letter: { type: 'string' } }, required: ['letter'] },
+    config.ai.letterModel,
+    system,
+  );
   return res.letter.trim() + '\n';
 }
 
@@ -173,14 +208,24 @@ const PREP_SCHEMA = {
   type: 'object',
   properties: {
     technical: {
-      type: 'array', minItems: 4, maxItems: 8,
-      items: { type: 'object', properties: { question: str, hint: { type: 'string', description: 'What to emphasise from the CV.' } },
-        required: ['question', 'hint'] },
+      type: 'array',
+      minItems: 4,
+      maxItems: 8,
+      items: {
+        type: 'object',
+        properties: { question: str, hint: { type: 'string', description: 'What to emphasise from the CV.' } },
+        required: ['question', 'hint'],
+      },
     },
     behavioural: {
-      type: 'array', minItems: 3, maxItems: 6,
-      items: { type: 'object', properties: { question: str, situation: str, task: str, action: str, result: str },
-        required: ['question', 'situation', 'task', 'action', 'result'] },
+      type: 'array',
+      minItems: 3,
+      maxItems: 6,
+      items: {
+        type: 'object',
+        properties: { question: str, situation: str, task: str, action: str, result: str },
+        required: ['question', 'situation', 'task', 'action', 'result'],
+      },
     },
     company: {
       type: 'object',
@@ -192,12 +237,17 @@ const PREP_SCHEMA = {
     },
     questions_to_ask: { type: 'array', minItems: 3, maxItems: 8, items: str },
     requirements: {
-      type: 'array', maxItems: 12,
-      items: { type: 'object', properties: {
-        requirement: str,
-        evidence: { type: 'string', description: 'Matching CV experience, or what is missing when gap is true.' },
-        gap: { type: 'boolean' },
-      }, required: ['requirement', 'evidence', 'gap'] },
+      type: 'array',
+      maxItems: 12,
+      items: {
+        type: 'object',
+        properties: {
+          requirement: str,
+          evidence: { type: 'string', description: 'Matching CV experience, or what is missing when gap is true.' },
+          gap: { type: 'boolean' },
+        },
+        required: ['requirement', 'evidence', 'gap'],
+      },
     },
   },
   required: ['technical', 'behavioural', 'company', 'questions_to_ask', 'requirements'],

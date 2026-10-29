@@ -10,13 +10,16 @@ afterAll(closeDb);
 // Roughly EUR 60k a year each, in different currencies and periods, plus lower and missing ones.
 async function seed() {
   await insertJob({ id: 'sal-aed', salary_min: 18_000, salary_max: 22_000, salary_currency: 'AED', salary_period: 'month' }); // 66k
-  await insertJob({ id: 'sal-eur', salary_min: 4_000, salary_max: 4_500, salary_currency: 'EUR', salary_period: 'month' });  // 54k
-  await insertJob({ id: 'sal-usd', salary_min: null, salary_max: 90_000, salary_currency: 'USD', salary_period: 'year' });   // 82.8k
+  await insertJob({ id: 'sal-eur', salary_min: 4_000, salary_max: 4_500, salary_currency: 'EUR', salary_period: 'month' }); // 54k
+  await insertJob({ id: 'sal-usd', salary_min: null, salary_max: 90_000, salary_currency: 'USD', salary_period: 'year' }); // 82.8k
   await insertJob({ id: 'sal-pkr', salary_min: 400_000, salary_max: 600_000, salary_currency: 'PKR', salary_period: 'month' }); // 23.8k
-  await insertJob({ id: 'sal-hour', salary_min: 30, salary_max: 35, salary_currency: 'GBP', salary_period: 'hour' });        // 85k
+  await insertJob({ id: 'sal-hour', salary_min: 30, salary_max: 35, salary_currency: 'GBP', salary_period: 'hour' }); // 85k
   await insertJob({ id: 'sal-none' });
 }
-const ids = (rows: { id: string }[]) => ours(rows).map((id) => id.slice(PREFIX.length)).sort();
+const ids = (rows: { id: string }[]) =>
+  ours(rows)
+    .map((id) => id.slice(PREFIX.length))
+    .sort();
 
 describe('listJobs salary filter', () => {
   it('compares the top of each range in euros per year, and keeps jobs without a salary', async () => {

@@ -1,0 +1,4 @@
+#!/bin/sh
+# Lint and format staged files (Biome); `npm run format` fixes most problems.
+# Installed by `npm install` (package.json "prepare" sets core.hooksPath to .githooks).
+exec npx --no-install biome check --staged --no-errors-on-unmatched --files-ignore-unknown=true

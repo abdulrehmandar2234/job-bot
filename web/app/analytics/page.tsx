@@ -9,7 +9,9 @@ import { skipInsights } from '@/lib/skip-insights';
 export default function Page() {
   return (
     <main className="mx-auto w-full max-w-5xl px-4 py-6 sm:px-6">
-      <Link href="/" className="text-sm text-zinc-500 hover:underline">← All jobs</Link>
+      <Link href="/" className="text-sm text-zinc-500 hover:underline">
+        ← All jobs
+      </Link>
       <h1 className="mt-2 mb-5 text-2xl font-semibold tracking-tight">Analytics</h1>
       <Suspense fallback={<p className="text-sm text-zinc-500">Loading…</p>}>
         <Analytics />
@@ -21,7 +23,11 @@ export default function Page() {
 async function Analytics() {
   const roleExclude = readConfig().data?.roleExclude;
   const [f, rates, weeks, days, runs, skips] = await Promise.all([
-    funnel(), Promise.all(DIMENSIONS.map(responseRates)), weeklyActivity(), responseDays(), recentFetchRuns(),
+    funnel(),
+    Promise.all(DIMENSIONS.map(responseRates)),
+    weeklyActivity(),
+    responseDays(),
+    recentFetchRuns(),
     skipInsights(typeof roleExclude === 'string' ? roleExclude : null),
   ]);
   const med = median(days.map((d) => d.days));
@@ -40,15 +46,26 @@ async function Analytics() {
               <FunnelChart f={f} />
             </Section>
             <Section title="Time to response" sub="Median days from applying to the first interview or rejection">
-              {med == null ? <p className="text-sm text-zinc-500">No replies yet.</p> : (
-                <p><span className="text-3xl font-semibold tabular-nums">{med.toFixed(1)}</span> days
-                  <span className="block text-xs text-zinc-500">from {days.length} repl{days.length === 1 ? 'y' : 'ies'}</span></p>
+              {med == null ? (
+                <p className="text-sm text-zinc-500">No replies yet.</p>
+              ) : (
+                <p>
+                  <span className="text-3xl font-semibold tabular-nums">{med.toFixed(1)}</span> days
+                  <span className="block text-xs text-zinc-500">
+                    from {days.length} repl{days.length === 1 ? 'y' : 'ies'}
+                  </span>
+                </p>
               )}
             </Section>
           </div>
-          <Section title="Response rate" sub={`Applications that led to an interview or offer. Groups with fewer than ${MIN_N} applications are greyed out.`}>
+          <Section
+            title="Response rate"
+            sub={`Applications that led to an interview or offer. Groups with fewer than ${MIN_N} applications are greyed out.`}
+          >
             <div className="grid gap-5 sm:grid-cols-2">
-              {DIMENSIONS.map((d, i) => <RateTable key={d} dim={d} rows={rates[i]} />)}
+              {DIMENSIONS.map((d, i) => (
+                <RateTable key={d} dim={d} rows={rates[i]} />
+              ))}
             </div>
           </Section>
         </>

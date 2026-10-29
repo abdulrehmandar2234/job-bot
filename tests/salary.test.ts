@@ -3,8 +3,12 @@ import assert from 'node:assert/strict';
 import { parseSalary, rowSalary, structuredSalary } from '../src/salary.ts';
 import type { Salary } from '../src/types.ts';
 
-const S = (min: number | null, max: number | null, currency: Salary['currency'], period: Salary['period']): Salary =>
-  ({ min, max, currency, period });
+const S = (min: number | null, max: number | null, currency: Salary['currency'], period: Salary['period']): Salary => ({
+  min,
+  max,
+  currency,
+  period,
+});
 
 // Real-world wording from postings in the target countries and on remote boards.
 const FOUND: [string, Salary][] = [
@@ -72,7 +76,8 @@ describe('parseSalary', () => {
   }
 
   it('finds the salary in a long description past other numbers', () => {
-    const text = `Senior Laravel Developer\nAbout us: founded in 2015, 250 employees, $40M raised.\n` +
+    const text =
+      `Senior Laravel Developer\nAbout us: founded in 2015, 250 employees, $40M raised.\n` +
       `Requirements: 5+ years of PHP.\nWhat we offer: AED 22,000 - 28,000 per month, 30 days annual leave.`;
     assert.deepEqual(parseSalary(text), S(22_000, 28_000, 'AED', 'month'));
   });

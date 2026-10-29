@@ -102,8 +102,16 @@ describe('TaskWatcher', () => {
 });
 
 const view = (over: Partial<TaskView>): TaskView => ({
-  id: 1, kind: 'fetch', job_id: null, status: 'running', error: null, created_at: new Date(), started_at: new Date(),
-  company: null, title: null, ...over,
+  id: 1,
+  kind: 'fetch',
+  job_id: null,
+  status: 'running',
+  error: null,
+  created_at: new Date(),
+  started_at: new Date(),
+  company: null,
+  title: null,
+  ...over,
 });
 
 describe('TaskBar', () => {
@@ -114,7 +122,9 @@ describe('TaskBar', () => {
   });
 
   it('says what is running, with the job on the dashboard', () => {
-    render(<TaskBar tasks={[view({}), view({ id: 2, kind: 'prepare', job_id: 'j', status: 'queued', company: 'Acme', title: 'Engineer' })]} />);
+    render(
+      <TaskBar tasks={[view({}), view({ id: 2, kind: 'prepare', job_id: 'j', status: 'queued', company: 'Acme', title: 'Engineer' })]} />,
+    );
     expect(screen.getByRole('status')).toHaveTextContent('Working… Fetching new jobs · Preparing CV + letter (Acme — Engineer)');
   });
 
@@ -124,7 +134,11 @@ describe('TaskBar', () => {
   });
 
   it('shows each failure with its error and a dismiss button for that task', () => {
-    render(<TaskBar tasks={[view({ id: 9, kind: 'ai_review', status: 'failed', error: 'Claude is offline', company: 'Acme', title: 'Engineer' })]} />);
+    render(
+      <TaskBar
+        tasks={[view({ id: 9, kind: 'ai_review', status: 'failed', error: 'Claude is offline', company: 'Acme', title: 'Engineer' })]}
+      />,
+    );
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
     const alert = screen.getByRole('alert');
     expect(alert).toHaveTextContent('AI reviewing (Acme — Engineer) failed');

@@ -19,11 +19,23 @@ export function normalizeUrl(url) {
 
 // Job boards the bot knows by name; any other site is stored with the source "extension".
 const BOARDS = [
-  ['bayt.com', 'bayt'], ['linkedin.com', 'linkedin'], ['gulftalent.com', 'gulftalent'], ['naukrigulf.com', 'naukrigulf'],
-  ['indeed.com', 'indeed'], ['glassdoor.com', 'glassdoor'], ['greenhouse.io', 'greenhouse'], ['lever.co', 'lever'],
-  ['ashbyhq.com', 'ashby'], ['workable.com', 'workable'], ['recruitee.com', 'recruitee'],
-  ['smartrecruiters.com', 'smartrecruiters'], ['wellfound.com', 'wellfound'], ['himalayas.app', 'himalayas'],
-  ['remotive.com', 'remotive'], ['remoteok.com', 'remoteok'], ['dubizzle.com', 'dubizzle'],
+  ['bayt.com', 'bayt'],
+  ['linkedin.com', 'linkedin'],
+  ['gulftalent.com', 'gulftalent'],
+  ['naukrigulf.com', 'naukrigulf'],
+  ['indeed.com', 'indeed'],
+  ['glassdoor.com', 'glassdoor'],
+  ['greenhouse.io', 'greenhouse'],
+  ['lever.co', 'lever'],
+  ['ashbyhq.com', 'ashby'],
+  ['workable.com', 'workable'],
+  ['recruitee.com', 'recruitee'],
+  ['smartrecruiters.com', 'smartrecruiters'],
+  ['wellfound.com', 'wellfound'],
+  ['himalayas.app', 'himalayas'],
+  ['remotive.com', 'remotive'],
+  ['remoteok.com', 'remoteok'],
+  ['dubizzle.com', 'dubizzle'],
 ];
 
 /** Source name for a job URL's hostname: a known board ("gulftalent"), else "extension". */

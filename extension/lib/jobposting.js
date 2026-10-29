@@ -3,8 +3,8 @@
 import { cleanText, decodeEntities, htmlToText } from './text.js';
 import { sourceFromUrl } from './url.js';
 
-const isPosting = (n) => n && typeof n === 'object'
-  && [n['@type']].flat().some((t) => typeof t === 'string' && /(^|[/:])JobPosting$/.test(t));
+const isPosting = (n) =>
+  n && typeof n === 'object' && [n['@type']].flat().some((t) => typeof t === 'string' && /(^|[/:])JobPosting$/.test(t));
 
 /** Finds the first JobPosting in a list of JSON-LD script texts (handles arrays and @graph). Null if none. */
 export function findJobPosting(jsonLdTexts) {
@@ -79,8 +79,13 @@ export function jobFromPosting(p, pageUrl) {
 
 /** Best guess at title and company from a page title such as "Backend Engineer at Acme | LinkedIn". */
 export function guessFromTitle(pageTitle, siteName = '') {
-  const parts = String(pageTitle ?? '').split(/\s+[|·–—-]\s+/).map((s) => s.trim()).filter(Boolean);
-  const site = String(siteName ?? '').trim().toLowerCase();
+  const parts = String(pageTitle ?? '')
+    .split(/\s+[|·–—-]\s+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const site = String(siteName ?? '')
+    .trim()
+    .toLowerCase();
   const kept = parts.filter((p) => p.toLowerCase() !== site);
   const first = kept[0] ?? '';
   const at = first.match(/^(.+?)\s+at\s+(.+)$/i);
@@ -103,8 +108,13 @@ export function jobFromPage(page) {
   return {
     method: 'page',
     job: {
-      source: sourceFromUrl(page.url), company: guess.company, title: guess.title, location: '',
-      url: page.url, description: text.slice(0, 20000), posted_at: null,
+      source: sourceFromUrl(page.url),
+      company: guess.company,
+      title: guess.title,
+      location: '',
+      url: page.url,
+      description: text.slice(0, 20000),
+      posted_at: null,
     },
   };
 }

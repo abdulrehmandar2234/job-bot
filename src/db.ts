@@ -5,12 +5,37 @@ import type { Job, JobStatus, SkipReason } from './types.ts';
 export type { FormAnswer, Job, JobStatus, SkipReason } from './types.ts';
 
 /** Every job status, in pipeline order; the dashboard's STATUSES must match (tests/statuses.test.ts). */
-export const JOB_STATUSES = ['new', 'prepared', 'applied', 'interview', 'offer', 'rejected', 'skipped', 'expired', 'filtered'] as const satisfies readonly JobStatus[];
+export const JOB_STATUSES = [
+  'new',
+  'prepared',
+  'applied',
+  'interview',
+  'offer',
+  'rejected',
+  'skipped',
+  'expired',
+  'filtered',
+] as const satisfies readonly JobStatus[];
 
-export type ScoredJob = Pick<Job,
-  'id' | 'source' | 'company' | 'title' | 'location' | 'country' | 'url' | 'description' | 'score' | 'cluster' |
-  'matched' | 'missing' | 'visa' | 'flags' | 'status' | 'filter_reason'> & { posted_at: string | null }
-  & Partial<Pick<Job, 'salary_min' | 'salary_max' | 'salary_currency' | 'salary_period'>>;
+export type ScoredJob = Pick<
+  Job,
+  | 'id'
+  | 'source'
+  | 'company'
+  | 'title'
+  | 'location'
+  | 'country'
+  | 'url'
+  | 'description'
+  | 'score'
+  | 'cluster'
+  | 'matched'
+  | 'missing'
+  | 'visa'
+  | 'flags'
+  | 'status'
+  | 'filter_reason'
+> & { posted_at: string | null } & Partial<Pick<Job, 'salary_min' | 'salary_max' | 'salary_currency' | 'salary_period'>>;
 
 if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL missing — add it to .env');
 export const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 4 });
@@ -19,18 +44,41 @@ export const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, ma
 export const migrate = () => runMigrations(pool);
 
 // Company career pages first (most direct), then big boards, then aggregators.
-const SOURCE_RANK = ['greenhouse', 'lever', 'ashby', 'recruitee', 'workable', 'smartrecruiters', 'linkedin', 'bayt',
-  'himalayas', 'remotive', 'remoteok', 'manual'];
+const SOURCE_RANK = [
+  'greenhouse',
+  'lever',
+  'ashby',
+  'recruitee',
+  'workable',
+  'smartrecruiters',
+  'linkedin',
+  'bayt',
+  'himalayas',
+  'remotive',
+  'remoteok',
+  'manual',
+];
 
-export const normCompany = (s: string) => s.toLowerCase()
-  .replace(/\.(io|com|ai|co)\b/g, ' ')
-  .replace(/\b([a-z])\.(?=[a-z]\b)/g, '$1') // B.V. / N.V. -> bv / nv
-  .replace(/\b(inc|llc|ltd|limited|co|corp|corporation|gmbh|bv|b v|nv|fze|fzco|fz llc|group|technologies|technology|tech|holding|holdings|operations|solutions|labs|software|systems|global|international)\b/g, ' ')
-  .replace(/[^a-z0-9]/g, '');
-export const normTitle = (s: string) => s.toLowerCase()
-  .replace(/\([^)]*\)/g, ' ')
-  .replace(/\bsr\.?\b/g, 'senior').replace(/full[\s-]?stack/g, 'fullstack').replace(/front[\s-]?end/g, 'frontend').replace(/back[\s-]?end/g, 'backend')
-  .replace(/[^a-z0-9]+/g, ' ').trim();
+export const normCompany = (s: string) =>
+  s
+    .toLowerCase()
+    .replace(/\.(io|com|ai|co)\b/g, ' ')
+    .replace(/\b([a-z])\.(?=[a-z]\b)/g, '$1') // B.V. / N.V. -> bv / nv
+    .replace(
+      /\b(inc|llc|ltd|limited|co|corp|corporation|gmbh|bv|b v|nv|fze|fzco|fz llc|group|technologies|technology|tech|holding|holdings|operations|solutions|labs|software|systems|global|international)\b/g,
+      ' ',
+    )
+    .replace(/[^a-z0-9]/g, '');
+export const normTitle = (s: string) =>
+  s
+    .toLowerCase()
+    .replace(/\([^)]*\)/g, ' ')
+    .replace(/\bsr\.?\b/g, 'senior')
+    .replace(/full[\s-]?stack/g, 'fullstack')
+    .replace(/front[\s-]?end/g, 'frontend')
+    .replace(/back[\s-]?end/g, 'backend')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
 
 /**
  * Groups the same posting found on several sites (same company + title + country) and points the copies
@@ -38,12 +86,16 @@ export const normTitle = (s: string) => s.toLowerCase()
  */
 export async function dedupe() {
   const { rows } = await pool.query<DedupeRow>(
-    `SELECT id, company, title, country, source, status, first_seen_at FROM jobs WHERE status <> 'filtered'`);
+    `SELECT id, company, title, country, source, status, first_seen_at FROM jobs WHERE status <> 'filtered'`,
+  );
   const links = duplicateLinks(rows);
   await pool.query('UPDATE jobs SET duplicate_of = NULL WHERE duplicate_of IS NOT NULL');
   if (links.length) {
-    await pool.query(`UPDATE jobs SET duplicate_of = v.primary_id FROM unnest($1::text[], $2::text[]) AS v(id, primary_id)
-      WHERE jobs.id = v.id`, [links.map((l) => l[0]), links.map((l) => l[1])]);
+    await pool.query(
+      `UPDATE jobs SET duplicate_of = v.primary_id FROM unnest($1::text[], $2::text[]) AS v(id, primary_id)
+      WHERE jobs.id = v.id`,
+      [links.map((l) => l[0]), links.map((l) => l[1])],
+    );
   }
   return links.length;
 }
@@ -65,18 +117,25 @@ export function duplicateLinks(rows: DedupeRow[]): [string, string][] {
     for (const r of g) if (r.country !== 'RM') byCountry.set(r.country ?? '', [...(byCountry.get(r.country ?? '') ?? []), r]);
     const remote = g.filter((r) => r.country === 'RM');
     if (!byCountry.size) groups.push(remote);
-    else [...byCountry.values()].forEach((c, i) => groups.push(i === 0 ? [...c, ...remote] : c));
+    else for (const [i, c] of [...byCountry.values()].entries()) groups.push(i === 0 ? [...c, ...remote] : c);
   }
   // `expired` is the bot's verdict, not the user's: a still-open copy becomes primary, so the job stays in Matching.
   const acted = (s: string) => !['new', 'filtered', 'expired'].includes(s);
   const expired = (s: string) => Number(s === 'expired');
-  const rank = (s: string) => { const i = SOURCE_RANK.indexOf(s); return i === -1 ? SOURCE_RANK.length : i; };
+  const rank = (s: string) => {
+    const i = SOURCE_RANK.indexOf(s);
+    return i === -1 ? SOURCE_RANK.length : i;
+  };
   const links: [string, string][] = [];
   for (const g of groups) {
     if (g.length < 2) continue;
-    g.sort((a, b) => Number(acted(b.status)) - Number(acted(a.status)) || expired(a.status) - expired(b.status)
-      || rank(a.source) - rank(b.source)
-      || new Date(a.first_seen_at).getTime() - new Date(b.first_seen_at).getTime());
+    g.sort(
+      (a, b) =>
+        Number(acted(b.status)) - Number(acted(a.status)) ||
+        expired(a.status) - expired(b.status) ||
+        rank(a.source) - rank(b.source) ||
+        new Date(a.first_seen_at).getTime() - new Date(b.first_seen_at).getTime(),
+    );
     for (const copy of g.slice(1)) links.push([copy.id, g[0].id]);
   }
   return links;
@@ -84,7 +143,8 @@ export function duplicateLinks(rows: DedupeRow[]): [string, string][] {
 
 /** Inserts new jobs; for existing ones refreshes the posting but never touches user-owned fields (status, cv_version, notes). */
 export async function upsertJob(j: ScoredJob): Promise<'inserted' | 'updated'> {
-  const { rows } = await pool.query<{ inserted: boolean }>(`
+  const { rows } = await pool.query<{ inserted: boolean }>(
+    `
     INSERT INTO jobs (id, source, company, title, location, country, url, description, posted_at,
       score, cluster, matched, missing, visa, flags, status, filter_reason,
       salary_min, salary_max, salary_currency, salary_period)
@@ -99,9 +159,30 @@ export async function upsertJob(j: ScoredJob): Promise<'inserted' | 'updated'> {
       -- Re-scoring may move a job between new <-> filtered, but only while the user hasn't acted on it.
       status = CASE WHEN jobs.status IN ('new', 'filtered') THEN EXCLUDED.status ELSE jobs.status END
     RETURNING (xmax = 0) AS inserted`,
-    [j.id, j.source, j.company, j.title, j.location, j.country, j.url, j.description, j.posted_at,
-      j.score, j.cluster, j.matched, j.missing, j.visa, j.flags, j.status, j.filter_reason,
-      j.salary_min ?? null, j.salary_max ?? null, j.salary_currency ?? null, j.salary_period ?? null]);
+    [
+      j.id,
+      j.source,
+      j.company,
+      j.title,
+      j.location,
+      j.country,
+      j.url,
+      j.description,
+      j.posted_at,
+      j.score,
+      j.cluster,
+      j.matched,
+      j.missing,
+      j.visa,
+      j.flags,
+      j.status,
+      j.filter_reason,
+      j.salary_min ?? null,
+      j.salary_max ?? null,
+      j.salary_currency ?? null,
+      j.salary_period ?? null,
+    ],
+  );
   return rows[0].inserted ? 'inserted' : 'updated';
 }
 
@@ -111,7 +192,15 @@ export async function getJob(id: string) {
 }
 
 /** Every skip reason; the dashboard's SKIP_REASONS must match (web/tests/lib/skips.test.ts). */
-export const SKIP_REASONS = ['stack', 'seniority', 'salary', 'location', 'company', 'language', 'other'] as const satisfies readonly SkipReason[];
+export const SKIP_REASONS = [
+  'stack',
+  'seniority',
+  'salary',
+  'location',
+  'company',
+  'language',
+  'other',
+] as const satisfies readonly SkipReason[];
 
 /** Changes a job's status and logs it in job_events, in one transaction. `reason` is kept only for skips. */
 export async function setStatus(id: string, status: JobStatus, note?: string, reason?: SkipReason) {
@@ -120,11 +209,19 @@ export async function setStatus(id: string, status: JobStatus, note?: string, re
     await client.query('BEGIN');
     const { rows } = await client.query<{ status: string }>('SELECT status FROM jobs WHERE id = $1 FOR UPDATE', [id]);
     // The note belongs to the history entry; jobs.notes is the user's own free-text field (edited in the dashboard).
-    await client.query(`UPDATE jobs SET status = $2,
+    await client.query(
+      `UPDATE jobs SET status = $2,
       applied_at = CASE WHEN $2 = 'applied' THEN now() ELSE applied_at END
-      WHERE id = $1`, [id, status]);
-    await client.query('INSERT INTO job_events (job_id, from_status, to_status, note, reason) VALUES ($1, $2, $3, $4, $5)',
-      [id, rows[0]?.status ?? null, status, note ?? null, status === 'skipped' ? reason ?? null : null]);
+      WHERE id = $1`,
+      [id, status],
+    );
+    await client.query('INSERT INTO job_events (job_id, from_status, to_status, note, reason) VALUES ($1, $2, $3, $4, $5)', [
+      id,
+      rows[0]?.status ?? null,
+      status,
+      note ?? null,
+      status === 'skipped' ? (reason ?? null) : null,
+    ]);
     await client.query('COMMIT');
   } catch (e) {
     await client.query('ROLLBACK');

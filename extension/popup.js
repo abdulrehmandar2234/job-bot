@@ -20,8 +20,14 @@ if (!isHttpUrl(tab?.url)) {
 } else {
   lookupJob(tab.url).then((r) => {
     if (r.ok && r.job) {
-      known.replaceChildren(h('p', { className: 'box' }, `Already in job-bot: ${r.job.company} — ${r.job.title} (${r.job.status}). `,
-        link(jobPageUrl(r.job.id), 'Open in dashboard')));
+      known.replaceChildren(
+        h(
+          'p',
+          { className: 'box' },
+          `Already in job-bot: ${r.job.company} — ${r.job.title} (${r.job.status}). `,
+          link(jobPageUrl(r.job.id), 'Open in dashboard'),
+        ),
+      );
     } else if (!r.ok) {
       known.replaceChildren(h('p', { className: 'box' }, r.error));
     }

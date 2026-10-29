@@ -10,8 +10,19 @@ import type { CompanyContact } from '@/lib/contacts';
 vi.mock('@/app/jobs/[id]/contact-actions', () => ({ saveContact: vi.fn(), deleteContact: vi.fn() }));
 
 const contact = (o: Partial<CompanyContact> = {}): CompanyContact => ({
-  id: 1, job_id: 'j1', name: 'Jane Doe', role: 'recruiter', email: 'jane@acme.com', linkedin_url: 'https://www.linkedin.com/in/jane',
-  phone: '+971 50 1', notes: 'Met at GITEX', referral_status: 'none', created_at: new Date(), company: 'Acme', job_title: 'Backend Engineer', ...o,
+  id: 1,
+  job_id: 'j1',
+  name: 'Jane Doe',
+  role: 'recruiter',
+  email: 'jane@acme.com',
+  linkedin_url: 'https://www.linkedin.com/in/jane',
+  phone: '+971 50 1',
+  notes: 'Met at GITEX',
+  referral_status: 'none',
+  created_at: new Date(),
+  company: 'Acme',
+  job_title: 'Backend Engineer',
+  ...o,
 });
 const job = { id: 'j1', company: 'Acme Inc.', status: 'new' as const };
 const lastForm = () => vi.mocked(saveContact).mock.calls.at(-1)![1] as FormData;
@@ -19,7 +30,7 @@ const lastForm = () => vi.mocked(saveContact).mock.calls.at(-1)![1] as FormData;
 beforeEach(() => vi.clearAllMocks());
 
 describe('Contacts', () => {
-  it('lists this job\'s contacts with delete and edit, and an add form', () => {
+  it("lists this job's contacts with delete and edit, and an add form", () => {
     render(<Contacts job={job} contacts={[contact(), contact({ id: 2, name: 'Other Co person', company: 'Other', job_id: 'j3' })]} />);
     const item = screen.getByText('Jane Doe').closest('li')!;
     expect(item).toHaveTextContent('recruiter');
@@ -35,7 +46,9 @@ describe('Contacts', () => {
   });
 
   it('shows "You know someone at <company>" for contacts added on other jobs of the same company', () => {
-    render(<Contacts job={job} contacts={[contact({ id: 5, job_id: 'j2', name: 'Sam', job_title: 'Frontend Engineer', company: 'ACME' })]} />);
+    render(
+      <Contacts job={job} contacts={[contact({ id: 5, job_id: 'j2', name: 'Sam', job_title: 'Frontend Engineer', company: 'ACME' })]} />,
+    );
     const box = screen.getByText('You know someone at Acme Inc.').parentElement!;
     expect(box).toHaveTextContent('Sam');
     expect(within(box).getByRole('link', { name: 'added on Frontend Engineer' })).toHaveAttribute('href', '/jobs/j2');
@@ -50,11 +63,13 @@ describe('referral reminder', () => {
   });
 
   it('shows nothing once the referral was asked for, or after applying', () => {
-    const { container } = render(<>
-      <ReferralReminder job={job} contacts={[contact({ referral_status: 'asked' })]} />
-      <ReferralReminder job={{ ...job, status: 'applied' }} contacts={[contact()]} />
-      <ReferralBadge job={{ ...job, status: 'applied' }} contacts={[contact()]} />
-    </>);
+    const { container } = render(
+      <>
+        <ReferralReminder job={job} contacts={[contact({ referral_status: 'asked' })]} />
+        <ReferralReminder job={{ ...job, status: 'applied' }} contacts={[contact()]} />
+        <ReferralBadge job={{ ...job, status: 'applied' }} contacts={[contact()]} />
+      </>,
+    );
     expect(container).toBeEmptyDOMElement();
   });
 
@@ -76,11 +91,16 @@ describe('ContactForm', () => {
     await user.click(screen.getByRole('button', { name: 'Add contact' }));
     expect(await screen.findByRole('status')).toHaveTextContent('Saved.');
     const fd = lastForm();
-    expect([fd.get('id'), fd.get('name'), fd.get('email'), fd.get('referral_status'), fd.get('contact_id')])
-      .toEqual(['j1', 'Jane', 'jane@acme.com', 'to ask', null]);
+    expect([fd.get('id'), fd.get('name'), fd.get('email'), fd.get('referral_status'), fd.get('contact_id')]).toEqual([
+      'j1',
+      'Jane',
+      'jane@acme.com',
+      'to ask',
+      null,
+    ]);
   });
 
-  it('edits an existing contact and lists the server\'s validation errors', async () => {
+  it("edits an existing contact and lists the server's validation errors", async () => {
     vi.mocked(saveContact).mockResolvedValue({ ok: false, errors: ['email is not a valid address'] });
     const user = userEvent.setup();
     render(<ContactForm jobId="j1" contact={contact()} />);

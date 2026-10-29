@@ -159,12 +159,12 @@ cv/versions/custom-<company-role>/abdulrehman_dar_resume.pdf
 
 All AI features call the Claude Code CLI you are signed in to (`claude -p`) with a JSON output schema, so there is no API key and usage comes from your Claude plan. Settings live in `config.json` → `ai`.
 
-| Feature       | Model    | Time per job | Used by                          |
-| ------------- | -------- | ------------ | -------------------------------- |
-| Fit review    | `haiku`  | ~10 s        | `ai:score`, daily fetch, button  |
-| Cover letter  | `sonnet` | ~15–30 s     | `prepare`, "Rewrite letter"      |
-| Form answers  | `sonnet` | ~15 s        | `answer`, "Draft answers"        |
-| Interview prep| `sonnet` | ~30–60 s     | `prep`, "Prepare for interview"  |
+| Feature        | Model    | Time per job | Used by                         |
+| -------------- | -------- | ------------ | ------------------------------- |
+| Fit review     | `haiku`  | ~10 s        | `ai:score`, daily fetch, button |
+| Cover letter   | `sonnet` | ~15–30 s     | `prepare`, "Rewrite letter"     |
+| Form answers   | `sonnet` | ~15 s        | `answer`, "Draft answers"       |
+| Interview prep | `sonnet` | ~30–60 s     | `prep`, "Prepare for interview" |
 
 The prompts only allow facts from `cv/master.json` and `cv/applicant.json`. Fill in `cv/applicant.json` (copy it from `cv/applicant.example.json`) with your notice period, expected salary per country, etc., so form answers can use them.
 
@@ -217,8 +217,14 @@ npm run bot -- settings:check|settings:save --kind config|applicant [--file x.js
 `add` JSON format:
 
 ```json
-{ "source": "bayt", "company": "X", "title": "Senior Laravel Developer", "location": "Dubai, UAE",
-  "url": "https://...", "description": "full job text" }
+{
+  "source": "bayt",
+  "company": "X",
+  "title": "Senior Laravel Developer",
+  "location": "Dubai, UAE",
+  "url": "https://...",
+  "description": "full job text"
+}
 ```
 
 ### Daily fetch
@@ -239,16 +245,16 @@ launchctl bootout gui/$(id -u)/com.abdulrehman.job-bot.fetch
 
 ## Configuration (`config.json`)
 
-| Key                         | What it controls                                              |
-| --------------------------- | ------------------------------------------------------------- |
-| `countries`                 | Target countries: location regex and visa rule per country    |
-| `companies`                 | Company boards to fetch (`ats` + `token`)                     |
-| `roleInclude`/`roleExclude` | Title rules                                                   |
-| `minScore`, `maxAgeDays`    | Keyword-score threshold (45) and maximum posting age (14 days) |
-| `remote`                    | Remote boards and the allow/deny/flag region rules            |
-| `linkedin`                  | Keywords, locations, `remoteFrom`, pages per search           |
-| `ai`                        | Claude path, models, `maxScorePerRun`, concurrency            |
-| `cvFileName`, `autoCvVersions`, `chromePath` | CV output settings                           |
+| Key                                          | What it controls                                               |
+| -------------------------------------------- | -------------------------------------------------------------- |
+| `countries`                                  | Target countries: location regex and visa rule per country     |
+| `companies`                                  | Company boards to fetch (`ats` + `token`)                      |
+| `roleInclude`/`roleExclude`                  | Title rules                                                    |
+| `minScore`, `maxAgeDays`                     | Keyword-score threshold (45) and maximum posting age (14 days) |
+| `remote`                                     | Remote boards and the allow/deny/flag region rules             |
+| `linkedin`                                   | Keywords, locations, `remoteFrom`, pages per search            |
+| `ai`                                         | Claude path, models, `maxScorePerRun`, concurrency             |
+| `cvFileName`, `autoCvVersions`, `chromePath` | CV output settings                                             |
 
 Both files are validated on load, so a typo stops the bot with the file and field name. Set `JOB_BOT_CONFIG` / `JOB_BOT_APPLICANT` to use other files.
 
@@ -292,11 +298,13 @@ npm test             # backend: matching, sources, dedupe, CV, AI, DB, CLI (node
 npm run test:web     # dashboard: components, DB queries, API routes, server actions (vitest)
 npm run test:all     # both
 npm run typecheck    # tsc for the bot (src/, tests/) and the dashboard (web/)
+npm run lint         # Biome lint + format check; npm run format fixes it
 ```
 
 - Tests use separate databases: `job_bot_test_bot` (backend) and `job_bot_test` (dashboard). They never touch the real `job_bot`.
 - Job-site requests are mocked, and a fake script (`tests/fixtures/fake-claude.mjs`) stands in for Claude, so tests run offline and use none of your Claude plan.
 - Every new feature or change ships with its tests (see `CLAUDE.md`).
+- `npm install` points git at `.githooks/`, so each commit runs Biome on the staged files. GitHub Actions runs lint, typecheck and both suites on every push.
 
 ## Tech stack
 

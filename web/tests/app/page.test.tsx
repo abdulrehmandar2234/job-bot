@@ -59,9 +59,18 @@ describe('job list page', () => {
   });
 
   it('warns in the header when the latest fetch had errors, and not once a clean fetch follows', async () => {
-    await insertFetchRun({ finished_at: new Date(), errors: [{ company: 'Acme', error: 'HTTP 500' }, { company: 'Globex', error: 'timeout' }] });
+    await insertFetchRun({
+      finished_at: new Date(),
+      errors: [
+        { company: 'Acme', error: 'HTTP 500' },
+        { company: 'Globex', error: 'timeout' },
+      ],
+    });
     const { unmount } = await renderPage();
-    expect(within(screen.getByRole('banner')).getByRole('link', { name: '⚠ Last fetch: 2 errors' })).toHaveAttribute('href', '/analytics#fetch');
+    expect(within(screen.getByRole('banner')).getByRole('link', { name: '⚠ Last fetch: 2 errors' })).toHaveAttribute(
+      'href',
+      '/analytics#fetch',
+    );
     unmount();
 
     await insertFetchRun({ finished_at: new Date(), errors: [] });
@@ -81,8 +90,11 @@ describe('job list page', () => {
 
     await renderPage();
     const nav = screen.getByRole('navigation');
-    expect(within(nav).getAllByRole('link').map((a) => a.textContent!.replace(/ \d+$/, ''))).toEqual(
-      ['Matching', 'Prepared', 'Applied', 'Interview', 'Offer', 'Rejected', 'Skipped', 'Expired', 'Filtered out']);
+    expect(
+      within(nav)
+        .getAllByRole('link')
+        .map((a) => a.textContent!.replace(/ \d+$/, '')),
+    ).toEqual(['Matching', 'Prepared', 'Applied', 'Interview', 'Offer', 'Rejected', 'Skipped', 'Expired', 'Filtered out']);
     expect(tab('Matching')).toHaveTextContent(`Matching ${n('new', 2)}`);
     expect(tab('Applied')).toHaveTextContent(`Applied ${n('applied', 1)}`);
     expect(tab('Filtered out')).toHaveTextContent(`Filtered out ${n('filtered', 1)}`);
@@ -96,7 +108,11 @@ describe('job list page', () => {
   });
 
   it('shows the last finished fetch run', async () => {
-    await insertFetchRun({ started_at: new Date(Date.now() - 3 * 3_600_000), finished_at: new Date(Date.now() - 2 * 3_600_000), checked: 1234 });
+    await insertFetchRun({
+      started_at: new Date(Date.now() - 3 * 3_600_000),
+      finished_at: new Date(Date.now() - 2 * 3_600_000),
+      checked: 1234,
+    });
     await renderPage();
     const stat = screen.getByText('Last fetch').parentElement!;
     expect(stat).toHaveTextContent('2h ago');
@@ -185,7 +201,13 @@ describe('job list page', () => {
   it('shows a job posted on several sites once, with a link per site', async () => {
     const primary = await insertJob({ id: 'd-1', title: 'TG shared', source: 'greenhouse', url: 'https://boards.greenhouse.io/acme/1' });
     await insertJob({ id: 'd-2', title: 'TG shared', source: 'linkedin', url: 'https://linkedin.com/jobs/9', duplicate_of: primary });
-    await insertJob({ id: 'd-3', title: 'TG shared', source: 'bayt', url: 'https://www.bayt.com/en/uae/jobs/x-1234567/', duplicate_of: primary });
+    await insertJob({
+      id: 'd-3',
+      title: 'TG shared',
+      source: 'bayt',
+      url: 'https://www.bayt.com/en/uae/jobs/x-1234567/',
+      duplicate_of: primary,
+    });
     await renderPage();
     expect(titles()).toEqual(['TG shared']);
     const card = cards()[0];
@@ -197,14 +219,31 @@ describe('job list page', () => {
   });
 
   it('shows card details: location, visa, AI review, skills, flags and notes', async () => {
-    await insertJob({ id: 'card', title: 'TG card', company: 'Globex', country: 'NL', location: 'Amsterdam', visa: 'IND sponsor',
-      matched: ['laravel'], missing: ['go'], flags: ['Dutch required'], notes: 'Ask about relocation', score: 60,
-      ai_score: 77, ai_verdict: 'good fit', ai_summary: 'Strong PHP match', ai_reasons: ['PHP'], ai_gaps: ['Go'], ai_flags: [] });
+    await insertJob({
+      id: 'card',
+      title: 'TG card',
+      company: 'Globex',
+      country: 'NL',
+      location: 'Amsterdam',
+      visa: 'IND sponsor',
+      matched: ['laravel'],
+      missing: ['go'],
+      flags: ['Dutch required'],
+      notes: 'Ask about relocation',
+      score: 60,
+      ai_score: 77,
+      ai_verdict: 'good fit',
+      ai_summary: 'Strong PHP match',
+      ai_reasons: ['PHP'],
+      ai_gaps: ['Go'],
+      ai_flags: [],
+    });
     await renderPage();
     const card = cards()[0];
     expect(card).toHaveTextContent('🇳🇱 Netherlands · Amsterdam · ✓ IND sponsor');
     expect(card).toHaveTextContent('AI · good fit: Strong PHP match');
-    for (const text of ['laravel', 'go', 'Dutch required', '📝 Ask about relocation', '✓ PHP', '– Go']) expect(card).toHaveTextContent(text);
+    for (const text of ['laravel', 'go', 'Dutch required', '📝 Ask about relocation', '✓ PHP', '– Go'])
+      expect(card).toHaveTextContent(text);
     expect(within(card).getByRole('link', { name: 'Open job ↗' })).toHaveAttribute('href', 'https://example.com/webtest:card');
     expect(card).not.toHaveTextContent('✗');
   });

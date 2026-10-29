@@ -8,13 +8,21 @@ import { runBot } from '@/lib/bot';
 vi.mock('@/lib/bot', () => ({ runBot: vi.fn() }));
 
 const report = (o: Partial<AtsReport> = {}): AtsReport => ({
-  label: 'laravel-v2', source: 'prepared', present: ['Laravel', 'PHP'], hiddenButTrue: ['Docker', 'AWS'], missing: ['Kubernetes'],
-  total: 5, suggestion: { version: 'backend-node', shows: 4, gains: ['Docker', 'AWS'] }, ...o,
+  label: 'laravel-v2',
+  source: 'prepared',
+  present: ['Laravel', 'PHP'],
+  hiddenButTrue: ['Docker', 'AWS'],
+  missing: ['Kubernetes'],
+  total: 5,
+  suggestion: { version: 'backend-node', shows: 4, gains: ['Docker', 'AWS'] },
+  ...o,
 });
 
 /** AtsCheck wraps its loader in <Suspense>: await the loader like the server would. */
 async function renderCheck(jobId: string) {
-  const loader = (AtsCheck({ jobId }) as ReactElement<{ children: ReactElement<Record<string, unknown>, (p: unknown) => Promise<ReactNode>> }>).props.children;
+  const loader = (
+    AtsCheck({ jobId }) as ReactElement<{ children: ReactElement<Record<string, unknown>, (p: unknown) => Promise<ReactNode>> }>
+  ).props.children;
   return render(<>{await loader.type(loader.props)}</>);
 }
 
@@ -58,7 +66,12 @@ describe('AtsCheck', () => {
 
   it('says it is unavailable when the bot answers something else than a report', async () => {
     vi.mocked(runBot).mockResolvedValue('Not found\n');
-    try { await renderCheck('x'); } catch (e) { console.log('CAUGHT IN TEST', (e as Error).stack); throw e; }
+    try {
+      await renderCheck('x');
+    } catch (e) {
+      console.log('CAUGHT IN TEST', (e as Error).stack);
+      throw e;
+    }
     expect(screen.getByText('CV keyword check is not available right now.')).toBeInTheDocument();
   });
 });

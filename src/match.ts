@@ -33,7 +33,12 @@ export const SKILLS: { name: string; re: RegExp; have: boolean; weight?: number 
   { name: 'Docker', re: /\bdocker\b|\bcontainers?\b/i, have: true },
   { name: 'CI/CD', re: /\bci\/?cd\b|continuous integration/i, have: true },
   { name: 'Testing', re: /\bjest\b|\bphpunit\b|\bpest\b|\bmocha\b|unit test|integration test|\btdd\b/i, have: true },
-  { name: 'LLM / AI', re: /\bllms?\b|\bopenai\b|\bgpt\b|generative ai|\bgenai\b|\bai agents?\b|prompt engineering/i, have: true, weight: 2 },
+  {
+    name: 'LLM / AI',
+    re: /\bllms?\b|\bopenai\b|\bgpt\b|generative ai|\bgenai\b|\bai agents?\b|prompt engineering/i,
+    have: true,
+    weight: 2,
+  },
   { name: 'Microservices', re: /\bmicroservices?\b/i, have: false },
   { name: 'Angular', re: /\bangular\b/i, have: false, weight: 2 },
   { name: 'Tailwind CSS', re: /\btailwind/i, have: true },
@@ -79,7 +84,8 @@ const LANG_REQUIRED =
 const LANG_BONUS = /\b(dutch|arabic)\b[^.\n]{0,40}(plus|bonus|nice to have|preferred|advantage|beneficial)/i;
 const NO_SPONSOR =
   /(no|not|unable to|cannot|can't|don't|do not)\s[^.\n]{0,30}(visa )?sponsor|must (already )?have (the )?(right|authori[sz]ation|permit) to work|eu (work )?(permit|passport|citizen)|without (the need for )?sponsorship|local candidates only|saudi nationals only|saudization|uae nationals only|emirati(s)? only|emiratisation/i;
-const SPONSOR = /visa sponsorship|sponsor (your |a )?visa|relocation (support|package|assistance)|we (will )?(help|support) (you )?(with )?relocat|work permit support/i;
+const SPONSOR =
+  /visa sponsorship|sponsor (your |a )?visa|relocation (support|package|assistance)|we (will )?(help|support) (you )?(with )?relocat|work permit support/i;
 
 // Strong "you must live in X" phrases; plain mentions of the US or EU in a description prove nothing.
 const REMOTE_DESC_DENY =
@@ -125,7 +131,15 @@ export function scoreJob(job: RawJob): Scored {
   const country = remote ? remote.country : findCountry(job.location, job.description);
   const flags: string[] = remote?.flag ? [remote.flag] : [];
   const out = (filterReason: string | null, extra: Partial<Scored> = {}): Scored => ({
-    country, score: 0, cluster: 'default', matched: [], missing: [], visa: null, flags, filterReason, ...extra,
+    country,
+    score: 0,
+    cluster: 'default',
+    matched: [],
+    missing: [],
+    visa: null,
+    flags,
+    filterReason,
+    ...extra,
   });
 
   if (remote?.reason) return out(remote.reason);
@@ -184,7 +198,10 @@ function skillScore(
     if (!s.re.test(text)) continue;
     const w = s.weight ?? 1;
     total += w;
-    if (s.have) { got += w; matched.push(s.name); } else missing.push(s.name);
+    if (s.have) {
+      got += w;
+      matched.push(s.name);
+    } else missing.push(s.name);
   }
   if (total === 0) return out('no recognisable tech stack in posting', { visa });
 
@@ -193,9 +210,15 @@ function skillScore(
   if (matched.length < 3) score = Math.min(score, 50);
 
   const years = [...text.matchAll(/(\d{1,2})\+?\s*(?:-\s*\d+\s*)?years/gi)].map((m) => Number(m[1])).filter((n) => n < 20);
-  if (years.length && Math.max(...years) > 10) { score -= 15; flags.push(`asks ${Math.max(...years)}+ years`); }
+  if (years.length && Math.max(...years) > 10) {
+    score -= 15;
+    flags.push(`asks ${Math.max(...years)}+ years`);
+  }
   if (/\b(senior|sr\.?|lead|staff)\b/i.test(job.title)) score += 5;
-  if (/\bjunior|\bjr\b|entry/i.test(job.title)) { score -= 20; flags.push('junior role'); }
+  if (/\bjunior|\bjr\b|entry/i.test(job.title)) {
+    score -= 20;
+    flags.push('junior role');
+  }
   score = Math.max(0, Math.min(100, score));
 
   if (score < config.minScore) return out(`score ${score} below minScore ${config.minScore}`, { score, matched, missing, visa });

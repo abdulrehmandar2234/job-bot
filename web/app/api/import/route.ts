@@ -23,13 +23,26 @@ export async function OPTIONS(req: NextRequest) {
   return new Response(null, { status: 204, headers: cors(req.headers.get('origin')) });
 }
 
-type Incoming = { source?: string; company: string; title: string; location?: string; url: string; description?: string; posted_at?: string | null };
+type Incoming = {
+  source?: string;
+  company: string;
+  title: string;
+  location?: string;
+  url: string;
+  description?: string;
+  posted_at?: string | null;
+};
 type Valid = Required<Incoming>;
 
 /** What happened to one job sent by the extension, for its popup. */
 export type ImportResult = {
-  url: string; outcome: 'added' | 'filtered' | 'known' | 'error'; id?: string; status?: string;
-  score?: number; ai_score?: number | null; filter_reason?: string | null;
+  url: string;
+  outcome: 'added' | 'filtered' | 'known' | 'error';
+  id?: string;
+  status?: string;
+  score?: number;
+  ai_score?: number | null;
+  filter_reason?: string | null;
 };
 
 const result = (url: string, outcome: ImportResult['outcome'], j?: Awaited<ReturnType<typeof findJobByUrl>>): ImportResult =>
@@ -42,15 +55,27 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json().catch(() => null);
   const jobs: Incoming[] = Array.isArray(body) ? body : [];
-  const valid: Valid[] = jobs.filter((j) => typeof j?.title === 'string' && typeof j?.company === 'string'
-    // `origin + '/'`, so look-alike hosts (www.bayt.com.evil.io) and userinfo (www.bayt.com@evil.io) don't pass.
-    && (extension ? isHttpUrl(j?.url) : typeof j?.url === 'string' && j.url.startsWith(`${origin}/`))).slice(0, 500)
+  const valid: Valid[] = jobs
+    .filter(
+      (j) =>
+        typeof j?.title === 'string' &&
+        typeof j?.company === 'string' &&
+        // `origin + '/'`, so look-alike hosts (www.bayt.com.evil.io) and userinfo (www.bayt.com@evil.io) don't pass.
+        (extension ? isHttpUrl(j?.url) : typeof j?.url === 'string' && j.url.startsWith(`${origin}/`)),
+    )
+    .slice(0, 500)
     .map((j) => ({
       source: extension
-        ? (typeof j.source === 'string' && /^[a-z0-9-]{1,30}$/.test(j.source) ? j.source : 'extension')
+        ? typeof j.source === 'string' && /^[a-z0-9-]{1,30}$/.test(j.source)
+          ? j.source
+          : 'extension'
         : String(j.source ?? new URL(origin).hostname.replace(/^www\.|\.com$/g, '')).slice(0, 30),
-      company: j.company.slice(0, 200), title: j.title.slice(0, 300), location: String(j.location ?? '').slice(0, 300),
-      url: j.url, description: String(j.description ?? '').slice(0, 20000), posted_at: j.posted_at ?? null,
+      company: j.company.slice(0, 200),
+      title: j.title.slice(0, 300),
+      location: String(j.location ?? '').slice(0, 300),
+      url: j.url,
+      description: String(j.description ?? '').slice(0, 20000),
+      posted_at: j.posted_at ?? null,
     }));
   if (!valid.length) return new Response(JSON.stringify(extension ? { added: 0, results: [] } : { added: 0 }), { headers: cors(origin) });
   if (!extension) return Response.json(await add(valid), { headers: cors(origin) });

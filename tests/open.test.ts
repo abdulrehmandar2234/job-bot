@@ -31,12 +31,17 @@ after(async () => {
 });
 
 const job = (id: string, url = 'https://example.com/jobs/123', source = id.split(':')[0]): OpenJob => ({ id, source, url });
-const status = (n: number, body = '') => () => new Response(body, { status: n });
-const redirectedTo = (url: string, body = '<html>Careers</html>') => () => {
-  const res = new Response(body);
-  Object.defineProperty(res, 'url', { value: url });
-  return res;
-};
+const status =
+  (n: number, body = '') =>
+  () =>
+    new Response(body, { status: n });
+const redirectedTo =
+  (url: string, body = '<html>Careers</html>') =>
+  () => {
+    const res = new Response(body);
+    Object.defineProperty(res, 'url', { value: url });
+    return res;
+  };
 
 describe('isOpen: company ATS APIs', () => {
   it('greenhouse asks the posting endpoint: 200 = open, 404 = closed', async () => {
@@ -49,8 +54,11 @@ describe('isOpen: company ATS APIs', () => {
   });
 
   it('lever, recruitee and smartrecruiters use their posting endpoints', async () => {
-    net = mockFetch({ 'api.lever.co/v0/postings/acme/abc': status(404), 'acme.recruitee.com/api/offers/3': { offer: {} },
-      'api.smartrecruiters.com/v1/companies/acme/postings/99': status(410) });
+    net = mockFetch({
+      'api.lever.co/v0/postings/acme/abc': status(404),
+      'acme.recruitee.com/api/offers/3': { offer: {} },
+      'api.smartrecruiters.com/v1/companies/acme/postings/99': status(410),
+    });
     assert.equal((await isOpen(job('lever:acme:abc'))).state, 'closed');
     assert.equal((await isOpen(job('recruitee:acme:3'))).state, 'open');
     assert.equal((await isOpen(job('smartrecruiters:acme:99'))).state, 'closed');
@@ -76,8 +84,10 @@ describe('isOpen: company ATS APIs', () => {
   it('workday: maps the job URL to the CXS posting endpoint', async () => {
     const url = 'https://acme.wd3.myworkdayjobs.com/en-US/External/job/Dubai/Engineer_R123';
     assert.equal(workdayApiUrl(url), 'https://acme.wd3.myworkdayjobs.com/wday/cxs/acme/External/job/Dubai/Engineer_R123');
-    assert.equal(workdayApiUrl('https://acme.wd3.myworkdayjobs.com/External/job/X_R1'),
-      'https://acme.wd3.myworkdayjobs.com/wday/cxs/acme/External/job/X_R1');
+    assert.equal(
+      workdayApiUrl('https://acme.wd3.myworkdayjobs.com/External/job/X_R1'),
+      'https://acme.wd3.myworkdayjobs.com/wday/cxs/acme/External/job/X_R1',
+    );
     net = mockFetch({ '/wday/cxs/acme/External/job/Dubai/Engineer_R123': status(404) });
     assert.equal((await isOpen(job('workday:acme:R123', url))).state, 'closed');
   });
@@ -100,8 +110,12 @@ describe('isOpen: job pages (remote boards, Bayt, manual)', () => {
   });
 
   it('a page that says the job is closed is closed', async () => {
-    for (const text of ['No longer accepting applications', 'This job has expired', 'The position has been filled',
-      'This job is no longer available']) {
+    for (const text of [
+      'No longer accepting applications',
+      'This job has expired',
+      'The position has been filled',
+      'This job is no longer available',
+    ]) {
       net = mockFetch({ 'remotive.com': `<html><div class="notice">${text}</div></html>` });
       const r = await isOpen(page());
       assert.equal(r.state, 'closed', text);
@@ -127,7 +141,11 @@ describe('isOpen: job pages (remote boards, Bayt, manual)', () => {
     net = mockFetch({ 'remotive.com': status(503) });
     assert.equal((await isOpen(page())).state, 'unknown');
     net.restore();
-    net = mockFetch({ 'remotive.com': () => { throw new TypeError('fetch failed'); } });
+    net = mockFetch({
+      'remotive.com': () => {
+        throw new TypeError('fetch failed');
+      },
+    });
     const r = await isOpen(page());
     assert.equal(r.state, 'unknown');
     assert.match(r.reason, /gave up/);
@@ -160,29 +178,55 @@ describe('isOpen: LinkedIn', () => {
 
 describe('checkAll pacing', () => {
   it('runs at most 2 checks at a time and waits between requests to the same host', async () => {
-    const jobs = [job('remotive:1', 'https://a.com/1'), job('remotive:2', 'https://a.com/2'), job('remotive:3', 'https://b.com/3'),
-      job('greenhouse:acme:4'), job('greenhouse:acme:5')];
+    const jobs = [
+      job('remotive:1', 'https://a.com/1'),
+      job('remotive:2', 'https://a.com/2'),
+      job('remotive:3', 'https://b.com/3'),
+      job('greenhouse:acme:4'),
+      job('greenhouse:acme:5'),
+    ];
     const waits: number[] = [];
     let running = 0;
     let peak = 0;
-    const out = await checkAll(jobs, async (j) => {
-      peak = Math.max(peak, ++running);
-      await new Promise((r) => setTimeout(r, 5));
-      running--;
-      return j.id;
-    }, { delayMs: 1500, wait: async (ms: number) => { waits.push(ms); } });
-    assert.deepEqual(out, jobs.map((j) => j.id));
+    const out = await checkAll(
+      jobs,
+      async (j) => {
+        peak = Math.max(peak, ++running);
+        await new Promise((r) => setTimeout(r, 5));
+        running--;
+        return j.id;
+      },
+      {
+        delayMs: 1500,
+        wait: async (ms: number) => {
+          waits.push(ms);
+        },
+      },
+    );
+    assert.deepEqual(
+      out,
+      jobs.map((j) => j.id),
+    );
     assert.equal(peak, 2);
     // a.com twice and the Greenhouse API twice: one wait each, of about the delay; b.com never waits.
     assert.equal(waits.length, 2);
-    assert.ok(waits.every((ms) => ms > 1000 && ms <= 1500), String(waits));
+    assert.ok(
+      waits.every((ms) => ms > 1000 && ms <= 1500),
+      String(waits),
+    );
   });
 });
 
 describe('dedupe with expired copies', () => {
   const row = (o: Partial<DedupeRow>): DedupeRow => ({
-    id: 'x', company: 'Acme', title: 'Senior Backend Engineer', country: 'AE', source: 'greenhouse', status: 'new',
-    first_seen_at: new Date('2026-10-01'), ...o,
+    id: 'x',
+    company: 'Acme',
+    title: 'Senior Backend Engineer',
+    country: 'AE',
+    source: 'greenhouse',
+    status: 'new',
+    first_seen_at: new Date('2026-10-01'),
+    ...o,
   });
 
   it('an open copy becomes primary over an expired one, even from a less direct source', () => {
@@ -191,32 +235,48 @@ describe('dedupe with expired copies', () => {
   });
 
   it('a copy the user acted on still wins; expired copies alone keep the source order', () => {
-    assert.deepEqual(duplicateLinks([row({ id: 'gh', status: 'expired' }), row({ id: 'li', source: 'linkedin', status: 'applied' })]),
-      [['gh', 'li']]);
-    assert.deepEqual(duplicateLinks([row({ id: 'li', source: 'linkedin', status: 'expired' }), row({ id: 'gh', status: 'expired' })]),
-      [['li', 'gh']]);
+    assert.deepEqual(duplicateLinks([row({ id: 'gh', status: 'expired' }), row({ id: 'li', source: 'linkedin', status: 'applied' })]), [
+      ['gh', 'li'],
+    ]);
+    assert.deepEqual(duplicateLinks([row({ id: 'li', source: 'linkedin', status: 'expired' }), row({ id: 'gh', status: 'expired' })]), [
+      ['li', 'gh'],
+    ]);
   });
 });
 
 // ---- Database: selection, status changes and the commands ----
 
 const insert = async (id: string, o: Record<string, unknown> = {}) => {
-  const data: Record<string, unknown> = { id, source: id.split(':')[0], company: 'Acme', title: `Engineer ${id}`, country: 'AE',
-    url: `https://remotive.com/remote-jobs/${id.replace(/\W/g, '-')}`, status: 'new', score: 50, ...o };
+  const data: Record<string, unknown> = {
+    id,
+    source: id.split(':')[0],
+    company: 'Acme',
+    title: `Engineer ${id}`,
+    country: 'AE',
+    url: `https://remotive.com/remote-jobs/${id.replace(/\W/g, '-')}`,
+    status: 'new',
+    score: 50,
+    ...o,
+  };
   const cols = Object.keys(data);
-  await pool.query(`INSERT INTO jobs (${cols.join(', ')}) VALUES (${cols.map((_, i) => `$${i + 1}`).join(', ')})`,
-    cols.map((c) => data[c]));
+  await pool.query(
+    `INSERT INTO jobs (${cols.join(', ')}) VALUES (${cols.map((_, i) => `$${i + 1}`).join(', ')})`,
+    cols.map((c) => data[c]),
+  );
   return id;
 };
 const asCheck = async (id: string) => (await getJob(id)) as unknown as CheckJob;
-const events = async (id: string) => (await pool.query('SELECT from_status, to_status, note FROM job_events WHERE job_id = $1 ORDER BY id', [id])).rows;
+const events = async (id: string) =>
+  (await pool.query('SELECT from_status, to_status, note FROM job_events WHERE job_id = $1 ORDER BY id', [id])).rows;
 
 describe('migration 006', () => {
   it('adds checked_open_at and closed_at', async () => {
     const { rows } = await pool.query(`SELECT column_name, data_type FROM information_schema.columns
       WHERE table_name = 'jobs' AND column_name IN ('checked_open_at', 'closed_at') ORDER BY 1`);
-    assert.deepEqual(rows, [{ column_name: 'checked_open_at', data_type: 'timestamp with time zone' },
-      { column_name: 'closed_at', data_type: 'timestamp with time zone' }]);
+    assert.deepEqual(rows, [
+      { column_name: 'checked_open_at', data_type: 'timestamp with time zone' },
+      { column_name: 'closed_at', data_type: 'timestamp with time zone' },
+    ]);
     const { rows: done } = await pool.query(`SELECT 1 FROM schema_migrations WHERE version = '006_expired'`);
     assert.equal(done.length, 1);
   });
@@ -232,11 +292,22 @@ describe('check:open selection and status changes', () => {
     await insert('remotive:prep', { status: 'prepared', score: 60 });
     await insert('remotive:applied', { status: 'applied' });
     await insert('remotive:copy', { duplicate_of: 'remotive:never' });
-    assert.deepEqual((await selectJobs([], ['new', 'prepared'])).map((j) => j.id), ['remotive:prep', 'remotive:never', 'remotive:old']);
-    assert.deepEqual((await selectJobs([], ['new', 'prepared'], 1)).map((j) => j.id), ['remotive:prep']);
-    assert.deepEqual((await selectJobs([], ['applied'])).map((j) => j.id), ['remotive:applied']);
-    assert.deepEqual((await selectJobs(['remotive:applied', 'remotive:fresh', 'nope'], [])).map((j) => j.id),
-      ['remotive:applied', 'remotive:fresh']);
+    assert.deepEqual(
+      (await selectJobs([], ['new', 'prepared'])).map((j) => j.id),
+      ['remotive:prep', 'remotive:never', 'remotive:old'],
+    );
+    assert.deepEqual(
+      (await selectJobs([], ['new', 'prepared'], 1)).map((j) => j.id),
+      ['remotive:prep'],
+    );
+    assert.deepEqual(
+      (await selectJobs([], ['applied'])).map((j) => j.id),
+      ['remotive:applied'],
+    );
+    assert.deepEqual(
+      (await selectJobs(['remotive:applied', 'remotive:fresh', 'nope'], [])).map((j) => j.id),
+      ['remotive:applied', 'remotive:fresh'],
+    );
   });
 
   it('a closed posting moves a new job to expired with a history note', async () => {
@@ -274,7 +345,9 @@ describe('check:open selection and status changes', () => {
     assert.deepEqual([j.status, j.closed_at], ['prepared', null]);
     // One you marked expired yourself stays expired.
     const mine = await insert('remotive:2', { status: 'expired' });
-    await pool.query(`INSERT INTO job_events (job_id, from_status, to_status, note) VALUES ($1, 'new', 'expired', 'saw it closed')`, [mine]);
+    await pool.query(`INSERT INTO job_events (job_id, from_status, to_status, note) VALUES ($1, 'new', 'expired', 'saw it closed')`, [
+      mine,
+    ]);
     assert.equal(await record(await asCheck(mine), { state: 'open', reason: 'job page 200' }), 'open');
     assert.equal((await getJob(mine)).status, 'expired');
   });
@@ -324,9 +397,17 @@ const FAKE_FETCH = pathToFileURL(join(import.meta.dirname, 'fixtures', 'fake-fet
 const run = promisify(execFile);
 async function bot(args: string[], fetchRoutes: Record<string, object> = {}, env: Record<string, string> = {}) {
   const { stdout } = await run(process.execPath, ['--no-warnings', 'src/cli.ts', ...args], {
-    cwd: path(), timeout: 60_000,
-    env: { ...process.env, DATABASE_URL: TEST_DB, JOB_BOT_CLAUDE: FAKE_CLAUDE, NODE_OPTIONS: `--import=${FAKE_FETCH}`,
-      FAKE_FETCH: JSON.stringify(fetchRoutes), JOB_BOT_HTTP_CACHE: cacheDir, ...env },
+    cwd: path(),
+    timeout: 60_000,
+    env: {
+      ...process.env,
+      DATABASE_URL: TEST_DB,
+      JOB_BOT_CLAUDE: FAKE_CLAUDE,
+      NODE_OPTIONS: `--import=${FAKE_FETCH}`,
+      FAKE_FETCH: JSON.stringify(fetchRoutes),
+      JOB_BOT_HTTP_CACHE: cacheDir,
+      ...env,
+    },
   });
   return stdout;
 }
@@ -379,8 +460,14 @@ describe('scripts/daily-fetch.sh', () => {
       mkdirSync(join(root, 'repo', 'data'));
       copyFileSync(path('scripts', 'daily-fetch.sh'), join(root, 'repo', 'scripts', 'daily-fetch.sh'));
       const calls = join(root, 'calls.txt');
-      const fake = (file: string, body: string) => { writeFileSync(file, `#!/bin/sh\n${body}\n`); chmodSync(file, 0o755); };
-      fake(join(bin, 'node'), `echo "node $*" >> "${calls}"\ncase "$*" in *check:open*) exit 1;; *fetch*) echo "10 postings checked, 1 new.";; esac`);
+      const fake = (file: string, body: string) => {
+        writeFileSync(file, `#!/bin/sh\n${body}\n`);
+        chmodSync(file, 0o755);
+      };
+      fake(
+        join(bin, 'node'),
+        `echo "node $*" >> "${calls}"\ncase "$*" in *check:open*) exit 1;; *fetch*) echo "10 postings checked, 1 new.";; esac`,
+      );
       fake(join(bin, 'osascript'), `echo "osascript $*" >> "${calls}"`);
       fake(join(root, 'repo', 'scripts', 'backup-db.sh'), 'exit 0');
       const r = spawnSync('/bin/zsh', [join(root, 'repo', 'scripts', 'daily-fetch.sh')], { encoding: 'utf8', env: { HOME: home } });

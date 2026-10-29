@@ -15,15 +15,33 @@ beforeEach(() => {
   Object.assign(process.env, { JOB_BOT_CLAUDE: FAKE, FAKE_CLAUDE_LOG: log });
   delete process.env.FAKE_CLAUDE_FAIL;
 });
-afterEach(() => { delete process.env.JOB_BOT_CLAUDE; delete process.env.FAKE_CLAUDE_OUT; });
+afterEach(() => {
+  delete process.env.JOB_BOT_CLAUDE;
+  delete process.env.FAKE_CLAUDE_OUT;
+});
 
-const calls = () => readFileSync(log, 'utf8').trim().split('\n').map((l) => JSON.parse(l) as { argv: string[]; stdin: string });
+const calls = () =>
+  readFileSync(log, 'utf8')
+    .trim()
+    .split('\n')
+    .map((l) => JSON.parse(l) as { argv: string[]; stdin: string });
 const arg = (argv: string[], name: string) => argv[argv.indexOf(name) + 1];
 
-const job = (o: Partial<Job> = {}) => ({
-  id: 'test:ai', source: 'linkedin', company: 'Acme', title: 'Senior Laravel Developer', location: 'Dubai', country: 'AE',
-  url: 'https://x', description: 'Laravel and Vue.js', matched: ['Laravel'], cluster: 'laravel', form_answers: [], ...o,
-}) as Job;
+const job = (o: Partial<Job> = {}) =>
+  ({
+    id: 'test:ai',
+    source: 'linkedin',
+    company: 'Acme',
+    title: 'Senior Laravel Developer',
+    location: 'Dubai',
+    country: 'AE',
+    url: 'https://x',
+    description: 'Laravel and Vue.js',
+    matched: ['Laravel'],
+    cluster: 'laravel',
+    form_answers: [],
+    ...o,
+  }) as Job;
 
 describe('askClaude', () => {
   it('runs the CLI headless with no tools and returns structured_output', async () => {

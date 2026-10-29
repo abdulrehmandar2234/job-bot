@@ -6,8 +6,14 @@ import { structuredSalary } from '../salary.ts';
 // Remote job boards. Unlike company ATS boards these list many companies, and the location
 // field says where a remote hire may live, e.g. "Remote — Worldwide" or "Remote — USA, Canada".
 
-const strip = (html: string) => html.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&')
-  .replace(/[ \t]+/g, ' ').replace(/\n\s*\n+/g, '\n').trim();
+const strip = (html: string) =>
+  html
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n\s*\n+/g, '\n')
+    .trim();
 
 /** Himalayas search with country=PK only returns remote jobs open to candidates in Pakistan. */
 async function himalayas(): Promise<RawJob[]> {
@@ -30,8 +36,12 @@ async function himalayas(): Promise<RawJob[]> {
           url: j.applicationLink ?? j.guid,
           description: strip(j.description ?? ''),
           posted_at: new Date(posted).toISOString(),
-          salary: structuredSalary(j.minSalary, j.maxSalary, j.currency,
-            /month/i.test(j.salaryPeriod ?? '') ? 'month' : /hour/i.test(j.salaryPeriod ?? '') ? 'hour' : 'year'),
+          salary: structuredSalary(
+            j.minSalary,
+            j.maxSalary,
+            j.currency,
+            /month/i.test(j.salaryPeriod ?? '') ? 'month' : /hour/i.test(j.salaryPeriod ?? '') ? 'hour' : 'year',
+          ),
         });
       }
       await sleep(400);
@@ -56,17 +66,19 @@ async function remotive(): Promise<RawJob[]> {
 
 async function remoteok(): Promise<RawJob[]> {
   const data = await getJson('https://remoteok.com/api');
-  return data.filter((j: any) => j.id && j.position).map((j: any) => ({
-    id: `remoteok:${j.id}`,
-    source: 'remoteok',
-    company: j.company,
-    title: j.position,
-    location: `Remote — ${j.location || 'not stated'}`,
-    url: j.url,
-    description: strip(`${j.description ?? ''}\n${(j.tags ?? []).join(', ')}`),
-    posted_at: j.date ?? null,
-    salary: structuredSalary(j.salary_min, j.salary_max, 'USD'), // yearly USD, 0 when not given
-  }));
+  return data
+    .filter((j: any) => j.id && j.position)
+    .map((j: any) => ({
+      id: `remoteok:${j.id}`,
+      source: 'remoteok',
+      company: j.company,
+      title: j.position,
+      location: `Remote — ${j.location || 'not stated'}`,
+      url: j.url,
+      description: strip(`${j.description ?? ''}\n${(j.tags ?? []).join(', ')}`),
+      posted_at: j.date ?? null,
+      salary: structuredSalary(j.salary_min, j.salary_max, 'USD'), // yearly USD, 0 when not given
+    }));
 }
 
 // Arbeitnow: free public API, mostly Germany, sorted newest first, 300 jobs per page. Its terms ask not to abuse
@@ -108,7 +120,17 @@ async function arbeitnow(): Promise<RawJob[]> {
 // and AI reviews of Adzuna jobs see less than for other sources.
 const ADZUNA_PAGE = 50;
 const ADZUNA_COUNTRY: Record<string, string> = { nl: 'Netherlands' };
-const ADZUNA_CURRENCY: Record<string, string> = { nl: 'EUR', de: 'EUR', at: 'EUR', be: 'EUR', fr: 'EUR', es: 'EUR', it: 'EUR', gb: 'GBP', us: 'USD' };
+const ADZUNA_CURRENCY: Record<string, string> = {
+  nl: 'EUR',
+  de: 'EUR',
+  at: 'EUR',
+  be: 'EUR',
+  fr: 'EUR',
+  es: 'EUR',
+  it: 'EUR',
+  gb: 'GBP',
+  us: 'USD',
+};
 
 async function adzuna(): Promise<RawJob[]> {
   const id = process.env.ADZUNA_APP_ID;
@@ -122,8 +144,14 @@ async function adzuna(): Promise<RawJob[]> {
   for (const country of countries) {
     for (const what of keywords) {
       for (let page = 1; page <= pagesPerSearch; page++) {
-        const q = new URLSearchParams({ app_id: id, app_key: key, results_per_page: String(ADZUNA_PAGE), what,
-          max_days_old: String(config.maxAgeDays), 'content-type': 'application/json' });
+        const q = new URLSearchParams({
+          app_id: id,
+          app_key: key,
+          results_per_page: String(ADZUNA_PAGE),
+          what,
+          max_days_old: String(config.maxAgeDays),
+          'content-type': 'application/json',
+        });
         let data: any;
         try {
           // No cache: the URL holds the key, and the cache file would store it on disk.
@@ -144,8 +172,7 @@ async function adzuna(): Promise<RawJob[]> {
             description: strip(j.description ?? ''),
             posted_at: j.created ?? null,
             // Yearly. Adzuna estimates a salary when the ad has none (salary_is_predicted "1"); those are skipped.
-            salary: String(j.salary_is_predicted) === '1' ? null
-              : structuredSalary(j.salary_min, j.salary_max, ADZUNA_CURRENCY[country]),
+            salary: String(j.salary_is_predicted) === '1' ? null : structuredSalary(j.salary_min, j.salary_max, ADZUNA_CURRENCY[country]),
           });
         }
         // The free plan has tight per-minute limits, so searches are spaced out.

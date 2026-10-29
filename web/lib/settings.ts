@@ -12,11 +12,11 @@ export const applicantFile = () => process.env.JOB_BOT_APPLICANT || join(BOT_ROO
 export const applicantExampleFile = () => join(BOT_ROOT, 'cv', 'applicant.example.json');
 
 export type SettingsFile = {
-  file: string;          // the file that was read
-  text: string;          // its raw content, for the JSON editor
-  data: Json | null;     // parsed object, or null when the file is missing or not a JSON object
-  error: string | null;  // why data is null
-  example: boolean;      // applicant only: applicant.json is missing, so this is the example file
+  file: string; // the file that was read
+  text: string; // its raw content, for the JSON editor
+  data: Json | null; // parsed object, or null when the file is missing or not a JSON object
+  error: string | null; // why data is null
+  example: boolean; // applicant only: applicant.json is missing, so this is the example file
 };
 
 function read(file: string, example = false): SettingsFile {

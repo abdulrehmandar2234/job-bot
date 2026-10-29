@@ -10,18 +10,25 @@ import { workdayList } from './sources/index.ts';
 type Hit = { slug: string; ats: Company['ats']; jobs: number; target: number };
 
 const locations: Record<Company['ats'], (slug: string) => Promise<string[] | null>> = {
-  greenhouse: async (t) => (await json(`https://boards-api.greenhouse.io/v1/boards/${t}/jobs`))?.jobs?.map((x: any) => x.location?.name ?? ''),
+  greenhouse: async (t) =>
+    (await json(`https://boards-api.greenhouse.io/v1/boards/${t}/jobs`))?.jobs?.map((x: any) => x.location?.name ?? ''),
   lever: async (t) => {
     const d = await json(`https://api.lever.co/v0/postings/${t}?mode=json`);
     return Array.isArray(d) ? d.map((x: any) => [x.categories?.location, ...(x.categories?.allLocations ?? [])].join(' ')) : null;
   },
-  ashby: async (t) => (await json(`https://api.ashbyhq.com/posting-api/job-board/${t}`))?.jobs
-    ?.map((x: any) => [x.location, ...(x.secondaryLocations ?? []).map((l: any) => l.location)].join(' ')),
+  ashby: async (t) =>
+    (await json(`https://api.ashbyhq.com/posting-api/job-board/${t}`))?.jobs?.map((x: any) =>
+      [x.location, ...(x.secondaryLocations ?? []).map((l: any) => l.location)].join(' '),
+    ),
   recruitee: async (t) => (await json(`https://${t}.recruitee.com/api/offers/`))?.offers?.map((x: any) => `${x.location} ${x.country}`),
-  workable: async (t) => (await json(`https://apply.workable.com/api/v1/widget/accounts/${t}`))?.jobs
-    ?.map((x: any) => [x.city, x.country, ...(x.locations ?? []).map((l: any) => `${l.city} ${l.country}`)].join(' ')),
-  smartrecruiters: async (t) => (await json(`https://api.smartrecruiters.com/v1/companies/${t}/postings?limit=100`))?.content
-    ?.map((x: any) => x.location?.fullLocation ?? ''),
+  workable: async (t) =>
+    (await json(`https://apply.workable.com/api/v1/widget/accounts/${t}`))?.jobs?.map((x: any) =>
+      [x.city, x.country, ...(x.locations ?? []).map((l: any) => `${l.city} ${l.country}`)].join(' '),
+    ),
+  smartrecruiters: async (t) =>
+    (await json(`https://api.smartrecruiters.com/v1/companies/${t}/postings?limit=100`))?.content?.map(
+      (x: any) => x.location?.fullLocation ?? '',
+    ),
   // First 5 pages (100 newest postings); "3 Locations" entries count as jobs but not as target-country hits.
   workday: async (t) => {
     try {
@@ -58,7 +65,12 @@ async function json(url: string) {
 }
 
 export async function discover(slugs: string[]): Promise<Hit[]> {
-  const target = new RegExp(Object.values(config.countries).map((c) => c.match).join('|'), 'i');
+  const target = new RegExp(
+    Object.values(config.countries)
+      .map((c) => c.match)
+      .join('|'),
+    'i',
+  );
   const hits: Hit[] = [];
   // Workable rate-limits aggressively, so it is probed one slug at a time in its own lane.
   const workday = slugs.map(workdayToken);

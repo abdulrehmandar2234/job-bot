@@ -19,83 +19,93 @@ export const APPLICANT_EXAMPLE_FILE = path('cv', 'applicant.example.json');
 export const ATS = ['greenhouse', 'lever', 'ashby', 'recruitee', 'workable', 'smartrecruiters', 'workday'] as const;
 
 const text = z.string().min(1);
-const regex = z.string().refine((s) => { try { new RegExp(s, 'i'); return true; } catch { return false; } },
-  'not a valid regular expression');
+const regex = z.string().refine((s) => {
+  try {
+    new RegExp(s, 'i');
+    return true;
+  } catch {
+    return false;
+  }
+}, 'not a valid regular expression');
 const count = z.number().int().nonnegative();
 
 const countrySchema = z.object({
   name: text,
   visa: z.enum(['employer', 'ind-register']),
-  match: regex,                  // location text that means this country
+  match: regex, // location text that means this country
 });
 
 const companySchema = z.object({
   name: text,
   ats: z.enum(ATS),
   token: text,
-  indName: text.optional(),      // legal name on the Dutch IND sponsor register, when it differs
+  indName: text.optional(), // legal name on the Dutch IND sponsor register, when it differs
 });
 
 export const configSchema = z.object({
   cvFileName: text,
-  autoCvVersions: z.boolean(),   // false = always send the default CV unless `prepare --cv <cluster>` is given
+  autoCvVersions: z.boolean(), // false = always send the default CV unless `prepare --cv <cluster>` is given
   chromePath: text,
   minScore: z.number(),
-  maxAgeDays: count,             // postings older than this are filtered out
+  maxAgeDays: count, // postings older than this are filtered out
   countries: z.record(z.string(), countrySchema),
   companies: z.array(companySchema),
   roleInclude: regex,
   roleExclude: regex,
   ai: z.object({
     enabled: z.boolean(),
-    claudePath: text,            // local Claude Code CLI (uses its signed-in account, no API key)
-    scoreModel: text,            // fast model for match scoring
-    letterModel: text,           // better writer for cover letters
-    maxScorePerRun: count,       // cap per `ai:score` run
+    claudePath: text, // local Claude Code CLI (uses its signed-in account, no API key)
+    scoreModel: text, // fast model for match scoring
+    letterModel: text, // better writer for cover letters
+    maxScorePerRun: count, // cap per `ai:score` run
     concurrency: z.number().int().positive(),
     alertStrong: z.boolean().optional(), // macOS notification for each new `strong` verdict; missing = on
   }),
   linkedin: z.object({
     enabled: z.boolean(),
     keywords: z.array(text),
-    locations: z.array(text),    // onsite searches, as typed in LinkedIn's location box
-    remoteFrom: z.string(),      // remote (f_WT=2) search located here, e.g. "Pakistan"
-    pagesPerSearch: count,       // 10 results per page
+    locations: z.array(text), // onsite searches, as typed in LinkedIn's location box
+    remoteFrom: z.string(), // remote (f_WT=2) search located here, e.g. "Pakistan"
+    pagesPerSearch: count, // 10 results per page
   }),
   remote: z.object({
     enabled: z.boolean(),
-    boards: z.array(text),       // himalayas | remotive | remoteok | arbeitnow | adzuna
+    boards: z.array(text), // himalayas | remotive | remoteok | arbeitnow | adzuna
     himalayasQueries: z.array(text),
-    allow: regex,                // remote regions that include the candidate's country
-    deny: regex,                 // remote regions / phrases that exclude it
-    flag: regex,                 // allowed, but worth double-checking
+    allow: regex, // remote regions that include the candidate's country
+    deny: regex, // remote regions / phrases that exclude it
+    flag: regex, // allowed, but worth double-checking
   }),
   // Optional, so older config.json files still load. Adzuna has no 'ae' or 'sa' index.
-  adzuna: z.object({
-    countries: z.array(text),
-    keywords: z.array(text).optional(), // defaults to linkedin.keywords
-    pagesPerSearch: count,       // 50 results per page
-  }).optional(),
+  adzuna: z
+    .object({
+      countries: z.array(text),
+      keywords: z.array(text).optional(), // defaults to linkedin.keywords
+      pagesPerSearch: count, // 50 results per page
+    })
+    .optional(),
 });
 
 // A fact for application forms; null = unknown, so the AI writes [FILL: ...] instead of guessing.
 const fact = z.union([z.string(), z.number(), z.boolean(), z.null()]);
 
-export const applicantSchema = z.object({
-  _help: z.string(),
-  currentLocation: fact,
-  languages: fact,
-  needsVisaSponsorship: fact,
-  willingToRelocate: fact,
-  nationality: fact,
-  noticePeriod: fact,
-  earliestStartDate: fact,
-  currentSalary: fact,
-  expectedSalary: z.record(z.string(), fact), // per country code, plus "remote"
-  workingHoursForRemote: fact,
-  howDidYouHear: fact,
-  other: z.record(z.string(), fact),
-}).partial(); // a missing fact is unknown too; extra keys are passed to the AI as they are
+export const applicantSchema = z
+  .object({
+    _help: z.string(),
+    currentLocation: fact,
+    languages: fact,
+    needsVisaSponsorship: fact,
+    willingToRelocate: fact,
+    nationality: fact,
+    noticePeriod: fact,
+    earliestStartDate: fact,
+    currentSalary: fact,
+    expectedSalary: z.record(z.string(), fact), // per country code, plus "remote"
+    workingHoursForRemote: fact,
+    howDidYouHear: fact,
+    other: z.record(z.string(), fact),
+  })
+  .partial(); // a missing fact is unknown too; extra keys are passed to the AI as they are
 
 export type Country = z.infer<typeof countrySchema>;
 export type Company = z.infer<typeof companySchema>;

@@ -4,8 +4,14 @@ import './helpers.ts';
 import { duplicateLinks, normCompany, normTitle, type DedupeRow } from '../src/db.ts';
 
 const row = (o: Partial<DedupeRow>): DedupeRow => ({
-  id: 'x', company: 'Acme', title: 'Senior Backend Engineer', country: 'AE', source: 'greenhouse', status: 'new',
-  first_seen_at: new Date('2026-10-01'), ...o,
+  id: 'x',
+  company: 'Acme',
+  title: 'Senior Backend Engineer',
+  country: 'AE',
+  source: 'greenhouse',
+  status: 'new',
+  first_seen_at: new Date('2026-10-01'),
+  ...o,
 });
 
 describe('normCompany / normTitle', () => {
@@ -29,7 +35,10 @@ describe('duplicateLinks', () => {
       row({ id: 'gh:1', source: 'greenhouse', company: 'Acme Inc' }),
       row({ id: 'bayt:1', source: 'bayt', title: 'Sr Backend Engineer' }),
     ]);
-    assert.deepEqual(links.sort(), [['bayt:1', 'gh:1'], ['linkedin:1', 'gh:1']]);
+    assert.deepEqual(links.sort(), [
+      ['bayt:1', 'gh:1'],
+      ['linkedin:1', 'gh:1'],
+    ]);
   });
 
   it('keeps the copy the user already acted on as primary', () => {
@@ -66,6 +75,9 @@ describe('duplicateLinks', () => {
   });
 
   it('leaves different jobs alone', () => {
-    assert.deepEqual(duplicateLinks([row({ id: 'a' }), row({ id: 'b', title: 'Frontend Engineer' }), row({ id: 'c', company: 'Other' })]), []);
+    assert.deepEqual(
+      duplicateLinks([row({ id: 'a' }), row({ id: 'b', title: 'Frontend Engineer' }), row({ id: 'c', company: 'Other' })]),
+      [],
+    );
   });
 });

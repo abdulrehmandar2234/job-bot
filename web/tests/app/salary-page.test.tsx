@@ -31,15 +31,33 @@ async function renderPage(searchParams: Record<string, string> = {}) {
 }
 
 const cards = () => screen.queryAllByRole('listitem').filter((li) => li.querySelector('a[href^="/jobs/"]')?.textContent?.startsWith('TS '));
-const titles = () => cards().map((li) => li.querySelector('a[href^="/jobs/"]')!.textContent!.replace(/ · .*/, '')).sort();
+const titles = () =>
+  cards()
+    .map((li) => li.querySelector('a[href^="/jobs/"]')!.textContent!.replace(/ · .*/, ''))
+    .sort();
 
 beforeAll(ensureSchema);
 beforeEach(cleanupDb);
 afterAll(closeDb);
 
 async function seed() {
-  await insertJob({ id: 'sp-aed', title: 'TS dubai', salary_min: 20_000, salary_max: 25_000, salary_currency: 'AED', salary_period: 'month' });
-  await insertJob({ id: 'sp-eur', title: 'TS amsterdam', country: 'NL', salary_min: 4_000, salary_max: 4_500, salary_currency: 'EUR', salary_period: 'month' });
+  await insertJob({
+    id: 'sp-aed',
+    title: 'TS dubai',
+    salary_min: 20_000,
+    salary_max: 25_000,
+    salary_currency: 'AED',
+    salary_period: 'month',
+  });
+  await insertJob({
+    id: 'sp-eur',
+    title: 'TS amsterdam',
+    country: 'NL',
+    salary_min: 4_000,
+    salary_max: 4_500,
+    salary_currency: 'EUR',
+    salary_period: 'month',
+  });
   await insertJob({ id: 'sp-none', title: 'TS unknown' });
 }
 

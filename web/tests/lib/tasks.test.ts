@@ -3,7 +3,14 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 import { spawnBot } from '@/lib/bot';
 import { pool } from '@/lib/db';
 import {
-  DEAD_WORKER_ERROR, enqueueTask, failDeadWorkers, KEEP_FINISHED_DAYS, openTasks, pidAlive, pruneFinished, type Task,
+  DEAD_WORKER_ERROR,
+  enqueueTask,
+  failDeadWorkers,
+  KEEP_FINISHED_DAYS,
+  openTasks,
+  pidAlive,
+  pruneFinished,
+  type Task,
 } from '@/lib/tasks';
 import { cleanupDb, closeDb, ensureSchema, insertJob, PREFIX } from '../helpers/db';
 
@@ -19,11 +26,15 @@ const deadPid = () => spawnSync(process.execPath, ['-e', '']).pid!;
 const getTask = async (taskId: number) => (await pool.query<Task>('SELECT * FROM tasks WHERE id = $1', [taskId])).rows[0];
 /** A task for our job, as a worker would have left it. */
 async function addTask(kind: string, status: string, extra: { pid?: number; ageDays?: number } = {}) {
-  const { rows: [t] } = await pool.query<Task>(
+  const {
+    rows: [t],
+  } = await pool.query<Task>(
     `INSERT INTO tasks (kind, job_id, status, pid, started_at, deadline, created_at, finished_at)
      VALUES ($1, $2, $3, $4, now(), now() + interval '1 hour', now() - make_interval(days => $5),
        CASE WHEN $3 IN ('done', 'failed') THEN now() - make_interval(days => $5) END)
-     RETURNING *`, [kind, id, status, extra.pid ?? null, extra.ageDays ?? 0]);
+     RETURNING *`,
+    [kind, id, status, extra.pid ?? null, extra.ageDays ?? 0],
+  );
   return t;
 }
 

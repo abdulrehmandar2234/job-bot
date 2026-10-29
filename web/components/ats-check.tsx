@@ -4,8 +4,8 @@ import { Chips } from './ui';
 
 /** What `bot ats <id> --json` returns (src/ats.ts AtsReport plus the version checked). */
 export type AtsReport = {
-  label: string;            // version checked, e.g. laravel-v2 or next-nest
-  source: string;           // prepared | suggested | chosen with --cv
+  label: string; // version checked, e.g. laravel-v2 or next-nest
+  source: string; // prepared | suggested | chosen with --cv
   present: string[];
   hiddenButTrue: string[];
   missing: string[];
@@ -38,10 +38,16 @@ export function AtsLists({ report: r }: { report: AtsReport }) {
   return (
     <section className="space-y-2 rounded-xl border border-zinc-200 p-4 text-sm dark:border-zinc-800">
       <h2 className="font-medium">
-        CV keyword check <span className="text-xs font-normal text-zinc-500">
-          · {r.label} ({r.source}) shows {r.present.length} of {r.total} job keywords</span>
+        CV keyword check{' '}
+        <span className="text-xs font-normal text-zinc-500">
+          · {r.label} ({r.source}) shows {r.present.length} of {r.total} job keywords
+        </span>
       </h2>
-      {r.present.length > 0 && <div><span className="text-zinc-500">Shown:</span> <Chips items={r.present} tone="good" /></div>}
+      {r.present.length > 0 && (
+        <div>
+          <span className="text-zinc-500">Shown:</span> <Chips items={r.present} tone="good" />
+        </div>
+      )}
       {r.hiddenButTrue.length > 0 && (
         <div>
           <span className="text-zinc-500">On your CV but not near the top of this version:</span>{' '}

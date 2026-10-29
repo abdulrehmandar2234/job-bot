@@ -8,8 +8,10 @@ export type { Task, TaskKind };
 // spawns a detached `bot task:run <id>` and returns at once. The enqueue SQL matches enqueue() in src/tasks.ts.
 
 /** What the dashboard shows of a task: active ones, and failures until dismissed. */
-export type TaskView = Pick<Task, 'id' | 'kind' | 'job_id' | 'status' | 'error' | 'created_at' | 'started_at'>
-  & { company: string | null; title: string | null };
+export type TaskView = Pick<Task, 'id' | 'kind' | 'job_id' | 'status' | 'error' | 'created_at' | 'started_at'> & {
+  company: string | null;
+  title: string | null;
+};
 
 export const TASK_LABEL: Record<TaskKind, string> = {
   fetch: 'Fetching new jobs',
@@ -42,13 +44,13 @@ export function pidAlive(pid: number): boolean {
  * recorded its result is left alone.
  */
 export async function failDeadWorkers(): Promise<number> {
-  const { rows } = await pool.query<{ id: number; pid: number }>(
-    `SELECT id, pid FROM tasks WHERE status = 'running' AND pid IS NOT NULL`);
+  const { rows } = await pool.query<{ id: number; pid: number }>(`SELECT id, pid FROM tasks WHERE status = 'running' AND pid IS NOT NULL`);
   const dead = rows.filter((r) => !pidAlive(r.pid)).map((r) => r.id);
   if (!dead.length) return 0;
   const { rowCount } = await pool.query(
     `UPDATE tasks SET status = 'failed', finished_at = now(), error = $2 WHERE id = ANY($1) AND status = 'running'`,
-    [dead, DEAD_WORKER_ERROR]);
+    [dead, DEAD_WORKER_ERROR],
+  );
   return rowCount ?? 0;
 }
 
@@ -62,7 +64,8 @@ async function expireStale() {
 export async function pruneFinished(): Promise<number> {
   const { rowCount } = await pool.query(
     `DELETE FROM tasks WHERE status IN ('done', 'failed') AND coalesce(finished_at, created_at) < now() - make_interval(days => $1)`,
-    [KEEP_FINISHED_DAYS]);
+    [KEEP_FINISHED_DAYS],
+  );
   return rowCount ?? 0;
 }
 
@@ -70,21 +73,31 @@ export async function pruneFinished(): Promise<number> {
  * Queues a task and starts its worker. If the same work is already queued or running (one fetch at a time,
  * one task per kind and job), returns that task instead and starts nothing.
  */
-export async function enqueueTask(kind: TaskKind, jobId: string | null, args: Record<string, string> = {}):
-  Promise<{ task: Task; created: boolean }> {
+export async function enqueueTask(
+  kind: TaskKind,
+  jobId: string | null,
+  args: Record<string, string> = {},
+): Promise<{ task: Task; created: boolean }> {
   await expireStale();
   await pruneFinished();
   for (let attempt = 0; attempt < 3; attempt++) {
-    const { rows: [task] } = await pool.query<Task>(
+    const {
+      rows: [task],
+    } = await pool.query<Task>(
       `INSERT INTO tasks (kind, job_id, args) VALUES ($1, $2, $3)
        ON CONFLICT (kind, coalesce(job_id, '')) WHERE status IN ('queued', 'running') DO NOTHING RETURNING *`,
-      [kind, jobId, JSON.stringify(args)]);
+      [kind, jobId, JSON.stringify(args)],
+    );
     if (task) {
       spawnBot(['task:run', String(task.id)]);
       return { task, created: true };
     }
-    const { rows: [active] } = await pool.query<Task>(
-      `SELECT * FROM tasks WHERE kind = $1 AND job_id IS NOT DISTINCT FROM $2 AND status IN ('queued', 'running')`, [kind, jobId]);
+    const {
+      rows: [active],
+    } = await pool.query<Task>(
+      `SELECT * FROM tasks WHERE kind = $1 AND job_id IS NOT DISTINCT FROM $2 AND status IN ('queued', 'running')`,
+      [kind, jobId],
+    );
     if (active) return { task: active, created: false };
   }
   throw new Error(`Could not start ${TASK_LABEL[kind].toLowerCase()}`);
@@ -98,7 +111,9 @@ export async function openTasks(jobId?: string): Promise<TaskView[]> {
      FROM tasks t LEFT JOIN jobs j ON j.id = t.job_id
      WHERE (t.status IN ('queued', 'running') OR (t.status = 'failed' AND NOT t.dismissed))
        AND ($1::text IS NULL OR t.job_id = $1)
-     ORDER BY t.created_at, t.id`, [jobId ?? null]);
+     ORDER BY t.created_at, t.id`,
+    [jobId ?? null],
+  );
   return rows;
 }
 

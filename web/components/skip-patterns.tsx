@@ -5,7 +5,8 @@ import { SkipSuggestion } from './skip-suggestion';
 /** Why you skip jobs, title words only skipped jobs have, and roleExclude suggestions from them. */
 export function SkipPatterns({ insights }: { insights: SkipInsights }) {
   const { counts, words, suggestions } = insights;
-  if (!counts.length) return <p className="text-sm text-zinc-500">No skipped jobs yet. Pick a reason next to Skip and patterns show up here.</p>;
+  if (!counts.length)
+    return <p className="text-sm text-zinc-500">No skipped jobs yet. Pick a reason next to Skip and patterns show up here.</p>;
   const max = Math.max(...counts.map((c) => c.n));
   return (
     <div className="space-y-4 text-sm">
@@ -30,15 +31,23 @@ export function SkipPatterns({ insights }: { insights: SkipInsights }) {
               </span>
             ))}
           </p>
-        ) : <p className="text-zinc-500">None yet.</p>}
+        ) : (
+          <p className="text-zinc-500">None yet.</p>
+        )}
       </div>
       <div className="space-y-1">
         <h3 className="font-medium">Suggestions</h3>
         {suggestions.length ? (
           <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
-            {suggestions.map((s) => <SkipSuggestion key={s.pattern} s={s} />)}
+            {suggestions.map((s) => (
+              <SkipSuggestion key={s.pattern} s={s} />
+            ))}
           </ul>
-        ) : <p className="text-zinc-500">None: a word needs {MIN_SKIPS} skips for stack or seniority and must not appear in any job you kept.</p>}
+        ) : (
+          <p className="text-zinc-500">
+            None: a word needs {MIN_SKIPS} skips for stack or seniority and must not appear in any job you kept.
+          </p>
+        )}
       </div>
     </div>
   );

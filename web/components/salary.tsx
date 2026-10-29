@@ -9,8 +9,12 @@ export function SalaryTag({ job, expected }: { job: JobSalary & { country: strin
   return (
     <p className="text-sm">
       <span className="font-medium text-zinc-700 dark:text-zinc-300">💰 {text}</span>
-      {below && <span className="text-amber-700 dark:text-amber-400" title="From expectedSalary in cv/applicant.json">
-        {' '}· below your expectation</span>}
+      {below && (
+        <span className="text-amber-700 dark:text-amber-400" title="From expectedSalary in cv/applicant.json">
+          {' '}
+          · below your expectation
+        </span>
+      )}
     </p>
   );
 }
@@ -21,7 +25,7 @@ export type SalaryParams = { sal?: number; cur: SalaryCurrency; per: SalaryPerio
 export function salaryParams(one: (k: string) => string | undefined) {
   const p: SalaryParams = {
     sal: Number(one('sal')) > 0 ? Number(one('sal')) : undefined,
-    cur: CURRENCIES.includes(one('cur') as SalaryCurrency) ? one('cur') as SalaryCurrency : 'EUR',
+    cur: CURRENCIES.includes(one('cur') as SalaryCurrency) ? (one('cur') as SalaryCurrency) : 'EUR',
     per: one('per') === 'month' ? 'month' : 'year',
     only: one('salonly') === '1',
   };
@@ -37,10 +41,22 @@ export function salaryParams(one: (k: string) => string | undefined) {
 export function SalaryFilter({ params }: { params: SalaryParams }) {
   return (
     <span className="flex flex-wrap items-center gap-2" title="Compared in euros per year with approximate exchange rates">
-      <input name="sal" type="number" min={0} step={500} defaultValue={params.sal ?? ''} placeholder="Min salary"
-        aria-label="Min salary" className="input w-28" />
+      <input
+        name="sal"
+        type="number"
+        min={0}
+        step={500}
+        defaultValue={params.sal ?? ''}
+        placeholder="Min salary"
+        aria-label="Min salary"
+        className="input w-28"
+      />
       <select name="cur" defaultValue={params.cur} aria-label="Salary currency" className="input">
-        {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
+        {CURRENCIES.map((c) => (
+          <option key={c} value={c}>
+            {c}
+          </option>
+        ))}
       </select>
       <select name="per" defaultValue={params.per} aria-label="Salary period" className="input">
         <option value="year">/ year</option>

@@ -6,11 +6,19 @@ export async function list(_args: string[], flags: Flags) {
   const status = flags.status ?? 'new';
   const where = ['status = $1'];
   const params: (string | number)[] = [status];
-  if (flags.country) { params.push(flags.country.toUpperCase()); where.push(`country = $${params.length}`); }
-  if (flags.min) { params.push(Number(flags.min)); where.push(`score >= $${params.length}`); }
+  if (flags.country) {
+    params.push(flags.country.toUpperCase());
+    where.push(`country = $${params.length}`);
+  }
+  if (flags.min) {
+    params.push(Number(flags.min));
+    where.push(`score >= $${params.length}`);
+  }
   params.push(Number(flags.limit ?? 30));
   const { rows: jobs } = await pool.query<Job>(
-    `SELECT * FROM jobs WHERE ${where.join(' AND ')} ORDER BY score DESC, posted_at DESC NULLS LAST LIMIT $${params.length}`, params);
+    `SELECT * FROM jobs WHERE ${where.join(' AND ')} ORDER BY score DESC, posted_at DESC NULLS LAST LIMIT $${params.length}`,
+    params,
+  );
   if (status === 'filtered') {
     for (const j of jobs) console.log(`${j.company} — ${j.title} (${j.location})\n      ✗ ${j.filter_reason}`);
   } else {
@@ -37,6 +45,7 @@ export async function show(args: string[], flags: Flags) {
 
 export async function stats() {
   const { rows } = await pool.query<{ status: string; country: string | null; n: number }>(
-    'SELECT status, country, count(*)::int n FROM jobs GROUP BY status, country ORDER BY status, country');
+    'SELECT status, country, count(*)::int n FROM jobs GROUP BY status, country ORDER BY status, country',
+  );
   for (const r of rows) console.log(`${r.status.padEnd(10)} ${(r.country ?? '--').padEnd(3)} ${r.n}`);
 }

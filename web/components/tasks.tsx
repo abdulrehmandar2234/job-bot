@@ -20,10 +20,16 @@ export function TaskBar({ tasks, job }: { tasks: TaskView[]; job?: string }) {
         </p>
       )}
       {failed.map((t) => (
-        <div key={t.id} role="alert" className="mb-3 flex items-start justify-between gap-3 rounded-xl border border-rose-300 bg-rose-50 p-3 text-sm dark:border-rose-900 dark:bg-rose-950/30">
+        <div
+          key={t.id}
+          role="alert"
+          className="mb-3 flex items-start justify-between gap-3 rounded-xl border border-rose-300 bg-rose-50 p-3 text-sm dark:border-rose-900 dark:bg-rose-950/30"
+        >
           <div className="min-w-0">
             <p className="font-medium text-rose-800 dark:text-rose-300">{label(t)} failed</p>
-            {t.error && <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap font-sans text-rose-700 dark:text-rose-400">{t.error}</pre>}
+            {t.error && (
+              <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap font-sans text-rose-700 dark:text-rose-400">{t.error}</pre>
+            )}
           </div>
           <form action={dismissTask}>
             <input type="hidden" name="task" value={t.id} />
@@ -37,5 +43,9 @@ export function TaskBar({ tasks, job }: { tasks: TaskView[]; job?: string }) {
 
 /** Shown in place of a button while its task runs. */
 export function Busy({ children }: { children: React.ReactNode }) {
-  return <span role="status" className="btn cursor-wait opacity-60">{children}</span>;
+  return (
+    <span role="status" className="btn cursor-wait opacity-60">
+      {children}
+    </span>
+  );
 }

@@ -24,7 +24,9 @@ export function copyButton(text, label = 'Copy') {
     } catch {
       btn.textContent = 'Copy failed';
     }
-    setTimeout(() => { btn.textContent = label; }, 1500);
+    setTimeout(() => {
+      btn.textContent = label;
+    }, 1500);
   });
   return btn;
 }

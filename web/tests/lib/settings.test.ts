@@ -19,8 +19,12 @@ const form = (fields: Record<string, string>) => {
   return fd;
 };
 
-afterEach(() => { vi.unstubAllEnvs(); });
-afterAll(() => { rmSync(dir, { recursive: true, force: true }); });
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
+afterAll(() => {
+  rmSync(dir, { recursive: true, force: true });
+});
 
 describe('settings files', () => {
   it('defaults to the files in the bot root', () => {
@@ -60,31 +64,64 @@ describe('settings files', () => {
 });
 
 const CONFIG = {
-  cvFileName: 'cv.pdf', minScore: 45, maxAgeDays: 14, autoCvVersions: true, roleInclude: 'dev', roleExclude: 'senior',
+  cvFileName: 'cv.pdf',
+  minScore: 45,
+  maxAgeDays: 14,
+  autoCvVersions: true,
+  roleInclude: 'dev',
+  roleExclude: 'senior',
   futureKey: { keep: 1 },
   ai: { enabled: true, claudePath: '/bin/claude', scoreModel: 'haiku', letterModel: 'sonnet', maxScorePerRun: 80, concurrency: 2 },
   linkedin: { enabled: true, keywords: ['php'], locations: ['Dubai'], remoteFrom: 'Pakistan', pagesPerSearch: 2 },
   remote: { enabled: true, boards: ['himalayas'], himalayasQueries: ['php'], allow: 'a', deny: 'd', flag: 'f' },
   countries: { AE: { name: 'UAE', visa: 'employer', match: 'dubai' } },
-  companies: [{ name: 'Elastic', ats: 'greenhouse', token: 'elastic', indName: 'elasticsearch B.V.' }, { name: 'Old', ats: 'lever', token: 'old' }],
+  companies: [
+    { name: 'Elastic', ats: 'greenhouse', token: 'elastic', indName: 'elasticsearch B.V.' },
+    { name: 'Old', ats: 'lever', token: 'old' },
+  ],
 };
 
-const configForm = (over: Record<string, string> = {}) => form({
-  minScore: '50', maxAgeDays: '10', roleInclude: ' dev|eng ', roleExclude: 'senior',
-  'linkedin.enabled': 'on', 'linkedin.keywords': 'php\n  laravel \n\n', 'linkedin.locations': 'Dubai', 'linkedin.remoteFrom': 'Pakistan',
-  'linkedin.pagesPerSearch': '3', 'remote.boards': 'himalayas\nremotive', 'remote.himalayasQueries': 'php',
-  'remote.allow': 'a', 'remote.deny': 'd', 'remote.flag': 'f', 'ai.enabled': 'on', 'ai.scoreModel': 'haiku',
-  'ai.letterModel': 'opus', 'ai.maxScorePerRun': '40', 'countries.AE.match': 'dubai|abu dhabi',
-  'companies[0].orig': '0', 'companies[0].name': 'Elastic NV', 'companies[0].ats': 'greenhouse', 'companies[0].token': 'elastic',
-  'companies[1].orig': '-1', 'companies[1].name': 'New Co', 'companies[1].ats': 'ashby', 'companies[1].token': 'newco',
-  ...over,
-});
+const configForm = (over: Record<string, string> = {}) =>
+  form({
+    minScore: '50',
+    maxAgeDays: '10',
+    roleInclude: ' dev|eng ',
+    roleExclude: 'senior',
+    'linkedin.enabled': 'on',
+    'linkedin.keywords': 'php\n  laravel \n\n',
+    'linkedin.locations': 'Dubai',
+    'linkedin.remoteFrom': 'Pakistan',
+    'linkedin.pagesPerSearch': '3',
+    'remote.boards': 'himalayas\nremotive',
+    'remote.himalayasQueries': 'php',
+    'remote.allow': 'a',
+    'remote.deny': 'd',
+    'remote.flag': 'f',
+    'ai.enabled': 'on',
+    'ai.scoreModel': 'haiku',
+    'ai.letterModel': 'opus',
+    'ai.maxScorePerRun': '40',
+    'countries.AE.match': 'dubai|abu dhabi',
+    'companies[0].orig': '0',
+    'companies[0].name': 'Elastic NV',
+    'companies[0].ats': 'greenhouse',
+    'companies[0].token': 'elastic',
+    'companies[1].orig': '-1',
+    'companies[1].name': 'New Co',
+    'companies[1].ats': 'ashby',
+    'companies[1].token': 'newco',
+    ...over,
+  });
 
 describe('mergeConfig', () => {
   it('applies the form, keeping keys the form does not show', () => {
     const cfg = mergeConfig(CONFIG, configForm());
     expect(cfg).toMatchObject({
-      cvFileName: 'cv.pdf', futureKey: { keep: 1 }, minScore: 50, maxAgeDays: 10, roleInclude: 'dev|eng',
+      cvFileName: 'cv.pdf',
+      futureKey: { keep: 1 },
+      minScore: 50,
+      maxAgeDays: 10,
+      roleInclude: 'dev|eng',
       autoCvVersions: false, // unchecked
       ai: { enabled: true, claudePath: '/bin/claude', letterModel: 'opus', maxScorePerRun: 40, concurrency: 2 },
       linkedin: { keywords: ['php', 'laravel'], pagesPerSearch: 3 },
@@ -131,7 +168,10 @@ describe('mergeConfig', () => {
     const current = { ...CONFIG, adzuna: { countries: ['nl'], keywords: ['old'], pagesPerSearch: 2, extra: 1 } };
     const cfg = mergeConfig(current, configForm({ 'adzuna.countries': 'nl\n de ', 'adzuna.keywords': '', 'adzuna.pagesPerSearch': '3' }));
     expect(cfg.adzuna).toEqual({ countries: ['nl', 'de'], pagesPerSearch: 3, extra: 1 });
-    const withKeywords = mergeConfig(CONFIG, configForm({ 'adzuna.countries': 'nl', 'adzuna.keywords': 'php\nlaravel', 'adzuna.pagesPerSearch': '1' }));
+    const withKeywords = mergeConfig(
+      CONFIG,
+      configForm({ 'adzuna.countries': 'nl', 'adzuna.keywords': 'php\nlaravel', 'adzuna.pagesPerSearch': '1' }),
+    );
     expect(withKeywords.adzuna).toEqual({ countries: ['nl'], keywords: ['php', 'laravel'], pagesPerSearch: 1 });
   });
 
@@ -148,20 +188,37 @@ describe('mergeConfig', () => {
 
 describe('mergeApplicant', () => {
   const current = {
-    _help: 'help', nationality: 'Pakistani', needsVisaSponsorship: true, extra: 'kept',
+    _help: 'help',
+    nationality: 'Pakistani',
+    needsVisaSponsorship: true,
+    extra: 'kept',
     expectedSalary: { AE: '20k AED', SA: null, NL: null, remote: null, PK: 'x' },
     other: { github: 'gh/me', removed: 'bye' },
   };
 
   it('turns empty fields into null and keeps unknown keys', () => {
-    const a = mergeApplicant(current, form({
-      nationality: '  ', currentLocation: 'Lahore', needsVisaSponsorship: 'true',
-      'expectedSalary.AE': '', 'expectedSalary.remote': ' 3k USD ',
-      'other[0].key': 'github', 'other[0].value': 'gh/me', 'other[1].key': 'portfolio', 'other[1].value': '',
-      'other[2].key': '', 'other[2].value': 'ignored',
-    }));
+    const a = mergeApplicant(
+      current,
+      form({
+        nationality: '  ',
+        currentLocation: 'Lahore',
+        needsVisaSponsorship: 'true',
+        'expectedSalary.AE': '',
+        'expectedSalary.remote': ' 3k USD ',
+        'other[0].key': 'github',
+        'other[0].value': 'gh/me',
+        'other[1].key': 'portfolio',
+        'other[1].value': '',
+        'other[2].key': '',
+        'other[2].value': 'ignored',
+      }),
+    );
     expect(a).toMatchObject({
-      _help: 'help', extra: 'kept', nationality: null, currentLocation: 'Lahore', noticePeriod: null,
+      _help: 'help',
+      extra: 'kept',
+      nationality: null,
+      currentLocation: 'Lahore',
+      noticePeriod: null,
       needsVisaSponsorship: true, // unchanged text keeps the original type
       expectedSalary: { AE: null, SA: null, NL: null, remote: '3k USD', PK: 'x' },
     });
@@ -177,8 +234,10 @@ describe('form helpers', () => {
 
   it('errorsFor matches a field and the items of its list, not other rows', () => {
     const errors = [
-      { path: 'companies[3].ats', message: 'a' }, { path: 'companies', message: 'b' },
-      { path: 'linkedin.keywords[2]', message: 'c' }, { path: 'minScore', message: 'd' },
+      { path: 'companies[3].ats', message: 'a' },
+      { path: 'companies', message: 'b' },
+      { path: 'linkedin.keywords[2]', message: 'c' },
+      { path: 'minScore', message: 'd' },
     ];
     expect(errorsFor(errors, 'companies[3].ats').map((e) => e.message)).toEqual(['a']);
     expect(errorsFor(errors, 'companies').map((e) => e.message)).toEqual(['b']);

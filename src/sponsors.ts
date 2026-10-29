@@ -4,15 +4,16 @@ import { getText } from './sources/http.ts';
 
 // Dutch IND public register of recognised sponsors (erkend referent) for highly skilled migrants.
 // Only these employers can sponsor a Dutch highly-skilled-migrant visa.
-const IND_URL =
-  'https://ind.nl/en/public-register-recognised-sponsors/public-register-regular-labour-and-highly-skilled-migrants';
+const IND_URL = 'https://ind.nl/en/public-register-recognised-sponsors/public-register-regular-labour-and-highly-skilled-migrants';
 const FILE = path('data', 'ind-sponsors.json');
 
 const normalize = (name: string) =>
-  name.toLowerCase()
+  name
+    .toLowerCase()
     .replace(/["'.,()&@]/g, ' ')
     .replace(/\b(b ?v|n ?v|holding|holdings|netherlands|nederland|benelux|europe|international|group|the)\b/g, ' ')
-    .replace(/\s+/g, ' ').trim();
+    .replace(/\s+/g, ' ')
+    .trim();
 
 export async function updateIndRegister() {
   const html = await getText(IND_URL);

@@ -8,7 +8,13 @@ import { statusCounts } from '@/lib/db';
 import { cleanupDb, closeDb, ensureSchema, insertJob, PREFIX } from '../helpers/db';
 
 vi.mock('@/app/actions', () => ({
-  fetchNow: vi.fn(), setStatus: vi.fn(), prepare: vi.fn(), aiReview: vi.fn(), saveNotes: vi.fn(), draftAnswers: vi.fn(), clearAnswers: vi.fn(),
+  fetchNow: vi.fn(),
+  setStatus: vi.fn(),
+  prepare: vi.fn(),
+  aiReview: vi.fn(),
+  saveNotes: vi.fn(),
+  draftAnswers: vi.fn(),
+  clearAnswers: vi.fn(),
   dismissTask: vi.fn(),
 }));
 // TaskWatcher (a client component) needs the app router; the page tests render outside Next.
@@ -16,7 +22,7 @@ vi.mock('next/navigation', async (importOriginal) => ({
   ...(await importOriginal<typeof import('next/navigation')>()),
   useRouter: () => ({ refresh: vi.fn() }),
 }));
-vi.mock('@/lib/bot', async (orig) => ({ ...await orig<object>(), runBot: vi.fn() }));
+vi.mock('@/lib/bot', async (orig) => ({ ...(await orig<object>()), runBot: vi.fn() }));
 vi.mock('@/app/jobs/[id]/open-actions', () => ({ checkStillOpen: vi.fn() }));
 
 // Same approach as page.test.tsx: await the async server components inside <Suspense> and render their output.
@@ -33,13 +39,18 @@ async function resolve(node: ReactNode): Promise<ReactNode> {
   return cloneElement(node, undefined, await resolve(props.children));
 }
 const renderList = async (searchParams: Record<string, string> = {}) =>
-  render(<>{await resolve(Page({ params: Promise.resolve({}), searchParams: Promise.resolve(searchParams) } as Parameters<typeof Page>[0]))}</>);
+  render(
+    <>{await resolve(Page({ params: Promise.resolve({}), searchParams: Promise.resolve(searchParams) } as Parameters<typeof Page>[0]))}</>,
+  );
 const renderJob = async (id: string) =>
   render(<>{await resolve(JobPage({ params: Promise.resolve({ id: encodeURIComponent(id) }) } as Parameters<typeof JobPage>[0]))}</>);
 
 const tab = (label: string) => within(screen.getByRole('navigation')).getByRole('link', { name: new RegExp(`^${label} \\d+$`) });
-const cardTitles = () => screen.queryAllByRole('listitem').map((li) => li.querySelector('a[href^="/jobs/"]')?.textContent ?? '')
-  .filter((t) => t.startsWith('TG '));
+const cardTitles = () =>
+  screen
+    .queryAllByRole('listitem')
+    .map((li) => li.querySelector('a[href^="/jobs/"]')?.textContent ?? '')
+    .filter((t) => t.startsWith('TG '));
 
 beforeAll(ensureSchema);
 beforeEach(cleanupDb);
@@ -54,7 +65,9 @@ describe('expired postings on the dashboard', () => {
     expect(tab('Expired')).toHaveTextContent(`Expired ${(before.expired ?? 0) + 1}`);
     expect(tab('Expired')).toHaveAttribute('href', '/?status=expired');
     // Tab order: Skipped, Expired, Filtered out.
-    const labels = within(screen.getByRole('navigation')).getAllByRole('link').map((a) => a.textContent!.replace(/ \d+$/, ''));
+    const labels = within(screen.getByRole('navigation'))
+      .getAllByRole('link')
+      .map((a) => a.textContent!.replace(/ \d+$/, ''));
     expect(labels.slice(-3)).toEqual(['Skipped', 'Expired', 'Filtered out']);
     expect(cardTitles()).toEqual(['TG closed one · Acme Expired']);
   });
@@ -74,8 +87,13 @@ describe('expired postings on the dashboard', () => {
   });
 
   it('the job page shows the badge and the "Check if still open" button', async () => {
-    const id = await insertJob({ id: 'exp-page', title: 'TG closed one', status: 'expired', closed_at: new Date(),
-      checked_open_at: new Date() });
+    const id = await insertJob({
+      id: 'exp-page',
+      title: 'TG closed one',
+      status: 'expired',
+      closed_at: new Date(),
+      checked_open_at: new Date(),
+    });
     await renderJob(id);
     expect(within(screen.getByRole('heading', { level: 1 })).getByText('Expired')).toBeInTheDocument();
     expect(screen.getByText(/Status:/)).toHaveTextContent('Status: Expired');

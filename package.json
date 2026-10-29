@@ -13,7 +13,10 @@
     "test:db": "node scripts/create-test-db.mjs",
     "typecheck": "tsc -p . && cd web && npx next typegen && npx tsc -p .",
     "test:coverage": "DATABASE_URL=postgres://postgres@127.0.0.1:5432/${BOT_TEST_DB:-job_bot_test_bot} node --no-warnings --test --test-concurrency=1 --experimental-test-coverage --test-coverage-include='src/**' 'tests/**/*.test.ts'",
-    "test:web:coverage": "npm --prefix web run test:coverage"
+    "test:web:coverage": "npm --prefix web run test:coverage",
+    "lint": "biome check .",
+    "format": "biome check --write .",
+    "prepare": "git config core.hooksPath .githooks || true"
   },
   "engines": {
     "node": ">=24"
@@ -24,6 +27,7 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.6.4",
     "@types/node": "^24.19.2",
     "@types/pg": "^8.23.1",
     "typescript": "~5.9"

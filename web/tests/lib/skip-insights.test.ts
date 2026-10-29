@@ -14,7 +14,10 @@ describe('skipOnlyWords', () => {
   it('counts skipped jobs per word, leaving out words of kept titles and words roleExclude already matches', () => {
     const skipped = ['Principal Engineer', 'Principal Backend Engineer', 'Staff Engineer', 'Golang Engineer'];
     const kept = ['Senior Backend Engineer'];
-    expect(skipOnlyWords(skipped, kept, 'golang|\\bjava\\b')).toEqual([{ word: 'principal', skips: 2 }, { word: 'staff', skips: 1 }]);
+    expect(skipOnlyWords(skipped, kept, 'golang|\\bjava\\b')).toEqual([
+      { word: 'principal', skips: 2 },
+      { word: 'staff', skips: 1 },
+    ]);
   });
 
   it('treats a missing or invalid roleExclude as covering nothing', () => {
@@ -24,11 +27,18 @@ describe('skipOnlyWords', () => {
 });
 
 describe('suggestions', () => {
-  const words = [{ word: 'principal', skips: 9 }, { word: 'staff', skips: MIN_SKIPS }, { word: 'lead', skips: MIN_SKIPS - 1 }];
+  const words = [
+    { word: 'principal', skips: 9 },
+    { word: 'staff', skips: MIN_SKIPS },
+    { word: 'lead', skips: MIN_SKIPS - 1 },
+  ];
 
   it(`suggests a whole-word pattern from ${MIN_SKIPS} skips on, as a valid regex that matches the word`, () => {
     const s = suggestions(words, ['Senior Laravel Developer']);
-    expect(s).toEqual([{ word: 'principal', skips: 9, pattern: '\\bprincipal\\b' }, { word: 'staff', skips: MIN_SKIPS, pattern: '\\bstaff\\b' }]);
+    expect(s).toEqual([
+      { word: 'principal', skips: 9, pattern: '\\bprincipal\\b' },
+      { word: 'staff', skips: MIN_SKIPS, pattern: '\\bstaff\\b' },
+    ]);
     for (const x of s) {
       const re = new RegExp(x.pattern, 'i');
       expect(re.test(`Senior ${x.word} engineer`)).toBe(true);
@@ -40,7 +50,15 @@ describe('suggestions', () => {
 
   it('never suggests a pattern that matches a kept title, or a word that is not plain letters and digits', () => {
     expect(suggestions(words, ['Staff Software Engineer']).map((s) => s.word)).toEqual(['principal']);
-    expect(suggestions([{ word: 'c++', skips: 9 }, { word: 'a.b', skips: 9 }], [])).toEqual([]);
+    expect(
+      suggestions(
+        [
+          { word: 'c++', skips: 9 },
+          { word: 'a.b', skips: 9 },
+        ],
+        [],
+      ),
+    ).toEqual([]);
   });
 
   it('respects the threshold and the limit', () => {
@@ -62,14 +80,20 @@ describe('queries', () => {
 
   it('counts each skipped job once by its latest reason, ignoring jobs moved back and duplicates', async () => {
     const a = await skip('si-1', 'Principal Engineer', 'stack');
-    await pool.query(`INSERT INTO job_events (job_id, from_status, to_status, reason, at) VALUES ($1, 'new', 'skipped', 'seniority', now() + interval '1 minute')`, [a]);
+    await pool.query(
+      `INSERT INTO job_events (job_id, from_status, to_status, reason, at) VALUES ($1, 'new', 'skipped', 'seniority', now() + interval '1 minute')`,
+      [a],
+    );
     await skip('si-2', 'Principal Developer', 'seniority');
     await skip('si-3', 'Sales Engineer', null);
     await skip('si-4', 'Back in play', 'salary', 'new');
     const dup = await skip('si-5', 'Principal Engineer', 'stack');
     await pool.query(`UPDATE jobs SET duplicate_of = $1 WHERE id = $2`, [a, dup]);
 
-    expect(await skipReasonCounts()).toEqual([{ reason: 'seniority', n: 2 }, { reason: null, n: 1 }]);
+    expect(await skipReasonCounts()).toEqual([
+      { reason: 'seniority', n: 2 },
+      { reason: null, n: 1 },
+    ]);
   });
 
   it('lists titles skipped for stack or seniority, and the titles of jobs still in play', async () => {

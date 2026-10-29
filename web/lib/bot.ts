@@ -28,7 +28,9 @@ export function spawnBot(args: string[]) {
   const log = openSync(join(dir, 'tasks.log'), 'a');
   try {
     const child = spawn(process.execPath, ['--no-warnings', '--env-file-if-exists=.env', 'src/cli.ts', ...args], {
-      cwd: BOT_ROOT, detached: true, stdio: ['ignore', log, log],
+      cwd: BOT_ROOT,
+      detached: true,
+      stdio: ['ignore', log, log],
     });
     // A spawn error leaves the task queued; expire_stale_tasks() fails it after 2 minutes.
     child.on('error', () => {});
@@ -43,7 +45,5 @@ export function cvFileName(): string {
 }
 
 export function cvPath(version: string) {
-  return version === 'default'
-    ? join(BOT_ROOT, 'cv', 'default', cvFileName())
-    : join(BOT_ROOT, 'cv', 'versions', version, cvFileName());
+  return version === 'default' ? join(BOT_ROOT, 'cv', 'default', cvFileName()) : join(BOT_ROOT, 'cv', 'versions', version, cvFileName());
 }

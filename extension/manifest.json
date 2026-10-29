@@ -4,17 +4,8 @@
   "version": "0.1.0",
   "description": "Send the job you are looking at to your local job-bot, and copy its prepared letter and answers while you apply.",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAo5jVsR4Dm2rHzFP75ovocrl2j/L7AqL3wOIvwo2Xfchi3w9hOoCnDk4jtMM2JJv7PCGy8y5akqDhO3gKTsbgo7bzjNVnGagzYX3PZb+G+AK6vk8oi/uyWo/PggV+RdOH2J+KQMGH90tgaSfsItrhHYigQaOhXM1nS3XtMJn1Hodofe9H6CVz0pKacI8hpw97F8/+hhtwQZ1vSkfoiikctWd2w65BEZmS0TrrGvlDxbEEoJR2rmVqASp9rUxm5nhSHyJ9r3u91N3dmrYwAmI3JGPgXKfzRZjoeyiqxyc24h2Ir++DxmnkFPbwRVURHxGRV11LjDtJ48DSmqBebPJGnwIDAQAB",
-  "permissions": [
-    "activeTab",
-    "scripting",
-    "sidePanel",
-    "tabs",
-    "clipboardWrite"
-  ],
-  "optional_host_permissions": [
-    "http://*/*",
-    "https://*/*"
-  ],
+  "permissions": ["activeTab", "scripting", "sidePanel", "tabs", "clipboardWrite"],
+  "optional_host_permissions": ["http://*/*", "https://*/*"],
   "action": {
     "default_title": "Send to job-bot",
     "default_popup": "popup.html",

@@ -16,8 +16,12 @@ const busy = { pending: true, data: new FormData(), method: 'post', action: () =
 
 describe('BaytBookmarklet', () => {
   let alertSpy: ReturnType<typeof vi.spyOn>;
-  beforeEach(() => { alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {}); });
-  afterEach(() => { alertSpy.mockRestore(); });
+  beforeEach(() => {
+    alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {});
+  });
+  afterEach(() => {
+    alertSpy.mockRestore();
+  });
 
   const bookmarkletCode = () => {
     const href = screen.getByText('⇱ Bayt → Job Bot').getAttribute('href')!;
@@ -68,7 +72,11 @@ describe('BaytBookmarklet', () => {
 describe('SubmitButton', () => {
   it('renders an enabled submit button while idle', () => {
     formStatus.mockReturnValue(idle);
-    render(<SubmitButton pendingText="Saving…" className="btn-good">Save</SubmitButton>);
+    render(
+      <SubmitButton pendingText="Saving…" className="btn-good">
+        Save
+      </SubmitButton>,
+    );
     const btn = screen.getByRole('button', { name: 'Save' });
     expect(btn).toHaveAttribute('type', 'submit');
     expect(btn).toBeEnabled();
@@ -92,7 +100,9 @@ describe('SubmitButton', () => {
 });
 
 describe('CopyButton', () => {
-  afterEach(() => { vi.useRealTimers(); });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
 
   it('copies the text and confirms for 1.5s', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
@@ -100,13 +110,19 @@ describe('CopyButton', () => {
     vi.useFakeTimers();
     render(<CopyButton text="Hello recruiter" />);
 
-    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Copy' })); });
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Copy' }));
+    });
     expect(writeText).toHaveBeenCalledWith('Hello recruiter');
     expect(screen.getByRole('button')).toHaveTextContent('Copied ✓');
 
-    act(() => { vi.advanceTimersByTime(1499); });
+    act(() => {
+      vi.advanceTimersByTime(1499);
+    });
     expect(screen.getByRole('button')).toHaveTextContent('Copied ✓');
-    act(() => { vi.advanceTimersByTime(1); });
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
     expect(screen.getByRole('button')).toHaveTextContent('Copy');
   });
 
@@ -116,18 +132,24 @@ describe('CopyButton', () => {
     vi.useFakeTimers();
     render(<CopyButton text="Hello recruiter" />);
 
-    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Copy' })); });
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Copy' }));
+    });
     expect(writeText).toHaveBeenCalledWith('Hello recruiter');
     expect(screen.getByRole('button')).toHaveTextContent('Copy failed');
 
-    act(() => { vi.advanceTimersByTime(1500); });
+    act(() => {
+      vi.advanceTimersByTime(1500);
+    });
     expect(screen.getByRole('button')).toHaveTextContent('Copy');
   });
 
   it('says the copy failed when there is no clipboard API (plain http, old browser)', async () => {
     Object.defineProperty(navigator, 'clipboard', { value: undefined, configurable: true });
     render(<CopyButton text="x" />);
-    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Copy' })); });
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Copy' }));
+    });
     expect(screen.getByRole('button')).toHaveTextContent('Copy failed');
   });
 

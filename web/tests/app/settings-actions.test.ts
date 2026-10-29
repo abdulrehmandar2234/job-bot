@@ -26,32 +26,53 @@ const APPLICANT_FILE = join(dir, 'applicant.json');
 const tempDir = () => join(BOT_ROOT, 'data', 'settings');
 
 const CONFIG = {
-  minScore: 45, maxAgeDays: 14, autoCvVersions: false, roleInclude: 'dev', roleExclude: 'x', futureKey: 'kept',
+  minScore: 45,
+  maxAgeDays: 14,
+  autoCvVersions: false,
+  roleInclude: 'dev',
+  roleExclude: 'x',
+  futureKey: 'kept',
   ai: { enabled: true, scoreModel: 'haiku', letterModel: 'sonnet', maxScorePerRun: 80 },
   linkedin: { enabled: true, keywords: ['php'], locations: [], remoteFrom: 'Pakistan', pagesPerSearch: 2 },
   remote: { enabled: true, boards: [], himalayasQueries: [], allow: 'a', deny: 'd', flag: 'f' },
-  countries: {}, companies: [{ name: 'A', ats: 'lever', token: 'a', indName: 'A B.V.' }],
+  countries: {},
+  companies: [{ name: 'A', ats: 'lever', token: 'a', indName: 'A B.V.' }],
 };
 const form = (fields: Record<string, string>) => {
   const fd = new FormData();
   for (const [k, v] of Object.entries(fields)) fd.set(k, v);
   return fd;
 };
-const configForm = () => form({
-  minScore: '60', maxAgeDays: '14', roleInclude: 'dev', roleExclude: 'x', 'linkedin.keywords': 'php', 'linkedin.remoteFrom': 'Pakistan',
-  'linkedin.pagesPerSearch': '2', 'remote.allow': 'a', 'remote.deny': 'd', 'remote.flag': 'f', 'ai.scoreModel': 'haiku',
-  'ai.letterModel': 'sonnet', 'ai.maxScorePerRun': '80',
-  'companies[0].orig': '0', 'companies[0].name': 'A', 'companies[0].ats': 'nope', 'companies[0].token': 'a',
-});
+const configForm = () =>
+  form({
+    minScore: '60',
+    maxAgeDays: '14',
+    roleInclude: 'dev',
+    roleExclude: 'x',
+    'linkedin.keywords': 'php',
+    'linkedin.remoteFrom': 'Pakistan',
+    'linkedin.pagesPerSearch': '2',
+    'remote.allow': 'a',
+    'remote.deny': 'd',
+    'remote.flag': 'f',
+    'ai.scoreModel': 'haiku',
+    'ai.letterModel': 'sonnet',
+    'ai.maxScorePerRun': '80',
+    'companies[0].orig': '0',
+    'companies[0].name': 'A',
+    'companies[0].ats': 'nope',
+    'companies[0].token': 'a',
+  });
 
 /** What the action handed to settings:save, read while the mocked CLI "runs". */
 let saved: { args: string[]; json: unknown; file: string }[] = [];
-const cliSays = (stdout: string, exitCode = 0) => bot.mockImplementationOnce(async (args) => {
-  const file = args[args.indexOf('--file') + 1];
-  saved.push({ args, file, json: JSON.parse(readFileSync(file, 'utf8')) });
-  if (!exitCode) return stdout;
-  throw Object.assign(new Error('Command failed'), { code: exitCode, stdout });
-});
+const cliSays = (stdout: string, exitCode = 0) =>
+  bot.mockImplementationOnce(async (args) => {
+    const file = args[args.indexOf('--file') + 1];
+    saved.push({ args, file, json: JSON.parse(readFileSync(file, 'utf8')) });
+    if (!exitCode) return stdout;
+    throw Object.assign(new Error('Command failed'), { code: exitCode, stdout });
+  });
 
 // The applicant form falls back to the bot's example file, under the (temp) bot root.
 beforeAll(() => {
@@ -66,7 +87,9 @@ beforeEach(() => {
   vi.stubEnv('JOB_BOT_CONFIG', CONFIG_FILE);
   vi.stubEnv('JOB_BOT_APPLICANT', APPLICANT_FILE);
 });
-afterEach(() => { vi.unstubAllEnvs(); });
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 afterAll(() => {
   rmSync(BOT_ROOT, { recursive: true, force: true });
   rmSync(dir, { recursive: true, force: true });
@@ -121,14 +144,20 @@ describe('saveConfig', () => {
 describe('saveApplicant', () => {
   it('starts from the example file, turns empty fields into null and does not re-score', async () => {
     cliSays('{"ok":true}');
-    const res = await saveApplicant(null, form({ nationality: 'Pakistani', noticePeriod: '', 'other[0].key': 'github', 'other[0].value': 'gh' }));
+    const res = await saveApplicant(
+      null,
+      form({ nationality: 'Pakistani', noticePeriod: '', 'other[0].key': 'github', 'other[0].value': 'gh' }),
+    );
 
     expect(res).toEqual({ ok: true, message: 'Saved.', errors: [] });
     expect(saved[0].args.slice(0, 3)).toEqual(['settings:save', '--kind', 'applicant']);
     expect(saved[0].json).toMatchObject({
       _help: expect.any(String), // kept from applicant.example.json
-      nationality: 'Pakistani', noticePeriod: null, currentLocation: null,
-      expectedSalary: { AE: null, SA: null, NL: null, remote: null }, other: { github: 'gh' },
+      nationality: 'Pakistani',
+      noticePeriod: null,
+      currentLocation: null,
+      expectedSalary: { AE: null, SA: null, NL: null, remote: null },
+      other: { github: 'gh' },
     });
     expect(bot).toHaveBeenCalledOnce();
     expect(refresh).toHaveBeenCalledOnce();
@@ -152,14 +181,18 @@ describe('saveJson', () => {
 
     cliSays('{"ok":true}');
     bot.mockResolvedValueOnce('4 jobs re-scored.');
-    expect(await saveJson(null, form({ kind: 'config', json: JSON.stringify(CONFIG) }))).toMatchObject({ message: 'Saved. Re-scored 4 jobs.' });
+    expect(await saveJson(null, form({ kind: 'config', json: JSON.stringify(CONFIG) }))).toMatchObject({
+      message: 'Saved. Re-scored 4 jobs.',
+    });
     expect(saved.map((s) => s.args[2])).toEqual(['applicant', 'config']);
   });
 
   it('shows invalid JSON as an error', async () => {
-    bot.mockRejectedValueOnce(Object.assign(new Error('Command failed'), {
-      stdout: '{"ok":false,"errors":[{"path":"(root)","message":"invalid JSON: x"},{"path":"minScore","message":"y"}]}\n',
-    }));
+    bot.mockRejectedValueOnce(
+      Object.assign(new Error('Command failed'), {
+        stdout: '{"ok":false,"errors":[{"path":"(root)","message":"invalid JSON: x"},{"path":"minScore","message":"y"}]}\n',
+      }),
+    );
     expect(await saveJson(null, form({ kind: 'config', json: '{' }))).toMatchObject({ ok: false, message: 'Not saved: 2 problems.' });
     expect(refresh).not.toHaveBeenCalled();
   });

@@ -1,7 +1,16 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { pool } from '@/lib/db';
 import {
-  funnel, lastFetchErrorCount, median, MIN_N, rate, recentFetchRuns, responseDays, responseRates, weeklyActivity, type Funnel,
+  funnel,
+  lastFetchErrorCount,
+  median,
+  MIN_N,
+  rate,
+  recentFetchRuns,
+  responseDays,
+  responseRates,
+  weeklyActivity,
+  type Funnel,
 } from '@/lib/analytics';
 import { cleanupDb, closeDb, daysAgo, ensureSchema, insertFetchRun, insertJob, PREFIX } from '../helpers/db';
 
@@ -14,7 +23,12 @@ const id = (s: string) => PREFIX + s;
 /** Adds status changes to a job's history, as [from, to, days ago]. */
 async function history(jobId: string, ...events: [string | null, string, number][]) {
   for (const [from, to, days] of events) {
-    await pool.query('INSERT INTO job_events (job_id, from_status, to_status, at) VALUES ($1, $2, $3, $4)', [jobId, from, to, daysAgo(days)]);
+    await pool.query('INSERT INTO job_events (job_id, from_status, to_status, at) VALUES ($1, $2, $3, $4)', [
+      jobId,
+      from,
+      to,
+      daysAgo(days),
+    ]);
   }
 }
 
@@ -47,7 +61,12 @@ describe('funnel', () => {
 describe('responseRates', () => {
   it('groups applied jobs, counts interviews and offers as replies, and marks small groups', async () => {
     for (let i = 0; i < 6; i++) {
-      const j = await insertJob({ id: `big-${i}`, source: 'webtest-big', status: i === 0 ? 'interview' : 'applied', applied_at: daysAgo(10) });
+      const j = await insertJob({
+        id: `big-${i}`,
+        source: 'webtest-big',
+        status: i === 0 ? 'interview' : 'applied',
+        applied_at: daysAgo(10),
+      });
       // Rejected after an interview is still a reply.
       if (i === 1) {
         await pool.query(`UPDATE jobs SET status = 'rejected' WHERE id = $1`, [j]);
@@ -68,8 +87,15 @@ describe('responseRates', () => {
   });
 
   it('works for every dimension, with a null key for jobs that lack the value', async () => {
-    await insertJob({ id: 'dims', source: 'webtest-dims', country: 'XT', cv_version: 'webtest-cv', ai_verdict: 'webtest-verdict',
-      status: 'interview', applied_at: daysAgo(3) });
+    await insertJob({
+      id: 'dims',
+      source: 'webtest-dims',
+      country: 'XT',
+      cv_version: 'webtest-cv',
+      ai_verdict: 'webtest-verdict',
+      status: 'interview',
+      applied_at: daysAgo(3),
+    });
     expect((await responseRates('country')).find((r) => r.key === 'XT')).toMatchObject({ n: 1, responded: 1, small: true });
     expect((await responseRates('cv_version')).find((r) => r.key === 'webtest-cv')).toMatchObject({ n: 1, responded: 1 });
     expect((await responseRates('ai_verdict')).find((r) => r.key === 'webtest-verdict')).toMatchObject({ n: 1 });
@@ -88,8 +114,9 @@ describe('weeklyActivity', () => {
     const weeks = await weeklyActivity();
     expect(weeks).toHaveLength(12);
     // Weeks start on Monday in the database's time zone (the user's), which may not be UTC.
-    const { rows } = await pool.query<{ dow: number }>('SELECT extract(isodow FROM w)::int dow FROM unnest($1::timestamptz[]) w',
-      [weeks.map((w) => w.week)]);
+    const { rows } = await pool.query<{ dow: number }>('SELECT extract(isodow FROM w)::int dow FROM unnest($1::timestamptz[]) w', [
+      weeks.map((w) => w.week),
+    ]);
     expect(rows.map((r) => r.dow)).toEqual(Array(12).fill(1));
     expect(Date.now() - new Date(weeks[11].week).getTime()).toBeLessThan(7 * 86_400_000);
     expect(Math.round((new Date(weeks[11].week).getTime() - new Date(weeks[0].week).getTime()) / 86_400_000)).toBe(77); // DST-safe
@@ -152,7 +179,13 @@ describe('fetch runs', () => {
   });
 
   it('counts the errors of the latest finished run only', async () => {
-    await insertFetchRun({ finished_at: new Date(), errors: [{ company: 'A', error: 'x' }, { company: 'B', error: 'y' }] });
+    await insertFetchRun({
+      finished_at: new Date(),
+      errors: [
+        { company: 'A', error: 'x' },
+        { company: 'B', error: 'y' },
+      ],
+    });
     expect(await lastFetchErrorCount()).toBe(2);
     await insertFetchRun({ finished_at: null, errors: [] }); // still running
     expect(await lastFetchErrorCount()).toBe(2);

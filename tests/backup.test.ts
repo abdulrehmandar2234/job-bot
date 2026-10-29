@@ -19,10 +19,11 @@ function fakePgDump(name: string, body: string) {
   return bin;
 }
 
-const run = (bin: string, dir: string) => spawnSync('bash', [SCRIPT], {
-  encoding: 'utf8',
-  env: { PATH: `${bin}:/usr/bin:/bin`, JOB_BOT_BACKUP_DIR: dir, JOB_BOT_BACKUP_DB: 'testdb' },
-});
+const run = (bin: string, dir: string) =>
+  spawnSync('bash', [SCRIPT], {
+    encoding: 'utf8',
+    env: { PATH: `${bin}:/usr/bin:/bin`, JOB_BOT_BACKUP_DIR: dir, JOB_BOT_BACKUP_DB: 'testdb' },
+  });
 
 const today = () => {
   const d = new Date();
@@ -49,7 +50,9 @@ describe('scripts/backup-db.sh', () => {
     writeFileSync(join(dir, 'other-2020-01-01.sql.gz'), '');
     const r = run(ok, dir);
     assert.equal(r.status, 0, r.stderr);
-    const left = readdirSync(dir).filter((f) => f.startsWith('testdb-')).sort();
+    const left = readdirSync(dir)
+      .filter((f) => f.startsWith('testdb-'))
+      .sort();
     assert.equal(left.length, 14);
     assert.equal(left.at(-1), `testdb-${today()}.sql.gz`);
     assert.equal(left[0], 'testdb-2026-01-08.sql.gz');

@@ -25,7 +25,10 @@ describe('CV versions', () => {
     it(`profile "${id}" only re-orders the CV, never adds skills, jobs or bullets`, () => {
       const cv = applyProfile(master, p);
       assert.deepEqual(allSkills(cv), allSkills(master));
-      assert.deepEqual(cv.experience.map((e) => e.company), master.experience.map((e) => e.company));
+      assert.deepEqual(
+        cv.experience.map((e) => e.company),
+        master.experience.map((e) => e.company),
+      );
       cv.experience.forEach((e, i) => {
         assert.deepEqual([...e.bullets].sort(), [...master.experience[i].bullets].sort());
         assert.equal(e.bullets[0], master.experience[i].bullets[0], 'first bullet introduces the role and stays first');
@@ -61,7 +64,10 @@ describe('CV template', () => {
     assert.match(html, /@page \{ size: A4/);
   });
 
-  it('renders a PDF with Chrome', { skip: !existsSync(process.env.JOB_BOT_CHROME || config.chromePath) && 'Chrome not installed', timeout: 60_000 }, async () => {
+  it('renders a PDF with Chrome', {
+    skip: !existsSync(process.env.JOB_BOT_CHROME || config.chromePath) && 'Chrome not installed',
+    timeout: 60_000,
+  }, async () => {
     const out = join(mkdtempSync(join(tmpdir(), 'jobbot-cv-')), config.cvFileName);
     await renderPdf(master, out);
     assert.equal(readFileSync(out).subarray(0, 5).toString(), '%PDF-');
@@ -70,8 +76,8 @@ describe('CV template', () => {
 });
 
 describe('template cover letter', () => {
-  const job = (o: Partial<Job>) => ({ company: 'Acme', title: 'Laravel Developer', country: 'AE', matched: ['Laravel', 'PHP'],
-    cluster: 'laravel', ...o }) as Job;
+  const job = (o: Partial<Job>) =>
+    ({ company: 'Acme', title: 'Laravel Developer', country: 'AE', matched: ['Laravel', 'PHP'], cluster: 'laravel', ...o }) as Job;
 
   it('addresses the company and role and signs off', () => {
     const l = coverLetter(job({}));

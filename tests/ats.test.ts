@@ -17,15 +17,23 @@ const report = (job: string, version: string) => atsReport(job, master, versionC
 
 // A small CV, so the fold is easy to reason about.
 const tiny: Cv = {
-  name: 'A', title: 'Engineer', contact: { phone: '', email: '', location: '', linkedin: '' }, summary: 'Builds web apps.',
-  skills: [{ group: 'One', items: ['Laravel'] }, { group: 'Two', items: ['React'] }, { group: 'Three', items: ['MySQL'] },
-    { group: 'Four', items: ['Docker'] }],
+  name: 'A',
+  title: 'Engineer',
+  contact: { phone: '', email: '', location: '', linkedin: '' },
+  summary: 'Builds web apps.',
+  skills: [
+    { group: 'One', items: ['Laravel'] },
+    { group: 'Two', items: ['React'] },
+    { group: 'Three', items: ['MySQL'] },
+    { group: 'Four', items: ['Docker'] },
+  ],
   experience: [
     { role: 'Dev', company: 'X', location: '', dates: '', tags: [], bullets: ['Intro.', 'Did a.', 'Did b.', 'Ran GraphQL APIs.'] },
     { role: 'Dev', company: 'Y', location: '', dates: '', tags: [], bullets: ['Intro.'] },
     { role: 'Dev', company: 'Z', location: '', dates: '', tags: [], bullets: ['Used Redux.'] },
   ],
-  projects: [], education: [],
+  projects: [],
+  education: [],
 };
 
 describe('atsCheck', () => {
@@ -41,7 +49,12 @@ describe('atsCheck', () => {
   });
 
   it('only looks at keywords the job asks for', () => {
-    assert.deepEqual(atsCheck('Laravel only', tiny, tiny, 'default'), { version: 'default', present: ['Laravel'], hiddenButTrue: [], missing: [] });
+    assert.deepEqual(atsCheck('Laravel only', tiny, tiny, 'default'), {
+      version: 'default',
+      present: ['Laravel'],
+      hiddenButTrue: [],
+      missing: [],
+    });
   });
 
   it('a cluster version moves its own skills above the fold', () => {
@@ -71,7 +84,10 @@ describe('atsReport', () => {
     assert.equal(r.suggestion.shows, best.present.length);
     assert.ok(r.suggestion.shows > r.present.length);
     for (const v of ['default', ...Object.keys(PROFILES)]) assert.ok(check(job, v).present.length <= r.suggestion.shows, v);
-    assert.deepEqual(r.suggestion.gains, best.present.filter((k) => !r.present.includes(k)));
+    assert.deepEqual(
+      r.suggestion.gains,
+      best.present.filter((k) => !r.present.includes(k)),
+    );
     assert.equal(r.total, r.present.length + r.hiddenButTrue.length + r.missing.length);
   });
 
@@ -81,8 +97,12 @@ describe('atsReport', () => {
   });
 
   it('never suggests a missing keyword, for any version and job', () => {
-    const jobs = [job, 'Laravel, Vue, Docker, AWS, Redis, Microservices, Go', 'React, Angular, Azure, GCP, Java, C#/.NET, Ruby on Rails',
-      'LLM, OpenAI, Python, FastAPI, Kubernetes, Terraform, CI/CD, PostgreSQL'];
+    const jobs = [
+      job,
+      'Laravel, Vue, Docker, AWS, Redis, Microservices, Go',
+      'React, Angular, Azure, GCP, Java, C#/.NET, Ruby on Rails',
+      'LLM, OpenAI, Python, FastAPI, Kubernetes, Terraform, CI/CD, PostgreSQL',
+    ];
     for (const text of jobs) {
       for (const v of ['default', ...Object.keys(PROFILES)]) {
         const r = report(text, v);
@@ -95,15 +115,23 @@ describe('atsReport', () => {
 
 describe('ats CLI', () => {
   const run = promisify(execFile);
-  const bot = async (args: string[]) => (await run(process.execPath, ['--no-warnings', 'src/cli.ts', ...args], {
-    cwd: path(), env: { ...process.env, DATABASE_URL: TEST_DB }, timeout: 60_000 })).stdout;
+  const bot = async (args: string[]) =>
+    (
+      await run(process.execPath, ['--no-warnings', 'src/cli.ts', ...args], {
+        cwd: path(),
+        env: { ...process.env, DATABASE_URL: TEST_DB },
+        timeout: 60_000,
+      })
+    ).stdout;
 
   before(migrate);
   beforeEach(() => pool.query('TRUNCATE jobs, job_events, fetch_runs CASCADE'));
   after(() => pool.end());
 
   it('prints the three lists and a suggestion for the suggested version', async () => {
-    await save(raw({ id: 'test:ats', description: 'NestJS, Next.js, TypeScript, MongoDB, Prisma, GraphQL, React, Node.js and Kubernetes.' }));
+    await save(
+      raw({ id: 'test:ats', description: 'NestJS, Next.js, TypeScript, MongoDB, Prisma, GraphQL, React, Node.js and Kubernetes.' }),
+    );
     const out = await bot(['ats', 'test:ats', '--cv', 'laravel']);
     assert.match(out, /CV keyword check — Acme — Senior Full Stack Engineer/);
     assert.match(out, /CV version {5}: laravel \(chosen with --cv\), shows \d+ of 9 job keywords/);
@@ -111,7 +139,7 @@ describe('ats CLI', () => {
     assert.match(out, /Suggestion {5}: the "[a-z-]+" version shows \d+ \(\+ .+\) — prepare test:ats --cv [a-z-]+/);
   });
 
-  it('--json returns the report for the job\'s suggested cluster', async () => {
+  it("--json returns the report for the job's suggested cluster", async () => {
     await save(raw({ id: 'test:ats', description: 'Laravel, PHP, MySQL and Kafka.' }));
     const { cluster } = (await pool.query<{ cluster: string }>(`SELECT cluster FROM jobs WHERE id = 'test:ats'`)).rows[0];
     const r = JSON.parse(await bot(['ats', 'test:ats', '--json']));

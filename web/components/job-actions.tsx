@@ -17,12 +17,16 @@ export function JobActions({ job, busy = [] }: { job: Job; busy?: readonly TaskK
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <a href={job.url} target="_blank" rel="noreferrer" className="btn btn-primary">Open job ↗</a>
+      <a href={job.url} target="_blank" rel="noreferrer" className="btn btn-primary">
+        Open job ↗
+      </a>
 
       {busy.includes('prepare') ? (
         <Busy>Preparing CV + letter…</Busy>
       ) : job.cv_version ? (
-        <a href={`/api/cv/${job.cv_version}`} target="_blank" className="btn">CV ({job.cv_version})</a>
+        <a href={`/api/cv/${job.cv_version}`} target="_blank" rel="noreferrer" className="btn">
+          CV ({job.cv_version})
+        </a>
       ) : (
         <form action={prepare}>
           <input type="hidden" name="id" value={job.id} />
@@ -34,25 +38,35 @@ export function JobActions({ job, busy = [] }: { job: Job; busy?: readonly TaskK
         </form>
       )}
 
-      {busy.includes('ai_review') ? <Busy>AI reviewing…</Busy> : job.ai_score == null && (
-        <form action={aiReview}>
-          <input type="hidden" name="id" value={job.id} />
-          <SubmitButton pendingText="Starting…">AI review</SubmitButton>
-        </form>
+      {busy.includes('ai_review') ? (
+        <Busy>AI reviewing…</Busy>
+      ) : (
+        job.ai_score == null && (
+          <form action={aiReview}>
+            <input type="hidden" name="id" value={job.id} />
+            <SubmitButton pendingText="Starting…">AI review</SubmitButton>
+          </form>
+        )
       )}
 
-      {(job.status === 'new' || job.status === 'prepared') && <>
-        {status('applied', 'Mark applied ✓', 'btn-good')}
-        <SkipButton id={job.id} />
-      </>}
-      {job.status === 'applied' && <>
-        {status('interview', 'Got interview')}
-        {status('rejected', 'Rejected')}
-      </>}
-      {job.status === 'interview' && <>
-        {status('offer', 'Offer 🎉', 'btn-good')}
-        {status('rejected', 'Rejected')}
-      </>}
+      {(job.status === 'new' || job.status === 'prepared') && (
+        <>
+          {status('applied', 'Mark applied ✓', 'btn-good')}
+          <SkipButton id={job.id} />
+        </>
+      )}
+      {job.status === 'applied' && (
+        <>
+          {status('interview', 'Got interview')}
+          {status('rejected', 'Rejected')}
+        </>
+      )}
+      {job.status === 'interview' && (
+        <>
+          {status('offer', 'Offer 🎉', 'btn-good')}
+          {status('rejected', 'Rejected')}
+        </>
+      )}
       {(job.status === 'skipped' || job.status === 'expired') && status('new', 'Move to matching')}
     </div>
   );

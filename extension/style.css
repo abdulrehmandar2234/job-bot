@@ -1,22 +1,117 @@
-:root { color-scheme: light dark; --muted: #71717a; --line: #d4d4d8; --accent: #047857; --warn: #b45309; }
-@media (prefers-color-scheme: dark) { :root { --line: #3f3f46; --accent: #34d399; --warn: #fbbf24; } }
-* { box-sizing: border-box; }
-body { margin: 0; padding: 12px; font: 13px/1.45 system-ui, sans-serif; }
-body.popup { width: 340px; }
-h1 { font-size: 15px; margin: 0 0 4px; }
-h2 { font-size: 13px; margin: 14px 0 6px; }
-p { margin: 6px 0; }
-a { color: var(--accent); }
-label { display: block; margin: 8px 0; color: var(--muted); }
-input { display: block; width: 100%; margin-top: 2px; padding: 5px 7px; font: inherit; border: 1px solid var(--line); border-radius: 6px; background: transparent; color: CanvasText; }
-button { font: inherit; padding: 6px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--accent); color: white; cursor: pointer; }
-button.small, button.secondary { background: transparent; color: CanvasText; }
-button.small { padding: 2px 8px; font-size: 12px; }
-button:disabled { opacity: .6; cursor: default; }
-.hint, .meta { color: var(--muted); font-size: 12px; }
-.status { font-weight: 500; }
-.row { display: flex; gap: 8px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
-.box { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; margin: 6px 0; }
-.box pre { white-space: pre-wrap; font: inherit; margin: 6px 0 0; max-height: 260px; overflow: auto; }
-.needs { color: var(--warn); font-size: 12px; }
-.actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+:root {
+  color-scheme: light dark;
+  --muted: #71717a;
+  --line: #d4d4d8;
+  --accent: #047857;
+  --warn: #b45309;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --line: #3f3f46;
+    --accent: #34d399;
+    --warn: #fbbf24;
+  }
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  padding: 12px;
+  font:
+    13px / 1.45 system-ui,
+    sans-serif;
+}
+body.popup {
+  width: 340px;
+}
+h1 {
+  font-size: 15px;
+  margin: 0 0 4px;
+}
+h2 {
+  font-size: 13px;
+  margin: 14px 0 6px;
+}
+p {
+  margin: 6px 0;
+}
+a {
+  color: var(--accent);
+}
+label {
+  display: block;
+  margin: 8px 0;
+  color: var(--muted);
+}
+input {
+  display: block;
+  width: 100%;
+  margin-top: 2px;
+  padding: 5px 7px;
+  font: inherit;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: transparent;
+  color: CanvasText;
+}
+button {
+  font: inherit;
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--accent);
+  color: white;
+  cursor: pointer;
+}
+button.small,
+button.secondary {
+  background: transparent;
+  color: CanvasText;
+}
+button.small {
+  padding: 2px 8px;
+  font-size: 12px;
+}
+button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.hint,
+.meta {
+  color: var(--muted);
+  font-size: 12px;
+}
+.status {
+  font-weight: 500;
+}
+.row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+.box {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin: 6px 0;
+}
+.box pre {
+  white-space: pre-wrap;
+  font: inherit;
+  margin: 6px 0 0;
+  max-height: 260px;
+  overflow: auto;
+}
+.needs {
+  color: var(--warn);
+  font-size: 12px;
+}
+.actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}

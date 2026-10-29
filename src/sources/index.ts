@@ -7,12 +7,23 @@ export type { RawJob };
 
 export const stripHtml = (html: string) =>
   html
-    .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&')
-    .replace(/<\/(p|li|h\d|div|br)>/gi, '\n').replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, '&')
+    .replace(/<\/(p|li|h\d|div|br)>/gi, '\n')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
     // Escaped HTML (Greenhouse) leaves a second layer of entities inside the text.
-    .replace(/&amp;/g, '&').replace(/&#39;/g, "'").replace(/&quot;/g, '"')
-    .replace(/[ \t]+/g, ' ').replace(/ ?\n ?/g, '\n').replace(/\n\s*\n+/g, '\n').trim();
+    .replace(/&amp;/g, '&')
+    .replace(/&#39;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/ ?\n ?/g, '\n')
+    .replace(/\n\s*\n+/g, '\n')
+    .trim();
 
 async function greenhouse(c: Company): Promise<RawJob[]> {
   const data = await getJson(`https://boards-api.greenhouse.io/v1/boards/${c.token}/jobs?content=true`);
@@ -39,7 +50,8 @@ async function lever(c: Company): Promise<RawJob[]> {
     location: [j.categories?.location, ...(j.categories?.allLocations ?? [])].filter(Boolean).join(' / '),
     url: j.hostedUrl,
     description: [j.descriptionPlain, ...(j.lists ?? []).map((l: any) => `${l.text}\n${stripHtml(l.content)}`), j.additionalPlain]
-      .filter(Boolean).join('\n'),
+      .filter(Boolean)
+      .join('\n'),
     posted_at: j.createdAt ? new Date(j.createdAt).toISOString() : null,
     salary: leverSalary(j.salaryRange),
   }));
@@ -47,8 +59,13 @@ async function lever(c: Company): Promise<RawJob[]> {
 
 /** Lever's optional salaryRange: { min, max, currency, interval: 'per-year-salary' | 'per-month-salary' | 'per-hour-wage' ... }. */
 function leverSalary(r: any) {
-  const period: SalaryPeriod | null = /year|annual/i.test(r?.interval ?? '') ? 'year' : /month/i.test(r?.interval ?? '') ? 'month'
-    : /hour/i.test(r?.interval ?? '') ? 'hour' : null;
+  const period: SalaryPeriod | null = /year|annual/i.test(r?.interval ?? '')
+    ? 'year'
+    : /month/i.test(r?.interval ?? '')
+      ? 'month'
+      : /hour/i.test(r?.interval ?? '')
+        ? 'hour'
+        : null;
   return period ? structuredSalary(r.min, r.max, r.currency, period) : null;
 }
 
@@ -74,7 +91,8 @@ async function recruitee(c: Company): Promise<RawJob[]> {
     company: c.name,
     title: j.title,
     location: [j.location, ...(j.locations ?? []).map((l: any) => [l.city, l.country].filter(Boolean).join(', '))]
-      .filter(Boolean).join(' / '),
+      .filter(Boolean)
+      .join(' / '),
     url: j.careers_url,
     description: stripHtml(`${j.description ?? ''}\n${j.requirements ?? ''}`),
     posted_at: toIso(j.published_at ?? j.created_at),
@@ -87,16 +105,21 @@ async function workable(c: Company): Promise<RawJob[]> {
   const wait = workableLast + 3000 - Date.now();
   if (wait > 0) await sleep(wait);
   workableLast = Date.now();
-  const data = await getJson(`https://apply.workable.com/api/v1/widget/accounts/${c.token}?details=true`,
-    { baseDelayMs: 15_000, retryOn: (s) => s === 429 || s === 403 || s >= 500 });
+  const data = await getJson(`https://apply.workable.com/api/v1/widget/accounts/${c.token}?details=true`, {
+    baseDelayMs: 15_000,
+    retryOn: (s) => s === 429 || s === 403 || s >= 500,
+  });
   return data.jobs.map((j: any) => ({
     id: `workable:${c.token}:${j.shortcode}`,
     source: 'workable',
     company: c.name,
     title: j.title,
-    location: [[j.city, j.country].filter(Boolean).join(', '),
-      ...(j.locations ?? []).map((l: any) => [l.city, l.country].filter(Boolean).join(', '))]
-      .filter(Boolean).join(' / '),
+    location: [
+      [j.city, j.country].filter(Boolean).join(', '),
+      ...(j.locations ?? []).map((l: any) => [l.city, l.country].filter(Boolean).join(', ')),
+    ]
+      .filter(Boolean)
+      .join(' / '),
     url: j.url ?? j.shortlink ?? `https://apply.workable.com/${c.token}/j/${j.shortcode}/`,
     description: stripHtml(j.description ?? ''),
     posted_at: toIso(j.published_on ?? j.created_at),
@@ -114,8 +137,9 @@ async function smartrecruiters(c: Company): Promise<RawJob[]> {
   }
   const { countries, roleOk } = prefilter();
   const maxAge = Date.now() - config.maxAgeDays * 86_400_000;
-  const candidates = list.filter((j) => countries.test(j.location?.fullLocation ?? '') && roleOk(j.name)
-    && new Date(j.releasedDate).getTime() > maxAge);
+  const candidates = list.filter(
+    (j) => countries.test(j.location?.fullLocation ?? '') && roleOk(j.name) && new Date(j.releasedDate).getTime() > maxAge,
+  );
   const out: RawJob[] = [];
   for (const j of candidates) {
     const d = await getJson(`${base}/${j.id}`);
@@ -126,7 +150,11 @@ async function smartrecruiters(c: Company): Promise<RawJob[]> {
       title: j.name,
       location: j.location?.fullLocation ?? '',
       url: d.postingUrl,
-      description: stripHtml(Object.values(d.jobAd?.sections ?? {}).map((s: any) => s?.text ?? '').join('\n')),
+      description: stripHtml(
+        Object.values(d.jobAd?.sections ?? {})
+          .map((s: any) => s?.text ?? '')
+          .join('\n'),
+      ),
       posted_at: j.releasedDate ?? null,
     });
   }
@@ -135,7 +163,12 @@ async function smartrecruiters(c: Company): Promise<RawJob[]> {
 
 /** Cheap checks on list data, so detail pages are only loaded for postings that could pass match.ts. */
 function prefilter() {
-  const countries = new RegExp(Object.values(config.countries).map((x) => x.match).join('|'), 'i');
+  const countries = new RegExp(
+    Object.values(config.countries)
+      .map((x) => x.match)
+      .join('|'),
+    'i',
+  );
   const include = new RegExp(config.roleInclude, 'i');
   const exclude = new RegExp(config.roleExclude, 'i');
   return { countries, roleOk: (title: string) => include.test(title) && !exclude.test(title) };
@@ -188,7 +221,8 @@ async function workday(c: Company): Promise<RawJob[]> {
   // "3 Locations" hides where the job is, so those are checked on the detail page.
   const where = (l = '') => countries.test(l) || /\bremote\b/i.test(l) || /^\d+ locations$/i.test(l.trim());
   const fresh = (p: WorkdayPosting) => (workdayAgeDays(p.postedOn) ?? 0) <= config.maxAgeDays;
-  const candidates = (await workdayList(c.token)).filter((p) => roleOk(p.title) && where(p.locationsText) && fresh(p))
+  const candidates = (await workdayList(c.token))
+    .filter((p) => roleOk(p.title) && where(p.locationsText) && fresh(p))
     .slice(0, WORKDAY_MAX_DETAILS);
   const out: RawJob[] = [];
   for (const p of candidates) {

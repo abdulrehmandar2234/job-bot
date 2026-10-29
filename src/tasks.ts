@@ -42,13 +42,13 @@ export function pidAlive(pid: number): boolean {
  * The update re-checks `running`, so a worker that just recorded its result is left alone.
  */
 export async function failDeadWorkers(): Promise<number> {
-  const { rows } = await pool.query<{ id: number; pid: number }>(
-    `SELECT id, pid FROM tasks WHERE status = 'running' AND pid IS NOT NULL`);
+  const { rows } = await pool.query<{ id: number; pid: number }>(`SELECT id, pid FROM tasks WHERE status = 'running' AND pid IS NOT NULL`);
   const dead = rows.filter((r) => !pidAlive(r.pid)).map((r) => r.id);
   if (!dead.length) return 0;
   const { rowCount } = await pool.query(
     `UPDATE tasks SET status = 'failed', finished_at = now(), error = $2 WHERE id = ANY($1) AND status = 'running'`,
-    [dead, DEAD_WORKER_ERROR]);
+    [dead, DEAD_WORKER_ERROR],
+  );
   return rowCount ?? 0;
 }
 
@@ -65,7 +65,8 @@ export async function expireStale(): Promise<number> {
 export async function pruneFinished(): Promise<number> {
   const { rowCount } = await pool.query(
     `DELETE FROM tasks WHERE status IN ('done', 'failed') AND coalesce(finished_at, created_at) < now() - make_interval(days => $1)`,
-    [KEEP_FINISHED_DAYS]);
+    [KEEP_FINISHED_DAYS],
+  );
   return rowCount ?? 0;
 }
 
@@ -73,18 +74,28 @@ export async function pruneFinished(): Promise<number> {
  * Queues a task, unless the same work is already queued or running: then that task is returned instead
  * (`created: false`). The unique index tasks_one_active makes this safe against concurrent clicks.
  */
-export async function enqueue(kind: TaskKind, jobId: string | null, args: Record<string, string> = {}):
-  Promise<{ task: Task; created: boolean }> {
+export async function enqueue(
+  kind: TaskKind,
+  jobId: string | null,
+  args: Record<string, string> = {},
+): Promise<{ task: Task; created: boolean }> {
   await expireStale();
   await pruneFinished();
   for (let attempt = 0; attempt < 3; attempt++) {
-    const { rows: [task] } = await pool.query<Task>(
+    const {
+      rows: [task],
+    } = await pool.query<Task>(
       `INSERT INTO tasks (kind, job_id, args) VALUES ($1, $2, $3)
        ON CONFLICT (kind, coalesce(job_id, '')) WHERE status IN ('queued', 'running') DO NOTHING RETURNING *`,
-      [kind, jobId, JSON.stringify(args)]);
+      [kind, jobId, JSON.stringify(args)],
+    );
     if (task) return { task, created: true };
-    const { rows: [active] } = await pool.query<Task>(
-      `SELECT * FROM tasks WHERE kind = $1 AND job_id IS NOT DISTINCT FROM $2 AND status IN ('queued', 'running')`, [kind, jobId]);
+    const {
+      rows: [active],
+    } = await pool.query<Task>(
+      `SELECT * FROM tasks WHERE kind = $1 AND job_id IS NOT DISTINCT FROM $2 AND status IN ('queued', 'running')`,
+      [kind, jobId],
+    );
     if (active) return { task: active, created: false };
     // The active task finished between the two queries: try the insert again.
   }
@@ -93,24 +104,29 @@ export async function enqueue(kind: TaskKind, jobId: string | null, args: Record
 
 /** Marks a queued task running for this process. Returns null if it is not queued (already claimed, or expired). */
 export async function claim(id: number): Promise<Task | null> {
-  const { rows: [task] } = await pool.query<Task>(
+  const {
+    rows: [task],
+  } = await pool.query<Task>(
     `UPDATE tasks SET status = 'running', started_at = now(), pid = $2,
        deadline = now() + make_interval(secs => (($3::jsonb ->> kind)::numeric + $4) / 1000)
      WHERE id = $1 AND status = 'queued' RETURNING *`,
-    [id, process.pid, JSON.stringify(TASK_TIMEOUT_MS), DEADLINE_GRACE_MS]);
+    [id, process.pid, JSON.stringify(TASK_TIMEOUT_MS), DEADLINE_GRACE_MS],
+  );
   return task ?? null;
 }
 
 // finish/fail update the row even if expire_stale_tasks() already failed it: a worker that comes back after
 // the Mac slept still reports the real result.
 export async function finish(id: number, output: string) {
-  await pool.query(`UPDATE tasks SET status = 'done', output = $2, error = NULL, finished_at = now() WHERE id = $1`,
-    [id, tail(output)]);
+  await pool.query(`UPDATE tasks SET status = 'done', output = $2, error = NULL, finished_at = now() WHERE id = $1`, [id, tail(output)]);
 }
 
 export async function fail(id: number, error: string, output = '') {
-  await pool.query(`UPDATE tasks SET status = 'failed', error = $2, output = $3, finished_at = now() WHERE id = $1`,
-    [id, tail(error, 2000), tail(output) || null]);
+  await pool.query(`UPDATE tasks SET status = 'failed', error = $2, output = $3, finished_at = now() WHERE id = $1`, [
+    id,
+    tail(error, 2000),
+    tail(output) || null,
+  ]);
 }
 
 /**
@@ -123,18 +139,27 @@ export function cliArgs(task: Pick<Task, 'kind' | 'job_id' | 'args'>, questionsF
     return task.job_id;
   };
   switch (task.kind) {
-    case 'fetch': return ['fetch'];
-    case 'rescore': return ['rescore'];
-    case 'ai_review': return ['ai:score', '--id', job()];
+    case 'fetch':
+      return ['fetch'];
+    case 'rescore':
+      return ['rescore'];
+    case 'ai_review':
+      return ['ai:score', '--id', job()];
     case 'prepare': {
       const cv = task.args.cv;
-      return ['prepare', job(), ...(typeof cv === 'string' && CV_VERSION.test(cv) ? ['--cv', cv] : []),
-        ...(task.args.force === 'true' ? ['--force'] : [])]; // "Prepare anyway" on an expired job
+      return [
+        'prepare',
+        job(),
+        ...(typeof cv === 'string' && CV_VERSION.test(cv) ? ['--cv', cv] : []),
+        ...(task.args.force === 'true' ? ['--force'] : []),
+      ]; // "Prepare anyway" on an expired job
     }
-    case 'prep': return ['prep', job()];
+    case 'prep':
+      return ['prep', job()];
     case 'answers':
       if (!questionsFile) throw new Error('answers task without a questions file');
       return ['answer', job(), '--file', questionsFile];
-    default: throw new Error(`Unknown task kind ${String(task.kind)}`);
+    default:
+      throw new Error(`Unknown task kind ${String(task.kind)}`);
   }
 }

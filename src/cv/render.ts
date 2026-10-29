@@ -51,18 +51,32 @@ export function cvHtml(cv: Cv): string {
   </div>
 
   <h2>Work Experience</h2>
-  ${cv.experience.map((e) => `<div class="job">
+  ${cv.experience
+    .map(
+      (e) => `<div class="job">
     <div class="row"><span><b>${esc(e.role)}</b>, ${esc(e.company)}${e.location ? `, ${esc(e.location)}` : ''}</span>
     <span class="dates">${esc(e.dates)}</span></div>
-    <ul>${e.bullets.map((b) => `<li>${esc(b)}</li>`).join('')}</ul></div>`).join('')}
+    <ul>${e.bullets.map((b) => `<li>${esc(b)}</li>`).join('')}</ul></div>`,
+    )
+    .join('')}
 
   <h2>Projects</h2>
-  ${cv.projects.map((p) => `<div class="proj"><b>${esc(p.name)}</b> — <a href="${esc(p.url)}">${esc(p.url.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, ''))}</a>
-    <p>${esc(p.text)}</p></div>`).join('')}
+  ${cv.projects
+    .map(
+      (
+        p,
+      ) => `<div class="proj"><b>${esc(p.name)}</b> — <a href="${esc(p.url)}">${esc(p.url.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, ''))}</a>
+    <p>${esc(p.text)}</p></div>`,
+    )
+    .join('')}
 
   <h2>Education</h2>
-  ${cv.education.map((e) => `<div class="row"><span><b>${esc(e.school)}</b> — ${esc(e.degree)}</span>
-    <span class="dates">${esc(e.dates)}</span></div>`).join('')}
+  ${cv.education
+    .map(
+      (e) => `<div class="row"><span><b>${esc(e.school)}</b> — ${esc(e.degree)}</span>
+    <span class="dates">${esc(e.dates)}</span></div>`,
+    )
+    .join('')}
   </body></html>`;
 }
 

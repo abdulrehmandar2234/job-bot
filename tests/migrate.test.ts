@@ -13,9 +13,12 @@ const admin = new pg.Pool({ connectionString: TEST_DB, max: 1 });
 let db: pg.Pool;
 const tmp = mkdtempSync(join(tmpdir(), 'jobbot-migrate-'));
 
-const tables = async () => (await db.query<{ table_name: string }>(
-  `SELECT table_name FROM information_schema.tables WHERE table_schema = $1 ORDER BY 1`, [SCHEMA])).rows.map((r) => r.table_name);
-const recorded = async () => (await db.query<{ version: string }>('SELECT version FROM schema_migrations ORDER BY 1')).rows.map((r) => r.version);
+const tables = async () =>
+  (
+    await db.query<{ table_name: string }>(`SELECT table_name FROM information_schema.tables WHERE table_schema = $1 ORDER BY 1`, [SCHEMA])
+  ).rows.map((r) => r.table_name);
+const recorded = async () =>
+  (await db.query<{ version: string }>('SELECT version FROM schema_migrations ORDER BY 1')).rows.map((r) => r.version);
 
 /** A migrations folder with the given files. */
 function dir(files: Record<string, string>) {
@@ -41,7 +44,10 @@ describe('runMigrations', () => {
     assert.deepEqual(await runMigrations(db), all);
     const t = await tables();
     for (const name of ['contacts', 'fetch_runs', 'job_events', 'jobs', 'schema_migrations', 'tasks']) assert.ok(t.includes(name), name);
-    assert.deepEqual(await recorded(), migrationFiles().map((f) => f.replace(/\.sql$/, '')));
+    assert.deepEqual(
+      await recorded(),
+      migrationFiles().map((f) => f.replace(/\.sql$/, '')),
+    );
     // The baseline's later columns are there too.
     await db.query(`INSERT INTO jobs (id, source, company, title, url) VALUES ('a', 's', 'c', 't', 'u')`);
     const { rows } = await db.query('SELECT form_answers, cover_letter_ai, duplicate_of FROM jobs');
@@ -70,7 +76,10 @@ describe('runMigrations', () => {
     writeFileSync(join(d, '003_c.sql'), 'INSERT INTO a VALUES (3);');
     writeFileSync(join(d, '002_b.sql'), 'INSERT INTO a VALUES (2);');
     assert.deepEqual(await runMigrations(db, d), ['002_b', '003_c']);
-    assert.deepEqual((await db.query('SELECT n FROM a')).rows.map((r) => r.n), [2, 3]);
+    assert.deepEqual(
+      (await db.query('SELECT n FROM a')).rows.map((r) => r.n),
+      [2, 3],
+    );
   });
 
   it('rolls back a failing migration completely and stops there', async () => {

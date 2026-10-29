@@ -27,7 +27,13 @@ const REACHED = `
 const APPLIED_AT = `coalesce((SELECT min(e.at) FROM job_events e WHERE e.job_id = j.id AND e.to_status = 'applied'), j.applied_at)`;
 
 export type Funnel = {
-  matched: number; prepared: number; applied: number; interview: number; offer: number; rejected: number; skipped: number;
+  matched: number;
+  prepared: number;
+  applied: number;
+  interview: number;
+  offer: number;
+  rejected: number;
+  skipped: number;
 };
 
 export async function funnel() {
@@ -61,7 +67,8 @@ export type WeekRow = { week: Date; applied: number; matches: number };
 
 /** Applications and new matches per week (Monday start), oldest first, the current week included. */
 export async function weeklyActivity(weeks = 12) {
-  const { rows } = await pool.query<WeekRow>(`
+  const { rows } = await pool.query<WeekRow>(
+    `
     WITH weeks AS (
       SELECT generate_series(date_trunc('week', now()) - make_interval(weeks => $1 - 1), date_trunc('week', now()), interval '1 week') AS week
     ), applied AS (
@@ -72,7 +79,9 @@ export async function weeklyActivity(weeks = 12) {
     SELECT w.week,
       (SELECT count(*) FROM applied a WHERE a.at >= w.week AND a.at < w.week + interval '1 week')::int applied,
       (SELECT count(*) FROM matches m WHERE m.at >= w.week AND m.at < w.week + interval '1 week')::int matches
-    FROM weeks w ORDER BY w.week`, [weeks]);
+    FROM weeks w ORDER BY w.week`,
+    [weeks],
+  );
   return rows;
 }
 
@@ -96,19 +105,28 @@ export function median(values: number[]) {
 
 export type FetchError = { company: string; error: string };
 export type FetchRunRow = {
-  id: number; started_at: Date; finished_at: Date | null; checked: number; inserted: number; new_matches: number; errors: FetchError[];
+  id: number;
+  started_at: Date;
+  finished_at: Date | null;
+  checked: number;
+  inserted: number;
+  new_matches: number;
+  errors: FetchError[];
 };
 
 /** The newest fetch runs, unfinished ones included (a run that crashed never sets finished_at). */
 export async function recentFetchRuns(limit = 7) {
   const { rows } = await pool.query<FetchRunRow>(
-    'SELECT id, started_at, finished_at, checked, inserted, new_matches, errors FROM fetch_runs ORDER BY id DESC LIMIT $1', [limit]);
+    'SELECT id, started_at, finished_at, checked, inserted, new_matches, errors FROM fetch_runs ORDER BY id DESC LIMIT $1',
+    [limit],
+  );
   return rows;
 }
 
 /** Number of sources that failed in the latest finished fetch (0 when there is none). */
 export async function lastFetchErrorCount() {
   const { rows } = await pool.query<{ n: number }>(
-    'SELECT jsonb_array_length(errors)::int n FROM fetch_runs WHERE finished_at IS NOT NULL ORDER BY id DESC LIMIT 1');
+    'SELECT jsonb_array_length(errors)::int n FROM fetch_runs WHERE finished_at IS NOT NULL ORDER BY id DESC LIMIT 1',
+  );
   return rows[0]?.n ?? 0;
 }

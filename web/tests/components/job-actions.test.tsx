@@ -8,12 +8,39 @@ import type { Job, Status } from '@/lib/db';
 vi.mock('@/app/actions', () => ({ setStatus: vi.fn(), prepare: vi.fn(), aiReview: vi.fn() }));
 
 const job = (over: Partial<Job> = {}): Job => ({
-  id: 'greenhouse:acme:1', source: 'greenhouse', company: 'Acme', title: 'Engineer', location: 'Dubai', country: 'AE',
-  url: 'https://boards.greenhouse.io/acme/1', description: '', posted_at: null, first_seen_at: new Date(), score: 60,
-  cluster: null, matched: [], missing: [], visa: null, flags: [], status: 'new', filter_reason: null, cv_version: null,
-  cover_letter: null, applied_at: null, notes: null, ai_score: null, ai_verdict: null, ai_summary: null,
-  ai_reasons: null, ai_gaps: null, ai_flags: null,
-  salary_min: null, salary_max: null, salary_currency: null, salary_period: null, ...over,
+  id: 'greenhouse:acme:1',
+  source: 'greenhouse',
+  company: 'Acme',
+  title: 'Engineer',
+  location: 'Dubai',
+  country: 'AE',
+  url: 'https://boards.greenhouse.io/acme/1',
+  description: '',
+  posted_at: null,
+  first_seen_at: new Date(),
+  score: 60,
+  cluster: null,
+  matched: [],
+  missing: [],
+  visa: null,
+  flags: [],
+  status: 'new',
+  filter_reason: null,
+  cv_version: null,
+  cover_letter: null,
+  applied_at: null,
+  notes: null,
+  ai_score: null,
+  ai_verdict: null,
+  ai_summary: null,
+  ai_reasons: null,
+  ai_gaps: null,
+  ai_flags: null,
+  salary_min: null,
+  salary_max: null,
+  salary_currency: null,
+  salary_period: null,
+  ...over,
 });
 
 const buttons = () => screen.queryAllByRole('button').map((b) => b.textContent);
@@ -74,10 +101,34 @@ describe('JobActions', () => {
   });
 
   it.each<[Status, [string, string][]]>([
-    ['new', [['Mark applied ✓', 'applied'], ['Skip', 'skipped']]],
-    ['prepared', [['Mark applied ✓', 'applied'], ['Skip', 'skipped']]],
-    ['applied', [['Got interview', 'interview'], ['Rejected', 'rejected']]],
-    ['interview', [['Offer 🎉', 'offer'], ['Rejected', 'rejected']]],
+    [
+      'new',
+      [
+        ['Mark applied ✓', 'applied'],
+        ['Skip', 'skipped'],
+      ],
+    ],
+    [
+      'prepared',
+      [
+        ['Mark applied ✓', 'applied'],
+        ['Skip', 'skipped'],
+      ],
+    ],
+    [
+      'applied',
+      [
+        ['Got interview', 'interview'],
+        ['Rejected', 'rejected'],
+      ],
+    ],
+    [
+      'interview',
+      [
+        ['Offer 🎉', 'offer'],
+        ['Rejected', 'rejected'],
+      ],
+    ],
     ['skipped', [['Move to matching', 'new']]],
     ['expired', [['Move to matching', 'new']]],
     ['offer', []],

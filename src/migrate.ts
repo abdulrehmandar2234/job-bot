@@ -22,7 +22,9 @@ export type MigrationDb = { connect(): Promise<Client> };
 
 /** The migration files in `dir`, in the order they run. */
 export function migrationFiles(dir = MIGRATIONS_DIR): string[] {
-  const files = readdirSync(dir).filter((f) => f.endsWith('.sql')).sort();
+  const files = readdirSync(dir)
+    .filter((f) => f.endsWith('.sql'))
+    .sort();
   const bad = files.find((f) => !/^\d{3}_[a-z0-9_]+\.sql$/.test(f));
   if (bad) throw new Error(`Bad migration file name ${bad}: use NNN_name.sql`);
   return files;

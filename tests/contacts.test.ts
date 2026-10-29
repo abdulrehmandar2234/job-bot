@@ -12,18 +12,37 @@ const FAKE = new URL('./fixtures/fake-claude.mjs', import.meta.url).pathname;
 const run = promisify(execFile);
 const bot = async (args: string[]) => {
   try {
-    return (await run(process.execPath, ['--no-warnings', 'src/cli.ts', ...args], {
-      cwd: path(), env: { ...process.env, DATABASE_URL: TEST_DB, JOB_BOT_CLAUDE: FAKE }, timeout: 60_000,
-    })).stdout;
+    return (
+      await run(process.execPath, ['--no-warnings', 'src/cli.ts', ...args], {
+        cwd: path(),
+        env: { ...process.env, DATABASE_URL: TEST_DB, JOB_BOT_CLAUDE: FAKE },
+        timeout: 60_000,
+      })
+    ).stdout;
   } catch (e) {
     return (e as { stdout: string }).stdout; // contact:add exits 1 on invalid input
   }
 };
 
 const job = (o: Partial<ScoredJob> = {}): ScoredJob => ({
-  id: 'test:c1', source: 'greenhouse', company: 'Acme Inc.', title: 'Backend Engineer', location: 'Dubai', country: 'AE',
-  url: 'https://x/1', description: 'Node', posted_at: '2026-10-27T00:00:00Z', score: 80, cluster: 'default',
-  matched: [], missing: [], visa: null, flags: [], status: 'new', filter_reason: null, ...o,
+  id: 'test:c1',
+  source: 'greenhouse',
+  company: 'Acme Inc.',
+  title: 'Backend Engineer',
+  location: 'Dubai',
+  country: 'AE',
+  url: 'https://x/1',
+  description: 'Node',
+  posted_at: '2026-10-27T00:00:00Z',
+  score: 80,
+  cluster: 'default',
+  matched: [],
+  missing: [],
+  visa: null,
+  flags: [],
+  status: 'new',
+  filter_reason: null,
+  ...o,
 });
 const contactRows = async () => (await pool.query('SELECT * FROM contacts ORDER BY id')).rows;
 
@@ -49,8 +68,10 @@ describe('migration 005', () => {
     await assert.rejects(pool.query(`INSERT INTO contacts (job_id, name, role) VALUES ('test:c1', 'J', 'boss')`), /check/);
     await assert.rejects(pool.query(`INSERT INTO contacts (job_id, name, referral_status) VALUES ('test:c1', 'J', 'maybe')`), /check/);
     await assert.rejects(pool.query(`INSERT INTO contacts (job_id, name) VALUES ('test:nope', 'J')`), /foreign key/);
-    await assert.rejects(pool.query(
-      `INSERT INTO job_events (job_id, to_status, reason) VALUES ('test:c1', 'skipped', 'boredom')`), /check/);
+    await assert.rejects(
+      pool.query(`INSERT INTO job_events (job_id, to_status, reason) VALUES ('test:c1', 'skipped', 'boredom')`),
+      /check/,
+    );
   });
 });
 
@@ -65,7 +86,10 @@ describe('setStatus reason', () => {
     await setStatus('test:c1', 'applied', undefined, 'salary');
     await setStatus('test:c1', 'rejected');
     const { rows } = await pool.query('SELECT reason FROM job_events');
-    assert.deepEqual(rows.map((r) => r.reason), [null, null]);
+    assert.deepEqual(
+      rows.map((r) => r.reason),
+      [null, null],
+    );
   });
 });
 
@@ -78,8 +102,13 @@ describe('validateContact', () => {
 
   it('rejects bad input with one message per field', () => {
     const r = validateContact({
-      name: 'x'.repeat(121), role: 'boss', referral_status: 'maybe', email: 'not-an-email',
-      linkedin_url: 'http://linkedin.com/in/x', phone: 'call me', notes: 'n'.repeat(2001),
+      name: 'x'.repeat(121),
+      role: 'boss',
+      referral_status: 'maybe',
+      email: 'not-an-email',
+      linkedin_url: 'http://linkedin.com/in/x',
+      phone: 'call me',
+      notes: 'n'.repeat(2001),
     });
     assert.ok('errors' in r);
     assert.equal(r.errors.length, 7);
@@ -89,7 +118,13 @@ describe('validateContact', () => {
   it('accepts only https linkedin.com URLs', () => {
     assert.ok(isLinkedinUrl('https://www.linkedin.com/in/jane'));
     assert.ok(isLinkedinUrl('https://ae.linkedin.com/in/jane'));
-    for (const bad of ['http://linkedin.com/in/x', 'https://linkedin.com.evil.io/x', 'https://evil.io/linkedin.com', 'javascript:alert(1)', 'jane']) {
+    for (const bad of [
+      'http://linkedin.com/in/x',
+      'https://linkedin.com.evil.io/x',
+      'https://evil.io/linkedin.com',
+      'javascript:alert(1)',
+      'jane',
+    ]) {
       assert.equal(isLinkedinUrl(bad), false, bad);
     }
   });
@@ -97,8 +132,20 @@ describe('validateContact', () => {
 
 describe('CLI', () => {
   it('contact:add stores a contact and contacts lists it', async () => {
-    const out = await bot(['contact:add', 'test:c1', '--name', 'Jane Doe', '--role', 'hiring manager',
-      '--email', 'jane@acme.com', '--linkedin', 'https://www.linkedin.com/in/jane', '--referral', 'to ask']);
+    const out = await bot([
+      'contact:add',
+      'test:c1',
+      '--name',
+      'Jane Doe',
+      '--role',
+      'hiring manager',
+      '--email',
+      'jane@acme.com',
+      '--linkedin',
+      'https://www.linkedin.com/in/jane',
+      '--referral',
+      'to ask',
+    ]);
     assert.match(out, /Added contact #\d+ Jane Doe \(hiring manager\) to Acme Inc\. — Backend Engineer/);
     const [c] = await contactRows();
     assert.equal(c.email, 'jane@acme.com');

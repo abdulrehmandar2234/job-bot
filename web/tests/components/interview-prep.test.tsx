@@ -9,7 +9,9 @@ vi.mock('@/app/jobs/[id]/interview-actions', () => ({ prepareInterview: vi.fn() 
 
 const PREP: Prep = {
   technical: [{ question: 'How do you scale a Laravel queue?', hint: 'Horizon work at Abyan Capital' }],
-  behavioural: [{ question: 'Tell me about a conflict.', situation: 'Two teams', task: 'Agree an API', action: 'Ran a review', result: 'Shipped' }],
+  behavioural: [
+    { question: 'Tell me about a conflict.', situation: 'Two teams', task: 'Agree an API', action: 'Ran a review', result: 'Shipped' },
+  ],
   company: { brief: 'Acme builds payment APIs.', verify: ['Verify before interview: office location'] },
   questions_to_ask: ['How do you review code?', 'What does on-call look like?'],
   requirements: [
@@ -19,12 +21,39 @@ const PREP: Prep = {
 };
 
 const job = (over: Partial<Job> = {}): Job => ({
-  id: 'greenhouse:acme:1', source: 'greenhouse', company: 'Acme', title: 'Engineer', location: 'Dubai', country: 'AE',
-  url: 'https://boards.greenhouse.io/acme/1', description: '', posted_at: null, first_seen_at: new Date(), score: 60,
-  cluster: null, matched: [], missing: [], visa: null, flags: [], status: 'interview', filter_reason: null, cv_version: null,
-  cover_letter: null, applied_at: null, notes: null, ai_score: null, ai_verdict: null, ai_summary: null,
-  ai_reasons: null, ai_gaps: null, ai_flags: null,
-  salary_min: null, salary_max: null, salary_currency: null, salary_period: null, ...over,
+  id: 'greenhouse:acme:1',
+  source: 'greenhouse',
+  company: 'Acme',
+  title: 'Engineer',
+  location: 'Dubai',
+  country: 'AE',
+  url: 'https://boards.greenhouse.io/acme/1',
+  description: '',
+  posted_at: null,
+  first_seen_at: new Date(),
+  score: 60,
+  cluster: null,
+  matched: [],
+  missing: [],
+  visa: null,
+  flags: [],
+  status: 'interview',
+  filter_reason: null,
+  cv_version: null,
+  cover_letter: null,
+  applied_at: null,
+  notes: null,
+  ai_score: null,
+  ai_verdict: null,
+  ai_summary: null,
+  ai_reasons: null,
+  ai_gaps: null,
+  ai_flags: null,
+  salary_min: null,
+  salary_max: null,
+  salary_currency: null,
+  salary_period: null,
+  ...over,
 });
 
 const buttons = () => screen.queryAllByRole('button').map((b) => b.textContent);
@@ -73,14 +102,17 @@ describe('InterviewPrep', () => {
 
   it('still shows a stored prep after the job moved on (e.g. offer)', () => {
     render(<InterviewPrep job={job({ status: 'offer', interview_prep: PREP })} />);
-    expect(within(screen.getByRole('heading', { name: /Interview prep/ }).closest('section')!)
-      .getByRole('button', { name: 'Regenerate' })).toBeInTheDocument();
+    expect(
+      within(screen.getByRole('heading', { name: /Interview prep/ }).closest('section')!).getByRole('button', { name: 'Regenerate' }),
+    ).toBeInTheDocument();
   });
 
   it('prepText puts every part into one plain-text copy', () => {
     const t = prepText(PREP);
     expect(t).toContain('TECHNICAL QUESTIONS\n- How do you scale a Laravel queue?\n  Emphasise: Horizon work at Abyan Capital');
-    expect(t).toContain('- Tell me about a conflict.\n  Situation: Two teams\n  Task: Agree an API\n  Action: Ran a review\n  Result: Shipped');
+    expect(t).toContain(
+      '- Tell me about a conflict.\n  Situation: Two teams\n  Task: Agree an API\n  Action: Ran a review\n  Result: Shipped',
+    );
     expect(t).toContain('COMPANY BRIEF\nAcme builds payment APIs.\n- Verify before interview: office location');
     expect(t).toContain('QUESTIONS TO ASK\n- How do you review code?');
     expect(t).toContain('- Kubernetes: GAP — not in the CV');

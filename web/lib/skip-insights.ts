@@ -11,8 +11,32 @@ export const MIN_SKIPS = 3;
 export const TITLE_REASONS: readonly SkipReason[] = ['stack', 'seniority'];
 
 // Words that say nothing about the role itself.
-const STOPWORDS = new Set(['and', 'or', 'the', 'of', 'for', 'in', 'at', 'with', 'to', 'an', 'on', 'job', 'team', 'remote',
-  'hybrid', 'onsite', 'full', 'time', 'part', 'contract', 'permanent', 'temporary', 'all', 'genders']);
+const STOPWORDS = new Set([
+  'and',
+  'or',
+  'the',
+  'of',
+  'for',
+  'in',
+  'at',
+  'with',
+  'to',
+  'an',
+  'on',
+  'job',
+  'team',
+  'remote',
+  'hybrid',
+  'onsite',
+  'full',
+  'time',
+  'part',
+  'contract',
+  'permanent',
+  'temporary',
+  'all',
+  'genders',
+]);
 
 // Each primary job you skipped (and did not move back) with the reason of its latest skip.
 const SKIPS = `
@@ -26,7 +50,8 @@ export type ReasonCount = { reason: SkipReason | null; n: number };
 /** Skipped jobs per reason, most common first; `null` = skipped without a reason. */
 export async function skipReasonCounts() {
   const { rows } = await pool.query<ReasonCount>(
-    `SELECT reason, count(*)::int n FROM (${SKIPS}) s GROUP BY reason ORDER BY n DESC, reason NULLS LAST`);
+    `SELECT reason, count(*)::int n FROM (${SKIPS}) s GROUP BY reason ORDER BY n DESC, reason NULLS LAST`,
+  );
   return rows;
 }
 
@@ -41,8 +66,7 @@ export async function skipTitles(reasons: readonly SkipReason[] = TITLE_REASONS)
 
 /** The distinct words of a title: lower case, letters and digits only, no stopwords or bare numbers. */
 export function titleWords(title: string): string[] {
-  return [...new Set(title.toLowerCase().split(/[^a-z0-9]+/))]
-    .filter((w) => w.length >= 2 && !/^\d+$/.test(w) && !STOPWORDS.has(w));
+  return [...new Set(title.toLowerCase().split(/[^a-z0-9]+/))].filter((w) => w.length >= 2 && !/^\d+$/.test(w) && !STOPWORDS.has(w));
 }
 
 /** `roleExclude` as a RegExp, or null when it is missing or invalid (then nothing counts as covered). */
@@ -68,8 +92,7 @@ export function skipOnlyWords(skipped: string[], kept: string[], roleExclude?: s
     if (keptWords.has(w) || exclude?.test(w)) continue;
     counts.set(w, (counts.get(w) ?? 0) + 1);
   }
-  return [...counts].map(([word, skips]) => ({ word, skips }))
-    .sort((a, b) => b.skips - a.skips || a.word.localeCompare(b.word));
+  return [...counts].map(([word, skips]) => ({ word, skips })).sort((a, b) => b.skips - a.skips || a.word.localeCompare(b.word));
 }
 
 export type Suggestion = WordCount & { pattern: string };

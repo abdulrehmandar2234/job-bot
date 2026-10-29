@@ -12,9 +12,12 @@ const waitingCount = async () => (await pool.query<{ n: number }>(`SELECT count(
 /** fetch [--company name]: pulls jobs from every source, then filters and scores them. */
 export async function fetch(_args: string[], flags: Flags) {
   const only = flags.company?.toLowerCase();
-  const { rows: [run] } = await pool.query<{ id: number }>('INSERT INTO fetch_runs DEFAULT VALUES RETURNING id');
+  const {
+    rows: [run],
+  } = await pool.query<{ id: number }>('INSERT INTO fetch_runs DEFAULT VALUES RETURNING id');
   const before = await waitingCount();
-  let added = 0, total = 0;
+  let added = 0,
+    total = 0;
   const errors: { company: string; error: string }[] = [];
   const sources: { name: string; load: () => Promise<RawJob[]> }[] = [
     ...config.companies.map((c) => ({ name: c.name, load: () => fetchCompany(c) })),
@@ -38,8 +41,13 @@ export async function fetch(_args: string[], flags: Flags) {
   };
   await Promise.all(Array.from({ length: 4 }, worker));
   const waiting = await waitingCount();
-  await pool.query(`UPDATE fetch_runs SET finished_at = now(), checked = $2, inserted = $3, new_matches = $4, errors = $5 WHERE id = $1`,
-    [run.id, total, added, Math.max(0, waiting - before), JSON.stringify(errors)]);
+  await pool.query(`UPDATE fetch_runs SET finished_at = now(), checked = $2, inserted = $3, new_matches = $4, errors = $5 WHERE id = $1`, [
+    run.id,
+    total,
+    added,
+    Math.max(0, waiting - before),
+    JSON.stringify(errors),
+  ]);
   console.log(`\n${total} postings checked, ${added} new. ${waiting} matching jobs waiting (status=new).`);
 }
 
@@ -50,15 +58,29 @@ const keptSalary = (j: Job) => (SALARY_SOURCES.includes(j.source) ? rowSalary(j)
 export async function rescore() {
   const { rows } = await pool.query<Job>(`SELECT * FROM jobs WHERE status IN ('new', 'filtered')`);
   for (const j of rows) {
-    await save({ id: j.id, source: j.source, company: j.company, title: j.title, location: j.location, url: j.url,
-      description: j.description, posted_at: j.posted_at ? new Date(j.posted_at).toISOString() : null, salary: keptSalary(j) });
+    await save({
+      id: j.id,
+      source: j.source,
+      company: j.company,
+      title: j.title,
+      location: j.location,
+      url: j.url,
+      description: j.description,
+      posted_at: j.posted_at ? new Date(j.posted_at).toISOString() : null,
+      salary: keptSalary(j),
+    });
   }
   // Jobs the user acted on are not re-scored, but their salary is filled in (or corrected) too.
   const { rows: acted } = await pool.query<Job>(`SELECT * FROM jobs WHERE status NOT IN ('new', 'filtered')`);
   for (const j of acted) {
     const s = keptSalary(j) ?? parseSalary(`${j.title}\n${j.description}`);
-    await pool.query('UPDATE jobs SET salary_min = $2, salary_max = $3, salary_currency = $4, salary_period = $5 WHERE id = $1',
-      [j.id, s?.min ?? null, s?.max ?? null, s?.currency ?? null, s?.period ?? null]);
+    await pool.query('UPDATE jobs SET salary_min = $2, salary_max = $3, salary_currency = $4, salary_period = $5 WHERE id = $1', [
+      j.id,
+      s?.min ?? null,
+      s?.max ?? null,
+      s?.currency ?? null,
+      s?.period ?? null,
+    ]);
   }
   console.log(`${rows.length} jobs re-scored. ${await waitingCount()} matching jobs waiting (status=new).`);
 }

@@ -6,12 +6,15 @@ import { cleanupDb, closeDb, ensureSchema, insertJob } from '../../helpers/db';
 
 const get = async (job?: string) => {
   const res = await GET(new NextRequest(`http://localhost:3100/api/tasks${job ? `?job=${encodeURIComponent(job)}` : ''}`));
-  return { res, body: await res.json() as { active: number[] } };
+  return { res, body: (await res.json()) as { active: number[] } };
 };
 const addTask = async (kind: string, jobId: string | null, status = 'queued', extra = '') =>
-  (await pool.query<{ id: number }>(
-    `INSERT INTO tasks (kind, job_id, status${extra ? ', deadline' : ''}) VALUES ($1, $2, $3${extra ? `, ${extra}` : ''}) RETURNING id`,
-    [kind, jobId, status])).rows[0].id;
+  (
+    await pool.query<{ id: number }>(
+      `INSERT INTO tasks (kind, job_id, status${extra ? ', deadline' : ''}) VALUES ($1, $2, $3${extra ? `, ${extra}` : ''}) RETURNING id`,
+      [kind, jobId, status],
+    )
+  ).rows[0].id;
 
 beforeAll(ensureSchema);
 beforeEach(cleanupDb);
@@ -45,7 +48,9 @@ describe('GET /api/tasks', () => {
   it('expires a running task whose worker died, so polling stops', async () => {
     const dead = await addTask('fetch', null, 'running', `now() - interval '1 second'`);
     expect((await get()).body.active).toEqual([]);
-    const { rows: [t] } = await pool.query('SELECT status, error FROM tasks WHERE id = $1', [dead]);
+    const {
+      rows: [t],
+    } = await pool.query('SELECT status, error FROM tasks WHERE id = $1', [dead]);
     expect(t).toMatchObject({ status: 'failed', error: expect.stringMatching(/Timed out/) });
   });
 });

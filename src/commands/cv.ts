@@ -21,7 +21,8 @@ export async function cvBuild(args: string[]) {
 
 export async function versions() {
   const { rows } = await pool.query<{ cv_version: string; n: number }>(
-    'SELECT cv_version, count(*)::int n FROM jobs WHERE cv_version IS NOT NULL GROUP BY 1');
+    'SELECT cv_version, count(*)::int n FROM jobs WHERE cv_version IS NOT NULL GROUP BY 1',
+  );
   const used = (id: string) => rows.find((r) => r.cv_version === id)?.n ?? 0;
   console.log(`default            → ${cvFile('default')}  (used for ${used('default')} jobs)`);
   for (const v of listVersions()) console.log(`${v.id.padEnd(18)} → ${cvFile(v.id)}  (used for ${used(v.id)} jobs)`);

@@ -7,10 +7,13 @@ import { cleanText, decodeEntities, htmlToText } from '../extension/lib/text.js'
 import { isHttpUrl, normalizeUrl, sourceFromUrl } from '../extension/lib/url.js';
 
 const posting = (over: Record<string, unknown> = {}) => ({
-  '@context': 'https://schema.org', '@type': 'JobPosting', title: 'Senior Backend Engineer',
+  '@context': 'https://schema.org',
+  '@type': 'JobPosting',
+  title: 'Senior Backend Engineer',
   hiringOrganization: { '@type': 'Organization', name: 'Acme FZ-LLC' },
   jobLocation: { '@type': 'Place', address: { '@type': 'PostalAddress', addressLocality: 'Dubai', addressCountry: 'AE' } },
-  description: '<p>Build <b>APIs</b>.</p><ul><li>Node.js</li><li>Postgres</li></ul>', datePosted: '2026-10-20T08:00:00Z',
+  description: '<p>Build <b>APIs</b>.</p><ul><li>Node.js</li><li>Postgres</li></ul>',
+  datePosted: '2026-10-20T08:00:00Z',
   ...over,
 });
 
@@ -25,8 +28,10 @@ describe('text', () => {
   });
 
   it('turns description HTML into text with bullets and line breaks', () => {
-    assert.equal(htmlToText('<p>Build <b>APIs</b>.</p><ul><li>Node.js</li><li>Postgres</li></ul>Line<br>two<script>x()</script>'),
-      'Build APIs.\n\n• Node.js\n• Postgres\nLine\ntwo');
+    assert.equal(
+      htmlToText('<p>Build <b>APIs</b>.</p><ul><li>Node.js</li><li>Postgres</li></ul>Line<br>two<script>x()</script>'),
+      'Build APIs.\n\n• Node.js\n• Postgres\nLine\ntwo',
+    );
   });
 
   it('handles entity-escaped HTML from JSON-LD', () => {
@@ -38,7 +43,8 @@ describe('url', () => {
   it('accepts only absolute http(s) urls', () => {
     assert.equal(isHttpUrl('https://a.example/x'), true);
     assert.equal(isHttpUrl('http://a.example'), true);
-    for (const u of ['javascript:alert(1)', 'chrome://extensions', 'file:///etc/passwd', '/jobs/1', '', undefined]) assert.equal(isHttpUrl(u), false, String(u));
+    for (const u of ['javascript:alert(1)', 'chrome://extensions', 'file:///etc/passwd', '/jobs/1', '', undefined])
+      assert.equal(isHttpUrl(u), false, String(u));
   });
 
   it('normalizes without query, hash and trailing slash', () => {
@@ -72,7 +78,10 @@ describe('findJobPosting', () => {
   });
 
   it('skips invalid JSON and other types, and returns null when there is none', () => {
-    assert.equal(findJobPosting(['{oops', JSON.stringify({ '@type': 'BreadcrumbList' }), JSON.stringify(posting({ title: 'Second' }))])?.title, 'Second');
+    assert.equal(
+      findJobPosting(['{oops', JSON.stringify({ '@type': 'BreadcrumbList' }), JSON.stringify(posting({ title: 'Second' }))])?.title,
+      'Second',
+    );
     assert.equal(findJobPosting(['{oops', 'null', '42']), null);
     assert.equal(findJobPosting(undefined), null);
   });
@@ -84,15 +93,27 @@ describe('postingLocation', () => {
   });
 
   it('joins several places and accepts plain strings and country objects', () => {
-    assert.equal(postingLocation({ jobLocation: [
-      { address: { addressLocality: 'Riyadh', addressCountry: { '@type': 'Country', name: 'Saudi Arabia' } } },
-      { address: 'Amsterdam, Netherlands' }, 'Jeddah', { name: 'HQ' },
-    ] }), 'Riyadh, Saudi Arabia; Amsterdam, Netherlands; Jeddah; HQ');
+    assert.equal(
+      postingLocation({
+        jobLocation: [
+          { address: { addressLocality: 'Riyadh', addressCountry: { '@type': 'Country', name: 'Saudi Arabia' } } },
+          { address: 'Amsterdam, Netherlands' },
+          'Jeddah',
+          { name: 'HQ' },
+        ],
+      }),
+      'Riyadh, Saudi Arabia; Amsterdam, Netherlands; Jeddah; HQ',
+    );
   });
 
   it('adds Remote with the allowed countries for TELECOMMUTE jobs', () => {
-    assert.equal(postingLocation({ jobLocationType: 'TELECOMMUTE', applicantLocationRequirements: [{ '@type': 'Country', name: 'PK' }, { name: 'UAE' }] }),
-      'Remote (Pakistan, UAE)');
+    assert.equal(
+      postingLocation({
+        jobLocationType: 'TELECOMMUTE',
+        applicantLocationRequirements: [{ '@type': 'Country', name: 'PK' }, { name: 'UAE' }],
+      }),
+      'Remote (Pakistan, UAE)',
+    );
     assert.equal(postingLocation({ jobLocationType: ['TELECOMMUTE'] }), 'Remote');
     assert.equal(postingLocation({}), '');
   });
@@ -101,15 +122,27 @@ describe('postingLocation', () => {
 describe('jobFromPosting', () => {
   it('maps a JobPosting to the fields /api/import takes', () => {
     assert.deepEqual(jobFromPosting(posting(), 'https://www.gulftalent.com/uae/jobs/senior-backend-1?ref=x'), {
-      source: 'gulftalent', company: 'Acme FZ-LLC', title: 'Senior Backend Engineer', location: 'Dubai, United Arab Emirates',
-      url: 'https://www.gulftalent.com/uae/jobs/senior-backend-1?ref=x', description: 'Build APIs.\n\n• Node.js\n• Postgres',
+      source: 'gulftalent',
+      company: 'Acme FZ-LLC',
+      title: 'Senior Backend Engineer',
+      location: 'Dubai, United Arab Emirates',
+      url: 'https://www.gulftalent.com/uae/jobs/senior-backend-1?ref=x',
+      description: 'Build APIs.\n\n• Node.js\n• Postgres',
       posted_at: '2026-10-20',
     });
   });
 
   it('prefers the posting url, decodes entities and copes with missing fields', () => {
-    const j = jobFromPosting(posting({ url: 'https://careers.acme.com/jobs/9', title: 'R&amp;D Engineer', hiringOrganization: 'Acme',
-      description: undefined, datePosted: 'last week' }), 'https://www.linkedin.com/jobs/view/1');
+    const j = jobFromPosting(
+      posting({
+        url: 'https://careers.acme.com/jobs/9',
+        title: 'R&amp;D Engineer',
+        hiringOrganization: 'Acme',
+        description: undefined,
+        datePosted: 'last week',
+      }),
+      'https://www.linkedin.com/jobs/view/1',
+    );
     assert.equal(j.url, 'https://careers.acme.com/jobs/9');
     assert.equal(j.source, 'extension');
     assert.equal(j.title, 'R&D Engineer');
@@ -133,7 +166,14 @@ describe('guessFromTitle', () => {
 });
 
 describe('jobFromPage', () => {
-  const page = { url: 'https://careers.acme.com/jobs/1', title: 'PHP Developer - Acme', siteName: '', jsonLd: [] as string[], selection: '', mainText: ' Main  text ' };
+  const page = {
+    url: 'https://careers.acme.com/jobs/1',
+    title: 'PHP Developer - Acme',
+    siteName: '',
+    jsonLd: [] as string[],
+    selection: '',
+    mainText: ' Main  text ',
+  };
 
   it('uses JSON-LD when the page has a JobPosting', () => {
     const r = jobFromPage({ ...page, jsonLd: [JSON.stringify(posting())] });
@@ -144,7 +184,15 @@ describe('jobFromPage', () => {
   it('falls back to the page title and the selected text', () => {
     assert.deepEqual(jobFromPage({ ...page, selection: '  We need\n\n\n\na PHP dev ' }), {
       method: 'page',
-      job: { source: 'extension', company: 'Acme', title: 'PHP Developer', location: '', url: page.url, description: 'We need\n\na PHP dev', posted_at: null },
+      job: {
+        source: 'extension',
+        company: 'Acme',
+        title: 'PHP Developer',
+        location: '',
+        url: page.url,
+        description: 'We need\n\na PHP dev',
+        posted_at: null,
+      },
     });
   });
 
@@ -158,12 +206,24 @@ describe('jobFromPage', () => {
 
 describe('api', () => {
   type Call = { url: string; init?: RequestInit };
-  const fake = (status: number, body: unknown, calls: Call[] = []) => async (url: string | URL | Request, init?: RequestInit) => {
-    calls.push({ url: String(url), init });
-    return new Response(typeof body === 'string' ? body : JSON.stringify(body), { status });
+  const fake =
+    (status: number, body: unknown, calls: Call[] = []) =>
+    async (url: string | URL | Request, init?: RequestInit) => {
+      calls.push({ url: String(url), init });
+      return new Response(typeof body === 'string' ? body : JSON.stringify(body), { status });
+    };
+  const offline = async () => {
+    throw new TypeError('Failed to fetch');
   };
-  const offline = async () => { throw new TypeError('Failed to fetch'); };
-  const job = { source: 'extension', company: 'Acme', title: 'Dev', location: '', url: 'https://a.example/1', description: '', posted_at: null };
+  const job = {
+    source: 'extension',
+    company: 'Acme',
+    title: 'Dev',
+    location: '',
+    url: 'https://a.example/1',
+    description: '',
+    posted_at: null,
+  };
 
   it('posts one job as a list and returns its result', async () => {
     const calls: Call[] = [];
@@ -182,20 +242,30 @@ describe('api', () => {
 
   it('looks up a tab url', async () => {
     const calls: Call[] = [];
-    assert.deepEqual(await lookupJob('https://a.example/1?x=1&y=2', fake(200, { job: { id: 'a' } }, calls)), { ok: true, job: { id: 'a' } });
+    assert.deepEqual(await lookupJob('https://a.example/1?x=1&y=2', fake(200, { job: { id: 'a' } }, calls)), {
+      ok: true,
+      job: { id: 'a' },
+    });
     assert.equal(calls[0].url, 'http://localhost:3100/api/jobs/lookup?url=https%3A%2F%2Fa.example%2F1%3Fx%3D1%26y%3D2');
     assert.deepEqual(await lookupJob('https://a.example/2', fake(200, { job: null })), { ok: true, job: null });
-    assert.deepEqual(await lookupJob('https://a.example/2', fake(400, { error: 'url must be an http(s) URL' })),
-      { ok: false, status: 400, error: 'url must be an http(s) URL' });
+    assert.deepEqual(await lookupJob('https://a.example/2', fake(400, { error: 'url must be an http(s) URL' })), {
+      ok: false,
+      status: 400,
+      error: 'url must be an http(s) URL',
+    });
     assert.deepEqual(await lookupJob('https://a.example/2', offline), { ok: false, error: OFFLINE });
   });
 
   it('describes each import outcome', () => {
     assert.equal(describeResult({ outcome: 'added', score: 72, ai_score: null }), 'Added with score 72.');
-    assert.equal(describeResult({ outcome: 'filtered', filter_reason: 'title is not an engineering role' }),
-      'Added, but filtered out: title is not an engineering role.');
-    assert.equal(describeResult({ outcome: 'known', status: 'applied', score: 60, ai_score: 81 }),
-      'Already in job-bot (applied, AI score 81, keyword score 60).');
+    assert.equal(
+      describeResult({ outcome: 'filtered', filter_reason: 'title is not an engineering role' }),
+      'Added, but filtered out: title is not an engineering role.',
+    );
+    assert.equal(
+      describeResult({ outcome: 'known', status: 'applied', score: 60, ai_score: 81 }),
+      'Already in job-bot (applied, AI score 81, keyword score 60).',
+    );
     assert.match(describeResult({ outcome: 'error' }), /could not save/);
   });
 

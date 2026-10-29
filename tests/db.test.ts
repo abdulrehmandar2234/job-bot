@@ -5,9 +5,24 @@ import { dedupe, getJob, migrate, pool, setStatus, upsertJob, type ScoredJob } f
 import { isIndSponsor } from '../src/sponsors.ts';
 
 const job = (o: Partial<ScoredJob> = {}): ScoredJob => ({
-  id: 'test:db1', source: 'greenhouse', company: 'Acme', title: 'Backend Engineer', location: 'Dubai', country: 'AE',
-  url: 'https://x/1', description: 'Node', posted_at: '2026-10-27T00:00:00Z', score: 80, cluster: 'default',
-  matched: ['Node.js'], missing: [], visa: 'UAE', flags: [], status: 'new', filter_reason: null, ...o,
+  id: 'test:db1',
+  source: 'greenhouse',
+  company: 'Acme',
+  title: 'Backend Engineer',
+  location: 'Dubai',
+  country: 'AE',
+  url: 'https://x/1',
+  description: 'Node',
+  posted_at: '2026-10-27T00:00:00Z',
+  score: 80,
+  cluster: 'default',
+  matched: ['Node.js'],
+  missing: [],
+  visa: 'UAE',
+  flags: [],
+  status: 'new',
+  filter_reason: null,
+  ...o,
 });
 
 before(migrate);

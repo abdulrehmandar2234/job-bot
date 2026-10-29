@@ -20,7 +20,9 @@ import { AiReview, Chips, COUNTRIES, fmtDate, Posted, PostedOn, Score, STATUS_LA
 export default function Page(props: PageProps<'/jobs/[id]'>) {
   return (
     <main className="mx-auto w-full max-w-4xl px-4 py-6 sm:px-6">
-      <Link href="/" className="text-sm text-zinc-500 hover:underline">← All jobs</Link>
+      <Link href="/" className="text-sm text-zinc-500 hover:underline">
+        ← All jobs
+      </Link>
       <Suspense fallback={<p className="mt-4 text-sm text-zinc-500">Loading…</p>}>
         <JobDetail params={props.params} />
       </Suspense>
@@ -42,7 +44,9 @@ async function JobDetail({ params }: { params: PageProps<'/jobs/[id]'>['params']
       <header className="flex gap-4">
         <Score value={job.score} ai={job.ai_score} />
         <div className="space-y-1">
-          <h1 className="text-xl font-semibold">{job.title} <ExpiredBadge job={job} /></h1>
+          <h1 className="text-xl font-semibold">
+            {job.title} <ExpiredBadge job={job} />
+          </h1>
           <p className="text-zinc-600 dark:text-zinc-400">
             {job.company} · {job.country ? COUNTRIES[job.country] : ''} · {job.location}
           </p>
@@ -70,20 +74,34 @@ async function JobDetail({ params }: { params: PageProps<'/jobs/[id]'>['params']
       <section className="space-y-2 rounded-xl border border-zinc-200 p-4 text-sm dark:border-zinc-800">
         {job.visa && <p className="text-emerald-700 dark:text-emerald-400">✓ Visa: {job.visa}</p>}
         {job.filter_reason && <p className="text-rose-700 dark:text-rose-400">✗ Filtered: {job.filter_reason}</p>}
-        <div><span className="text-zinc-500">You have:</span> <Chips items={job.matched} tone="good" /></div>
-        {job.missing.length > 0 && <div><span className="text-zinc-500">Missing:</span> <Chips items={job.missing} tone="bad" /></div>}
-        {job.flags.length > 0 && <div><span className="text-zinc-500">Warnings:</span> <Chips items={job.flags} tone="warn" /></div>}
+        <div>
+          <span className="text-zinc-500">You have:</span> <Chips items={job.matched} tone="good" />
+        </div>
+        {job.missing.length > 0 && (
+          <div>
+            <span className="text-zinc-500">Missing:</span> <Chips items={job.missing} tone="bad" />
+          </div>
+        )}
+        {job.flags.length > 0 && (
+          <div>
+            <span className="text-zinc-500">Warnings:</span> <Chips items={job.flags} tone="warn" />
+          </div>
+        )}
       </section>
 
       {job.cover_letter && (
         <section className="space-y-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="font-medium">
-              Cover letter <span className="text-xs font-normal text-zinc-500">
-                {job.cover_letter_ai ? '· written by AI from this job description' : '· template'}</span>
+              Cover letter{' '}
+              <span className="text-xs font-normal text-zinc-500">
+                {job.cover_letter_ai ? '· written by AI from this job description' : '· template'}
+              </span>
             </h2>
             <div className="flex gap-2">
-              {busy.includes('prepare') ? <Busy>Rewriting letter…</Busy> : (
+              {busy.includes('prepare') ? (
+                <Busy>Rewriting letter…</Busy>
+              ) : (
                 <form action={prepare}>
                   <input type="hidden" name="id" value={job.id} />
                   {job.cv_version && <input type="hidden" name="cv" value={job.cv_version} />}
@@ -112,9 +130,14 @@ async function JobDetail({ params }: { params: PageProps<'/jobs/[id]'>['params']
         {answers.length > 0 && (
           <ul className="space-y-3">
             {answers.map((a, i) => (
-              <li key={i} className={`space-y-1 rounded-xl border p-3 text-sm ${a.needs_input
-                ? 'border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30'
-                : 'border-zinc-200 dark:border-zinc-800'}`}>
+              <li
+                key={i}
+                className={`space-y-1 rounded-xl border p-3 text-sm ${
+                  a.needs_input
+                    ? 'border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30'
+                    : 'border-zinc-200 dark:border-zinc-800'
+                }`}
+              >
                 <div className="flex items-start justify-between gap-3">
                   <p className="font-medium">{a.question}</p>
                   <CopyButton text={a.answer} />
@@ -127,16 +150,22 @@ async function JobDetail({ params }: { params: PageProps<'/jobs/[id]'>['params']
         )}
         {answers.some((a) => a.needs_input) && (
           <p className="text-xs text-amber-700 dark:text-amber-400">
-            Yellow answers need your input. Add salary, notice period etc. to <code>cv/applicant.json</code> once and they fill in next time.
+            Yellow answers need your input. Add salary, notice period etc. to <code>cv/applicant.json</code> once and they fill in next
+            time.
           </p>
         )}
         <form action={draftAnswers} className="space-y-2">
           <input type="hidden" name="id" value={job.id} />
-          <textarea name="questions" rows={4} required className="input w-full"
-            placeholder={'Paste the questions from the application form, e.g.\nHow many years of experience do you have with Laravel?\nDo you require visa sponsorship? Yes / No\nWhy do you want to work with us?'} />
-          {busy.includes('answers')
-            ? <Busy>Drafting answers…</Busy>
-            : <SubmitButton pendingText="Starting…">Draft answers</SubmitButton>}
+          <textarea
+            name="questions"
+            rows={4}
+            required
+            className="input w-full"
+            placeholder={
+              'Paste the questions from the application form, e.g.\nHow many years of experience do you have with Laravel?\nDo you require visa sponsorship? Yes / No\nWhy do you want to work with us?'
+            }
+          />
+          {busy.includes('answers') ? <Busy>Drafting answers…</Busy> : <SubmitButton pendingText="Starting…">Draft answers</SubmitButton>}
         </form>
       </section>
 
@@ -146,8 +175,13 @@ async function JobDetail({ params }: { params: PageProps<'/jobs/[id]'>['params']
         <h2 className="font-medium">Notes</h2>
         <form action={saveNotes} className="space-y-2">
           <input type="hidden" name="id" value={job.id} />
-          <textarea name="notes" defaultValue={job.notes ?? ''} rows={3} className="input w-full"
-            placeholder="Recruiter name, salary, interview date…" />
+          <textarea
+            name="notes"
+            defaultValue={job.notes ?? ''}
+            rows={3}
+            className="input w-full"
+            placeholder="Recruiter name, salary, interview date…"
+          />
           <SubmitButton pendingText="Saving…">Save notes</SubmitButton>
         </form>
       </section>
@@ -158,8 +192,10 @@ async function JobDetail({ params }: { params: PageProps<'/jobs/[id]'>['params']
           <ul className="space-y-1 text-sm text-zinc-600 dark:text-zinc-400">
             {events.map((e) => (
               <li key={e.id}>
-                {new Date(e.at).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })} —{' '}
-                {e.from_status ?? '—'} → <b>{e.to_status}</b>{e.reason && ` · ${SKIP_LABEL[e.reason]}`}{e.note && ` (${e.note})`}
+                {new Date(e.at).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })} — {e.from_status ?? '—'} →{' '}
+                <b>{e.to_status}</b>
+                {e.reason && ` · ${SKIP_LABEL[e.reason]}`}
+                {e.note && ` (${e.note})`}
               </li>
             ))}
           </ul>

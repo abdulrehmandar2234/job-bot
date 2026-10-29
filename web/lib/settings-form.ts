@@ -14,18 +14,40 @@ export const ATS: readonly Company['ats'][] = ['greenhouse', 'lever', 'ashby', '
 type FieldType = 'number' | 'bool' | 'text' | 'lines';
 
 export const CONFIG_FIELDS: Record<string, FieldType> = {
-  minScore: 'number', maxAgeDays: 'number', autoCvVersions: 'bool',
-  roleInclude: 'text', roleExclude: 'text',
-  'linkedin.enabled': 'bool', 'linkedin.keywords': 'lines', 'linkedin.locations': 'lines',
-  'linkedin.remoteFrom': 'text', 'linkedin.pagesPerSearch': 'number',
-  'remote.enabled': 'bool', 'remote.boards': 'lines', 'remote.himalayasQueries': 'lines',
-  'remote.allow': 'text', 'remote.deny': 'text', 'remote.flag': 'text',
-  'ai.enabled': 'bool', 'ai.alertStrong': 'bool', 'ai.scoreModel': 'text', 'ai.letterModel': 'text', 'ai.maxScorePerRun': 'number',
+  minScore: 'number',
+  maxAgeDays: 'number',
+  autoCvVersions: 'bool',
+  roleInclude: 'text',
+  roleExclude: 'text',
+  'linkedin.enabled': 'bool',
+  'linkedin.keywords': 'lines',
+  'linkedin.locations': 'lines',
+  'linkedin.remoteFrom': 'text',
+  'linkedin.pagesPerSearch': 'number',
+  'remote.enabled': 'bool',
+  'remote.boards': 'lines',
+  'remote.himalayasQueries': 'lines',
+  'remote.allow': 'text',
+  'remote.deny': 'text',
+  'remote.flag': 'text',
+  'ai.enabled': 'bool',
+  'ai.alertStrong': 'bool',
+  'ai.scoreModel': 'text',
+  'ai.letterModel': 'text',
+  'ai.maxScorePerRun': 'number',
 };
 
 export const APPLICANT_FACTS = [
-  'currentLocation', 'languages', 'needsVisaSponsorship', 'willingToRelocate', 'nationality', 'noticePeriod',
-  'earliestStartDate', 'currentSalary', 'workingHoursForRemote', 'howDidYouHear',
+  'currentLocation',
+  'languages',
+  'needsVisaSponsorship',
+  'willingToRelocate',
+  'nationality',
+  'noticePeriod',
+  'earliestStartDate',
+  'currentSalary',
+  'workingHoursForRemote',
+  'howDidYouHear',
 ] as const;
 export const SALARY_KEYS = ['AE', 'SA', 'NL', 'remote'] as const;
 
@@ -53,7 +75,11 @@ const str = (fd: FormData, name: string) => {
 
 // An empty or non-numeric number field is passed on as is, so the validator reports it on that field.
 function parse(type: FieldType, raw: string): unknown {
-  if (type === 'lines') return raw.split('\n').map((s) => s.trim()).filter(Boolean);
+  if (type === 'lines')
+    return raw
+      .split('\n')
+      .map((s) => s.trim())
+      .filter(Boolean);
   if (type === 'number') return raw.trim() === '' ? null : Number.isFinite(Number(raw)) ? Number(raw) : raw;
   return raw.trim();
 }

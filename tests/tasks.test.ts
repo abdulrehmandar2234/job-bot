@@ -8,8 +8,20 @@ import { TEST_DB } from './helpers.ts';
 import { getJob, migrate, pool } from '../src/db.ts';
 import { path } from '../src/settings.ts';
 import {
-  claim, cliArgs, DEAD_WORKER_ERROR, DEADLINE_GRACE_MS, enqueue, expireStale, fail, failDeadWorkers, finish,
-  KEEP_FINISHED_DAYS, OUTPUT_CAP, pidAlive, pruneFinished, TASK_TIMEOUT_MS,
+  claim,
+  cliArgs,
+  DEAD_WORKER_ERROR,
+  DEADLINE_GRACE_MS,
+  enqueue,
+  expireStale,
+  fail,
+  failDeadWorkers,
+  finish,
+  KEEP_FINISHED_DAYS,
+  OUTPUT_CAP,
+  pidAlive,
+  pruneFinished,
+  TASK_TIMEOUT_MS,
 } from '../src/tasks.ts';
 import type { Task } from '../src/types.ts';
 
@@ -20,15 +32,21 @@ const JOB = 'tasktest:1';
 /** Runs `task:run <id>` through the real CLI, as the dashboard's detached worker does. */
 async function taskRun(id: number | string, env: Record<string, string> = {}) {
   const { stdout } = await run(process.execPath, ['--no-warnings', 'src/cli.ts', 'task:run', String(id)], {
-    cwd: path(), env: { ...process.env, DATABASE_URL: TEST_DB, JOB_BOT_CLAUDE: FAKE, ...env }, timeout: 60_000,
+    cwd: path(),
+    env: { ...process.env, DATABASE_URL: TEST_DB, JOB_BOT_CLAUDE: FAKE, ...env },
+    timeout: 60_000,
   });
   return stdout;
 }
 
 const getTask = async (id: number) => (await pool.query<Task>('SELECT * FROM tasks WHERE id = $1', [id])).rows[0];
-const addJob = (id = JOB) => pool.query(`INSERT INTO jobs (id, source, company, title, country, url, status, score, description)
+const addJob = (id = JOB) =>
+  pool.query(
+    `INSERT INTO jobs (id, source, company, title, country, url, status, score, description)
   VALUES ($1, 'greenhouse', 'Taskco', 'Senior Laravel Developer', 'AE', 'https://example.com/' || $1, 'new', 60,
-  'Laravel, PHP, Vue.js and MySQL.')`, [id]);
+  'Laravel, PHP, Vue.js and MySQL.')`,
+    [id],
+  );
 
 before(migrate);
 beforeEach(async () => {
@@ -63,9 +81,11 @@ describe('task queue', () => {
     const { task } = await enqueue('ai_review', JOB);
     await claim(task.id);
     await fail(task.id, 'claude CLI missing', 'partial');
-    assert.deepEqual(
-      (({ status, error, output }) => ({ status, error, output }))(await getTask(task.id)),
-      { status: 'failed', error: 'claude CLI missing', output: 'partial' });
+    assert.deepEqual((({ status, error, output }) => ({ status, error, output }))(await getTask(task.id)), {
+      status: 'failed',
+      error: 'claude CLI missing',
+      output: 'partial',
+    });
   });
 
   it('a fetch timeout is longer than a job task timeout', async () => {
@@ -209,21 +229,32 @@ describe('dead workers', () => {
 
 describe('pruning', () => {
   it(`deletes done and failed tasks older than ${KEEP_FINISHED_DAYS} days, nothing else`, async () => {
-    const add = async (status: string, age: number) => (await pool.query<{ id: number }>(
-      `INSERT INTO tasks (kind, job_id, status, created_at, finished_at)
+    const add = async (status: string, age: number) =>
+      (
+        await pool.query<{ id: number }>(
+          `INSERT INTO tasks (kind, job_id, status, created_at, finished_at)
        VALUES ('prepare', $1, $2, now() - make_interval(days => $3), CASE WHEN $2 IN ('done', 'failed') THEN now() - make_interval(days => $3) END)
-       RETURNING id`, [JOB, status, age])).rows[0].id;
+       RETURNING id`,
+          [JOB, status, age],
+        )
+      ).rows[0].id;
     const oldDone = await add('done', KEEP_FINISHED_DAYS + 1);
     const oldFailed = await add('failed', KEEP_FINISHED_DAYS + 5);
     const recent = await add('done', KEEP_FINISHED_DAYS - 1);
-    await pool.query(`INSERT INTO tasks (kind, status, created_at, started_at, deadline, pid)
-      VALUES ('fetch', 'running', now() - interval '40 days', now(), now() + interval '1 hour', $1)`, [process.pid]);
+    await pool.query(
+      `INSERT INTO tasks (kind, status, created_at, started_at, deadline, pid)
+      VALUES ('fetch', 'running', now() - interval '40 days', now(), now() + interval '1 hour', $1)`,
+      [process.pid],
+    );
 
     assert.equal(await pruneFinished(), 2);
     const left = (await pool.query<Task>('SELECT * FROM tasks ORDER BY id')).rows;
     assert.ok(!left.some((t) => t.id === oldDone || t.id === oldFailed));
     assert.ok(left.some((t) => t.id === recent));
-    assert.ok(left.some((t) => t.kind === 'fetch' && t.status === 'running'), 'an old running task is not pruned');
+    assert.ok(
+      left.some((t) => t.kind === 'fetch' && t.status === 'running'),
+      'an old running task is not pruned',
+    );
   });
 
   it('enqueue prunes', async () => {
@@ -319,7 +350,10 @@ describe('task:run (CLI worker)', () => {
   it('fails an answers task without questions', async () => {
     const { task } = await enqueue('answers', JOB, {});
     await taskRun(task.id);
-    assert.deepEqual((({ status, error }) => ({ status, error }))(await getTask(task.id)), { status: 'failed', error: 'No questions given.' });
+    assert.deepEqual((({ status, error }) => ({ status, error }))(await getTask(task.id)), {
+      status: 'failed',
+      error: 'No questions given.',
+    });
   });
 
   it('does nothing for a task that is not queued, or a bad id', async () => {

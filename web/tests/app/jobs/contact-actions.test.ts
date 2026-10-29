@@ -13,9 +13,13 @@ const form = (fields: Record<string, string>) => {
   for (const [k, v] of Object.entries(fields)) fd.set(k, v);
   return fd;
 };
-const rows = async () => (await pool.query(
-  'SELECT id, job_id, name, role, email, linkedin_url, phone, notes, referral_status FROM contacts WHERE job_id LIKE $1 ORDER BY id',
-  [`${PREFIX}%`])).rows;
+const rows = async () =>
+  (
+    await pool.query(
+      'SELECT id, job_id, name, role, email, linkedin_url, phone, notes, referral_status FROM contacts WHERE job_id LIKE $1 ORDER BY id',
+      [`${PREFIX}%`],
+    )
+  ).rows;
 
 beforeAll(ensureSchema);
 beforeEach(async () => {
@@ -28,11 +32,32 @@ afterAll(closeDb);
 
 describe('saveContact', () => {
   it('adds a contact with trimmed fields and refreshes', async () => {
-    const res = await saveContact(null, form({ id, name: '  Jane Doe ', role: 'recruiter', email: 'jane@acme.com',
-      linkedin_url: 'https://www.linkedin.com/in/jane', phone: '', notes: ' met at GITEX ', referral_status: 'to ask' }));
+    const res = await saveContact(
+      null,
+      form({
+        id,
+        name: '  Jane Doe ',
+        role: 'recruiter',
+        email: 'jane@acme.com',
+        linkedin_url: 'https://www.linkedin.com/in/jane',
+        phone: '',
+        notes: ' met at GITEX ',
+        referral_status: 'to ask',
+      }),
+    );
     expect(res).toEqual({ ok: true, errors: [] });
-    expect(await rows()).toEqual([expect.objectContaining({ job_id: id, name: 'Jane Doe', role: 'recruiter', email: 'jane@acme.com',
-      linkedin_url: 'https://www.linkedin.com/in/jane', phone: null, notes: 'met at GITEX', referral_status: 'to ask' })]);
+    expect(await rows()).toEqual([
+      expect.objectContaining({
+        job_id: id,
+        name: 'Jane Doe',
+        role: 'recruiter',
+        email: 'jane@acme.com',
+        linkedin_url: 'https://www.linkedin.com/in/jane',
+        phone: null,
+        notes: 'met at GITEX',
+        referral_status: 'to ask',
+      }),
+    ]);
     expect(refresh).toHaveBeenCalledOnce();
   });
 

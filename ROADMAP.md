@@ -5,7 +5,6 @@ What was planned for job-bot and where each part lives now. None of it changes t
 ## Open
 
 - **Follow-up reminders** (postponed). Flag jobs that have been `applied` for 7–10 days with no update, and draft a short follow-up message for the recruiter (you send it yourself). Show a "Needs follow-up" tab on the dashboard.
-- **Lint and format** (not started). Biome or ESLint + Prettier, and a pre-commit hook that runs them.
 
 ## Done
 
@@ -35,7 +34,8 @@ What was planned for job-bot and where each part lives now. None of it changes t
 
 ### Quality and tooling
 
-- **CI:** .github/workflows/test.yml (Postgres service, backend and web suites).
+- **CI:** .github/workflows/test.yml (Postgres service; lint, typecheck, backend and web suites).
+- **Lint and format:** Biome (`biome.json`), `npm run lint` / `npm run format`, and a pre-commit hook in `.githooks/` that checks staged files.
 - **Coverage report:** `npm run test:coverage` and `npm run test:web:coverage`.
 - **Known test gaps closed:** job list and layout, `runBot`, CopyButton failure, the Bayt collector (web/tests).
 - **Fetch errors on the dashboard:** fetch health on `/analytics` and a "Last fetch: N errors" link in the job list header.

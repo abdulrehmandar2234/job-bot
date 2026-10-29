@@ -15,11 +15,13 @@ const VERSIONS = path('cv', 'versions');
 export const masterRaw = () => readFileSync(path('cv', 'master.json'), 'utf8');
 // Covers everything that shapes a version's content, so editing the CV, a profile or the template yields v(N+1)
 // while older versions stay on disk for the jobs they were sent to.
-export const masterHash = () => createHash('sha256')
-  .update(masterRaw())
-  .update(readFileSync(path('src', 'cv', 'profiles.ts')))
-  .update(readFileSync(path('src', 'cv', 'render.ts')))
-  .digest('hex').slice(0, 12);
+export const masterHash = () =>
+  createHash('sha256')
+    .update(masterRaw())
+    .update(readFileSync(path('src', 'cv', 'profiles.ts')))
+    .update(readFileSync(path('src', 'cv', 'render.ts')))
+    .digest('hex')
+    .slice(0, 12);
 export const cvFile = (versionId: string) =>
   versionId === 'default' ? path('cv', 'default', config.cvFileName) : path('cv', 'versions', versionId, config.cvFileName);
 
@@ -31,8 +33,14 @@ export function listVersions(): VersionMeta[] {
 }
 
 const frontFirst = <T>(items: T[], key: (t: T) => string, first: string[]) => {
-  const rank = (t: T) => { const i = first.indexOf(key(t)); return i === -1 ? first.length : i; };
-  return [...items].map((t, i) => ({ t, i })).sort((a, b) => rank(a.t) - rank(b.t) || a.i - b.i).map((x) => x.t);
+  const rank = (t: T) => {
+    const i = first.indexOf(key(t));
+    return i === -1 ? first.length : i;
+  };
+  return [...items]
+    .map((t, i) => ({ t, i }))
+    .sort((a, b) => rank(a.t) - rank(b.t) || a.i - b.i)
+    .map((x) => x.t);
 };
 
 export function applyProfile(master: Cv, p: Profile): Cv {
@@ -41,8 +49,10 @@ export function applyProfile(master: Cv, p: Profile): Cv {
     ...master,
     title: p.title,
     summary: p.summary,
-    skills: frontFirst(master.skills, (g) => g.group, p.groupsFirst)
-      .map((g) => ({ ...g, items: frontFirst(g.items, (s) => s, p.skillsFirst) })),
+    skills: frontFirst(master.skills, (g) => g.group, p.groupsFirst).map((g) => ({
+      ...g,
+      items: frontFirst(g.items, (s) => s, p.skillsFirst),
+    })),
     // The first bullet introduces the role, so it stays first; the rest are ordered by relevance.
     experience: master.experience.map((e) => ({
       ...e,
@@ -85,8 +95,17 @@ export async function versionFor(cluster: string): Promise<{ id: string; created
 export async function customVersion(slug: string, cluster: string, jobId: string, overrides: Partial<Profile>) {
   const master = JSON.parse(masterRaw()) as Cv;
   const base = PROFILES[cluster] ?? {
-    title: master.title, summary: master.summary, skillsFirst: [], groupsFirst: [], projectTags: [], bulletKeywords: /$^/,
+    title: master.title,
+    summary: master.summary,
+    skillsFirst: [],
+    groupsFirst: [],
+    projectTags: [],
+    bulletKeywords: /$^/,
   };
-  const p: Profile = { ...base, ...overrides, bulletKeywords: overrides.bulletKeywords ? new RegExp(overrides.bulletKeywords, 'i') : base.bulletKeywords };
+  const p: Profile = {
+    ...base,
+    ...overrides,
+    bulletKeywords: overrides.bulletKeywords ? new RegExp(overrides.bulletKeywords, 'i') : base.bulletKeywords,
+  };
   return writeVersion(`custom-${slug}`, cluster, applyProfile(master, p), jobId);
 }

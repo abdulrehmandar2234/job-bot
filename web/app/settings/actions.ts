@@ -61,8 +61,7 @@ async function save(kind: SettingsKind, json: string): Promise<SaveState> {
   return { ok: true, message, errors: [] };
 }
 
-const unreadable = (what: string, error: string | null) =>
-  fail(`${what} cannot be read (${error}). Fix it under "Advanced: edit JSON".`);
+const unreadable = (what: string, error: string | null) => fail(`${what} cannot be read (${error}). Fix it under "Advanced: edit JSON".`);
 
 /** The search settings form (config.json). */
 export async function saveConfig(_prev: SaveState, fd: FormData): Promise<SaveState> {

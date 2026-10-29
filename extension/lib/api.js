@@ -27,7 +27,9 @@ export async function sendJob(job, fetchImpl = fetch) {
   });
   if (!r.ok) return r;
   const result = r.body?.results?.[0];
-  return result ? { ok: true, result } : { ok: false, error: 'The dashboard did not accept this job (it needs a title, a company and an http(s) URL).' };
+  return result
+    ? { ok: true, result }
+    : { ok: false, error: 'The dashboard did not accept this job (it needs a title, a company and an http(s) URL).' };
 }
 
 /** Looks up the job for a tab URL. Resolves to { ok, job } (job is null when the bot does not know it) or { ok: false, error }. */

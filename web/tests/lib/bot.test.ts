@@ -22,7 +22,9 @@ beforeAll(async () => {
   vi.unstubAllEnvs();
   db = new pg.Pool({ connectionString: BOT_DB_URL, max: 1 });
 }, 30_000);
-afterEach(() => { vi.unstubAllEnvs(); });
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 afterAll(async () => {
   await db?.query(`DELETE FROM jobs WHERE id LIKE 'webtest:%'`);
   await db?.end();
@@ -52,8 +54,11 @@ describe('runBot', () => {
 
   it('passes arguments literally, without a shell', async () => {
     withBotDb();
-    await db.query(`INSERT INTO jobs (id, source, company, title, country, url, status, score)
-      VALUES ($1, 'greenhouse', 'Acme', 'Literal Args Engineer', 'AE', 'https://example.com/l', 'new', 50)`, [ID]);
+    await db.query(
+      `INSERT INTO jobs (id, source, company, title, country, url, status, score)
+      VALUES ($1, 'greenhouse', 'Acme', 'Literal Args Engineer', 'AE', 'https://example.com/l', 'new', 50)`,
+      [ID],
+    );
     const out = await runBot(['show', ID]);
     expect(out).toContain('Literal Args Engineer');
     expect(existsSync(join(BOT_ROOT, 'pwned'))).toBe(false);
@@ -74,7 +79,9 @@ describe('spawnBot', () => {
   /** Waits until the task leaves queued/running (the detached worker is not awaited). */
   async function settle(id: number) {
     for (let i = 0; i < 150; i++) {
-      const { rows: [t] } = await db.query('SELECT status, output, error FROM tasks WHERE id = $1', [id]);
+      const {
+        rows: [t],
+      } = await db.query('SELECT status, output, error FROM tasks WHERE id = $1', [id]);
       if (t.status === 'done' || t.status === 'failed') return t;
       await new Promise((r) => setTimeout(r, 100));
     }
@@ -87,7 +94,9 @@ describe('spawnBot', () => {
     vi.stubEnv('FAKE_CLAUDE_OUT', JSON.stringify(review));
     await db.query(`INSERT INTO jobs (id, source, company, title, country, url, status, score)
       VALUES ('webtest:spawn', 'greenhouse', 'Acme', 'Spawn Engineer', 'AE', 'https://example.com/sp', 'new', 50)`);
-    const { rows: [{ id }] } = await db.query(`INSERT INTO tasks (kind, job_id) VALUES ('ai_review', 'webtest:spawn') RETURNING id`);
+    const {
+      rows: [{ id }],
+    } = await db.query(`INSERT INTO tasks (kind, job_id) VALUES ('ai_review', 'webtest:spawn') RETURNING id`);
 
     const started = Date.now();
     spawnBot(['task:run', String(id)]);
@@ -96,9 +105,10 @@ describe('spawnBot', () => {
     const t = await settle(id);
     expect(t).toMatchObject({ status: 'done', error: null });
     expect(t.output).toMatch(/77 good\s+Acme — Spawn Engineer/);
-    const { rows: [job] } = await db.query(`SELECT ai_score, ai_summary FROM jobs WHERE id = 'webtest:spawn'`);
+    const {
+      rows: [job],
+    } = await db.query(`SELECT ai_score, ai_summary FROM jobs WHERE id = 'webtest:spawn'`);
     expect(job).toEqual({ ai_score: 77, ai_summary: 'Spawned' });
     expect(readFileSync(join(BOT_ROOT, 'data', 'logs', 'tasks.log'), 'utf8')).toContain(`task ${id}: done`);
   }, 30_000);
 });
-

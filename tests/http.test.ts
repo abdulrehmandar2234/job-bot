@@ -21,7 +21,11 @@ const status = (code: number, headers: Record<string, string> = {}) => new Respo
 async function recordSleeps(fn: () => Promise<unknown>) {
   const delays: number[] = [];
   timing.scale = 1;
-  const t = mock.method(globalThis, 'setTimeout', ((cb: () => void, ms: number) => { delays.push(ms); cb(); return 0; }) as any);
+  const t = mock.method(globalThis, 'setTimeout', ((cb: () => void, ms: number) => {
+    delays.push(ms);
+    cb();
+    return 0;
+  }) as any);
   try {
     await fn();
   } finally {
@@ -34,23 +38,40 @@ async function recordSleeps(fn: () => Promise<unknown>) {
 describe('request: retries', () => {
   it('retries 5xx, 429 and network errors, then returns the body', async () => {
     let n = 0;
-    net = mockFetch({ 'a.test': () => {
-      n++;
-      if (n === 1) throw new TypeError('fetch failed');
-      if (n === 2) return status(503);
-      if (n === 3) return status(429);
-      return { ok: true };
-    } });
+    net = mockFetch({
+      'a.test': () => {
+        n++;
+        if (n === 1) throw new TypeError('fetch failed');
+        if (n === 2) return status(503);
+        if (n === 3) return status(429);
+        return { ok: true };
+      },
+    });
     assert.deepEqual(await getJson('https://a.test/x', { cache: false }), { ok: true });
     assert.equal(n, 4);
   });
 
   it('backs off exponentially with jitter', async () => {
-    assert.equal(retryDelay(0, 1000, null, () => 0.5), 1000);
-    assert.equal(retryDelay(1, 1000, null, () => 0.5), 2000);
-    assert.equal(retryDelay(2, 1000, null, () => 0.5), 4000);
-    assert.equal(retryDelay(2, 1000, null, () => 0), 2000);
-    assert.equal(retryDelay(2, 1000, null, () => 0.999), 5996);
+    assert.equal(
+      retryDelay(0, 1000, null, () => 0.5),
+      1000,
+    );
+    assert.equal(
+      retryDelay(1, 1000, null, () => 0.5),
+      2000,
+    );
+    assert.equal(
+      retryDelay(2, 1000, null, () => 0.5),
+      4000,
+    );
+    assert.equal(
+      retryDelay(2, 1000, null, () => 0),
+      2000,
+    );
+    assert.equal(
+      retryDelay(2, 1000, null, () => 0.999),
+      5996,
+    );
     net = mockFetch({ 'b.test': () => status(500) });
     const delays = await recordSleeps(() => request('https://b.test/', { cache: false, attempts: 3 }).catch(() => {}));
     assert.equal(delays.length, 2);
@@ -76,8 +97,10 @@ describe('request: retries', () => {
 
   it('gives up after the last attempt with an error that names the host', async () => {
     net = mockFetch({ 'e.test': () => status(502) });
-    await assert.rejects(getText('https://e.test/jobs', { cache: false, attempts: 3 }),
-      /^Error: e\.test: gave up after 3 attempts \(last: 502\) https:\/\/e\.test\/jobs$/);
+    await assert.rejects(
+      getText('https://e.test/jobs', { cache: false, attempts: 3 }),
+      /^Error: e\.test: gave up after 3 attempts \(last: 502\) https:\/\/e\.test\/jobs$/,
+    );
     assert.equal(net.calls.length, 3);
   });
 
@@ -91,11 +114,13 @@ describe('request: retries', () => {
   });
 
   it('sends the job-bot User-Agent unless the caller sets one', async () => {
-    const agents: string[] = [];
-    net = mockFetch({ 'g.test': (_u: string, init?: RequestInit) => {
-      agents.push((init?.headers as Record<string, string>)['user-agent']);
-      return 'ok';
-    } });
+    const agents: (string | undefined)[] = [];
+    net = mockFetch({
+      'g.test': (_u: string, init?: RequestInit) => {
+        agents.push((init?.headers as Record<string, string> | undefined)?.['user-agent']);
+        return 'ok';
+      },
+    });
     await getText('https://g.test/', { cache: false });
     await getText('https://g.test/', { cache: false, headers: { 'User-Agent': 'Browser' } });
     assert.deepEqual(agents, [UA, 'Browser']);
@@ -105,13 +130,15 @@ describe('request: retries', () => {
 describe('request: conditional cache', () => {
   it('stores ETag/Last-Modified and reuses the cached body on 304', async () => {
     const seen: Record<string, string>[] = [];
-    net = mockFetch({ 'h.test': (_u: string, init?: RequestInit) => {
-      const h = init?.headers as Record<string, string>;
-      seen.push(h);
-      return h['if-none-match'] === '"v1"'
-        ? status(304)
-        : new Response('{"jobs":[1,2]}', { headers: { etag: '"v1"', 'last-modified': 'Tue, 27 Oct 2026 10:00:00 GMT' } });
-    } });
+    net = mockFetch({
+      'h.test': (_u: string, init?: RequestInit) => {
+        const h = init?.headers as Record<string, string>;
+        seen.push(h);
+        return h['if-none-match'] === '"v1"'
+          ? status(304)
+          : new Response('{"jobs":[1,2]}', { headers: { etag: '"v1"', 'last-modified': 'Tue, 27 Oct 2026 10:00:00 GMT' } });
+      },
+    });
     const first = await request('https://h.test/jobs');
     const second = await request('https://h.test/jobs');
     assert.deepEqual([first.status, first.fromCache], [200, false]);
@@ -124,10 +151,12 @@ describe('request: conditional cache', () => {
 
   it('does not cache responses without validators, nor when cache is off', async () => {
     const seen: Record<string, string>[] = [];
-    net = mockFetch({ 'i.test': (_u: string, init?: RequestInit) => {
-      seen.push(init?.headers as Record<string, string>);
-      return new Response('x', { headers: seen.length === 1 ? {} : { etag: '"e"' } });
-    } });
+    net = mockFetch({
+      'i.test': (_u: string, init?: RequestInit) => {
+        seen.push(init?.headers as Record<string, string>);
+        return new Response('x', { headers: seen.length === 1 ? {} : { etag: '"e"' } });
+      },
+    });
     await getText('https://i.test/a');
     await getText('https://i.test/a');
     await getText('https://i.test/b', { cache: false });
@@ -140,10 +169,12 @@ describe('request: POST', () => {
   it('sends a JSON body, retries 5xx and never uses the cache', async () => {
     const seen: RequestInit[] = [];
     const cachedBefore = readdirSync(cacheDir).length;
-    net = mockFetch({ 'j.test': (_u: string, init?: RequestInit) => {
-      seen.push(init!);
-      return seen.length === 1 ? status(503) : new Response('{"total":1}', { headers: { etag: '"p"' } });
-    } });
+    net = mockFetch({
+      'j.test': (_u: string, init?: RequestInit) => {
+        seen.push(init!);
+        return seen.length === 1 ? status(503) : new Response('{"total":1}', { headers: { etag: '"p"' } });
+      },
+    });
     assert.deepEqual(await postJson('https://j.test/search', { limit: 20 }), { total: 1 });
     assert.deepEqual(await postJson('https://j.test/search', { limit: 20 }), { total: 1 });
     assert.equal(seen.length, 3);
@@ -166,7 +197,12 @@ describe('request: POST', () => {
 
   it('GET stays the default and sends no body', async () => {
     let init: RequestInit | undefined;
-    net = mockFetch({ 'l.test': (_u: string, i?: RequestInit) => ((init = i), 'ok') });
+    net = mockFetch({
+      'l.test': (_u: string, i?: RequestInit) => {
+        init = i;
+        return 'ok';
+      },
+    });
     await getText('https://l.test/', { cache: false });
     assert.equal(init?.method, 'GET');
     assert.equal(init?.body, undefined);

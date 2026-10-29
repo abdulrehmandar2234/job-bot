@@ -14,25 +14,47 @@ vi.mock('@/app/settings/actions', () => ({ saveConfig: vi.fn(), saveApplicant: v
 vi.mock('next/server', () => ({ connection: vi.fn(async () => {}) }));
 
 const CONFIG = {
-  minScore: 45, maxAgeDays: 14, autoCvVersions: false, roleInclude: 'laravel|php', roleExclude: 'senior',
+  minScore: 45,
+  maxAgeDays: 14,
+  autoCvVersions: false,
+  roleInclude: 'laravel|php',
+  roleExclude: 'senior',
   ai: { enabled: true, scoreModel: 'haiku', letterModel: 'sonnet', maxScorePerRun: 80 },
   linkedin: { enabled: false, keywords: ['php', 'react'], locations: ['Dubai'], remoteFrom: 'Pakistan', pagesPerSearch: 2 },
   remote: { enabled: true, boards: ['himalayas', 'remotive'], himalayasQueries: ['php'], allow: 'worldwide', deny: 'us', flag: 'emea' },
   countries: { AE: { name: 'UAE', visa: 'employer', match: 'dubai|uae' } },
-  companies: [{ name: 'Careem', ats: 'greenhouse', token: 'careem' }, { name: 'Odd', ats: 'taleo', token: 'odd' }],
+  companies: [
+    { name: 'Careem', ats: 'greenhouse', token: 'careem' },
+    { name: 'Odd', ats: 'taleo', token: 'odd' },
+  ],
 };
 const APPLICANT = {
-  _help: 'h', currentLocation: 'Lahore', nationality: null, expectedSalary: { AE: '20k', SA: null }, other: { github: 'gh/me' },
+  _help: 'h',
+  currentLocation: 'Lahore',
+  nationality: null,
+  expectedSalary: { AE: '20k', SA: null },
+  other: { github: 'gh/me' },
 };
-const file = (data: object | null, extra: Partial<SettingsFile> = {}): SettingsFile =>
-  ({ file: '/x/file.json', text: JSON.stringify(data), data: data as SettingsFile['data'], error: null, example: false, ...extra });
+const file = (data: object | null, extra: Partial<SettingsFile> = {}): SettingsFile => ({
+  file: '/x/file.json',
+  text: JSON.stringify(data),
+  data: data as SettingsFile['data'],
+  error: null,
+  example: false,
+  ...extra,
+});
 
 const saved = (message: string): SaveState => ({ ok: true, message, errors: [] });
-const rejected = (errors: { path: string; message: string }[]): SaveState =>
-  ({ ok: false, message: `Not saved: ${errors.length} problems.`, errors });
-const lastForm = (fn: unknown) => (vi.mocked(fn as typeof saveConfig).mock.calls.at(-1)![1]);
+const rejected = (errors: { path: string; message: string }[]): SaveState => ({
+  ok: false,
+  message: `Not saved: ${errors.length} problems.`,
+  errors,
+});
+const lastForm = (fn: unknown) => vi.mocked(fn as typeof saveConfig).mock.calls.at(-1)![1];
 
-beforeEach(() => { vi.clearAllMocks(); });
+beforeEach(() => {
+  vi.clearAllMocks();
+});
 
 describe('ConfigForm', () => {
   it('shows the current values with fitting inputs', () => {
@@ -47,8 +69,11 @@ describe('ConfigForm', () => {
     expect(screen.getByLabelText('Score model')).toHaveValue('haiku');
     expect(screen.getAllByTestId('company-row')).toHaveLength(2);
     expect(screen.getByLabelText('Company 1 ATS')).toHaveValue('greenhouse');
-    expect(within(screen.getByLabelText('Company 1 ATS')).getAllByRole('option').map((o) => o.textContent))
-      .toEqual(['greenhouse', 'lever', 'ashby', 'recruitee', 'workable', 'smartrecruiters', 'workday']);
+    expect(
+      within(screen.getByLabelText('Company 1 ATS'))
+        .getAllByRole('option')
+        .map((o) => o.textContent),
+    ).toEqual(['greenhouse', 'lever', 'ashby', 'recruitee', 'workable', 'smartrecruiters', 'workday']);
     // An ats the dashboard does not know yet stays selected rather than being changed.
     expect(screen.getByLabelText('Company 2 ATS')).toHaveValue('taleo');
   });
@@ -108,15 +133,22 @@ describe('ConfigForm', () => {
     await screen.findByRole('status');
     const fd = lastForm(saveConfig);
     expect([fd.get('companies[0].name'), fd.get('companies[0].orig')]).toEqual(['Odd', '1']);
-    expect([fd.get('companies[1].name'), fd.get('companies[1].ats'), fd.get('companies[1].token'), fd.get('companies[1].orig')])
-      .toEqual(['Tamara', 'lever', 'tamara', '-1']);
+    expect([fd.get('companies[1].name'), fd.get('companies[1].ats'), fd.get('companies[1].token'), fd.get('companies[1].orig')]).toEqual([
+      'Tamara',
+      'lever',
+      'tamara',
+      '-1',
+    ]);
     expect(fd.has('companies[2].name')).toBe(false);
   });
 
   it('shows errors next to their fields and in a summary, keeping the edits', async () => {
-    vi.mocked(saveConfig).mockResolvedValue(rejected([
-      { path: 'companies[1].token', message: 'Too small' }, { path: 'linkedin.keywords[1]', message: 'Empty keyword' },
-    ]));
+    vi.mocked(saveConfig).mockResolvedValue(
+      rejected([
+        { path: 'companies[1].token', message: 'Too small' },
+        { path: 'linkedin.keywords[1]', message: 'Empty keyword' },
+      ]),
+    );
     const user = userEvent.setup();
     render(<ConfigForm config={file(CONFIG)} />);
     await user.clear(screen.getByLabelText('Company 2 token'));
@@ -134,7 +166,9 @@ describe('ConfigForm', () => {
 
   it('points to the JSON editor when config.json cannot be parsed', () => {
     render(<ConfigForm config={file(null, { text: '{', error: 'invalid JSON: x' })} />);
-    expect(screen.getByRole('alert')).toHaveTextContent('config.json cannot be read (invalid JSON: x). Fix it under "Advanced: edit JSON".');
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'config.json cannot be read (invalid JSON: x). Fix it under "Advanced: edit JSON".',
+    );
   });
 });
 
@@ -202,8 +236,12 @@ describe('SaveStatus', () => {
 
 describe('Settings page content', () => {
   const dir = mkdtempSync(join(tmpdir(), 'job-bot-web-settings-page-'));
-  afterEach(() => { vi.unstubAllEnvs(); });
-  afterAll(() => { rmSync(dir, { recursive: true, force: true }); });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+  afterAll(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
 
   it('reads both files and renders both forms with their JSON editors', async () => {
     writeFileSync(join(dir, 'config.json'), JSON.stringify(CONFIG));

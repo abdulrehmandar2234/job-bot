@@ -19,26 +19,42 @@ export type JobRow = { id: string } & Partial<Omit<Job, 'id'>>;
 export async function insertJob(row: JobRow) {
   const id = row.id.startsWith(PREFIX) ? row.id : PREFIX + row.id;
   const data: Record<string, unknown> = {
-    source: 'greenhouse', company: 'Acme', title: 'Engineer', country: 'AE', url: `https://example.com/${id}`,
-    status: 'new', score: 50, ...row, id,
+    source: 'greenhouse',
+    company: 'Acme',
+    title: 'Engineer',
+    country: 'AE',
+    url: `https://example.com/${id}`,
+    status: 'new',
+    score: 50,
+    ...row,
+    id,
   };
   if (data.form_answers) data.form_answers = JSON.stringify(data.form_answers);
   if (data.interview_prep) data.interview_prep = JSON.stringify(data.interview_prep);
   const cols = Object.keys(data);
-  await pool.query(`INSERT INTO jobs (${cols.join(', ')}) VALUES (${cols.map((_, i) => `$${i + 1}`).join(', ')})`,
-    cols.map((c) => data[c]));
+  await pool.query(
+    `INSERT INTO jobs (${cols.join(', ')}) VALUES (${cols.map((_, i) => `$${i + 1}`).join(', ')})`,
+    cols.map((c) => data[c]),
+  );
   return id;
 }
 
-export async function insertFetchRun(input: { started_at?: Date; finished_at?: Date | null; checked?: number; inserted?: number;
-  new_matches?: number; errors?: { company: string; error: string }[] }) {
+export async function insertFetchRun(input: {
+  started_at?: Date;
+  finished_at?: Date | null;
+  checked?: number;
+  inserted?: number;
+  new_matches?: number;
+  errors?: { company: string; error: string }[];
+}) {
   const run = { ...input, ...(input.errors && { errors: JSON.stringify(input.errors) }) };
   const cols = Object.keys(run);
   const { rows } = await pool.query<{ id: number }>(
     cols.length
       ? `INSERT INTO fetch_runs (${cols.join(', ')}) VALUES (${cols.map((_, i) => `$${i + 1}`).join(', ')}) RETURNING id`
       : 'INSERT INTO fetch_runs DEFAULT VALUES RETURNING id',
-    cols.map((c) => (run as Record<string, unknown>)[c]));
+    cols.map((c) => (run as Record<string, unknown>)[c]),
+  );
   fetchRunIds.push(rows[0].id);
   return rows[0].id;
 }

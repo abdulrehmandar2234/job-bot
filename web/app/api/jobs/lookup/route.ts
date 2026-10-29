@@ -22,8 +22,15 @@ export async function GET(req: NextRequest) {
   const j = await findJobByUrl(url);
   const base = req.nextUrl.origin;
   const job = j && {
-    id: j.id, company: j.company, title: j.title, url: j.url, status: j.status,
-    score: j.score, ai_score: j.ai_score, ai_verdict: j.ai_verdict, ai_summary: j.ai_summary,
+    id: j.id,
+    company: j.company,
+    title: j.title,
+    url: j.url,
+    status: j.status,
+    score: j.score,
+    ai_score: j.ai_score,
+    ai_verdict: j.ai_verdict,
+    ai_summary: j.ai_summary,
     cv_version: j.cv_version,
     cv_url: j.cv_version ? `${base}/api/cv/${encodeURIComponent(j.cv_version)}?download` : null,
     cover_letter: j.cover_letter,

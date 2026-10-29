@@ -16,19 +16,33 @@ export async function readTab(tabId) {
 export function renderSendForm(root, { method, job }, onSent) {
   const field = (name, label) => h('label', {}, label, h('input', { name, value: job[name] ?? '' }));
   const status = h('p', { className: 'status' });
-  const form = h('form', {},
-    h('p', { className: 'hint' }, method === 'jsonld'
-      ? 'Read from the job posting data on this page.'
-      : 'No job posting data on this page: check the fields. Select the job text before opening this to send only that.'),
-    field('title', 'Title'), field('company', 'Company'), field('location', 'Location'),
+  const form = h(
+    'form',
+    {},
+    h(
+      'p',
+      { className: 'hint' },
+      method === 'jsonld'
+        ? 'Read from the job posting data on this page.'
+        : 'No job posting data on this page: check the fields. Select the job text before opening this to send only that.',
+    ),
+    field('title', 'Title'),
+    field('company', 'Company'),
+    field('location', 'Location'),
     h('p', { className: 'hint' }, `Source: ${job.source} · ${job.description.length.toLocaleString('en')} characters of description`),
     h('button', { type: 'submit' }, 'Send to job-bot'),
-    status);
+    status,
+  );
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const data = new FormData(form);
-    const edited = { ...job, title: String(data.get('title')).trim(), company: String(data.get('company')).trim(), location: String(data.get('location')).trim() };
+    const edited = {
+      ...job,
+      title: String(data.get('title')).trim(),
+      company: String(data.get('company')).trim(),
+      location: String(data.get('location')).trim(),
+    };
     const missing = missingFields(edited);
     if (missing.length) {
       status.textContent = `Please fill in: ${missing.join(', ')}.`;

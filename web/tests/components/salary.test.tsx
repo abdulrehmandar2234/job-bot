@@ -19,7 +19,9 @@ describe('SalaryTag', () => {
   });
 
   it('renders nothing without a salary', () => {
-    const { container } = render(<SalaryTag job={{ ...job, salary_min: null, salary_max: null, salary_currency: null, salary_period: null }} expected={{}} />);
+    const { container } = render(
+      <SalaryTag job={{ ...job, salary_min: null, salary_max: null, salary_currency: null, salary_period: null }} expected={{}} />,
+    );
     expect(container).toBeEmptyDOMElement();
   });
 });
@@ -32,19 +34,35 @@ describe('salaryParams', () => {
   });
 
   it('defaults to no filter in EUR per year, and ignores junk', () => {
-    expect(params({})).toEqual({ params: { sal: undefined, cur: 'EUR', per: 'year', only: false },
-      filter: { minSalary: undefined, salaryOnly: false }, query: {} });
+    expect(params({})).toEqual({
+      params: { sal: undefined, cur: 'EUR', per: 'year', only: false },
+      filter: { minSalary: undefined, salaryOnly: false },
+      query: {},
+    });
     expect(params({ sal: '-5', cur: 'BTC', per: 'week' }).params).toEqual({ sal: undefined, cur: 'EUR', per: 'year', only: false });
   });
 });
 
 describe('SalaryFilter', () => {
   it('renders the inputs with the current values', () => {
-    render(<form><SalaryFilter params={params({ sal: '5000', cur: 'EUR', per: 'month', salonly: '1' }).params} /></form>);
+    render(
+      <form>
+        <SalaryFilter params={params({ sal: '5000', cur: 'EUR', per: 'month', salonly: '1' }).params} />
+      </form>,
+    );
     expect(screen.getByRole('spinbutton', { name: 'Min salary' })).toHaveValue(5000);
     expect(screen.getByRole('combobox', { name: 'Salary currency' })).toHaveValue('EUR');
     expect(screen.getByRole('combobox', { name: 'Salary period' })).toHaveValue('month');
     expect(screen.getByRole('checkbox', { name: 'only with salary' })).toBeChecked();
-    expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual(['EUR', 'USD', 'GBP', 'AED', 'SAR', 'PKR', '/ year', '/ month']);
+    expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual([
+      'EUR',
+      'USD',
+      'GBP',
+      'AED',
+      'SAR',
+      'PKR',
+      '/ year',
+      '/ month',
+    ]);
   });
 });

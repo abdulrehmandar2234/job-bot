@@ -36,7 +36,12 @@ describe('config validation', () => {
     const c = realConfig();
     c.countries.NL.visa = 'none';
     c.ai.concurrency = 0;
-    assert.deepEqual(errorsOf(validateConfig(c)).map((e) => e.path).sort(), ['ai.concurrency', 'countries.NL.visa']);
+    assert.deepEqual(
+      errorsOf(validateConfig(c))
+        .map((e) => e.path)
+        .sort(),
+      ['ai.concurrency', 'countries.NL.visa'],
+    );
   });
 
   it('accepts Workday companies and an optional adzuna section, and checks it', () => {
@@ -46,11 +51,17 @@ describe('config validation', () => {
     delete c.adzuna;
     assert.ok(validateConfig(c).ok);
     c.adzuna = { countries: ['nl'], pagesPerSearch: -1 };
-    assert.deepEqual(errorsOf(validateConfig(c)).map((e) => e.path), ['adzuna.pagesPerSearch']);
+    assert.deepEqual(
+      errorsOf(validateConfig(c)).map((e) => e.path),
+      ['adzuna.pagesPerSearch'],
+    );
   });
 
   it('rejects something that is not an object', () => {
-    assert.deepEqual(errorsOf(validateConfig([])).map((e) => e.path), ['(root)']);
+    assert.deepEqual(
+      errorsOf(validateConfig([])).map((e) => e.path),
+      ['(root)'],
+    );
   });
 });
 
@@ -82,11 +93,14 @@ describe('settings files', () => {
   it('loadSettings throws a message with the file and each field', () => {
     const f = join(dir, 'config.json');
     writeFileSync(f, JSON.stringify({ ...realConfig(), maxAgeDays: -1 }));
-    assert.throws(() => loadSettings('config', f), (e: unknown) => {
-      assert.ok(e instanceof InvalidSettingsError);
-      assert.match(e.message, new RegExp(`Invalid settings file ${f.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}:\n  - maxAgeDays: `));
-      return true;
-    });
-    assert.throws(() => loadSettings('applicant', join(dir, 'missing.json')), /missing\.json:\n  - \(root\): file not found/);
+    assert.throws(
+      () => loadSettings('config', f),
+      (e: unknown) => {
+        assert.ok(e instanceof InvalidSettingsError);
+        assert.match(e.message, new RegExp(`Invalid settings file ${f.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}:\n  - maxAgeDays: `));
+        return true;
+      },
+    );
+    assert.throws(() => loadSettings('applicant', join(dir, 'missing.json')), /missing\.json:\n {2}- \(root\): file not found/);
   });
 });

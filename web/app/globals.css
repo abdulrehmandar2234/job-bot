@@ -27,12 +27,10 @@ body {
 
 @layer components {
   .btn {
-    @apply inline-flex items-center rounded-lg border border-zinc-300 px-3 py-1.5 text-sm font-medium
-      hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800;
+    @apply inline-flex items-center rounded-lg border border-zinc-300 px-3 py-1.5 text-sm font-medium hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800;
   }
   .btn-primary {
-    @apply border-zinc-900 bg-zinc-900 text-white hover:bg-zinc-700
-      dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300;
+    @apply border-zinc-900 bg-zinc-900 text-white hover:bg-zinc-700 dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300;
   }
   .btn-good {
     @apply border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-700 dark:hover:bg-emerald-500;

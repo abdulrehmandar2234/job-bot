@@ -21,14 +21,21 @@ const bot = vi.mocked(runBot);
 const BAYT = 'https://www.bayt.com';
 const URL_ = 'http://localhost:3100/api/import';
 
-const post = (body: unknown, origin: string | null = BAYT) => POST(new NextRequest(URL_, {
-  method: 'POST',
-  headers: { 'content-type': 'application/json', ...(origin ? { origin } : {}) },
-  body: typeof body === 'string' ? body : JSON.stringify(body),
-}));
+const post = (body: unknown, origin: string | null = BAYT) =>
+  POST(
+    new NextRequest(URL_, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...(origin ? { origin } : {}) },
+      body: typeof body === 'string' ? body : JSON.stringify(body),
+    }),
+  );
 
-const job = (over: Record<string, unknown> = {}) =>
-  ({ company: 'Acme', title: 'Backend Engineer', url: `${BAYT}/en/uae/jobs/backend-123/`, ...over });
+const job = (over: Record<string, unknown> = {}) => ({
+  company: 'Acme',
+  title: 'Backend Engineer',
+  url: `${BAYT}/en/uae/jobs/backend-123/`,
+  ...over,
+});
 
 /** What `bot add --file` was given. */
 const imported = () => {
@@ -44,14 +51,16 @@ afterAll(() => rmSync(BOT_ROOT, { recursive: true, force: true }));
 
 describe('OPTIONS (CORS preflight)', () => {
   it.each([BAYT, 'https://www.linkedin.com', 'https://www.gulftalent.com', 'https://www.naukrigulf.com'])(
-    'allows %s, including from a public site to localhost', async (origin) => {
+    'allows %s, including from a public site to localhost',
+    async (origin) => {
       const res = await OPTIONS(new NextRequest(URL_, { method: 'OPTIONS', headers: { origin } }));
       expect(res.status).toBe(204);
       expect(res.headers.get('access-control-allow-origin')).toBe(origin);
       expect(res.headers.get('access-control-allow-methods')).toBe('POST');
       expect(res.headers.get('access-control-allow-headers')).toBe('content-type');
       expect(res.headers.get('access-control-allow-private-network')).toBe('true');
-    });
+    },
+  );
 
   it.each(['https://evil.example', 'http://www.bayt.com', null])('does not allow origin %s', async (origin) => {
     const res = await OPTIONS(new NextRequest(URL_, { method: 'OPTIONS', headers: origin ? { origin } : {} }));
@@ -67,14 +76,17 @@ describe('POST', () => {
     expect(bot).not.toHaveBeenCalled();
   });
 
-  it.each([['not json', '{oops'], ['an object', { jobs: [] }], ['an empty list', []]])(
-    'adds nothing for %s', async (_, body) => {
-      const res = await post(body);
-      expect(res.status).toBe(200);
-      expect(await res.json()).toEqual({ added: 0 });
-      expect(res.headers.get('access-control-allow-origin')).toBe(BAYT);
-      expect(bot).not.toHaveBeenCalled();
-    });
+  it.each([
+    ['not json', '{oops'],
+    ['an object', { jobs: [] }],
+    ['an empty list', []],
+  ])('adds nothing for %s', async (_, body) => {
+    const res = await post(body);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ added: 0 });
+    expect(res.headers.get('access-control-allow-origin')).toBe(BAYT);
+    expect(bot).not.toHaveBeenCalled();
+  });
 
   it('writes the jobs to an import file, runs `bot add --file` and reports matches', async () => {
     bot.mockResolvedValue('Imported 2\n  81  Acme — Backend Engineer\n  64  Beta — PHP Dev\nfiltered: 0\n');
@@ -93,14 +105,32 @@ describe('POST', () => {
     expect(existsSync(args[2])).toBe(true);
     expect(timeout).toBe(120_000);
     expect(imported()).toEqual([
-      { source: 'bayt', company: 'Acme', title: 'Backend Engineer', location: '', url: `${BAYT}/en/uae/jobs/backend-123/`, description: '', posted_at: null },
-      { source: 'bayt', company: 'Beta', title: 'PHP Dev', location: '', url: `${BAYT}/en/uae/jobs/php-9/`, description: '', posted_at: null },
+      {
+        source: 'bayt',
+        company: 'Acme',
+        title: 'Backend Engineer',
+        location: '',
+        url: `${BAYT}/en/uae/jobs/backend-123/`,
+        description: '',
+        posted_at: null,
+      },
+      {
+        source: 'bayt',
+        company: 'Beta',
+        title: 'PHP Dev',
+        location: '',
+        url: `${BAYT}/en/uae/jobs/php-9/`,
+        description: '',
+        posted_at: null,
+      },
     ]);
   });
 
   it('derives the source from the origin unless given', async () => {
-    await post([job({ url: 'https://www.linkedin.com/jobs/view/1' }), job({ url: 'https://www.linkedin.com/jobs/view/2', source: 'li-custom' })],
-      'https://www.linkedin.com');
+    await post(
+      [job({ url: 'https://www.linkedin.com/jobs/view/1' }), job({ url: 'https://www.linkedin.com/jobs/view/2', source: 'li-custom' })],
+      'https://www.linkedin.com',
+    );
     expect(imported().map((j) => j.source)).toEqual(['linkedin', 'li-custom']);
   });
 
@@ -121,10 +151,16 @@ describe('POST', () => {
   });
 
   it('caps field lengths and keeps location, description and posted_at', async () => {
-    await post([job({
-      source: 's'.repeat(50), company: 'c'.repeat(250), title: 't'.repeat(400), location: 'l'.repeat(400),
-      description: 'd'.repeat(25_000), posted_at: '2026-10-27',
-    })]);
+    await post([
+      job({
+        source: 's'.repeat(50),
+        company: 'c'.repeat(250),
+        title: 't'.repeat(400),
+        location: 'l'.repeat(400),
+        description: 'd'.repeat(25_000),
+        posted_at: '2026-10-27',
+      }),
+    ]);
     const [j] = imported();
     expect((j.source as string).length).toBe(30);
     expect((j.company as string).length).toBe(200);

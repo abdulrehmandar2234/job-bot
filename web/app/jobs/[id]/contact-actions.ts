@@ -23,8 +23,13 @@ function contactId(v: FormDataEntryValue | null): number {
   return n;
 }
 
-const fields = (fd: FormData) => Object.fromEntries(['name', 'role', 'email', 'linkedin_url', 'phone', 'notes', 'referral_status']
-  .map((k) => { const v = fd.get(k); return [k, typeof v === 'string' ? v : undefined]; }));
+const fields = (fd: FormData) =>
+  Object.fromEntries(
+    ['name', 'role', 'email', 'linkedin_url', 'phone', 'notes', 'referral_status'].map((k) => {
+      const v = fd.get(k);
+      return [k, typeof v === 'string' ? v : undefined];
+    }),
+  );
 
 /** Adds a contact, or updates one when the form has `contact_id`. Validation errors come back to the form. */
 export async function saveContact(_prev: ContactState, fd: FormData): Promise<ContactState> {
@@ -34,12 +39,18 @@ export async function saveContact(_prev: ContactState, fd: FormData): Promise<Co
   const c = r.contact;
   const values = [c.name, c.role, c.email, c.linkedin_url, c.phone, c.notes, c.referral_status];
   if (fd.get('contact_id') == null) {
-    await pool.query(`INSERT INTO contacts (job_id, name, role, email, linkedin_url, phone, notes, referral_status)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`, [jobId, ...values]);
+    await pool.query(
+      `INSERT INTO contacts (job_id, name, role, email, linkedin_url, phone, notes, referral_status)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [jobId, ...values],
+    );
   } else {
     // The contact must belong to this job, so a forged form cannot edit another job's contact.
-    const { rowCount } = await pool.query(`UPDATE contacts SET name = $3, role = $4, email = $5, linkedin_url = $6, phone = $7,
-      notes = $8, referral_status = $9 WHERE id = $1 AND job_id = $2`, [contactId(fd.get('contact_id')), jobId, ...values]);
+    const { rowCount } = await pool.query(
+      `UPDATE contacts SET name = $3, role = $4, email = $5, linkedin_url = $6, phone = $7,
+      notes = $8, referral_status = $9 WHERE id = $1 AND job_id = $2`,
+      [contactId(fd.get('contact_id')), jobId, ...values],
+    );
     if (!rowCount) throw new Error('Unknown contact');
   }
   refresh();

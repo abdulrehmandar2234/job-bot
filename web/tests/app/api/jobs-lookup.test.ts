@@ -7,17 +7,25 @@ import { cleanupDb, closeDb, ensureSchema, insertJob, PREFIX } from '../../helpe
 const EXT = `chrome-extension://${EXTENSION_ID}`;
 const SITE = 'https://careers.lookup-test.example';
 
-const get = (url: string | null, origin: string | null = EXT) => GET(new NextRequest(
-  `http://localhost:3100/api/jobs/lookup${url === null ? '' : `?url=${encodeURIComponent(url)}`}`,
-  { headers: origin ? { origin } : {} }));
+const get = (url: string | null, origin: string | null = EXT) =>
+  GET(
+    new NextRequest(`http://localhost:3100/api/jobs/lookup${url === null ? '' : `?url=${encodeURIComponent(url)}`}`, {
+      headers: origin ? { origin } : {},
+    }),
+  );
 
 beforeAll(ensureSchema);
 beforeEach(cleanupDb);
 afterAll(closeDb);
 
 describe('GET /api/jobs/lookup', () => {
-  it.each([null, 'https://evil.example', 'https://www.bayt.com', 'chrome-extension://nope',
-    'chrome-extension://abcdefghijklmnopabcdefghijklmnop'])('rejects origin %s with 403', async (origin) => {
+  it.each([
+    null,
+    'https://evil.example',
+    'https://www.bayt.com',
+    'chrome-extension://nope',
+    'chrome-extension://abcdefghijklmnopabcdefghijklmnop',
+  ])('rejects origin %s with 403', async (origin) => {
     await insertJob({ id: 'a', url: `${SITE}/1`, cover_letter: 'secret' });
     const res = await get(`${SITE}/1`, origin);
     expect(res.status).toBe(403);
@@ -39,13 +47,35 @@ describe('GET /api/jobs/lookup', () => {
 
   it('returns the prepared material of an exact match', async () => {
     const answers = [{ question: 'Notice period?', answer: 'One month', needs_input: false, note: '' }];
-    await insertJob({ id: 'a', url: `${SITE}/1`, company: 'Acme', title: 'Backend Engineer', status: 'prepared', score: 70,
-      ai_score: 82, ai_verdict: 'apply', ai_summary: 'Good fit', cv_version: 'laravel-lead', cover_letter: 'Dear Acme', form_answers: answers });
+    await insertJob({
+      id: 'a',
+      url: `${SITE}/1`,
+      company: 'Acme',
+      title: 'Backend Engineer',
+      status: 'prepared',
+      score: 70,
+      ai_score: 82,
+      ai_verdict: 'apply',
+      ai_summary: 'Good fit',
+      cv_version: 'laravel-lead',
+      cover_letter: 'Dear Acme',
+      form_answers: answers,
+    });
     const { job } = await (await get(`${SITE}/1`)).json();
     expect(job).toEqual({
-      id: `${PREFIX}a`, company: 'Acme', title: 'Backend Engineer', url: `${SITE}/1`, status: 'prepared',
-      score: 70, ai_score: 82, ai_verdict: 'apply', ai_summary: 'Good fit', cv_version: 'laravel-lead',
-      cv_url: 'http://localhost:3100/api/cv/laravel-lead?download', cover_letter: 'Dear Acme', form_answers: answers,
+      id: `${PREFIX}a`,
+      company: 'Acme',
+      title: 'Backend Engineer',
+      url: `${SITE}/1`,
+      status: 'prepared',
+      score: 70,
+      ai_score: 82,
+      ai_verdict: 'apply',
+      ai_summary: 'Good fit',
+      cv_version: 'laravel-lead',
+      cv_url: 'http://localhost:3100/api/cv/laravel-lead?download',
+      cover_letter: 'Dear Acme',
+      form_answers: answers,
       dashboard_url: `http://localhost:3100/jobs/${encodeURIComponent(`${PREFIX}a`)}`,
     });
   });
@@ -79,7 +109,9 @@ describe('GET /api/jobs/lookup', () => {
     const ok = await OPTIONS(new NextRequest('http://localhost:3100/api/jobs/lookup', { method: 'OPTIONS', headers: { origin: EXT } }));
     expect(ok.status).toBe(204);
     expect(ok.headers.get('access-control-allow-origin')).toBe(EXT);
-    const bad = await OPTIONS(new NextRequest('http://localhost:3100/api/jobs/lookup', { method: 'OPTIONS', headers: { origin: 'https://evil.example' } }));
+    const bad = await OPTIONS(
+      new NextRequest('http://localhost:3100/api/jobs/lookup', { method: 'OPTIONS', headers: { origin: 'https://evil.example' } }),
+    );
     expect(bad.headers.get('access-control-allow-origin')).toBe('null');
   });
 });
