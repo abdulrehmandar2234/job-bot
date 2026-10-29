@@ -71,7 +71,9 @@ describe('follow-up reminders on the dashboard', () => {
     expect(labels.slice(1, 4)).toEqual(['Prepared', 'Applied', 'Needs follow-up']);
     expect(cardTitles()).toEqual(['TG waiting · Acme Follow up · 9 days']);
     // The filter form keeps the view instead of switching to a status.
-    const filters = screen.getByPlaceholderText('Search company or title').closest('form')!;
+    expect(tab('Needs follow-up')).toHaveAttribute('aria-current', 'page');
+    expect(tab('Applied')).not.toHaveAttribute('aria-current');
+    const filters = screen.getByRole('searchbox', { name: 'Search company or title' }).closest('form')!;
     expect((filters.querySelector('input[name="view"]') as HTMLInputElement).value).toBe('followup');
     expect(filters.querySelector('input[name="status"]')).toBeNull();
   });

@@ -104,12 +104,21 @@ describe('job page', () => {
     expect(within(section).queryByRole('button', { name: 'Clear all' })).not.toBeInTheDocument();
     expect(within(section).queryByText(/Yellow answers need your input/)).not.toBeInTheDocument();
 
-    const textarea = within(section).getByRole('textbox');
+    const textarea = within(section).getByRole('textbox', { name: 'Application form questions' });
     expect(textarea).toHaveAttribute('name', 'questions');
     expect(textarea).toBeRequired();
     const draftForm = textarea.closest('form')!;
     expect(draftForm.querySelector('input[name="id"]')).toHaveValue(id);
     expect(within(draftForm).getByRole('button', { name: 'Draft answers' })).toBeInTheDocument();
+  });
+
+  it('labels the job notes field (apart from contact notes) and fills it with the saved notes', async () => {
+    await insertJob({ id, notes: 'Recruiter: Sara' });
+    await renderJob(id);
+    const notes = screen.getByRole('textbox', { name: 'Job notes' });
+    expect(notes).toHaveAttribute('name', 'notes');
+    expect(notes).toHaveValue('Recruiter: Sara');
+    expect(within(notes.closest('form')!).getByRole('button', { name: 'Save notes' })).toBeInTheDocument();
   });
 
   it('lists drafted answers with copy buttons, highlights ones needing input, and offers Clear all', async () => {
