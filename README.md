@@ -48,6 +48,7 @@ Every posting is checked by `src/match.ts`. Jobs that fail a rule are kept with 
 - **Age:** postings older than `maxAgeDays` (14) are skipped, and matching jobs expire automatically once they get older.
 - **Keyword score:** a weighted match of the job's skills against yours, with a `minScore` threshold. It also suggests which CV version fits.
 - **AI review:** the local Claude CLI (model `haiku`) reads each matching job together with your CV and returns a 0–100 score, a verdict (strong / good / stretch / poor), reasons, gaps and red flags (part-time, language, visa, region lock).
+- **Instant alerts:** when the AI rates a job `strong`, `ai:score` (and so the daily fetch) shows a macOS notification right away: one per job, or one grouped notification for more than three. Each job alerts once (`alerted_at`). With `terminal-notifier` installed (Homebrew), clicking it opens the job in the dashboard. Turn it off with `config.json` → `ai.alertStrong: false`.
 - **Duplicate grouping:** the same job found on several sites (company board, LinkedIn, Bayt, Himalayas) is shown once, with links to every copy.
 
 ### Application preparation
@@ -55,6 +56,7 @@ Every posting is checked by `src/match.ts`. Jobs that fail a rule are kept with 
 - **CV versions:** a default CV plus versions per stack cluster (`laravel`, `tall`, `laravel-vue`, `mern`, `pern`, `next-nest`, `backend-node`, `frontend-react`, `ai-fullstack`) and one-off custom CVs for a single job. Every PDF has the same filename (`abdulrehman_dar_resume.pdf`), and the folder name identifies the version. Versions are reused and only rebuilt (`v2`, `v3`, ...) when the master CV, profiles or template change.
 - **Cover letters:** written by Claude (model `sonnet`) from the job description and your CV, using only true facts and making no promises about salary, notice period or start date. If AI fails, a template letter is used instead.
 - **Form answers:** paste the questions from an application form and Claude drafts an answer for each one, using only your CV and `cv/applicant.json`. Personal decisions it cannot know (salary, notice period, start date) come back as `[FILL: ...]` and are highlighted. Each answer has a Copy button.
+- **Interview prep:** for applied and interview jobs, Claude (model `sonnet`) writes likely technical questions with what to emphasise from your CV, behavioural questions with STAR stories built only from your CV, a short company brief from the posting alone (no web research, so unsure points are marked "verify before interview"), questions to ask them, and the job's key requirements mapped to your CV or marked as gaps. Everything has Copy buttons and a Regenerate button.
 
 ### Tracking
 
@@ -158,6 +160,7 @@ All AI features call the Claude Code CLI you are signed in to (`claude -p`) with
 | Fit review    | `haiku`  | ~10 s        | `ai:score`, daily fetch, button  |
 | Cover letter  | `sonnet` | ~15–30 s     | `prepare`, "Rewrite letter"      |
 | Form answers  | `sonnet` | ~15 s        | `answer`, "Draft answers"        |
+| Interview prep| `sonnet` | ~30–60 s     | `prep`, "Prepare for interview"  |
 
 The prompts only allow facts from `cv/master.json` and `cv/applicant.json`. Fill in `cv/applicant.json` (copy it from `cv/applicant.example.json`) with your notice period, expected salary per country, etc., so form answers can use them.
 
@@ -165,7 +168,7 @@ The prompts only allow facts from `cv/master.json` and `cv/applicant.json`. Fill
 
 Every CLI start applies the numbered SQL files in `src/migrations/` that the database has not run yet (recorded in `schema_migrations`), so there is no migration command. To change the schema, add the next `NNN_name.sql` file; never edit one that is already committed (see `src/migrate.ts`).
 
-- `jobs`: one row per posting. It holds the score, matched/missing skills, visa note, flags, status, filter reason, CV version, cover letter, AI review, form answers, notes and `duplicate_of`.
+- `jobs`: one row per posting. It holds the score, matched/missing skills, visa note, flags, status, filter reason, CV version, cover letter, AI review, form answers, interview prep, alert time, notes and `duplicate_of`.
 - `job_events`: every status change with a note.
 - `fetch_runs`: per fetch, how many postings were checked, how many were new and which sources failed.
 
@@ -193,6 +196,7 @@ npm run bot -- show <id> [--full]
 npm run bot -- ai:score [--id <id>]           # AI fit review
 npm run bot -- prepare <id> [--cv laravel] [--template]
 npm run bot -- answer <id> [--file q.txt] [--clear]
+npm run bot -- prep <id>                      # AI interview prep (questions, STAR stories, brief, gaps)
 npm run bot -- custom <id> --overrides o.json # one-off CV for a single job
 npm run bot -- mark <id> applied|interview|offer|rejected|skipped ["note"]
 npm run bot -- add [--file job.json]          # add a job manually (JSON or stdin)
