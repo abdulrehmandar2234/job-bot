@@ -1,16 +1,8 @@
 import { sleep } from './http.ts';
 import { config, type Company } from '../config.ts';
+import type { RawJob } from '../types.ts';
 
-export type RawJob = {
-  id: string;
-  source: string;
-  company: string;
-  title: string;
-  location: string;
-  url: string;
-  description: string;
-  posted_at: string | null;
-};
+export type { RawJob };
 
 const stripHtml = (html: string) =>
   html

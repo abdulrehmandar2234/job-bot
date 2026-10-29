@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { config, path } from './config.ts';
-import type { Job } from './db.ts';
+import type { FormAnswer, Job } from './types.ts';
 import { masterRaw } from './cv/versions.ts';
 import type { Cv } from './cv/render.ts';
 
@@ -88,8 +88,6 @@ citizens/residents only, no sponsorship, region-locked remote, clearly junior or
 Score: 85+ strong fit, 70-84 good, 50-69 stretch, below 50 poor. Keep every string short.`;
   return askClaude<AiScore>(`CANDIDATE CV:\n${cvText()}\n\nJOB:\n${jobText(job)}`, SCORE_SCHEMA, config.ai.scoreModel, system);
 }
-
-export type FormAnswer = { question: string; answer: string; needs_input: boolean; note: string };
 
 const ANSWERS_SCHEMA = {
   type: 'object',

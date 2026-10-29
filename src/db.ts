@@ -1,37 +1,12 @@
 import pg from 'pg';
 import { readFileSync } from 'node:fs';
 import { path } from './config.ts';
+import type { Job, JobStatus } from './types.ts';
 
-export type JobStatus =
-  | 'new' | 'prepared' | 'applied' | 'interview' | 'offer' | 'rejected' | 'skipped' | 'filtered';
+export type { FormAnswer, Job, JobStatus } from './types.ts';
 
-export type Job = {
-  id: string;
-  source: string;
-  company: string;
-  title: string;
-  location: string;
-  country: string | null;
-  url: string;
-  description: string;
-  posted_at: Date | null;
-  first_seen_at: Date;
-  fetched_at: Date;
-  score: number;
-  cluster: string | null;
-  matched: string[];
-  missing: string[];
-  visa: string | null;   // why we think visa is possible
-  flags: string[];       // warnings
-  status: JobStatus;
-  filter_reason: string | null;
-  cv_version: string | null;
-  cover_letter: string | null;
-  applied_at: Date | null;
-  notes: string | null;
-  duplicate_of: string | null;
-  form_answers: { question: string; answer: string; needs_input: boolean; note: string }[];
-};
+/** Every job status, in pipeline order; the dashboard's STATUSES must match (tests/statuses.test.ts). */
+export const JOB_STATUSES = ['new', 'prepared', 'applied', 'interview', 'offer', 'rejected', 'skipped', 'filtered'] as const satisfies readonly JobStatus[];
 
 export type ScoredJob = Pick<Job,
   'id' | 'source' | 'company' | 'title' | 'location' | 'country' | 'url' | 'description' | 'score' | 'cluster' |
