@@ -1,7 +1,6 @@
 import { spawn } from 'node:child_process';
-import { existsSync } from 'node:fs';
 import { config } from './config.ts';
-import { APPLICANT_EXAMPLE_FILE, APPLICANT_FILE, loadSettings } from './settings.ts';
+import { listText, loadProfile, onsiteSituation, readApplicant, remoteFrom, signature, whereText, type Profile } from './profile.ts';
 import type { FormAnswer, InterviewPrep, Job } from './types.ts';
 import { masterRaw } from './cv/versions.ts';
 import type { Cv } from './cv/render.ts';
@@ -74,11 +73,18 @@ export function cvText(): string {
   ].join('\n');
 }
 
+/** "(remote; candidate would work from Portugal)" for remote jobs. */
+function remoteNote(job: Job): string {
+  if (job.country !== 'RM') return '';
+  const from = remoteFrom(config, loadProfile());
+  return from ? ` (remote; candidate would work from ${from})` : ' (remote)';
+}
+
 const jobText = (job: Job) =>
   [
     `TITLE: ${job.title}`,
     `COMPANY: ${job.company}`,
-    `LOCATION: ${job.location}${job.country === 'RM' ? ' (remote; candidate would work from Pakistan)' : ''}`,
+    `LOCATION: ${job.location}${remoteNote(job)}`,
     `DESCRIPTION:\n${job.description.slice(0, 12_000)}`,
   ].join('\n');
 
@@ -104,11 +110,33 @@ const SCORE_SCHEMA = {
   required: ['score', 'verdict', 'summary', 'reasons', 'gaps', 'red_flags'],
 };
 
+/**
+ * Where the candidate lives, the languages they speak, and where they need a visa, for the screening prompt.
+ * For the owner's profile: "The candidate lives in Lahore, Pakistan, speaks English and Urdu only, and needs employer
+ * visa sponsorship for onsite roles (UAE, Saudi Arabia, Netherlands); remote roles must be open to someone working
+ * from Pakistan."
+ */
+export function candidateSituation(p: Profile = loadProfile()): string {
+  const visa = Object.keys(config.countries).filter((code) => onsiteSituation(config, p, code).visa);
+  const free = Object.keys(config.countries).filter((code) => !visa.includes(code));
+  const names = (codes: string[]) => codes.map((c) => config.countries[c].name).join(', ');
+  const parts = [p.location ? `The candidate lives in ${p.location}` : 'The candidate'];
+  if (p.languages.length) parts.push(`speaks ${listText(p.languages)} only`);
+  const tail: string[] = [];
+  if (visa.length) tail.push(`needs employer visa sponsorship for onsite roles (${names(visa)})`);
+  if (free.length) tail.push(`may already work in ${names(free)} without sponsorship`);
+  let out = parts.join(', ');
+  if (tail.length) out += `${parts.length > 1 ? ',' : ''} and ${tail.join(' and ')}`;
+  const from = remoteFrom(config, p);
+  if (config.remote.enabled && from) out += `; remote roles must be open to someone working from ${from}`;
+  return `${out}.`;
+}
+
 export function aiScore(job: Job): Promise<AiScore> {
+  const p = loadProfile();
+  const lang = p.languages.length ? `language other than ${p.languages.join('/')} required` : 'a required language the CV does not show';
   const system = `You are a senior tech recruiter screening one job for one candidate. Judge real fit, not keyword overlap:
-seniority, core stack, domain, years required, and practical blockers. The candidate lives in Lahore, Pakistan, speaks
-English and Urdu only, and needs employer visa sponsorship for onsite roles (UAE, Saudi Arabia, Netherlands); remote
-roles must be open to someone working from Pakistan. Put blockers in red_flags: language other than English/Urdu required,
+seniority, core stack, domain, years required, and practical blockers. ${candidateSituation(p)} Put blockers in red_flags: ${lang},
 citizens/residents only, no sponsorship, region-locked remote, clearly junior or far more senior than the candidate.
 Score: 85+ strong fit, 70-84 good, 50-69 stretch, below 50 poor. Keep every string short.`;
   return askClaude<AiScore>(`CANDIDATE CV:\n${cvText()}\n\nJOB:\n${jobText(job)}`, SCORE_SCHEMA, config.ai.scoreModel, system);
@@ -135,24 +163,51 @@ const ANSWERS_SCHEMA = {
 };
 
 /**
- * Personal facts for forms that the CV lacks (salary, notice period...): cv/applicant.json, kept out of git.
- * Falls back to cv/applicant.example.json (all unknown). Nulls are unknown. Throws if the file is invalid.
+ * Personal facts for forms that the CV lacks (salary, notice period, contact...): cv/applicant.json, kept out of git.
+ * Without it every fact is unknown (null). Throws if the file is invalid. The template-letter sentences are left out.
  */
 export function applicantFacts(): string {
-  const file = existsSync(APPLICANT_FILE) ? APPLICANT_FILE : APPLICANT_EXAMPLE_FILE;
-  const facts = { ...loadSettings('applicant', file) };
+  const facts = { ...readApplicant() };
   delete facts._help;
+  delete facts.coverLetter;
   return JSON.stringify(facts, null, 1);
 }
 
-/** Drafts answers to pasted application-form questions. The candidate reviews and submits them himself. */
+/** The remote / onsite line of the answers and letter prompts, from the profile and the target markets. */
+function situationRule(job: Job, kind: 'answers' | 'letter'): string {
+  const p = loadProfile();
+  const where = whereText(p);
+  if (job.country === 'RM') {
+    if (kind === 'answers') return where ? `Remote role: the candidate works from ${where}.` : 'Remote role.';
+    const based = where ? `say the candidate is based in ${where}` : 'say the candidate would work remotely';
+    return `This is a remote role: ${based} and point to remote or distributed-team experience if the CV shows it.`;
+  }
+  const s = onsiteSituation(config, p, job.country);
+  const facts = [
+    p.location && (s.home ? `lives in ${p.location}, in this country` : `is in ${p.location}`),
+    s.relocate && 'would relocate',
+    s.visa ? 'needs employer visa sponsorship' : !s.home && 'may already work in this country without sponsorship',
+  ].filter(Boolean) as string[];
+  if (kind === 'answers') {
+    const visa = s.visa ? ' (answer sponsorship/right-to-work questions truthfully)' : '';
+    return facts.length ? `Onsite role: the candidate ${listText(facts)}${visa}.` : 'Onsite role.';
+  }
+  const said = [
+    p.location && `is based in ${p.location}`,
+    s.relocate && 'ready to relocate',
+    s.visa ? 'would need employer visa sponsorship' : !s.home && 'can already work there without sponsorship',
+  ].filter(Boolean) as string[];
+  return said.length ? `This is an onsite role: say the candidate ${listText(said)}.` : 'This is an onsite role.';
+}
+
+/** Drafts answers to pasted application-form questions. The candidate reviews and submits them. */
 export async function aiAnswers(job: Job, questions: string): Promise<FormAnswer[]> {
   const remote = job.country === 'RM';
-  const system = `You draft answers to job application form questions for one candidate, who will review and paste them himself.
+  const system = `You draft answers to job application form questions for one candidate, who will review and paste them.
 The input is text copied from a form: split it into separate questions (ignore headings, "required" markers, help text).
 Rules:
 - Use ONLY facts from the CV and the APPLICANT FACTS. Never invent employers, numbers, skills, certifications or years.
-- Personal decisions (salary, notice period, start date, nationality, working hours, how he heard about the job, anything
+- Personal decisions (salary, notice period, start date, nationality, working hours, how they heard about the job, anything
   not in the facts or a fact that is null) are never guessed: write [FILL: what is needed] and set needs_input true.
   Salary questions use expectedSalary for ${remote ? '"remote"' : `"${job.country}"`}.
 - Yes/no and multiple-choice questions: answer with exactly one of the offered options when the facts decide it; if the
@@ -160,11 +215,7 @@ Rules:
 - Years of experience: count from the CV dates; say "about N years" if unsure.
 - Free-text questions ("why this company", "describe a project"): 60-150 words, specific to this job and company, first
   person, plain text, no clichés. Link the job's requirements to concrete CV experience.
-- ${
-    remote
-      ? 'Remote role: he works from Lahore, Pakistan (GMT+5).'
-      : 'Onsite role: he is in Lahore, Pakistan, would relocate, and needs employer visa sponsorship (answer sponsorship/right-to-work questions truthfully).'
-  }`;
+- ${situationRule(job, 'answers')}`;
   const res = await askClaude<{ answers: FormAnswer[] }>(
     `CV:\n${cvText()}\n\nAPPLICANT FACTS (null = unknown):\n${applicantFacts()}\n\nJOB:\n${jobText(job)}\n\nFORM QUESTIONS:\n${questions.slice(0, 8000)}`,
     ANSWERS_SCHEMA,
@@ -175,24 +226,16 @@ Rules:
 }
 
 export async function aiCoverLetter(job: Job): Promise<string> {
-  const remote = job.country === 'RM';
   const system = `You write cover letters for one candidate. Rules:
 - Use ONLY facts in the CV. Never invent employers, numbers, skills, certifications or years. If the job asks for something
   the CV lacks, do not claim it; you may show related experience or willingness to learn it in one short clause.
 - Never make commitments on the candidate's behalf: working hours or time-zone overlap, salary, notice period or start
-  date, assessments, background checks. Those are his to decide in the application form.
+  date, assessments, background checks. Those are the candidate's to decide in the application form.
 - Read the job description and connect 2-3 of its concrete requirements or products to specific CV experience.
 - 200-280 words, plain text, no markdown, no placeholders like [Company], no subject line.
 - Start with "Dear ${job.company} Hiring Team," and end with this exact signature block:
-Best regards,
-Abdul Rehman Dar
-+92 321 4979646 | abdulrehmandar2234@gmail.com
-https://www.linkedin.com/in/abdulrehman-dar/
-- ${
-    remote
-      ? 'This is a remote role: say he is based in Lahore, Pakistan (GMT+5) and has worked remotely with international clients and distributed teams.'
-      : 'This is an onsite role: say he is based in Lahore, Pakistan, ready to relocate, and would need employer visa sponsorship.'
-  }
+${signature(loadProfile())}
+- ${situationRule(job, 'letter')}
 - Confident and specific, no clichés like "I am writing to express my interest".`;
   const res = await askClaude<{ letter: string }>(
     `CV:\n${cvText()}\n\nJOB:\n${jobText(job)}`,
@@ -278,11 +321,11 @@ export async function aiFollowUp(job: Job, name: string | null): Promise<string>
   const system = `You write a short follow-up message for one candidate who applied to a job and has heard nothing back.
 Rules:
 - 60-120 words, plain text, no markdown, no subject line, no placeholders like [Company].
-- Start with "Dear ${name ?? `${job.company} Hiring Team`}," and end with "Best regards,\nAbdul Rehman Dar".
-- Say which role he applied for and roughly when, restate his interest, and connect ONE concrete requirement of the job
-  to ONE specific piece of CV experience.
+- Start with "Dear ${name ?? `${job.company} Hiring Team`}," and end with "Best regards,\n${loadProfile().fullName ?? '<the name on the CV>'}".
+- Say which role the candidate applied for and roughly when, restate their interest, and connect ONE concrete requirement
+  of the job to ONE specific piece of CV experience.
 - Use ONLY facts in the CV. Never invent employers, numbers, skills or years.
-- ${job.follow_ups > 0 ? 'He has followed up before: acknowledge it briefly and keep this one even shorter.' : 'This is his first follow-up.'}
+- ${job.follow_ups > 0 ? 'The candidate has followed up before: acknowledge it briefly and keep this one even shorter.' : 'This is their first follow-up.'}
 - Polite and confident, never pushy or apologetic; no new commitments (salary, start date, hours).`;
   const res = await askClaude<{ message: string }>(
     `CV:\n${cvText()}\n\nAPPLIED ON: ${applied}\n\nJOB:\n${jobText(job)}`,

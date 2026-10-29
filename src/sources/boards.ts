@@ -2,6 +2,7 @@ import { getJson, sleep } from './http.ts';
 import { config } from '../config.ts';
 import { stripHtml, type RawJob } from './index.ts';
 import { structuredSalary } from '../salary.ts';
+import { loadProfile, remoteFromCode } from '../profile.ts';
 
 // Remote job boards. Unlike company ATS boards these list many companies, and the location
 // field says where a remote hire may live, e.g. "Remote — Worldwide" or "Remote — USA, Canada".
@@ -15,13 +16,18 @@ const strip = (html: string) =>
     .replace(/\n\s*\n+/g, '\n')
     .trim();
 
-/** Himalayas search with country=PK only returns remote jobs open to candidates in Pakistan. */
+/**
+ * Himalayas search with country=<ISO code> only returns remote jobs open to candidates in that country: the
+ * remote-from country (config remote.fromCode, else the profile's countryCode). Without one, all remote jobs.
+ */
 async function himalayas(): Promise<RawJob[]> {
   const out = new Map<string, RawJob>();
   const cutoff = Date.now() - config.maxAgeDays * 86_400_000;
+  const code = remoteFromCode(config, loadProfile());
+  const country = code ? `country=${code}&` : '';
   for (const q of config.remote.himalayasQueries) {
     for (let page = 1; page <= 10; page++) {
-      const data = await getJson(`https://himalayas.app/jobs/api/search?country=PK&q=${encodeURIComponent(q)}&page=${page}`);
+      const data = await getJson(`https://himalayas.app/jobs/api/search?${country}q=${encodeURIComponent(q)}&page=${page}`);
       if (!data.jobs?.length) break;
       for (const j of data.jobs) {
         const posted = j.pubDate * 1000;
@@ -113,7 +119,7 @@ async function arbeitnow(): Promise<RawJob[]> {
   return out;
 }
 
-// Adzuna: official API with a free app_id/app_key that the user registers for himself (ADZUNA_APP_ID and
+// Adzuna: official API with a free app_id/app_key that the user registers for themselves (ADZUNA_APP_ID and
 // ADZUNA_APP_KEY in .env). Without them the board is skipped. Adzuna has no UAE or Saudi index (its country
 // list is gb, us, at, au, be, br, ca, ch, de, es, fr, in, it, mx, nl, nz, pl, sg, za), so only 'nl' is useful here.
 // Note: the search API only returns a short snippet of each description, not the full text, so keyword scores
