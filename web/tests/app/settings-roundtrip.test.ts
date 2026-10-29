@@ -60,6 +60,18 @@ describe('settings round-trip through the CLI', () => {
     expect(after.futureKey).toEqual({ keep: true });
   }, 60_000);
 
+  it('saves a config without adzuna (empty Adzuna fields) without adding an invalid section', async () => {
+    const { adzuna: _, ...cfg } = JSON.parse(readFileSync(CONFIG_FILE, 'utf8')) as Json;
+    writeFileSync(CONFIG_FILE, JSON.stringify(cfg, null, 2));
+    const empty = { 'adzuna.countries': '', 'adzuna.keywords': '', 'adzuna.pagesPerSearch': '' };
+    expect(await saveConfig(null, configForm(cfg, empty))).toMatchObject({ ok: true });
+    expect(JSON.parse(readFileSync(CONFIG_FILE, 'utf8'))).toEqual(cfg);
+
+    const res = await saveConfig(null, configForm(cfg, { ...empty, 'adzuna.countries': 'nl\nde', 'adzuna.pagesPerSearch': '1' }));
+    expect(res).toMatchObject({ ok: true });
+    expect(JSON.parse(readFileSync(CONFIG_FILE, 'utf8')).adzuna).toEqual({ countries: ['nl', 'de'], pagesPerSearch: 1 });
+  }, 60_000);
+
   it('returns field errors from the validator and leaves the file alone', async () => {
     const before = readFileSync(CONFIG_FILE, 'utf8');
     const cfg = JSON.parse(before);
