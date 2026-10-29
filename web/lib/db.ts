@@ -2,6 +2,7 @@ import { Pool } from 'pg';
 // Row types are shared with the bot (job-bot/src/types.ts). Type-only import: erased at build time, so no bot code
 // is bundled and Turbopack's root stays web/.
 import type { FetchRun, FormAnswer, Job as JobRow, JobEvent } from '../../src/types';
+import { SQL_YEARLY_EUR } from './salary';
 
 // Same Postgres database the CLI bot writes to (job-bot/.env and web/.env.local).
 const g = globalThis as unknown as { jobBotPool?: Pool };
@@ -16,7 +17,8 @@ export type { FetchRun, FormAnswer, JobEvent };
 export type Job = Omit<JobRow, 'fetched_at' | 'ai_scored_at' | 'duplicate_of' | 'cover_letter_ai' | 'form_answers'>
   & Partial<Pick<JobRow, 'duplicate_of' | 'cover_letter_ai' | 'form_answers'>>;
 
-export type JobFilter = { status: Status; country?: string; min?: number; q?: string; days?: number; sort?: 'score' | 'newest' };
+export type JobFilter = { status: Status; country?: string; min?: number; q?: string; days?: number; sort?: 'score' | 'newest';
+  minSalary?: number; salaryOnly?: boolean }; // minSalary: euros per year (lib/salary.ts)
 
 export async function listJobs(f: JobFilter) {
   // Copies of a job found on other sites are shown as "Posted on" links of the primary, not as rows.
@@ -27,6 +29,9 @@ export async function listJobs(f: JobFilter) {
   if (f.min) { params.push(f.min); where.push(`coalesce(ai_score, score) >= $${params.length}`); }
   if (f.q) { params.push(`%${f.q}%`); where.push(`(company ILIKE $${params.length} OR title ILIKE $${params.length})`); }
   if (f.days) { params.push(f.days); where.push(`coalesce(posted_at, first_seen_at) > now() - make_interval(days => $${params.length})`); }
+  // Jobs without a salary stay in the list unless salaryOnly asks for jobs that name one.
+  if (f.minSalary) { params.push(f.minSalary); where.push(`(${SQL_YEARLY_EUR} >= $${params.length}${f.salaryOnly ? '' : ' OR salary_currency IS NULL'})`); }
+  if (f.salaryOnly) where.push('salary_currency IS NOT NULL');
   // Filtered jobs are only useful when they were at least in a target country.
   if (f.status === 'filtered') where.push('country IS NOT NULL');
   const newest = 'coalesce(posted_at, first_seen_at) DESC';
@@ -36,7 +41,7 @@ export async function listJobs(f: JobFilter) {
   const { rows } = await pool.query<Job>(
     `SELECT id, source, company, title, location, country, url, '' AS description, posted_at, first_seen_at, score, cluster,
       matched, missing, visa, flags, status, filter_reason, cv_version, NULL AS cover_letter, applied_at, notes,
-      ai_score, ai_verdict, ai_summary, ai_reasons, ai_gaps, ai_flags
+      ai_score, ai_verdict, ai_summary, ai_reasons, ai_gaps, ai_flags, salary_min, salary_max, salary_currency, salary_period
      FROM jobs WHERE ${where.join(' AND ')} ORDER BY ${order} LIMIT 200`, params);
   return rows;
 }
