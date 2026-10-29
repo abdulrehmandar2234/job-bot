@@ -26,7 +26,11 @@ export function JobActions({ job, busy = [] }: { job: Job; busy?: readonly TaskK
       ) : (
         <form action={prepare}>
           <input type="hidden" name="id" value={job.id} />
-          <SubmitButton pendingText="Starting…">{job.status === 'filtered' ? 'Prepare anyway' : 'Prepare CV + letter'}</SubmitButton>
+          {/* An expired posting would stop `prepare` at its open check, so "anyway" skips it (--force). */}
+          {job.status === 'expired' && <input type="hidden" name="force" value="true" />}
+          <SubmitButton pendingText="Starting…">
+            {job.status === 'filtered' || job.status === 'expired' ? 'Prepare anyway' : 'Prepare CV + letter'}
+          </SubmitButton>
         </form>
       )}
 
@@ -49,7 +53,7 @@ export function JobActions({ job, busy = [] }: { job: Job; busy?: readonly TaskK
         {status('offer', 'Offer 🎉', 'btn-good')}
         {status('rejected', 'Rejected')}
       </>}
-      {job.status === 'skipped' && status('new', 'Move to matching')}
+      {(job.status === 'skipped' || job.status === 'expired') && status('new', 'Move to matching')}
     </div>
   );
 }

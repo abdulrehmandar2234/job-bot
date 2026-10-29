@@ -25,6 +25,15 @@ describe('listJobs', () => {
     expect(row.company).toBe('Acme');
   });
 
+  it('selects closed_at, so a card can say the posting closed', async () => {
+    const closed = new Date('2026-10-20T10:00:00Z');
+    await insertJob({ id: 'c', status: 'applied', closed_at: closed });
+    await insertJob({ id: 'o', status: 'applied' });
+    const rows = await listJobs({ status: 'applied' });
+    expect(rows.find((r) => r.id === id('c'))!.closed_at).toEqual(closed);
+    expect(rows.find((r) => r.id === id('o'))!.closed_at).toBeNull();
+  });
+
   it('filters by country', async () => {
     await insertJob({ id: 'ae', country: 'AE' });
     await insertJob({ id: 'nl', country: 'NL' });

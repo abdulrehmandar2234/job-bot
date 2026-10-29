@@ -51,11 +51,16 @@ export async function saveNotes(formData: FormData) {
 // Long bot commands run as background tasks (lib/tasks.ts): these actions queue one and return at once.
 // The page shows the task while it runs and refreshes when it finishes (TaskWatcher).
 
-/** Default CV + cover letter (same as `npm run bot -- prepare <id>`). */
+/**
+ * Default CV + cover letter (same as `npm run bot -- prepare <id>`). `force=true` ("Prepare anyway" on an expired
+ * job) skips the check that the posting is still open (`prepare --force`).
+ */
 export async function prepare(formData: FormData) {
   const id = await assertJob(formData.get('id'));
   const cv = formData.get('cv');
-  await enqueueTask('prepare', id, typeof cv === 'string' && /^[a-z0-9][a-z0-9-]*$/.test(cv) ? { cv } : {});
+  const args: Record<string, string> = typeof cv === 'string' && /^[a-z0-9][a-z0-9-]*$/.test(cv) ? { cv } : {};
+  if (formData.get('force') === 'true') args.force = 'true';
+  await enqueueTask('prepare', id, args);
   refresh();
 }
 

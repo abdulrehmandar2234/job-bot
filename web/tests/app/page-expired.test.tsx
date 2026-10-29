@@ -66,6 +66,13 @@ describe('expired postings on the dashboard', () => {
     expect(cardTitles()).toEqual(['TG open one · Acme ']);
   });
 
+  it('a card in Applied says "Posting closed" when the posting closed after you applied', async () => {
+    await insertJob({ id: 'app-1', title: 'TG applied closed', status: 'applied', closed_at: new Date() });
+    await insertJob({ id: 'app-2', title: 'TG applied open', status: 'applied' });
+    await renderList({ status: 'applied' });
+    expect(cardTitles().sort()).toEqual(['TG applied closed · Acme Posting closed', 'TG applied open · Acme ']);
+  });
+
   it('the job page shows the badge and the "Check if still open" button', async () => {
     const id = await insertJob({ id: 'exp-page', title: 'TG closed one', status: 'expired', closed_at: new Date(),
       checked_open_at: new Date() });
