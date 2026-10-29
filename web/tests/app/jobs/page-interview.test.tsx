@@ -3,6 +3,7 @@ import { render, screen, within } from '@testing-library/react';
 import { isValidElement, type ReactElement, type ReactNode } from 'react';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import Page from '@/app/jobs/[id]/page';
+import { pool } from '@/lib/db';
 import { cleanupDb, closeDb, ensureSchema, insertJob, PREFIX } from '../../helpers/db';
 
 vi.mock('@/app/actions', () => ({
@@ -55,5 +56,16 @@ describe('job page: interview prep', () => {
     document.body.innerHTML = '';
     await renderJob(id);
     expect(prepHeading()).not.toBeInTheDocument();
+  });
+
+  it('shows the prep task while it runs', async () => {
+    await insertJob({ id, status: 'interview' });
+    await pool.query(`INSERT INTO tasks (kind, job_id, status, started_at, pid, deadline)
+      VALUES ('prep', $1, 'running', now(), $2, now() + interval '5 minutes')`, [id, process.pid]);
+    await renderJob(id);
+    const section = prepHeading()!.closest('section')!;
+    expect(within(section).getByRole('status')).toHaveTextContent('Preparing interview notes…');
+    expect(within(section).queryByRole('button', { name: 'Prepare for interview' })).not.toBeInTheDocument();
+    expect(screen.getAllByRole('status')[0]).toHaveTextContent('Working… Preparing interview notes');
   });
 });

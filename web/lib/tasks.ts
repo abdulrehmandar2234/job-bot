@@ -17,6 +17,7 @@ export const TASK_LABEL: Record<TaskKind, string> = {
   ai_review: 'AI reviewing',
   answers: 'Drafting answers',
   rescore: 'Re-scoring jobs',
+  prep: 'Preparing interview notes',
 };
 
 export const isActive = (t: Pick<Task, 'status'>) => t.status === 'queued' || t.status === 'running';

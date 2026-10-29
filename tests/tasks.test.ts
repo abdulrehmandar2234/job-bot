@@ -73,6 +73,13 @@ describe('task queue', () => {
     assert.equal(t.deadline!.getTime() - t.started_at!.getTime(), TASK_TIMEOUT_MS.fetch + DEADLINE_GRACE_MS);
   });
 
+  it('interview prep is a task kind with a 4 minute timeout (migration 007)', async () => {
+    assert.equal(TASK_TIMEOUT_MS.prep, 4 * 60_000);
+    const { task } = await enqueue('prep', JOB);
+    const t = (await claim(task.id))!;
+    assert.equal(t.deadline!.getTime() - t.started_at!.getTime(), TASK_TIMEOUT_MS.prep + DEADLINE_GRACE_MS);
+  });
+
   it('rejects unknown kinds and jobs at the database', async () => {
     await assert.rejects(enqueue('bogus' as 'fetch', null), /tasks_kind_check/);
     await assert.rejects(enqueue('prepare', 'tasktest:nope'), /foreign key/);
@@ -166,6 +173,13 @@ describe('cliArgs', () => {
     assert.deepEqual(cliArgs(t('prepare')), ['prepare', JOB]);
     assert.deepEqual(cliArgs(t('prepare', { cv: 'backend-lead-2' })), ['prepare', JOB, '--cv', 'backend-lead-2']);
     assert.deepEqual(cliArgs(t('answers', { questions: 'Q' }), '/tmp/q.txt'), ['answer', JOB, '--file', '/tmp/q.txt']);
+    assert.deepEqual(cliArgs(t('prep')), ['prep', JOB]);
+  });
+
+  it('passes --force to prepare only for force "true" ("Prepare anyway" on an expired job)', () => {
+    assert.deepEqual(cliArgs(t('prepare', { force: 'true' })), ['prepare', JOB, '--force']);
+    assert.deepEqual(cliArgs(t('prepare', { cv: 'laravel', force: 'true' })), ['prepare', JOB, '--cv', 'laravel', '--force']);
+    for (const force of ['false', '1', '--cv x', '']) assert.deepEqual(cliArgs(t('prepare', { force })), ['prepare', JOB]);
   });
 
   it('drops an invalid CV version and refuses a job task without a job', () => {
@@ -204,6 +218,22 @@ describe('task:run (CLI worker)', () => {
     assert.equal((await getTask(task.id)).status, 'done');
     assert.deepEqual((await getJob(JOB))!.form_answers, answers);
     assert.deepEqual(files(), before);
+  });
+
+  it('runs a prep task and stores the interview notes on the job', async () => {
+    const prep = {
+      technical: [{ question: 'How do you scale a Laravel queue?', hint: 'Horizon' }],
+      behavioural: [{ question: 'A conflict?', situation: 'S', task: 'T', action: 'A', result: 'R' }],
+      company: { brief: 'Taskco builds things.', verify: [] },
+      questions_to_ask: ['How do you review code?'],
+      requirements: [{ requirement: 'Laravel', evidence: 'Years of Laravel', gap: false }],
+    };
+    const { task } = await enqueue('prep', JOB);
+    await taskRun(task.id, { FAKE_CLAUDE_OUT: JSON.stringify(prep) });
+    const done = await getTask(task.id);
+    assert.equal(done.status, 'done', done.error ?? '');
+    assert.match(done.output!, /1 technical and 1 behavioural questions/);
+    assert.deepEqual((await getJob(JOB))!.interview_prep, prep);
   });
 
   it('records a failing command as failed with its error', async () => {

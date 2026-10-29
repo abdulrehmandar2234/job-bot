@@ -59,6 +59,18 @@ describe('InterviewPrep', () => {
     expect(buttons()).toEqual(['Regenerate', 'Copy all', 'Copy', 'Copy', 'Copy', 'Copy']);
   });
 
+  it('shows "Preparing interview notes…" in place of the button while a prep task runs', () => {
+    render(<InterviewPrep job={job({ interview_prep: PREP })} busy={['prepare', 'prep']} />);
+    expect(screen.getByRole('status')).toHaveTextContent('Preparing interview notes…');
+    expect(buttons()).not.toContain('Regenerate');
+    expect(buttons()).toContain('Copy all');
+  });
+
+  it('keeps the button while only other tasks run', () => {
+    render(<InterviewPrep job={job()} busy={['prepare', 'ai_review']} />);
+    expect(buttons()).toEqual(['Prepare for interview']);
+  });
+
   it('still shows a stored prep after the job moved on (e.g. offer)', () => {
     render(<InterviewPrep job={job({ status: 'offer', interview_prep: PREP })} />);
     expect(within(screen.getByRole('heading', { name: /Interview prep/ }).closest('section')!)

@@ -12,6 +12,7 @@ export const TASK_TIMEOUT_MS: Record<TaskKind, number> = {
   ai_review: 4 * 60_000,
   answers: 4 * 60_000,
   rescore: 5 * 60_000,
+  prep: 4 * 60_000,
 };
 /** Extra time before a running task counts as stale, so the worker can record its own timeout first. */
 export const DEADLINE_GRACE_MS = 60_000;
@@ -84,8 +85,10 @@ export function cliArgs(task: Pick<Task, 'kind' | 'job_id' | 'args'>, questionsF
     case 'ai_review': return ['ai:score', '--id', job()];
     case 'prepare': {
       const cv = task.args.cv;
-      return ['prepare', job(), ...(typeof cv === 'string' && CV_VERSION.test(cv) ? ['--cv', cv] : [])];
+      return ['prepare', job(), ...(typeof cv === 'string' && CV_VERSION.test(cv) ? ['--cv', cv] : []),
+        ...(task.args.force === 'true' ? ['--force'] : [])]; // "Prepare anyway" on an expired job
     }
+    case 'prep': return ['prep', job()];
     case 'answers':
       if (!questionsFile) throw new Error('answers task without a questions file');
       return ['answer', job(), '--file', questionsFile];

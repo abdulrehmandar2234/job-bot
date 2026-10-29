@@ -1,6 +1,8 @@
 import { prepareInterview } from '@/app/jobs/[id]/interview-actions';
 import type { InterviewPrep as Prep, Job } from '@/lib/db';
+import type { TaskKind } from '@/lib/tasks';
 import { CopyButton, SubmitButton } from './client';
+import { Busy } from './tasks';
 import { fmtDate } from './ui';
 
 const star = (b: Prep['behavioural'][number]) =>
@@ -21,15 +23,18 @@ function PrepButton({ id, label }: { id: string; label: string }) {
   return (
     <form action={prepareInterview}>
       <input type="hidden" name="id" value={id} />
-      <SubmitButton pendingText="AI preparing… (~1 min)">{label}</SubmitButton>
+      <SubmitButton pendingText="Starting…">{label}</SubmitButton>
     </form>
   );
 }
 
 const card = 'space-y-1 rounded-xl border border-zinc-200 p-3 text-sm dark:border-zinc-800';
 
-/** Interview prep for jobs in `applied` or `interview` (and any job that already has one). */
-export function InterviewPrep({ job }: { job: Job }) {
+/**
+ * Interview prep for jobs in `applied` or `interview` (and any job that already has one).
+ * `busy`: the job's running background tasks; a running `prep` replaces the button.
+ */
+export function InterviewPrep({ job, busy = [] }: { job: Job; busy?: readonly TaskKind[] }) {
   const p = job.interview_prep;
   if (!p && job.status !== 'applied' && job.status !== 'interview') return null;
 
@@ -41,7 +46,9 @@ export function InterviewPrep({ job }: { job: Job }) {
             · AI, from this job description and your CV{job.interview_prep_at && ` · ${fmtDate(job.interview_prep_at)}`}</span>
         </h2>
         <div className="flex gap-2">
-          <PrepButton id={job.id} label={p ? 'Regenerate' : 'Prepare for interview'} />
+          {busy.includes('prep')
+            ? <Busy>Preparing interview notes…</Busy>
+            : <PrepButton id={job.id} label={p ? 'Regenerate' : 'Prepare for interview'} />}
           {p && <CopyButton text={prepText(p)} label="Copy all" />}
         </div>
       </div>

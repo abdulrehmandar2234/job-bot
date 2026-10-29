@@ -109,10 +109,10 @@ export type Contact = {
 export type FetchRun = { started_at: Date; finished_at: Date | null; checked: number; inserted: number; new_matches: number };
 
 /** A background task kind: what `task:run` runs (src/tasks.ts). */
-export type TaskKind = 'fetch' | 'prepare' | 'ai_review' | 'answers' | 'rescore';
+export type TaskKind = 'fetch' | 'prepare' | 'ai_review' | 'answers' | 'rescore' | 'prep';
 export type TaskStatus = 'queued' | 'running' | 'done' | 'failed';
 
-/** One row of `tasks`. `args` holds the command's options, e.g. { cv } for prepare or { questions } for answers. */
+/** One row of `tasks`. `args` holds the command's options, e.g. { cv, force } for prepare or { questions } for answers. */
 export type Task = {
   id: number;
   kind: TaskKind;
