@@ -1,6 +1,7 @@
 import { aiReview, prepare, setStatus } from '@/app/actions';
 import type { Job } from '@/lib/db';
 import { SubmitButton } from './client';
+import { SkipButton } from './skip-button';
 
 /** Buttons shown for a job, depending on where it is in the pipeline. */
 export function JobActions({ job }: { job: Job }) {
@@ -34,7 +35,7 @@ export function JobActions({ job }: { job: Job }) {
 
       {(job.status === 'new' || job.status === 'prepared') && <>
         {status('applied', 'Mark applied ✓', 'btn-good')}
-        {status('skipped', 'Skip')}
+        <SkipButton id={job.id} />
       </>}
       {job.status === 'applied' && <>
         {status('interview', 'Got interview')}

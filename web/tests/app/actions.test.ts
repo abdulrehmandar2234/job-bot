@@ -64,6 +64,14 @@ describe('setStatus', () => {
     expect(refresh).toHaveBeenCalledOnce();
   });
 
+  it('stores the optional skip reason in the same history row, and ignores it for other moves', async () => {
+    await setStatus(form({ id, status: 'skipped', reason: 'seniority' }));
+    expect((await jobEvents(id))[0]).toMatchObject({ to_status: 'skipped', reason: 'seniority' });
+    await setStatus(form({ id, status: 'new', reason: 'stack' }));
+    await setStatus(form({ id, status: 'skipped', reason: 'boredom' }));
+    expect((await jobEvents(id)).map((e) => e.reason)).toEqual([null, null, 'seniority']);
+  });
+
   it('stamps applied_at when marked applied, and stores an empty note as null', async () => {
     await setStatus(form({ id, status: 'applied', note: '   ' }));
     const job = await getJob(id);

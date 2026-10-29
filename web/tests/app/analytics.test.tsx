@@ -1,10 +1,14 @@
 // @vitest-environment jsdom
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { render, screen, within } from '@testing-library/react';
 import { isValidElement, type ReactElement, type ReactNode } from 'react';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import Page from '@/app/analytics/page';
 import { funnel } from '@/lib/analytics';
 import { pool } from '@/lib/db';
+import { MIN_SKIPS } from '@/lib/skip-insights';
 import { cleanupDb, closeDb, daysAgo, ensureSchema, insertFetchRun, insertJob } from '../helpers/db';
 
 // Real queries, but funnel() can be overridden to show the empty state whatever else is in the test database.
@@ -84,5 +88,24 @@ describe('analytics page', () => {
     expect(run).toHaveTextContent('812 checked · 14 inserted · 3 new matches · 1 error');
     expect(within(run).getByText('Show errors').closest('details')).not.toHaveAttribute('open');
     expect(run).toHaveTextContent('Acme: HTTP 503');
+  });
+
+  it('shows skip patterns with a roleExclude suggestion based on config.json', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'job-bot-web-analytics-'));
+    writeFileSync(join(dir, 'config.json'), JSON.stringify({ roleExclude: 'golang' }));
+    vi.stubEnv('JOB_BOT_CONFIG', join(dir, 'config.json'));
+    try {
+      for (let i = 0; i < MIN_SKIPS; i++) {
+        const id = await insertJob({ id: `ps-${i}`, title: `Principal Engineer ${i}`, status: 'skipped' });
+        await pool.query(`INSERT INTO job_events (job_id, from_status, to_status, reason) VALUES ($1, 'new', 'skipped', 'seniority')`, [id]);
+      }
+      await renderAnalytics();
+      const skips = section('Skip patterns');
+      expect(skips).toHaveTextContent(`Seniority${MIN_SKIPS}`);
+      expect(skips).toHaveTextContent(`Add \\bprincipal\\b to roleExclude? (${MIN_SKIPS} skips)`);
+    } finally {
+      vi.unstubAllEnvs();
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

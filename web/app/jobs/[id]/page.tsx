@@ -6,6 +6,7 @@ import { getJob, jobEvents, postingsFor } from '@/lib/db';
 import { CopyButton, SubmitButton } from '@/components/client';
 import { JobActions } from '@/components/job-actions';
 import { InterviewPrep } from '@/components/interview-prep';
+import { SKIP_LABEL } from '@/lib/skips';
 import { AiReview, Chips, COUNTRIES, fmtDate, Posted, PostedOn, Score, STATUS_LABEL } from '@/components/ui';
 
 export default function Page(props: PageProps<'/jobs/[id]'>) {
@@ -136,7 +137,7 @@ async function JobDetail({ params }: { params: PageProps<'/jobs/[id]'>['params']
             {events.map((e) => (
               <li key={e.id}>
                 {new Date(e.at).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })} —{' '}
-                {e.from_status ?? '—'} → <b>{e.to_status}</b>{e.note && ` (${e.note})`}
+                {e.from_status ?? '—'} → <b>{e.to_status}</b>{e.reason && ` · ${SKIP_LABEL[e.reason]}`}{e.note && ` (${e.note})`}
               </li>
             ))}
           </ul>

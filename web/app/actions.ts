@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { refresh } from 'next/cache';
 import { pool, STATUSES, type Status } from '@/lib/db';
 import { BOT_ROOT, runBot } from '@/lib/bot';
+import { skipReason } from '@/lib/skips';
 
 // Server actions are reachable by POST, so every input is validated here.
 const USER_STATUSES: readonly Status[] = STATUSES.filter((s) => s !== 'filtered');
@@ -22,6 +23,7 @@ export async function setStatus(formData: FormData) {
   const status = formData.get('status') as Status;
   if (!USER_STATUSES.includes(status)) throw new Error('Invalid status');
   const note = (formData.get('note') as string | null)?.trim() || null;
+  const reason = status === 'skipped' ? skipReason(formData.get('reason')) : null; // optional, see SkipButton
 
   const client = await pool.connect();
   try {
@@ -30,8 +32,8 @@ export async function setStatus(formData: FormData) {
     await client.query(
       `UPDATE jobs SET status = $2, applied_at = CASE WHEN $2 = 'applied' THEN now() ELSE applied_at END WHERE id = $1`,
       [id, status]);
-    await client.query('INSERT INTO job_events (job_id, from_status, to_status, note) VALUES ($1, $2, $3, $4)',
-      [id, rows[0].status, status, note]);
+    await client.query('INSERT INTO job_events (job_id, from_status, to_status, note, reason) VALUES ($1, $2, $3, $4, $5)',
+      [id, rows[0].status, status, note, reason]);
     await client.query('COMMIT');
   } catch (e) {
     await client.query('ROLLBACK');
