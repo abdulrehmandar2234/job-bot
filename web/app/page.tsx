@@ -18,6 +18,7 @@ export default function Page(props: PageProps<'/'>) {
         <div className="flex flex-wrap items-center gap-2">
           <Suspense fallback={null}><FetchWarning /></Suspense>
           <Link href="/analytics" className="btn">Analytics</Link>
+          <Link href="/settings" className="btn">Settings</Link>
           <form action={fetchNow}>
             <SubmitButton pendingText="Fetching… (~10 min, keep this tab open)" className="btn-primary">Fetch new jobs</SubmitButton>
           </form>
