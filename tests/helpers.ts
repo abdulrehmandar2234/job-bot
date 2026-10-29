@@ -34,7 +34,10 @@ export const raw = (o: Partial<RawJob> = {}): RawJob => ({
 
 type Route = (url: string, init?: RequestInit) => unknown;
 
-/** Replaces global fetch: each route maps a URL substring to a JSON body, a string (text body) or a Response. */
+/**
+ * Replaces global fetch: each route maps a URL substring to a JSON body, a string (text body) or a Response, or to a
+ * (possibly async) function returning one.
+ */
 export function mockFetch(routes: Record<string, Route | unknown>) {
   const calls: string[] = [];
   const fn = mock.method(globalThis, 'fetch', async (input: string | URL, init?: RequestInit) => {
@@ -43,7 +46,7 @@ export function mockFetch(routes: Record<string, Route | unknown>) {
     const key = Object.keys(routes).find((k) => url.includes(k));
     if (!key) return new Response('not found', { status: 404 });
     const r = routes[key];
-    const body = typeof r === 'function' ? (r as Route)(url, init) : r;
+    const body = typeof r === 'function' ? await (r as Route)(url, init) : r;
     if (body instanceof Response) return body;
     return typeof body === 'string' ? new Response(body) : Response.json(body);
   });

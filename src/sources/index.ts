@@ -5,6 +5,18 @@ import { structuredSalary } from '../salary.ts';
 
 export type { RawJob };
 
+/**
+ * A source's postings. `partialError` is set when a later page or detail call failed: the postings collected
+ * before it are still returned (and saved), and fetch records the failure in fetch_runs.errors.
+ */
+export type Fetched = RawJob[] & { partialError?: string };
+
+/** Keeps what a source collected before `e`; with nothing collected yet, the error is simply rethrown. */
+export function partial(jobs: RawJob[], e: unknown): Fetched {
+  if (!jobs.length) throw e;
+  return Object.assign(jobs, { partialError: `partial: kept ${jobs.length} postings, then ${(e as Error).message}` });
+}
+
 export const stripHtml = (html: string) =>
   html
     .replace(/&lt;/g, '<')
@@ -130,8 +142,16 @@ async function workable(c: Company): Promise<RawJob[]> {
 async function smartrecruiters(c: Company): Promise<RawJob[]> {
   const base = `https://api.smartrecruiters.com/v1/companies/${c.token}/postings`;
   const list: any[] = [];
+  let listError: unknown;
   for (let offset = 0; ; offset += 100) {
-    const page = await getJson(`${base}?limit=100&offset=${offset}`);
+    let page: any;
+    try {
+      page = await getJson(`${base}?limit=100&offset=${offset}`);
+    } catch (e) {
+      if (!list.length) throw e;
+      listError = e; // later list page: go on with the postings already listed
+      break;
+    }
     list.push(...page.content);
     if (offset + 100 >= page.totalFound || offset >= 1000) break;
   }
@@ -140,9 +160,17 @@ async function smartrecruiters(c: Company): Promise<RawJob[]> {
   const candidates = list.filter(
     (j) => countries.test(j.location?.fullLocation ?? '') && roleOk(j.name) && new Date(j.releasedDate).getTime() > maxAge,
   );
-  const out: RawJob[] = [];
+  const out: Fetched = [];
+  const failed: string[] = [];
   for (const j of candidates) {
-    const d = await getJson(`${base}/${j.id}`);
+    let d: any;
+    try {
+      d = await getJson(`${base}/${j.id}`);
+    } catch (e) {
+      // As for Workday: one failed detail call (e.g. a posting closed since the list) does not sink the company.
+      failed.push(`${j.id}: ${(e as Error).message}`);
+      continue;
+    }
     out.push({
       id: `smartrecruiters:${c.token}:${j.id}`,
       source: 'smartrecruiters',
@@ -157,6 +185,14 @@ async function smartrecruiters(c: Company): Promise<RawJob[]> {
       ),
       posted_at: j.releasedDate ?? null,
     });
+  }
+  const problems = [
+    ...(listError ? [`list stopped after ${list.length} postings: ${(listError as Error).message}`] : []),
+    ...(failed.length ? [`${failed.length} of ${candidates.length} details failed (first: ${failed[0]})`] : []),
+  ];
+  if (problems.length) {
+    if (!out.length && failed.length) throw new Error(problems.join('; '));
+    out.partialError = `partial: kept ${out.length} postings; ${problems.join('; ')}`;
   }
   return out;
 }
@@ -259,6 +295,6 @@ const toIso = (s: string | null | undefined) => {
 
 const fetchers = { greenhouse, lever, ashby, recruitee, workable, smartrecruiters, workday };
 
-export async function fetchCompany(c: Company): Promise<RawJob[]> {
+export async function fetchCompany(c: Company): Promise<Fetched> {
   return fetchers[c.ats](c);
 }

@@ -23,49 +23,79 @@ export function splitName(full) {
 
 const SKIP_TYPES = new Set(['hidden', 'submit', 'button', 'reset', 'image', 'password', 'checkbox', 'radio', 'search', 'color', 'range']);
 
-// Profile fields, by autocomplete token first, then by the field's label/name/placeholder. Order matters:
-// the first rule that matches wins, so "last name" is checked before "name".
+// Profile fields, by autocomplete token first, then by a short label (or, with no visible label, the name/id
+// attribute). Order matters: the first rule that matches wins, so "last name" is checked before "name".
 const PROFILE_RULES = [
   { key: 'first', auto: ['given-name'], re: /\b(first|given|fore) ?name\b|\bfname\b/ },
   { key: 'last', auto: ['family-name'], re: /\b(last|family|sur) ?name\b|\bsurname\b|\blname\b/ },
   { key: 'email', auto: ['email'], re: /\be ?mail\b/ },
   { key: 'phone', auto: ['tel', 'tel-national'], re: /\b(phone|mobile|cell|telephone|tel|whatsapp)\b/ },
   { key: 'linkedin', auto: [], re: /\blinked ?in\b/ },
-  { key: 'location', auto: ['address-level2'], re: /\b(current )?(city|location)\b|\bwhere (are you|do you live)\b/ },
+  { key: 'location', auto: ['address-level2'], re: /\b(current )?(city|location)\b/ },
   { key: 'name', auto: ['name'], re: /^(full |your |legal |candidate )?name$|\bfull name\b/ },
   { key: 'cover_letter', auto: [], re: /\bcover ?letter\b|\bmotivation(al)? letter\b/ },
 ];
 
 const CV_FILE = /\b(resume|cv|curriculum vitae)\b/;
 
-/** The texts that describe a field (label, aria-label, placeholder, name, id), normalized for matching. */
-const fieldTexts = (f) => [f.label, f.aria, f.placeholder, f.name, f.id].filter(Boolean).map(norm);
+// Labels about someone else, or about a preference, never get the candidate's own details:
+// "Referrer full name", "Emergency contact phone", "Company name", "Preferred work location".
+const NOT_PROFILE = /\b(refer\w*|reference|emergency|company|employer|hear|heard|preferred|desired)\b/;
 
+/** At most this many words and no "?": a label like "Mobile number", not a question that mentions "mobile". */
+const MAX_PROFILE_LABEL_WORDS = 5;
+
+/**
+ * The texts a profile rule may look at. Visible texts (label, aria-label, placeholder) count when they are short
+ * labels; the name/id attributes only when the field has no visible text at all (an id="name" next to the label
+ * "Company name" must not get the candidate's name).
+ */
+function profileTexts(f) {
+  const visible = [f.label, f.aria, f.placeholder].filter(Boolean);
+  const texts = visible.length ? visible : [f.name, f.id].filter(Boolean);
+  return texts
+    .filter((t) => !t.includes('?'))
+    .map(norm)
+    .filter((t) => t.split(' ').length <= MAX_PROFILE_LABEL_WORDS && !NOT_PROFILE.test(t));
+}
+
+// Words too common to say two questions are the same ("Are you a citizen?" vs "Are you willing to relocate?").
+const STOP_WORDS = new Set(
+  'a an and are as at be by can could did do does for from had has have how i if in is it me my of on or our please should so than that the their them there they this to us was we were what when where which who why will with would you your'.split(
+    ' ',
+  ),
+);
 const words = (s) =>
   new Set(
     norm(s)
       .split(' ')
-      .filter((w) => w.length > 2),
+      .filter((w) => w.length > 1 && !STOP_WORDS.has(w)),
   );
 
-/** Word overlap of a field label and a drafted question, 0–1. */
+/** Content-word overlap of a field label and a drafted question, 0–1 (shared words over the larger set). */
 export function similarity(a, b) {
   const [x, y] = [words(a), words(b)];
   if (!x.size || !y.size) return 0;
   let both = 0;
   for (const w of x) if (y.has(w)) both++;
-  return both / Math.min(x.size, y.size);
+  return both / Math.max(x.size, y.size);
 }
 
 const usable = (a) => a && !a.needs_input && a.answer && !/\[FILL\b/i.test(a.answer);
 
-/** The option of a select that matches `value` (exact text or value first, then contains), or null. */
+/**
+ * The option of a select that matches `value`: exact text or value first, then an option whose text is the
+ * value's first whole words ("Yes, within a month" → "Yes", but "Notice period…" never → "No"), or that contains it.
+ */
 export function pickOption(options, value) {
   const v = norm(value);
   if (!v) return null;
   const exact = options.find((o) => norm(o.text) === v || norm(o.value) === v);
   if (exact) return exact.value;
-  const loose = options.find((o) => norm(o.text) && (v.startsWith(norm(o.text)) || norm(o.text).includes(v)));
+  const loose = options.find((o) => {
+    const t = norm(o.text);
+    return t && (v.startsWith(`${t} `) || t.includes(v));
+  });
   return loose ? loose.value : null;
 }
 
@@ -87,17 +117,18 @@ export function planFill(fields, data) {
   for (const f of fields) {
     const type = String(f.type ?? '').toLowerCase();
     if (SKIP_TYPES.has(type) || !f.empty) continue;
-    const texts = fieldTexts(f);
-    const matches = (re) => texts.some((t) => re.test(t));
+    const all = [f.label, f.aria, f.placeholder, f.name, f.id].filter(Boolean).map(norm);
+    const short = profileTexts(f);
     const label = f.label || f.aria || f.placeholder || f.name || 'field';
 
     if (type === 'file') {
-      if (data.cv && matches(CV_FILE)) fills.push({ index: f.index, kind: 'file', value: data.cv.name, label, source: 'CV' });
+      if (data.cv && all.some((t) => CV_FILE.test(t)))
+        fills.push({ index: f.index, kind: 'file', value: data.cv.name, label, source: 'CV' });
       continue;
     }
 
     const auto = String(f.autocomplete ?? '').toLowerCase();
-    const rule = PROFILE_RULES.find((r) => r.auto.includes(auto)) ?? PROFILE_RULES.find((r) => matches(r.re));
+    const rule = PROFILE_RULES.find((r) => r.auto.includes(auto)) ?? PROFILE_RULES.find((r) => short.some((t) => r.re.test(t)));
     let value = null;
     let source = null;
     if (rule && profile[rule.key] && (rule.key !== 'cover_letter' || f.tag === 'textarea')) {
@@ -110,7 +141,7 @@ export function planFill(fields, data) {
       for (const [i, a] of answers.entries()) {
         if (usedAnswers.has(i)) continue;
         const s = similarity(label, a.question);
-        if (s > bestScore || (s === bestScore && !best)) [best, bestScore] = [i, s];
+        if (s > bestScore || (s === bestScore && best === null)) [best, bestScore] = [i, s];
       }
       if (best !== null) {
         value = answers[best].answer;

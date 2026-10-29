@@ -10,7 +10,8 @@ import { mockFetch, TEST_DB } from './helpers.ts';
 import { timing } from '../src/sources/http.ts';
 import { closedText, genericRedirect, isOpen, resetOpenChecks, workdayApiUrl, type OpenJob } from '../src/sources/open.ts';
 import { checkAll, checkOpen, record, selectJobs, type CheckJob } from '../src/commands/open.ts';
-import { duplicateLinks, getJob, migrate, pool, type DedupeRow } from '../src/db.ts';
+import { duplicateLinks, getJob, migrate, pool, setStatus, type DedupeRow } from '../src/db.ts';
+import { prepare } from '../src/commands/prepare.ts';
 import { path } from '../src/config.ts';
 
 const cacheDir = mkdtempSync(join(tmpdir(), 'job-bot-open-'));
@@ -352,6 +353,46 @@ describe('check:open selection and status changes', () => {
     assert.equal((await getJob(mine)).status, 'expired');
   });
 
+  it('a status the user set after the run read the job is kept: closed postings are only reported', async () => {
+    const id = await insert('remotive:1');
+    const stale = await asCheck(id); // read when check:open started: 'new'
+    await setStatus(id, 'applied'); // the user marks it applied in the dashboard meanwhile
+    const log = mock.method(console, 'log', () => {});
+    let outcome: string;
+    try {
+      outcome = await record(stale, { state: 'closed', reason: 'remotive 404' });
+    } finally {
+      log.mock.restore();
+    }
+    assert.equal(outcome, 'reported');
+    assert.equal(stale.status, 'applied');
+    assert.match(String(log.mock.calls[0]?.arguments[0]), /remotive:1: status changed meanwhile, left as applied/);
+    const j = await getJob(id);
+    assert.equal(j.status, 'applied');
+    assert.ok(j.closed_at && j.checked_open_at); // the posting is still recorded as closed
+    assert.deepEqual(await events(id), [{ from_status: 'new', to_status: 'applied', note: null }]);
+  });
+
+  it('a reopen does not undo a status the user set after the bot expired the job', async () => {
+    const id = await insert('remotive:1', { status: 'prepared' });
+    await record(await asCheck(id), { state: 'closed', reason: 'remotive 404' });
+    const stale = await asCheck(id); // 'expired'
+    await setStatus(id, 'applied');
+    const log = mock.method(console, 'log', () => {});
+    try {
+      assert.equal(await record(stale, { state: 'open', reason: 'job page 200' }), 'open');
+    } finally {
+      log.mock.restore();
+    }
+    const j = await getJob(id);
+    assert.deepEqual([j.status, j.closed_at], ['applied', null]);
+    assert.ok(j.checked_open_at);
+    assert.deepEqual(
+      (await events(id)).map((e) => e.to_status),
+      ['expired', 'applied'],
+    );
+  });
+
   it('checkOpen checks, expires, reports and prints a summary', async () => {
     await insert('greenhouse:acme:1');
     await insert('greenhouse:acme:2', { status: 'prepared' });
@@ -434,6 +475,32 @@ describe('CLI', () => {
     assert.equal(existsSync(log), false); // no request at all
     const j = await getJob(id);
     assert.deepEqual([j.status, j.cv_version], ['prepared', 'default']);
+  });
+
+  it('prepare does not move a job back to prepared when the user applied while it was working', async () => {
+    const id = await insert('greenhouse:acme:9', { company: 'Testco Race' });
+    // The open check runs after prepare read the job; the user marks it applied during that request.
+    net = mockFetch({
+      'boards/acme/jobs/9': async () => {
+        await setStatus(id, 'applied');
+        return { id: 9 };
+      },
+    });
+    const log = mock.method(console, 'log', () => {});
+    try {
+      await prepare([id], { template: 'true' });
+    } finally {
+      log.mock.restore();
+    }
+    const out = log.mock.calls.map((c) => String(c.arguments[0])).join('\n');
+    rmSync(out.match(/Cover {6}: (\S+)\/cover-letter\.txt/)![1], { recursive: true, force: true });
+    assert.match(out, /Status changed meanwhile, left as applied\./);
+    const j = await getJob(id);
+    assert.deepEqual([j.status, j.cv_version], ['applied', 'default']);
+    assert.deepEqual(
+      (await events(id)).map((e) => e.to_status),
+      ['applied'],
+    );
   });
 
   it('check:open marks closed postings expired and leaves applied ones alone', async () => {

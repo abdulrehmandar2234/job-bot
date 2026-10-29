@@ -67,6 +67,7 @@ export async function checkAll<T extends OpenJob, R>(
  * Stores a check result. A closed posting moves a new/prepared job to `expired` through the normal status change
  * (with a job_events note); a job you already applied to keeps its status. An unknown result changes nothing, so
  * the job is checked again next run. A job this check expired earlier goes back to its old status if it is open again.
+ * `job.status` may be stale (read when the run started): a status the user set since is kept, and `job` is updated.
  */
 export async function record(job: CheckJob, r: OpenResult): Promise<Outcome> {
   if (r.state === 'unknown') return 'unknown';
@@ -78,7 +79,11 @@ export async function record(job: CheckJob, r: OpenResult): Promise<Outcome> {
   );
   if (isClosed) {
     if (!EXPIRABLE.includes(job.status)) return job.status === 'expired' ? 'expired' : 'reported';
-    await setStatus(job.id, 'expired', `posting closed (${r.reason})`);
+    // job.status was read when the run started; the user may have changed it since (e.g. marked it applied).
+    if (!(await setStatus(job.id, 'expired', `posting closed (${r.reason})`, undefined, { expectFrom: EXPIRABLE }))) {
+      await leftAs(job);
+      return job.status === 'expired' ? 'expired' : 'reported';
+    }
     return 'expired';
   }
   if (job.status !== 'expired') return 'open';
@@ -90,9 +95,19 @@ export async function record(job: CheckJob, r: OpenResult): Promise<Outcome> {
   // Only undo the bot's own verdict; a job you marked expired yourself stays expired.
   if (!rows[0]?.note?.startsWith('posting closed')) return 'open';
   const back = rows[0].from_status && EXPIRABLE.includes(rows[0].from_status) ? rows[0].from_status : 'new';
-  await setStatus(job.id, back, `posting open again (${r.reason})`);
+  if (!(await setStatus(job.id, back, `posting open again (${r.reason})`, undefined, { expectFrom: ['expired'] }))) {
+    await leftAs(job);
+    return 'open';
+  }
   job.status = back;
   return 'reopened';
+}
+
+/** After a skipped status change: reloads the status someone set in the meantime into `job` and says so. */
+async function leftAs(job: CheckJob) {
+  const { rows } = await pool.query<{ status: JobStatus }>('SELECT status FROM jobs WHERE id = $1', [job.id]);
+  if (rows[0]) job.status = rows[0].status;
+  console.log(`      ${job.id}: status changed meanwhile, left as ${job.status}`);
 }
 
 const LINE: Record<Outcome, string> = {
