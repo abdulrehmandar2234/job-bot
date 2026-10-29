@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { Suspense } from 'react';
 import { fetchNow } from './actions';
 import { lastRun, listJobs, postingsFor, STATUSES, statusCounts, weekStats, type Status } from '@/lib/db';
+import { FetchWarning } from '@/components/analytics';
 import { BaytBookmarklet, SubmitButton } from '@/components/client';
 import { JobActions } from '@/components/job-actions';
 import { ago, AiReview, Chips, COUNTRIES, fmtDate, Posted, PostedOn, Score, STATUS_LABEL } from '@/components/ui';
@@ -14,9 +15,13 @@ export default function Page(props: PageProps<'/'>) {
           <h1 className="text-2xl font-semibold tracking-tight">Job Bot</h1>
           <p className="text-sm text-zinc-500">UAE · Saudi Arabia · Netherlands with visa sponsorship, plus remote roles open to Pakistan</p>
         </div>
-        <form action={fetchNow}>
-          <SubmitButton pendingText="Fetching… (~10 min, keep this tab open)" className="btn-primary">Fetch new jobs</SubmitButton>
-        </form>
+        <div className="flex flex-wrap items-center gap-2">
+          <Suspense fallback={null}><FetchWarning /></Suspense>
+          <Link href="/analytics" className="btn">Analytics</Link>
+          <form action={fetchNow}>
+            <SubmitButton pendingText="Fetching… (~10 min, keep this tab open)" className="btn-primary">Fetch new jobs</SubmitButton>
+          </form>
+        </div>
       </header>
       <details className="mb-5 rounded-xl border border-zinc-200 px-4 py-3 text-sm dark:border-zinc-800">
         <summary className="cursor-pointer font-medium">Add jobs from Bayt</summary>

@@ -29,7 +29,9 @@ export async function insertJob(row: JobRow) {
   return id;
 }
 
-export async function insertFetchRun(run: { started_at?: Date; finished_at?: Date | null; checked?: number; inserted?: number; new_matches?: number }) {
+export async function insertFetchRun(input: { started_at?: Date; finished_at?: Date | null; checked?: number; inserted?: number;
+  new_matches?: number; errors?: { company: string; error: string }[] }) {
+  const run = { ...input, ...(input.errors && { errors: JSON.stringify(input.errors) }) };
   const cols = Object.keys(run);
   const { rows } = await pool.query<{ id: number }>(
     cols.length
