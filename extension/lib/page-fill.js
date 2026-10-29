@@ -91,3 +91,8 @@ export function applyFill(fills, cv) {
   }
   return filled;
 }
+
+/** The src of every iframe on the page, so the panel can ask for access to the sites they come from. */
+export function listFrameUrls() {
+  return [...document.querySelectorAll('iframe[src]')].map((f) => f.src);
+}

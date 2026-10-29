@@ -5,8 +5,8 @@
 import { copyButton, h, link } from './dom.js';
 import { fetchCv, lookupJob } from './lib/api.js';
 import { planFill } from './lib/fill.js';
-import { applyFill, describeFields } from './lib/page-fill.js';
-import { isHttpUrl, sameTab } from './lib/url.js';
+import { applyFill, describeFields, listFrameUrls } from './lib/page-fill.js';
+import { frameOrigins, isHttpUrl, sameTab } from './lib/url.js';
 import { readTab, renderSendForm } from './send.js';
 
 const main = document.getElementById('main');
@@ -79,17 +79,18 @@ const askForSite = (url) => chrome.permissions.request({ origins: [`${new URL(ur
 function fillSection(j, tab) {
   const status = h('div', { className: 'status' });
   const button = h('button', { type: 'button' }, 'Fill this form');
-  button.addEventListener('click', async () => {
+  const run = async () => {
     button.disabled = true;
     status.replaceChildren(h('p', {}, 'Filling…'));
     try {
-      status.replaceChildren(...(await fillForm(j, tab)));
+      status.replaceChildren(...(await fillForm(j, tab, run)));
     } catch (e) {
       status.replaceChildren(h('p', { className: 'needs' }, `Could not fill this page: ${e.message}`));
     } finally {
       button.disabled = false;
     }
-  });
+  };
+  button.addEventListener('click', run);
   return h(
     'div',
     { className: 'box' },
@@ -104,10 +105,29 @@ function fillSection(j, tab) {
 }
 
 /** Fills the form in the active tab, frame by frame. Returns the result lines for the panel. */
-async function fillForm(j, tab) {
+/**
+ * Fills the form in the job's tab, frame by frame. Returns the result lines for the panel. `retry` runs the fill
+ * again, from the "Allow" button shown when the form sits in an iframe from another site.
+ */
+async function fillForm(j, tab, retry) {
   const [active] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!sameTab(tab, active)) return [h('p', { className: 'needs' }, 'The tab changed since this job was shown. Press Refresh, then fill.')];
   if (!(await askForSite(tab.url))) return [h('p', {}, 'Without access to this site the panel cannot fill the form.')];
+  // A form embedded from another site needs access to that site too. Chrome only asks from a click, so a missing
+  // one gets its own "Allow" button (a fresh click) instead of failing silently.
+  const [top] = await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: listFrameUrls });
+  const missing = [];
+  for (const origin of frameOrigins(tab.url, top?.result)) {
+    if (!(await chrome.permissions.contains({ origins: [origin] }))) missing.push(origin);
+  }
+  if (missing.length) {
+    const sites = missing.map((o) => o.replace(/\/\*$/, '')).join(', ');
+    const allow = h('button', { type: 'button' }, `Allow ${sites} and fill`);
+    allow.addEventListener('click', async () => {
+      if (await chrome.permissions.request({ origins: missing }).catch(() => false)) retry();
+    });
+    return [h('p', {}, `Part of this form comes from ${sites}. Allow job-bot there too, so it can fill the whole form.`), allow];
+  }
   // The CV PDF is downloaded only when a form has a CV field; planning needs just its name.
   const data = {
     profile: j.profile,
@@ -116,8 +136,7 @@ async function fillForm(j, tab) {
     cv: j.cv_url ? { name: j.cv_file_name } : null,
   };
   let cv = null;
-  // Forms are often in an iframe (Greenhouse, Workday embeds). Frames on other sites need their own permission,
-  // so fall back to the top frame when Chrome refuses some of them.
+  // Forms are often in an iframe (Greenhouse, Workday embeds). If Chrome still refuses a frame, fill the top one.
   const frames = await chrome.scripting
     .executeScript({ target: { tabId: tab.id, allFrames: true }, func: describeFields })
     .catch(() => chrome.scripting.executeScript({ target: { tabId: tab.id }, func: describeFields }));
