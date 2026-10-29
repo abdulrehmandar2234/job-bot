@@ -1,4 +1,5 @@
--- Applied on every CLI start; must stay idempotent.
+-- Baseline: the schema as it was before versioned migrations (the old src/schema.sql, re-run on every start).
+-- Idempotent, so databases created by that file upgrade cleanly. See src/migrate.ts.
 
 CREATE TABLE IF NOT EXISTS jobs (
   id            text PRIMARY KEY,           -- source:company:external-id

@@ -1,7 +1,8 @@
 import { spawn } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
-import { config, path } from './config.ts';
-import type { Job } from './db.ts';
+import { existsSync } from 'node:fs';
+import { config } from './config.ts';
+import { APPLICANT_EXAMPLE_FILE, APPLICANT_FILE, loadSettings } from './settings.ts';
+import type { FormAnswer, Job } from './types.ts';
 import { masterRaw } from './cv/versions.ts';
 import type { Cv } from './cv/render.ts';
 
@@ -89,8 +90,6 @@ Score: 85+ strong fit, 70-84 good, 50-69 stretch, below 50 poor. Keep every stri
   return askClaude<AiScore>(`CANDIDATE CV:\n${cvText()}\n\nJOB:\n${jobText(job)}`, SCORE_SCHEMA, config.ai.scoreModel, system);
 }
 
-export type FormAnswer = { question: string; answer: string; needs_input: boolean; note: string };
-
 const ANSWERS_SCHEMA = {
   type: 'object',
   properties: {
@@ -113,11 +112,11 @@ const ANSWERS_SCHEMA = {
 
 /**
  * Personal facts for forms that the CV lacks (salary, notice period...): cv/applicant.json, kept out of git.
- * Falls back to cv/applicant.example.json (all unknown). Nulls are unknown.
+ * Falls back to cv/applicant.example.json (all unknown). Nulls are unknown. Throws if the file is invalid.
  */
 export function applicantFacts(): string {
-  const file = existsSync(path('cv', 'applicant.json')) ? path('cv', 'applicant.json') : path('cv', 'applicant.example.json');
-  const facts = JSON.parse(readFileSync(file, 'utf8'));
+  const file = existsSync(APPLICANT_FILE) ? APPLICANT_FILE : APPLICANT_EXAMPLE_FILE;
+  const facts = { ...loadSettings('applicant', file) };
   delete facts._help;
   return JSON.stringify(facts, null, 1);
 }

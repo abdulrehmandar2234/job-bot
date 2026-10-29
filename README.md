@@ -153,7 +153,7 @@ The prompts only allow facts from `cv/master.json` and `cv/applicant.json`. Fill
 
 ### Database
 
-Tables are created and updated automatically from `src/schema.sql` on every CLI start (idempotent), so there is no migration command.
+Every CLI start applies the numbered SQL files in `src/migrations/` that the database has not run yet (recorded in `schema_migrations`), so there is no migration command. To change the schema, add the next `NNN_name.sql` file; never edit one that is already committed (see `src/migrate.ts`).
 
 - `jobs`: one row per posting. It holds the score, matched/missing skills, visa note, flags, status, filter reason, CV version, cover letter, AI review, form answers, notes and `duplicate_of`.
 - `job_events`: every status change with a note.
@@ -189,6 +189,7 @@ npm run bot -- add [--file job.json]          # add a job manually (JSON or stdi
 npm run bot -- discover <company...> [--add]
 npm run bot -- cv:default | cv:build [cluster...] | versions
 npm run bot -- sponsors:update | stats | dedupe
+npm run bot -- settings:check|settings:save --kind config|applicant [--file x.json]  # validate (and save) settings, JSON result
 ```
 
 `add` JSON format:
@@ -227,17 +228,23 @@ launchctl bootout gui/$(id -u)/com.abdulrehman.job-bot.fetch
 | `ai`                        | Claude path, models, `maxScorePerRun`, concurrency            |
 | `cvFileName`, `autoCvVersions`, `chromePath` | CV output settings                           |
 
+Both files are validated on load, so a typo stops the bot with the file and field name. Set `JOB_BOT_CONFIG` / `JOB_BOT_APPLICANT` to use other files.
+
 After changing filters, run `npm run bot -- rescore`.
 
 ## Project structure
 
 ```
 src/
-  cli.ts            command entry point
+  cli.ts            command entry point: flags, command registry, dedupe after changes
+  commands/         one file per command (or small group of related commands)
   config.ts         loads config.json
+  settings.ts       zod schemas for config.json and cv/applicant.json
+  types.ts          row types shared with the dashboard
   match.ts          filters, keyword score, CV cluster
   db.ts             Postgres access, upsert, status changes, dedupe
-  schema.sql        tables (applied on start)
+  migrate.ts        migration runner (applied on start)
+  migrations/       numbered schema files (001_baseline.sql, ...)
   ai.ts             Claude CLI calls: review, letter, form answers
   cover.ts          template cover letter
   sponsors.ts       IND recognised-sponsor register
@@ -260,6 +267,7 @@ web/tests/          dashboard tests (vitest)
 npm test             # backend: matching, sources, dedupe, CV, AI, DB, CLI (node:test)
 npm run test:web     # dashboard: components, DB queries, API routes, server actions (vitest)
 npm run test:all     # both
+npm run typecheck    # tsc for the bot (src/, tests/) and the dashboard (web/)
 ```
 
 - Tests use separate databases: `job_bot_test_bot` (backend) and `job_bot_test` (dashboard). They never touch the real `job_bot`.
