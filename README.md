@@ -265,6 +265,7 @@ web/tests/          dashboard tests (vitest)
 npm test             # backend: matching, sources, dedupe, CV, AI, DB, CLI (node:test)
 npm run test:web     # dashboard: components, DB queries, API routes, server actions (vitest)
 npm run test:all     # both
+npm run typecheck    # tsc for the bot (src/, tests/) and the dashboard (web/)
 ```
 
 - Tests use separate databases: `job_bot_test_bot` (backend) and `job_bot_test` (dashboard). They never touch the real `job_bot`.

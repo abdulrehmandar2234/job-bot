@@ -10,7 +10,8 @@
     "test": "DATABASE_URL=postgres://postgres@127.0.0.1:5432/${BOT_TEST_DB:-job_bot_test_bot} node --no-warnings --test --test-concurrency=1 'tests/**/*.test.ts'",
     "test:web": "npm --prefix web test",
     "test:all": "npm test && npm run test:web",
-    "test:db": "node scripts/create-test-db.mjs"
+    "test:db": "node scripts/create-test-db.mjs",
+    "typecheck": "tsc -p . && cd web && npx next typegen && npx tsc -p ."
   },
   "engines": {
     "node": ">=24"

@@ -115,12 +115,12 @@ export const validateConfig = (obj: unknown) => validate('config', obj);
 export const validateApplicant = (obj: unknown) => validate('applicant', obj);
 
 /** Parses JSON text and validates it; invalid JSON is reported like any other error. */
-export function validateText<K extends SettingsKind>(kind: K, json: string) {
+export function validateText<K extends SettingsKind>(kind: K, json: string): Validation<K extends 'config' ? Config : Applicant> {
   let obj: unknown;
   try {
     obj = JSON.parse(json);
   } catch (e) {
-    return { ok: false, errors: [{ path: '(root)', message: `invalid JSON: ${(e as Error).message}` }] } as const;
+    return { ok: false, errors: [{ path: '(root)', message: `invalid JSON: ${(e as Error).message}` }] };
   }
   return validate(kind, obj);
 }
