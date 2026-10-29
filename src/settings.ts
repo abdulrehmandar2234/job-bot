@@ -53,6 +53,7 @@ export const configSchema = z.object({
     letterModel: text,           // better writer for cover letters
     maxScorePerRun: count,       // cap per `ai:score` run
     concurrency: z.number().int().positive(),
+    alertStrong: z.boolean().optional(), // macOS notification for each new `strong` verdict; missing = on
   }),
   linkedin: z.object({
     enabled: z.boolean(),

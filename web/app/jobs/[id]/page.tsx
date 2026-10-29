@@ -5,6 +5,7 @@ import { clearAnswers, draftAnswers, prepare, saveNotes } from '@/app/actions';
 import { getJob, jobEvents, postingsFor } from '@/lib/db';
 import { CopyButton, SubmitButton } from '@/components/client';
 import { JobActions } from '@/components/job-actions';
+import { InterviewPrep } from '@/components/interview-prep';
 import { AiReview, Chips, COUNTRIES, fmtDate, Posted, PostedOn, Score, STATUS_LABEL } from '@/components/ui';
 
 export default function Page(props: PageProps<'/jobs/[id]'>) {
@@ -46,6 +47,8 @@ async function JobDetail({ params }: { params: PageProps<'/jobs/[id]'>['params']
       <JobActions job={job} />
 
       <AiReview job={job} />
+
+      <InterviewPrep job={job} />
 
       <section className="space-y-2 rounded-xl border border-zinc-200 p-4 text-sm dark:border-zinc-800">
         {job.visa && <p className="text-emerald-700 dark:text-emerald-400">✓ Visa: {job.visa}</p>}

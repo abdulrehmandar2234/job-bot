@@ -1,7 +1,7 @@
 import { Pool } from 'pg';
 // Row types are shared with the bot (job-bot/src/types.ts). Type-only import: erased at build time, so no bot code
 // is bundled and Turbopack's root stays web/.
-import type { FetchRun, FormAnswer, Job as JobRow, JobEvent } from '../../src/types';
+import type { FetchRun, FormAnswer, InterviewPrep, Job as JobRow, JobEvent } from '../../src/types';
 
 // Same Postgres database the CLI bot writes to (job-bot/.env and web/.env.local).
 const g = globalThis as unknown as { jobBotPool?: Pool };
@@ -10,11 +10,12 @@ export const pool = (g.jobBotPool ??= new Pool({ connectionString: process.env.D
 export const STATUSES = ['new', 'prepared', 'applied', 'interview', 'offer', 'rejected', 'skipped', 'filtered'] as const;
 export type Status = (typeof STATUSES)[number];
 
-export type { FetchRun, FormAnswer, JobEvent };
+export type { FetchRun, FormAnswer, InterviewPrep, JobEvent };
 
 // listJobs() selects only part of a row, so these columns may be missing.
-export type Job = Omit<JobRow, 'fetched_at' | 'ai_scored_at' | 'duplicate_of' | 'cover_letter_ai' | 'form_answers'>
-  & Partial<Pick<JobRow, 'duplicate_of' | 'cover_letter_ai' | 'form_answers'>>;
+export type Job = Omit<JobRow, 'fetched_at' | 'ai_scored_at' | 'duplicate_of' | 'cover_letter_ai' | 'form_answers'
+  | 'interview_prep' | 'interview_prep_at' | 'alerted_at'>
+  & Partial<Pick<JobRow, 'duplicate_of' | 'cover_letter_ai' | 'form_answers' | 'interview_prep' | 'interview_prep_at' | 'alerted_at'>>;
 
 export type JobFilter = { status: Status; country?: string; min?: number; q?: string; days?: number; sort?: 'score' | 'newest' };
 

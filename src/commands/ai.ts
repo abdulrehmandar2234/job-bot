@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { config } from '../config.ts';
 import { getJob, pool, type Job } from '../db.ts';
 import { aiAnswers, aiScore as review } from '../ai.ts';
+import { notify, strongAlerts, type AlertJob } from '../notify.ts';
 import type { Flags } from './shared.ts';
 
 /** AI review of matching jobs via the local Claude CLI: ai:score [--id <job>] [--limit 80] [--all] */
@@ -16,6 +17,7 @@ export async function aiScore(_args: string[], flags: Flags) {
   if (!queue.length) return console.log('Nothing to score.');
   console.log(`AI scoring ${queue.length} jobs with ${config.ai.scoreModel}...`);
   let done = 0;
+  const strong: string[] = [];
   const worker = async () => {
     for (let j = queue.shift(); j; j = queue.shift()) {
       try {
@@ -24,6 +26,7 @@ export async function aiScore(_args: string[], flags: Flags) {
           ai_flags = $7, ai_scored_at = now() WHERE id = $1`, [j.id, r.score, r.verdict, r.summary, r.reasons, r.gaps, r.red_flags]);
         console.log(`${String(r.score).padStart(3)} ${r.verdict.padEnd(7)} ${j.company} — ${j.title}`);
         done++;
+        if (r.verdict === 'strong') strong.push(j.id);
       } catch (e) {
         console.log(`  ✗ ${j.company} — ${j.title}: ${(e as Error).message.slice(0, 120)}`);
       }
@@ -31,6 +34,22 @@ export async function aiScore(_args: string[], flags: Flags) {
   };
   await Promise.all(Array.from({ length: config.ai.concurrency }, worker));
   console.log(`${done} jobs scored.`);
+  await alertStrong(strong);
+}
+
+const countryName = (c: string | null) => (c === 'RM' ? 'Remote' : c && config.countries[c]?.name) || c || 'unknown country';
+
+/** macOS alert for jobs the AI just rated strong (grouped above 3). alerted_at makes it once per job, even if re-scored. */
+async function alertStrong(ids: string[]) {
+  if (!ids.length || config.ai.alertStrong === false) return;
+  const { rows } = await pool.query<AlertJob & { ai_score: number }>(
+    `UPDATE jobs SET alerted_at = now() WHERE id = ANY($1) AND ai_verdict = 'strong' AND alerted_at IS NULL
+     RETURNING id, title, company, country, ai_score`, [ids]);
+  rows.sort((a, b) => b.ai_score - a.ai_score);
+  for (const n of strongAlerts(rows, countryName)) {
+    console.log(`Alert: ${n.message}`);
+    await notify(n);
+  }
 }
 
 /** Drafts answers to application-form questions: answer <id> [--file questions.txt] (or stdin) [--clear]. Never submits. */
