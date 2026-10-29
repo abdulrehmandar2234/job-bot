@@ -22,6 +22,7 @@ Design principles:
 - **Remote job boards:** Himalayas (only jobs open to Pakistan), Remotive and RemoteOK.
 - **LinkedIn** guest job search (no login, your account is never used). It covers onsite jobs in AE/SA/NL and remote jobs open to Pakistan. Requests are 1.2 s apart, and LinkedIn is skipped for the day on a 429.
 - **Bayt** via a browser bookmarklet (`scripts/bayt-collect.js`), because Bayt blocks direct requests. You click it on bayt.com and it sends jobs to the dashboard's `/api/import`.
+- **Chrome extension** (`extension/`, see [extension/README.md](extension/README.md)): "Send to job-bot" from any job page (Bayt, GulfTalent, NaukriGulf, company sites), and an "Apply helper" side panel with the prepared CV, letter and answers to copy. It never fills in or submits forms.
 - **Manual add** of any job as JSON (`bot add`), e.g. from GulfTalent or a referral.
 - **Company discovery** (`bot discover <names> --add`) tries a company name on all six ATS platforms and adds it to the config if it has jobs in your target countries.
 - **Daily automatic fetch** at 9:00 through a macOS launchd job, followed by AI review of new matches and a macOS notification.
@@ -248,6 +249,7 @@ web/
   components/       UI and client components
   lib/              DB queries and the CLI runner
 scripts/            daily fetch, Bayt bookmarklet
+extension/          Chrome extension: send a job, apply helper side panel
 tests/              backend tests (node:test)
 web/tests/          dashboard tests (vitest)
 ```
