@@ -1,5 +1,5 @@
-import { execFile } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { execFile, spawn } from 'node:child_process';
+import { closeSync, mkdirSync, openSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 
@@ -16,6 +16,26 @@ export async function runBot(args: string[], timeoutMs = 60_000) {
     maxBuffer: 10 * 1024 * 1024,
   });
   return stdout;
+}
+
+/**
+ * Starts the bot CLI in the background and returns at once: a detached process (argument array, never a shell)
+ * that outlives this request and the dev server. Its output is appended to data/logs/tasks.log.
+ */
+export function spawnBot(args: string[]) {
+  const dir = join(BOT_ROOT, 'data', 'logs');
+  mkdirSync(dir, { recursive: true });
+  const log = openSync(join(dir, 'tasks.log'), 'a');
+  try {
+    const child = spawn(process.execPath, ['--no-warnings', '--env-file-if-exists=.env', 'src/cli.ts', ...args], {
+      cwd: BOT_ROOT, detached: true, stdio: ['ignore', log, log],
+    });
+    // A spawn error leaves the task queued; expire_stale_tasks() fails it after 2 minutes.
+    child.on('error', () => {});
+    child.unref();
+  } finally {
+    closeSync(log);
+  }
 }
 
 export function cvFileName(): string {

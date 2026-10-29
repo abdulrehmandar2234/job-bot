@@ -40,9 +40,10 @@ export async function insertFetchRun(run: { started_at?: Date; finished_at?: Dat
   return rows[0].id;
 }
 
-/** Removes only this suite's rows (job_events cascade from jobs). */
+/** Removes only this suite's rows (job_events and job tasks cascade from jobs; fetch/rescore tasks have no job). */
 export async function cleanupDb() {
   await pool.query(`DELETE FROM jobs WHERE id LIKE '${PREFIX}%'`);
+  await pool.query('DELETE FROM tasks WHERE job_id IS NULL');
   if (fetchRunIds.length) await pool.query('DELETE FROM fetch_runs WHERE id = ANY($1)', [fetchRunIds.splice(0)]);
 }
 

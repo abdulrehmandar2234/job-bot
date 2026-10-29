@@ -1,11 +1,8 @@
 'use server';
 
-import { randomUUID } from 'node:crypto';
-import { mkdir, rm, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
 import { refresh } from 'next/cache';
 import { pool, STATUSES, type Status } from '@/lib/db';
-import { BOT_ROOT, runBot } from '@/lib/bot';
+import { dismissTask as dismissFailedTask, enqueueTask } from '@/lib/tasks';
 
 // Server actions are reachable by POST, so every input is validated here.
 const USER_STATUSES: readonly Status[] = STATUSES.filter((s) => s !== 'filtered');
@@ -49,37 +46,33 @@ export async function saveNotes(formData: FormData) {
   refresh();
 }
 
+// Long bot commands run as background tasks (lib/tasks.ts): these actions queue one and return at once.
+// The page shows the task while it runs and refreshes when it finishes (TaskWatcher).
+
 /** Default CV + cover letter (same as `npm run bot -- prepare <id>`). */
 export async function prepare(formData: FormData) {
   const id = await assertJob(formData.get('id'));
   const cv = formData.get('cv');
-  const args = ['prepare', id];
-  if (typeof cv === 'string' && /^[a-z0-9][a-z0-9-]*$/.test(cv)) args.push('--cv', cv);
-  await runBot(args, 240_000);
+  await enqueueTask('prepare', id, typeof cv === 'string' && /^[a-z0-9][a-z0-9-]*$/.test(cv) ? { cv } : {});
   refresh();
 }
 
 /** AI fit review of one job via the local Claude CLI (`bot ai:score --id`). */
 export async function aiReview(formData: FormData) {
   const id = await assertJob(formData.get('id'));
-  await runBot(['ai:score', '--id', id], 240_000);
+  await enqueueTask('ai_review', id);
   refresh();
 }
 
-/** AI drafts answers to questions pasted from an application form (`bot answer`). Nothing is submitted anywhere. */
+/**
+ * AI drafts answers to questions pasted from an application form (`bot answer`). Nothing is submitted anywhere.
+ * The questions travel in the task's args; the worker writes them to a temp file for `answer --file`.
+ */
 export async function draftAnswers(formData: FormData) {
   const id = await assertJob(formData.get('id'));
   const questions = String(formData.get('questions') ?? '').trim().slice(0, 8000);
   if (!questions) return;
-  const dir = join(BOT_ROOT, 'data', 'questions');
-  await mkdir(dir, { recursive: true });
-  const file = join(dir, `${randomUUID()}.txt`);
-  await writeFile(file, questions);
-  try {
-    await runBot(['answer', id, '--file', file], 240_000);
-  } finally {
-    await rm(file, { force: true });
-  }
+  await enqueueTask('answers', id, { questions });
   refresh();
 }
 
@@ -89,8 +82,16 @@ export async function clearAnswers(formData: FormData) {
   refresh();
 }
 
-/** Pulls fresh postings from every source; LinkedIn is paced slowly, so a full run takes ~10 minutes. */
+/** Pulls fresh postings from every source in the background; LinkedIn is paced slowly, so a full run takes ~10 minutes. */
 export async function fetchNow() {
-  await runBot(['fetch'], 20 * 60_000);
+  await enqueueTask('fetch', null);
+  refresh();
+}
+
+/** Hides a failed task's error from the dashboard. */
+export async function dismissTask(formData: FormData) {
+  const id = Number(formData.get('task'));
+  if (!Number.isInteger(id) || id <= 0) throw new Error('Invalid task');
+  await dismissFailedTask(id);
   refresh();
 }
