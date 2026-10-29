@@ -80,6 +80,39 @@ describe('setStatus', () => {
   });
 });
 
+describe('setStatus expectFrom', () => {
+  const statusOf = async () => (await getJob('test:db1')).status;
+  const eventCount = async () => (await pool.query('SELECT count(*)::int n FROM job_events')).rows[0].n;
+
+  it('applies the change when the current status is one of expectFrom', async () => {
+    await upsertJob(job());
+    assert.equal(await setStatus('test:db1', 'expired', 'posting closed', undefined, { expectFrom: ['new', 'prepared'] }), true);
+    assert.equal(await statusOf(), 'expired');
+    assert.equal(await eventCount(), 1);
+  });
+
+  it('a status set between the read and the write wins: no update, no history entry', async () => {
+    await upsertJob(job());
+    // The bot read 'new'; the user marks it applied before the bot writes.
+    await setStatus('test:db1', 'applied');
+    const appliedAt = (await getJob('test:db1')).applied_at;
+    assert.equal(await setStatus('test:db1', 'expired', 'posting closed', undefined, { expectFrom: ['new', 'prepared'] }), false);
+    const j = await getJob('test:db1');
+    assert.equal(j.status, 'applied');
+    assert.deepEqual(j.applied_at, appliedAt);
+    assert.equal(await eventCount(), 1);
+  });
+
+  it('returns false for a missing job, and a change without expectFrom (mark) always applies', async () => {
+    assert.equal(await setStatus('test:nope', 'expired', undefined, undefined, { expectFrom: ['new'] }), false);
+    assert.equal(await eventCount(), 0);
+    await upsertJob(job());
+    await setStatus('test:db1', 'applied');
+    assert.equal(await setStatus('test:db1', 'rejected'), true);
+    assert.equal(await statusOf(), 'rejected');
+  });
+});
+
 describe('dedupe', () => {
   it('points copies at the primary and resets old links', async () => {
     await upsertJob(job({ id: 'gh:1' }));
