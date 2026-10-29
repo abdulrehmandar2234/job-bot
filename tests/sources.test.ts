@@ -1,5 +1,8 @@
-import { afterEach, before, describe, it } from 'node:test';
+import { after, afterEach, before, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { daysAgo, mockFetch } from './helpers.ts';
 import { timing } from '../src/sources/http.ts';
 import { fetchCompany } from '../src/sources/index.ts';
@@ -8,7 +11,12 @@ import { linkedin } from '../src/sources/linkedin.ts';
 import { discover } from '../src/discover.ts';
 import type { Company } from '../src/config.ts';
 
-before(() => { timing.scale = 0; });
+const cacheDir = mkdtempSync(join(tmpdir(), 'job-bot-sources-'));
+before(() => {
+  timing.scale = 0;
+  process.env.JOB_BOT_HTTP_CACHE = cacheDir;
+});
+after(() => rmSync(cacheDir, { recursive: true, force: true }));
 let net: ReturnType<typeof mockFetch>;
 afterEach(() => net?.restore());
 
@@ -70,6 +78,13 @@ describe('company job boards (ATS)', () => {
     assert.equal(j.id, 'workable:acme:W1');
     assert.equal(j.url, 'https://apply.workable.com/acme/j/W1/');
     assert.equal(j.location, 'Dubai, United Arab Emirates');
+  });
+
+  it('workable: retries a Cloudflare 403', async () => {
+    let n = 0;
+    net = mockFetch({ 'apply.workable.com': () => (++n === 1 ? new Response('', { status: 403 }) : { jobs: [] }) });
+    assert.deepEqual(await fetchCompany(co('workable')), []);
+    assert.equal(n, 2);
   });
 
   it('workable: gives up on a 404', async () => {
@@ -154,9 +169,22 @@ describe('linkedin (guest search)', () => {
     assert.ok(searches.every((u) => u.includes('f_TPR=r')));
   });
 
-  it('fails the source on repeated 429s', async () => {
+  it('stops LinkedIn for today on the first 429, without retrying', async () => {
     net = mockFetch({ linkedin: () => new Response('', { status: 429 }) });
-    await assert.rejects(linkedin(), /429/);
+    await assert.rejects(linkedin(), /429 LinkedIn rate limit: stopping LinkedIn for today/);
+    assert.equal(net.calls.length, 1);
+  });
+
+  it('still retries a LinkedIn 5xx and keeps its browser headers', async () => {
+    let n = 0;
+    const agents: string[] = [];
+    net = mockFetch({ 'seeMoreJobPostings/search': (_u: string, init?: RequestInit) => {
+      agents.push((init?.headers as Record<string, string>)['user-agent']);
+      return ++n === 1 ? new Response('', { status: 503 }) : '';
+    } });
+    await linkedin();
+    assert.equal(net.calls[0], net.calls[1]);
+    assert.match(agents[0], /^Mozilla\//);
   });
 });
 
@@ -168,5 +196,12 @@ describe('discover', () => {
     });
     const hits = await discover(['acme']);
     assert.deepEqual(hits.map((h) => [h.ats, h.jobs, h.target]), [['greenhouse', 2, 1], ['lever', 1, 0]]);
+  });
+
+  it('probes each missing board once: a 404 is not retried', async () => {
+    net = mockFetch({});
+    assert.deepEqual(await discover(['nobody']), []);
+    assert.equal(net.calls.length, 6);
+    assert.equal(new Set(net.calls).size, 6);
   });
 });

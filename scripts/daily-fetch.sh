@@ -18,3 +18,6 @@ if node --no-warnings --env-file-if-exists=.env src/cli.ts fetch >> "$LOG" 2>&1;
 else
   osascript -e 'display notification "Fetch failed — is PostgreSQL (DBngin) running? See data/fetch.log" with title "Job Bot"'
 fi
+
+# Daily database backup (keeps 14). Runs after the notification, so a failed backup only shows in the log.
+scripts/backup-db.sh >> "$LOG" 2>&1 || print "backup failed (see above)" >> "$LOG"

@@ -1,5 +1,5 @@
 import { readFileSync, writeFileSync } from 'node:fs';
-import { sleep } from './sources/http.ts';
+import { getJson, sleep } from './sources/http.ts';
 import { ATS, config, path, type Company } from './config.ts';
 
 // Finds which public job board (ATS) a company uses and how many of its jobs are in target countries.
@@ -22,10 +22,10 @@ const locations: Record<Company['ats'], (slug: string) => Promise<string[] | nul
     ?.map((x: any) => x.location?.fullLocation ?? ''),
 };
 
+// Most probes hit boards that do not exist; a 404 (or any other 4xx but 429) returns null at once, without retries.
 async function json(url: string) {
   try {
-    const r = await fetch(url, { signal: AbortSignal.timeout(15_000) });
-    return r.ok ? await r.json() : null;
+    return await getJson(url, { timeoutMs: 15_000, attempts: 3 });
   } catch {
     return null;
   }

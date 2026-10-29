@@ -1,5 +1,6 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { config, path } from './config.ts';
+import { getText } from './sources/http.ts';
 
 // Dutch IND public register of recognised sponsors (erkend referent) for highly skilled migrants.
 // Only these employers can sponsor a Dutch highly-skilled-migrant visa.
@@ -14,7 +15,7 @@ const normalize = (name: string) =>
     .replace(/\s+/g, ' ').trim();
 
 export async function updateIndRegister() {
-  const html = await (await fetch(IND_URL)).text();
+  const html = await getText(IND_URL);
   const names = [...html.matchAll(/<th scope="row">([^<]+)<\/th>/g)].map((m) => m[1].replace(/""/g, '"').trim());
   if (names.length < 1000) throw new Error(`IND register looks wrong: only ${names.length} rows parsed`);
   writeFileSync(FILE, JSON.stringify({ updated: new Date().toISOString(), names }, null, 0));
