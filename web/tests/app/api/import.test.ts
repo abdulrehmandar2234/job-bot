@@ -126,12 +126,64 @@ describe('POST', () => {
     ]);
   });
 
-  it('derives the source from the origin unless given', async () => {
+  it('derives the source from the origin unless a valid slug is given', async () => {
     await post(
-      [job({ url: 'https://www.linkedin.com/jobs/view/1' }), job({ url: 'https://www.linkedin.com/jobs/view/2', source: 'li-custom' })],
+      [
+        job({ url: 'https://www.linkedin.com/jobs/view/1' }),
+        job({ url: 'https://www.linkedin.com/jobs/view/2', source: 'li-custom' }),
+        job({ url: 'https://www.linkedin.com/jobs/view/3', source: 'Not A Slug' }),
+        job({ url: 'https://www.linkedin.com/jobs/view/4', source: '../../etc' }),
+        job({ url: 'https://www.linkedin.com/jobs/view/5', source: 's'.repeat(31) }),
+        job({ url: 'https://www.linkedin.com/jobs/view/6', source: 42 }),
+        job({ url: 'https://www.linkedin.com/jobs/view/7', source: '' }),
+      ],
       'https://www.linkedin.com',
     );
-    expect(imported().map((j) => j.source)).toEqual(['linkedin', 'li-custom']);
+    expect(imported().map((j) => j.source)).toEqual(['linkedin', 'li-custom', 'linkedin', 'linkedin', 'linkedin', 'linkedin', 'linkedin']);
+  });
+
+  it('keeps posted_at only as a real YYYY-MM-DD date, so one bad value cannot fail the batch', async () => {
+    const dates = [
+      '2026-10-27',
+      '2026-10-27T08:15:00Z',
+      '3 days ago',
+      '27/10/2026',
+      '2026-02-30',
+      '2026-13-01',
+      '',
+      20261027,
+      null,
+      undefined,
+    ];
+    await post(dates.map((posted_at, i) => job({ url: `${BAYT}/job/d${i}`, posted_at })));
+    expect(imported().map((j) => j.posted_at)).toEqual(['2026-10-27', '2026-10-27', null, null, null, null, null, null, null, null]);
+  });
+
+  it('answers a failed `bot add` with a JSON error and the CORS headers', async () => {
+    bot.mockRejectedValue(
+      Object.assign(new Error('Command failed: node src/cli.ts add --file /Users/x/job-bot/data/imports/a.json\nstack…'), {
+        stderr: 'Loading jobs…\nerror: invalid input syntax for type date: "yesterday"\n',
+      }),
+    );
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const res = await post([job()]);
+
+    expect(res.status).toBe(500);
+    expect(res.headers.get('content-type')).toBe('application/json');
+    expect(res.headers.get('access-control-allow-origin')).toBe(BAYT);
+    expect(res.headers.get('access-control-allow-private-network')).toBe('true');
+    expect(await res.json()).toEqual({ error: 'Import failed: error: invalid input syntax for type date: "yesterday"' });
+    expect(error).toHaveBeenCalledOnce();
+    error.mockRestore();
+  });
+
+  it('falls back to the first line of the error message when the bot wrote no stderr', async () => {
+    bot.mockRejectedValue(new Error('spawn ENOENT\nmore'));
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const res = await post([job()]);
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ error: 'Import failed: spawn ENOENT' });
+    vi.mocked(console.error).mockRestore();
   });
 
   it('drops jobs whose url is not on the posting site, or that miss required fields', async () => {
@@ -153,7 +205,7 @@ describe('POST', () => {
   it('caps field lengths and keeps location, description and posted_at', async () => {
     await post([
       job({
-        source: 's'.repeat(50),
+        source: 's'.repeat(30),
         company: 'c'.repeat(250),
         title: 't'.repeat(400),
         location: 'l'.repeat(400),
