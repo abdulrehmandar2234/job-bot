@@ -41,7 +41,7 @@ if (!load) {
   sponsors:update                 download Dutch IND recognised-sponsor register
   fetch [--company name]          pull jobs from company boards, filter + score
   rescore                         re-apply filters/scoring to stored jobs (after config changes)
-  discover <slug...> [--add]      find a company's job board (6 ATS); --add saves hits to config.json
+  discover <slug...> [--add]      find a company's job board (6 ATS, or a myworkdayjobs URL); --add saves hits
   list [--status new] [--country AE|SA|NL] [--min 60] [--limit 30]
   show <id> [--full]              details (+ full description)
   prepare <id> [--cv cluster]     default CV (or --cv version) + AI cover letter (--template for the plain one)

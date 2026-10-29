@@ -1,15 +1,15 @@
-import { after, afterEach, before, describe, it } from 'node:test';
+import { after, afterEach, before, describe, it, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { daysAgo, mockFetch } from './helpers.ts';
 import { timing } from '../src/sources/http.ts';
-import { fetchCompany } from '../src/sources/index.ts';
+import { fetchCompany, workdayAgeDays, workdaySite } from '../src/sources/index.ts';
 import { BOARDS } from '../src/sources/boards.ts';
 import { linkedin } from '../src/sources/linkedin.ts';
-import { discover } from '../src/discover.ts';
-import type { Company } from '../src/config.ts';
+import { discover, workdayToken } from '../src/discover.ts';
+import { config, type Company } from '../src/config.ts';
 
 const cacheDir = mkdtempSync(join(tmpdir(), 'job-bot-sources-'));
 before(() => {
@@ -113,6 +113,83 @@ describe('company job boards (ATS)', () => {
   });
 });
 
+describe('workday', () => {
+  const wd: Company = { name: 'Acme', ats: 'workday', token: 'acme/wd3/AcmeCareers' };
+  const api = 'acme.wd3.myworkdayjobs.com/wday/cxs/acme/AcmeCareers';
+  const posting = (n: number, o: Record<string, string> = {}) => ({
+    title: 'Backend Engineer', externalPath: `/job/Dubai/Backend-Engineer_R${n}`, locationsText: 'Dubai, United Arab Emirates',
+    postedOn: 'Posted 2 Days Ago', ...o,
+  });
+
+  it('reads the token as tenant, host and site', () => {
+    assert.deepEqual(workdaySite('acme/wd3/AcmeCareers'), {
+      tenant: 'acme', api: 'https://acme.wd3.myworkdayjobs.com/wday/cxs/acme/AcmeCareers',
+      site: 'https://acme.wd3.myworkdayjobs.com/AcmeCareers',
+    });
+    assert.throws(() => workdaySite('acme'), /<tenant>\/<wdN>\/<site>/);
+    assert.throws(() => workdaySite('acme/x3/Site'), /<tenant>\/<wdN>\/<site>/);
+  });
+
+  it('parses "Posted ..." ages', () => {
+    assert.deepEqual(['Posted Today', 'Posted Yesterday', 'Posted 3 Days Ago', 'Posted 30+ Days Ago', ''].map((x) => workdayAgeDays(x)),
+      [0, 1, 3, 30, null]);
+  });
+
+  it('pages with POST until the total is reached, and only loads details for likely matches', async () => {
+    const bodies: any[] = [];
+    const page1 = Array.from({ length: 20 }, (_, i) => posting(i, i === 0 ? {} : { locationsText: 'Paris, France' }));
+    const page2 = [
+      posting(100, { title: 'Sales Manager' }),
+      posting(101, { locationsText: '3 Locations' }),
+      posting(102, { locationsText: 'Remote, Pakistan' }),
+      posting(103, { postedOn: 'Posted 30+ Days Ago' }),
+    ];
+    net = mockFetch({
+      [`${api}/jobs`]: (_u: string, init?: RequestInit) => {
+        const body = JSON.parse(String(init?.body));
+        bodies.push({ ...body, method: init?.method });
+        return body.offset === 0 ? { total: 24, jobPostings: page1 } : { total: 0, jobPostings: page2 };
+      },
+      [`${api}/job/`]: (url: string) => ({ jobPostingInfo: {
+        id: `guid-${url.split('_R').pop()}`, title: 'Backend Engineer', jobDescription: '<p>Node &amp; React</p>',
+        location: 'Dubai, United Arab Emirates', additionalLocations: ['Riyadh, Saudi Arabia'], startDate: '2026-10-27',
+        externalUrl: `https://acme.wd3.myworkdayjobs.com/AcmeCareers${new URL(url).pathname.split('AcmeCareers')[1]}`,
+      } }),
+    });
+    const jobs = await fetchCompany(wd);
+    assert.deepEqual(bodies.map((b) => [b.method, b.limit, b.offset, b.searchText]), [['POST', 20, 0, ''], ['POST', 20, 20, '']]);
+    assert.deepEqual(jobs.map((j) => j.id), ['workday:acme:guid-0', 'workday:acme:guid-101', 'workday:acme:guid-102']);
+    const details = net.calls.filter((u) => u.includes('/job/'));
+    assert.equal(details.length, 3);
+    assert.ok(!details.some((u) => /_R(1|100|103)$/.test(u)));
+    const [j] = jobs;
+    assert.equal(j.source, 'workday');
+    assert.equal(j.location, 'Dubai, United Arab Emirates / Riyadh, Saudi Arabia');
+    assert.equal(j.description, 'Node & React');
+    assert.equal(j.posted_at, '2026-10-27T00:00:00.000Z');
+    assert.equal(j.url, 'https://acme.wd3.myworkdayjobs.com/AcmeCareers/job/Dubai/Backend-Engineer_R0');
+  });
+
+  it('stops at the page cap even when the total is larger', async () => {
+    net = mockFetch({ [`${api}/jobs`]: { total: 5000, jobPostings: Array.from({ length: 20 }, (_, i) => posting(i, { title: 'Sales' })) } });
+    assert.deepEqual(await fetchCompany(wd), []);
+    assert.equal(net.calls.length, 25);
+  });
+
+  it('retries a failed search POST and skips a posting whose detail is gone', async () => {
+    let n = 0;
+    net = mockFetch({
+      [`${api}/jobs`]: () => (++n === 1 ? new Response('', { status: 503 }) : { total: 2, jobPostings: [posting(1), posting(2)] }),
+      [`${api}/job/Dubai/Backend-Engineer_R2`]: { jobPostingInfo: { id: 'g2', jobDescription: 'x' } },
+    });
+    const jobs = await fetchCompany(wd);
+    assert.equal(n, 2);
+    assert.deepEqual(jobs.map((j) => j.id), ['workday:acme:g2']);
+    assert.equal(jobs[0].location, 'Dubai, United Arab Emirates');
+    assert.equal(jobs[0].url, 'https://acme.wd3.myworkdayjobs.com/AcmeCareers/job/Dubai/Backend-Engineer_R2');
+  });
+});
+
 describe('remote boards', () => {
   it('himalayas: searches as Pakistan, keeps fresh jobs and labels the region', async () => {
     const now = Math.floor(Date.now() / 1000);
@@ -142,6 +219,109 @@ describe('remote boards', () => {
     const jobs = await BOARDS.remoteok();
     assert.equal(jobs.length, 1);
     assert.match(jobs[0].description, /react, typescript/);
+  });
+});
+
+describe('arbeitnow', () => {
+  const now = Math.floor(Date.now() / 1000);
+  const job = (slug: string, o: Record<string, unknown> = {}) => ({
+    slug, company_name: 'Acme', title: 'Full Stack Developer', description: '&lt;p&gt;Laravel &amp;amp; Vue&lt;/p&gt;',
+    remote: false, url: `https://www.arbeitnow.com/jobs/companies/acme/${slug}`, tags: [], job_types: [], location: 'Berlin',
+    created_at: now - 3600, ...o,
+  });
+
+  it('keeps Netherlands and remote postings, labels remote ones and decodes the description', async () => {
+    net = mockFetch({ 'arbeitnow.com/api/job-board-api': (url: string) => (url.endsWith('page=1') ? {
+      data: [job('berlin-dev'), job('ams-dev', { location: 'Amsterdam' }), job('remote-dev', { remote: true, location: 'Monheim am Rhein' })],
+      links: { next: 'https://www.arbeitnow.com/api/job-board-api?page=2' },
+    } : { data: [job('utrecht-dev', { location: 'Utrecht, Netherlands' })], links: { next: null } }) });
+    const jobs = await BOARDS.arbeitnow();
+    assert.deepEqual(jobs.map((j) => j.id), ['arbeitnow:ams-dev', 'arbeitnow:remote-dev', 'arbeitnow:utrecht-dev']);
+    assert.equal(jobs[0].location, 'Amsterdam');
+    assert.equal(jobs[1].location, 'Remote — Monheim am Rhein');
+    assert.equal(jobs[0].description, 'Laravel & Vue');
+    assert.equal(jobs[0].source, 'arbeitnow');
+    assert.equal(jobs[0].posted_at, new Date((now - 3600) * 1000).toISOString());
+    assert.equal(net.calls.length, 2);
+  });
+
+  it('stops paging once postings are older than maxAgeDays', async () => {
+    const old = now - 40 * 86_400;
+    net = mockFetch({ 'arbeitnow.com/api/job-board-api': {
+      data: [job('a', { location: 'Amsterdam' }), job('b', { location: 'Amsterdam', created_at: old })],
+      links: { next: 'https://www.arbeitnow.com/api/job-board-api?page=2' },
+    } });
+    const jobs = await BOARDS.arbeitnow();
+    assert.deepEqual(jobs.map((j) => j.id), ['arbeitnow:a']);
+    assert.equal(net.calls.length, 1);
+  });
+});
+
+describe('adzuna', () => {
+  const env = { id: process.env.ADZUNA_APP_ID, key: process.env.ADZUNA_APP_KEY };
+  afterEach(() => {
+    for (const [k, v] of [['ADZUNA_APP_ID', env.id], ['ADZUNA_APP_KEY', env.key]] as const) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+  });
+  const result = (id: string) => ({ id, title: '<strong>Laravel</strong> Developer', company: { display_name: 'Acme BV' },
+    location: { display_name: 'Zwolle, Overijssel', area: ['Nederland', 'Overijssel', 'Zwolle'] },
+    description: 'Build APIs with <strong>Laravel</strong>…', redirect_url: `https://www.adzuna.nl/land/ad/${id}`, created: '2026-10-27T08:00:00Z' });
+
+  it('is skipped with one log line when the keys are missing', async () => {
+    delete process.env.ADZUNA_APP_ID;
+    delete process.env.ADZUNA_APP_KEY;
+    net = mockFetch({});
+    const log = mock.method(console, 'log', () => {});
+    try {
+      assert.deepEqual(await BOARDS.adzuna(), []);
+      assert.equal(log.mock.callCount(), 1);
+      assert.match(String(log.mock.calls[0].arguments[0]), /adzuna: skipped .*ADZUNA_APP_ID/);
+    } finally {
+      log.mock.restore();
+    }
+    assert.equal(net.calls.length, 0);
+  });
+
+  it('searches nl per keyword, pages while pages are full, and maps the results', async () => {
+    process.env.ADZUNA_APP_ID = 'test-id';
+    process.env.ADZUNA_APP_KEY = 'test-key';
+    net = mockFetch({ 'api.adzuna.com/v1/api/jobs/nl/search/': (url: string) => {
+      const u = new URL(url);
+      if (u.searchParams.get('what') !== 'laravel') return { results: [] };
+      return u.pathname.endsWith('/1')
+        ? { results: Array.from({ length: 50 }, (_, i) => result(String(i))) }
+        : { results: [result('0'), result('99')] };
+    } });
+    const jobs = await BOARDS.adzuna();
+    assert.equal(jobs.length, 51);
+    const j = jobs[0];
+    assert.equal(j.id, 'adzuna:nl:0');
+    assert.equal(j.source, 'adzuna');
+    assert.equal(j.title, 'Laravel Developer');
+    assert.equal(j.company, 'Acme BV');
+    assert.equal(j.location, 'Zwolle, Overijssel, Netherlands');
+    assert.equal(j.description, 'Build APIs with Laravel …');
+    assert.equal(j.url, 'https://www.adzuna.nl/land/ad/0');
+    assert.equal(j.posted_at, '2026-10-27T08:00:00Z');
+    const laravel = net.calls.filter((c) => new URL(c).searchParams.get('what') === 'laravel');
+    assert.equal(laravel.length, 2);
+    // Other keywords stop after an empty first page; the config's keywords are used (LinkedIn's by default).
+    assert.equal(net.calls.length, 2 + (config.adzuna?.keywords ?? config.linkedin.keywords).length - 1);
+    const q = new URL(net.calls[0]).searchParams;
+    assert.deepEqual([q.get('app_id'), q.get('app_key'), q.get('results_per_page'), q.get('max_days_old')],
+      ['test-id', 'test-key', '50', String(config.maxAgeDays)]);
+    assert.ok(net.calls.every((c) => !c.includes('/jobs/ae/')));
+  });
+
+  it('keeps the keys out of error messages', async () => {
+    process.env.ADZUNA_APP_ID = 'secret-id';
+    process.env.ADZUNA_APP_KEY = 'secret-key';
+    net = mockFetch({ 'api.adzuna.com': () => new Response('', { status: 401 }) });
+    const err = await BOARDS.adzuna().catch((e) => e);
+    assert.match(err.message, /^401 /);
+    assert.ok(!/secret-(id|key)/.test(err.message));
   });
 });
 
@@ -203,5 +383,29 @@ describe('discover', () => {
     assert.deepEqual(await discover(['nobody']), []);
     assert.equal(net.calls.length, 6);
     assert.equal(new Set(net.calls).size, 6);
+  });
+});
+
+describe('discover: workday', () => {
+  it('turns a myworkdayjobs URL into a token', () => {
+    assert.equal(workdayToken('https://acme.wd3.myworkdayjobs.com/en-US/AcmeCareers/job/Dubai/Dev_R1'), 'acme/wd3/AcmeCareers');
+    assert.equal(workdayToken('https://acme.wd103.myworkdayjobs.com/AcmeCareers'), 'acme/wd103/AcmeCareers');
+    assert.equal(workdayToken('https://acme.wd3.myworkdayjobs.com/wday/cxs/acme/AcmeCareers/jobs'), 'acme/wd3/AcmeCareers');
+    assert.equal(workdayToken('acme'), null);
+    assert.equal(workdayToken('https://acme.wd3.myworkdayjobs.com/'), null);
+    assert.equal(workdayToken('https://example.com/AcmeCareers'), null);
+  });
+
+  it('probes only Workday for a Workday URL, and only the other boards for a name', async () => {
+    net = mockFetch({ 'acme.wd3.myworkdayjobs.com/wday/cxs/acme/AcmeCareers/jobs': { total: 3, jobPostings: [
+      { title: 'Dev', externalPath: '/job/a', locationsText: 'Dubai, UAE' },
+      { title: 'Dev', externalPath: '/job/b', locationsText: 'London' },
+      { title: 'Dev', externalPath: '/job/c', locationsText: '2 Locations' },
+    ] } });
+    const hits = await discover(['https://acme.wd3.myworkdayjobs.com/en-US/AcmeCareers', 'other']);
+    assert.deepEqual(hits.map((h) => [h.slug, h.ats, h.jobs, h.target]), [['acme/wd3/AcmeCareers', 'workday', 3, 1]]);
+    assert.equal(net.calls.filter((u) => u.includes('myworkdayjobs')).length, 1);
+    assert.ok(!net.calls.some((u) => u.includes('myworkdayjobs') && u.includes('other')));
+    assert.equal(net.calls.length, 7);
   });
 });

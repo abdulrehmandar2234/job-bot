@@ -4,7 +4,7 @@ import { mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { mockFetch } from './helpers.ts';
-import { HttpError, UA, getJson, getText, request, retryDelay, timing } from '../src/sources/http.ts';
+import { HttpError, UA, getJson, getText, postJson, request, retryDelay, timing } from '../src/sources/http.ts';
 
 const cacheDir = mkdtempSync(join(tmpdir(), 'job-bot-http-'));
 before(() => {
@@ -133,5 +133,42 @@ describe('request: conditional cache', () => {
     await getText('https://i.test/b', { cache: false });
     await getText('https://i.test/b', { cache: false });
     assert.ok(seen.every((h) => !h['if-none-match']));
+  });
+});
+
+describe('request: POST', () => {
+  it('sends a JSON body, retries 5xx and never uses the cache', async () => {
+    const seen: RequestInit[] = [];
+    const cachedBefore = readdirSync(cacheDir).length;
+    net = mockFetch({ 'j.test': (_u: string, init?: RequestInit) => {
+      seen.push(init!);
+      return seen.length === 1 ? status(503) : new Response('{"total":1}', { headers: { etag: '"p"' } });
+    } });
+    assert.deepEqual(await postJson('https://j.test/search', { limit: 20 }), { total: 1 });
+    assert.deepEqual(await postJson('https://j.test/search', { limit: 20 }), { total: 1 });
+    assert.equal(seen.length, 3);
+    assert.equal(readdirSync(cacheDir).length, cachedBefore);
+    for (const init of seen) {
+      const h = init.headers as Record<string, string>;
+      assert.equal(init.method, 'POST');
+      assert.equal(init.body, '{"limit":20}');
+      assert.equal(h['content-type'], 'application/json');
+      assert.equal(h['user-agent'], UA);
+      assert.equal(h['if-none-match'], undefined);
+    }
+  });
+
+  it('does not retry a 4xx POST', async () => {
+    net = mockFetch({});
+    await assert.rejects(postJson('https://k.test/search', {}), (e) => e instanceof HttpError && e.status === 404);
+    assert.equal(net.calls.length, 1);
+  });
+
+  it('GET stays the default and sends no body', async () => {
+    let init: RequestInit | undefined;
+    net = mockFetch({ 'l.test': (_u: string, i?: RequestInit) => ((init = i), 'ok') });
+    await getText('https://l.test/', { cache: false });
+    assert.equal(init?.method, 'GET');
+    assert.equal(init?.body, undefined);
   });
 });

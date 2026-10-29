@@ -23,8 +23,12 @@ export type RequestOptions = {
   retryOn?: (status: number) => boolean;
   /** Per-attempt timeout in ms (default 30000). */
   timeoutMs?: number;
-  /** Use the conditional-request cache (default true). */
+  /** Use the conditional-request cache (default true). Never used for POST. */
   cache?: boolean;
+  /** HTTP method (default GET). POST is only meant for read-only search endpoints, so it is retried like a GET. */
+  method?: 'GET' | 'POST';
+  /** Request body for POST, sent as JSON. */
+  body?: unknown;
 };
 
 /** A final non-2xx answer. The message starts with the status, e.g. "404 https://...". */
@@ -75,12 +79,15 @@ function writeCache(entry: Cached) {
   renameSync(`${file}.${process.pid}.tmp`, file);
 }
 
-/** GET with retries and the conditional-request cache. Resolves with the body text of a 2xx (or a 304 from cache). */
+/** GET (or a read-only POST) with retries and, for GET, the conditional-request cache.
+ * Resolves with the body text of a 2xx (or a 304 from cache). */
 export async function request(url: string, opts: RequestOptions = {}): Promise<{ status: number; body: string; fromCache: boolean }> {
-  const { attempts = 4, baseDelayMs = 1000, retryOn = retryable, timeoutMs = 30_000, cache = true } = opts;
+  const { attempts = 4, baseDelayMs = 1000, retryOn = retryable, timeoutMs = 30_000, method = 'GET' } = opts;
+  const cache = method === 'GET' && (opts.cache ?? true);
   const host = new URL(url).host;
   const cached = cache ? readCache(url) : null;
   const headers: Record<string, string> = { 'user-agent': UA };
+  if (method === 'POST') Object.assign(headers, { 'content-type': 'application/json', accept: 'application/json' });
   for (const [k, v] of Object.entries(opts.headers ?? {})) headers[k.toLowerCase()] = v;
   if (cached?.etag) headers['if-none-match'] = cached.etag;
   if (cached?.lastModified) headers['if-modified-since'] = cached.lastModified;
@@ -89,7 +96,10 @@ export async function request(url: string, opts: RequestOptions = {}): Promise<{
   for (let attempt = 0; attempt < attempts; attempt++) {
     let res: Response;
     try {
-      res = await fetch(url, { headers, signal: AbortSignal.timeout(timeoutMs) });
+      res = await fetch(url, {
+        method, headers, signal: AbortSignal.timeout(timeoutMs),
+        body: method === 'POST' ? JSON.stringify(opts.body ?? {}) : undefined,
+      });
     } catch (e) {
       last = (e as Error).message;
       if (attempt + 1 < attempts) await sleep(retryDelay(attempt, baseDelayMs));
@@ -116,3 +126,6 @@ export async function request(url: string, opts: RequestOptions = {}): Promise<{
 
 export const getText = async (url: string, opts?: RequestOptions) => (await request(url, opts)).body;
 export const getJson = async <T = any>(url: string, opts?: RequestOptions): Promise<T> => JSON.parse((await request(url, opts)).body);
+/** POST a JSON body and parse the JSON answer. Retried like a GET, never cached. */
+export const postJson = async <T = any>(url: string, body: unknown, opts?: Omit<RequestOptions, 'method' | 'body'>): Promise<T> =>
+  JSON.parse((await request(url, { ...opts, method: 'POST', body })).body);

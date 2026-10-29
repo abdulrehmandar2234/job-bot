@@ -20,7 +20,7 @@ describe('config validation', () => {
   it('names the path of every bad field', () => {
     const c = realConfig();
     c.ai.concurrency = '2';
-    c.companies[1].ats = 'workday';
+    c.companies[1].ats = 'taleo';
     c.roleExclude = '(unclosed';
     delete c.minScore;
     const errors = errorsOf(validateConfig(c));
@@ -37,6 +37,16 @@ describe('config validation', () => {
     c.countries.NL.visa = 'none';
     c.ai.concurrency = 0;
     assert.deepEqual(errorsOf(validateConfig(c)).map((e) => e.path).sort(), ['ai.concurrency', 'countries.NL.visa']);
+  });
+
+  it('accepts Workday companies and an optional adzuna section, and checks it', () => {
+    const c = realConfig();
+    c.companies.push({ name: 'Acme', ats: 'workday', token: 'acme/wd3/AcmeCareers' });
+    assert.ok(validateConfig(c).ok);
+    delete c.adzuna;
+    assert.ok(validateConfig(c).ok);
+    c.adzuna = { countries: ['nl'], pagesPerSearch: -1 };
+    assert.deepEqual(errorsOf(validateConfig(c)).map((e) => e.path), ['adzuna.pagesPerSearch']);
   });
 
   it('rejects something that is not an object', () => {

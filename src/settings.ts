@@ -15,7 +15,8 @@ export const CONFIG_FILE = process.env.JOB_BOT_CONFIG || path('config.json');
 export const APPLICANT_FILE = process.env.JOB_BOT_APPLICANT || path('cv', 'applicant.json');
 export const APPLICANT_EXAMPLE_FILE = path('cv', 'applicant.example.json');
 
-export const ATS = ['greenhouse', 'lever', 'ashby', 'recruitee', 'workable', 'smartrecruiters'] as const;
+// workday: token is "<tenant>/<wdN>/<site>", e.g. "acme/wd3/AcmeCareers".
+export const ATS = ['greenhouse', 'lever', 'ashby', 'recruitee', 'workable', 'smartrecruiters', 'workday'] as const;
 
 const text = z.string().min(1);
 const regex = z.string().refine((s) => { try { new RegExp(s, 'i'); return true; } catch { return false; } },
@@ -62,12 +63,18 @@ export const configSchema = z.object({
   }),
   remote: z.object({
     enabled: z.boolean(),
-    boards: z.array(text),       // himalayas | remotive | remoteok
+    boards: z.array(text),       // himalayas | remotive | remoteok | arbeitnow | adzuna
     himalayasQueries: z.array(text),
     allow: regex,                // remote regions that include the candidate's country
     deny: regex,                 // remote regions / phrases that exclude it
     flag: regex,                 // allowed, but worth double-checking
   }),
+  // Optional, so older config.json files still load. Adzuna has no 'ae' or 'sa' index.
+  adzuna: z.object({
+    countries: z.array(text),
+    keywords: z.array(text).optional(), // defaults to linkedin.keywords
+    pagesPerSearch: count,       // 50 results per page
+  }).optional(),
 });
 
 // A fact for application forms; null = unknown, so the AI writes [FILL: ...] instead of guessing.
