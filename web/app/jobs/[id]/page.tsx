@@ -7,6 +7,7 @@ import { isActive, openTasks } from '@/lib/tasks';
 import { CopyButton, SubmitButton } from '@/components/client';
 import { JobActions } from '@/components/job-actions';
 import { InterviewPrep } from '@/components/interview-prep';
+import { FollowUp } from '@/components/follow-up';
 import { Busy, TaskBar } from '@/components/tasks';
 import { SalaryTag } from '@/components/salary';
 import { AtsCheck } from '@/components/ats-check';
@@ -65,6 +66,7 @@ async function JobDetail({ params }: { params: PageProps<'/jobs/[id]'>['params']
       <OpenCheck job={job} />
 
       <ReferralReminder job={job} contacts={contacts} />
+      <FollowUp job={job} busy={busy} />
 
       <AiReview job={job} />
 

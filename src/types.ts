@@ -59,6 +59,10 @@ export type Job = {
   salary_period: SalaryPeriod | null;
   checked_open_at: Date | null; // last time `check:open` got a clear open/closed answer
   closed_at: Date | null; // when the posting was found closed (status `expired`)
+  follow_ups: number; // follow-ups the user marked as sent (src/followup.ts)
+  followed_up_at: Date | null;
+  follow_up_draft: string | null; // the latest drafted follow-up message
+  follow_up_draft_at: Date | null;
 };
 
 /** A posting as a source adapter returns it, before scoring. */
@@ -113,7 +117,7 @@ export type Contact = {
 export type FetchRun = { started_at: Date; finished_at: Date | null; checked: number; inserted: number; new_matches: number };
 
 /** A background task kind: what `task:run` runs (src/tasks.ts). */
-export type TaskKind = 'fetch' | 'prepare' | 'ai_review' | 'answers' | 'rescore' | 'prep';
+export type TaskKind = 'fetch' | 'prepare' | 'ai_review' | 'answers' | 'rescore' | 'prep' | 'follow_up';
 export type TaskStatus = 'queued' | 'running' | 'done' | 'failed';
 
 /** One row of `tasks`. `args` holds the command's options, e.g. { cv, force } for prepare or { questions } for answers. */

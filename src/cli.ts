@@ -26,6 +26,9 @@ const commands: Record<string, () => Promise<Command>> = {
   'ai:score': async () => (await import('./commands/ai.ts')).aiScore,
   answer: async () => (await import('./commands/ai.ts')).answer,
   prep: async () => (await import('./commands/prep.ts')).prep,
+  'follow-ups': async () => (await import('./commands/followup.ts')).followUps,
+  'follow-up': async () => (await import('./commands/followup.ts')).followUp,
+  'followed-up': async () => (await import('./commands/followup.ts')).followedUp,
   custom: async () => (await import('./commands/cv.ts')).custom,
   mark: async () => (await import('./commands/mark.ts')).mark,
   contacts: async () => (await import('./commands/contacts.ts')).contacts,
@@ -57,6 +60,9 @@ if (!load) {
   ai:score [--id x] [--limit n]   AI fit review of matching jobs via local Claude CLI (--all to redo)
   answer <id> [--file q.txt]      AI drafts answers to pasted form questions (--clear to reset)
   prep <id>                       AI interview prep: likely questions, STAR stories, company brief, gaps
+  follow-ups                      applied jobs with no news for 7+ days that are due a follow-up
+  follow-up <id> [--template]     draft a short follow-up message (you send it yourself)
+  followed-up <id>                record that you sent a follow-up (reminds again after 7 days, at most 2)
   custom <id> --overrides f.json  one-off CV for a single job
   add [--file job.json]           add job found in browser (JSON or stdin)
   mark <id> <status> [note]       applied | interview | offer | rejected | skipped | expired

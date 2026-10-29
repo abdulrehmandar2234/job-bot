@@ -94,7 +94,18 @@ describe('job list page', () => {
       within(nav)
         .getAllByRole('link')
         .map((a) => a.textContent!.replace(/ \d+$/, '')),
-    ).toEqual(['Matching', 'Prepared', 'Applied', 'Interview', 'Offer', 'Rejected', 'Skipped', 'Expired', 'Filtered out']);
+    ).toEqual([
+      'Matching',
+      'Prepared',
+      'Applied',
+      'Needs follow-up',
+      'Interview',
+      'Offer',
+      'Rejected',
+      'Skipped',
+      'Expired',
+      'Filtered out',
+    ]);
     expect(tab('Matching')).toHaveTextContent(`Matching ${n('new', 2)}`);
     expect(tab('Applied')).toHaveTextContent(`Applied ${n('applied', 1)}`);
     expect(tab('Filtered out')).toHaveTextContent(`Filtered out ${n('filtered', 1)}`);

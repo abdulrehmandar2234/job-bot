@@ -4,13 +4,14 @@ What was planned for job-bot and where each part lives now. None of it changes t
 
 ## Open
 
-- **Follow-up reminders** (postponed). Flag jobs that have been `applied` for 7–10 days with no update, and draft a short follow-up message for the recruiter (you send it yourself). Show a "Needs follow-up" tab on the dashboard.
+Nothing planned right now. Ideas from real use go here.
 
 ## Done
 
 ### Features
 
 - **Funnel analytics:** `/analytics` (web/app/analytics, web/lib/analytics.ts).
+- **Follow-up reminders:** "Needs follow-up" tab and a section on the job page; `bot follow-ups` / `follow-up` / `followed-up` (src/followup.ts, web/lib/followup.ts).
 - **Interview prep:** `bot prep <id>`; on the job page for applied and interview jobs, run as a background task.
 - **More sources:** Workday (`"ats": "workday"`, src/sources/index.ts), Arbeitnow and Adzuna (`remote.boards`, src/sources/boards.ts).
 - **Instant alerts for strong matches:** src/notify.ts, called by `ai:score`; `ai.alertStrong` in config.json or on `/settings`.

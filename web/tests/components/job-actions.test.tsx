@@ -40,6 +40,10 @@ const job = (over: Partial<Job> = {}): Job => ({
   salary_max: null,
   salary_currency: null,
   salary_period: null,
+  follow_ups: 0,
+  followed_up_at: null,
+  follow_up_draft: null,
+  follow_up_draft_at: null,
   ...over,
 });
 

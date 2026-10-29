@@ -271,3 +271,24 @@ export function aiInterviewPrep(job: Job): Promise<InterviewPrep> {
 - Plain text in every string, no markdown, concise.`;
   return askClaude<InterviewPrep>(`CV:\n${cvText()}\n\nJOB:\n${jobText(job)}`, PREP_SCHEMA, config.ai.letterModel, system);
 }
+
+/** A short follow-up message for an application with no answer yet. The user reviews and sends it. */
+export async function aiFollowUp(job: Job, name: string | null): Promise<string> {
+  const applied = job.applied_at ? new Date(job.applied_at).toISOString().slice(0, 10) : 'unknown';
+  const system = `You write a short follow-up message for one candidate who applied to a job and has heard nothing back.
+Rules:
+- 60-120 words, plain text, no markdown, no subject line, no placeholders like [Company].
+- Start with "Dear ${name ?? `${job.company} Hiring Team`}," and end with "Best regards,\nAbdul Rehman Dar".
+- Say which role he applied for and roughly when, restate his interest, and connect ONE concrete requirement of the job
+  to ONE specific piece of CV experience.
+- Use ONLY facts in the CV. Never invent employers, numbers, skills or years.
+- ${job.follow_ups > 0 ? 'He has followed up before: acknowledge it briefly and keep this one even shorter.' : 'This is his first follow-up.'}
+- Polite and confident, never pushy or apologetic; no new commitments (salary, start date, hours).`;
+  const res = await askClaude<{ message: string }>(
+    `CV:\n${cvText()}\n\nAPPLIED ON: ${applied}\n\nJOB:\n${jobText(job)}`,
+    { type: 'object', properties: { message: { type: 'string' } }, required: ['message'] },
+    config.ai.letterModel,
+    system,
+  );
+  return res.message.trim() + '\n';
+}

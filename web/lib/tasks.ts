@@ -20,6 +20,7 @@ export const TASK_LABEL: Record<TaskKind, string> = {
   answers: 'Drafting answers',
   rescore: 'Re-scoring jobs',
   prep: 'Preparing interview notes',
+  follow_up: 'Drafting follow-up',
 };
 
 export const isActive = (t: Pick<Task, 'status'>) => t.status === 'queued' || t.status === 'running';
