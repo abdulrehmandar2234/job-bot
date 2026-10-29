@@ -2,24 +2,17 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Job, SalaryCurrency, SalaryPeriod } from '../../src/types';
 import { BOT_ROOT } from './bot';
+import { EUR_RATE, PER_YEAR } from './db';
 
-// Salaries come in six currencies and three periods (src/salary.ts). To compare them, everything is turned into
-// euros per year. The rates are approximate and fixed on purpose: good enough to filter and hint, not for accounting.
-export const EUR_RATE: Record<SalaryCurrency, number> = {
-  EUR: 1, USD: 0.92, GBP: 1.17, AED: 0.25, SAR: 0.245, PKR: 0.0033,
-};
-export const PER_YEAR: Record<SalaryPeriod, number> = { year: 1, month: 12, hour: 2080 }; // 40 h x 52 weeks
+// The approximate rate tables live in db.ts, whose list filter turns them into SQL (db.ts imports no local modules:
+// the bot's tests load it with plain Node, which needs file extensions). Re-exported here with the other helpers.
+export { EUR_RATE, PER_YEAR };
 export const CURRENCIES = Object.keys(EUR_RATE) as SalaryCurrency[];
 
 export type JobSalary = Pick<Job, 'salary_min' | 'salary_max' | 'salary_currency' | 'salary_period'>;
 
 export const yearlyEur = (amount: number, currency: SalaryCurrency, period: SalaryPeriod) =>
   Math.round(amount * EUR_RATE[currency] * PER_YEAR[period]);
-
-/** SQL for a job's best pay (top of its range) in euros per year; NULL without a salary. Built from the tables above. */
-export const SQL_YEARLY_EUR = `(coalesce(salary_max, salary_min)
-  * CASE salary_currency ${CURRENCIES.map((c) => `WHEN '${c}' THEN ${EUR_RATE[c]}`).join(' ')} END
-  * CASE salary_period ${Object.entries(PER_YEAR).map(([p, n]) => `WHEN '${p}' THEN ${n}`).join(' ')} END)`;
 
 const short = (n: number) => (n >= 1_000_000 ? `${+(n / 1_000_000).toFixed(1)}M` : n >= 1000 ? `${+(n / 1000).toFixed(1)}k` : String(n));
 
