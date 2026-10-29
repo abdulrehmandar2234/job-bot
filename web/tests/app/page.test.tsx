@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { render, screen, within } from '@testing-library/react';
-import { isValidElement, type ReactElement, type ReactNode } from 'react';
+import { cloneElement, Fragment, isValidElement, type ReactElement, type ReactNode } from 'react';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import Page from '@/app/page';
 import { statusCounts, type Status } from '@/lib/db';
@@ -9,18 +9,25 @@ import { cleanupDb, closeDb, daysAgo, ensureSchema, insertFetchRun, insertJob } 
 vi.mock('@/app/actions', () => ({ fetchNow: vi.fn(), setStatus: vi.fn(), prepare: vi.fn(), aiReview: vi.fn() }));
 
 /**
- * Page is a sync shell with the async Dashboard server component inside <Suspense>. Render the shell,
- * then await Dashboard like the server would and render its output in place of the fallback.
+ * Page is a sync shell with async server components inside <Suspense> (the Dashboard, and the fetch warning in the
+ * header). Walk the shell, await each of them like the server would and render its output in place of the fallback.
  */
+type AsyncEl = ReactElement<Record<string, unknown>, (p: unknown) => Promise<ReactNode>>;
+async function resolve(node: ReactNode): Promise<ReactNode> {
+  if (Array.isArray(node)) return Promise.all(node.map(resolve));
+  if (!isValidElement(node)) return node;
+  const props = node.props as { children?: ReactNode; fallback?: unknown };
+  if (props.fallback !== undefined) {
+    const child = props.children as AsyncEl;
+    return <Fragment key={node.key}>{await child.type(child.props)}</Fragment>;
+  }
+  if (typeof node.type !== 'string' || props.children === undefined) return node;
+  return cloneElement(node, undefined, await resolve(props.children));
+}
+
 async function renderPage(searchParams: Record<string, string | string[]> = {}) {
-  const shell = Page({ params: Promise.resolve({}), searchParams: Promise.resolve(searchParams) } as Parameters<typeof Page>[0]) as
-    ReactElement<{ children: ReactNode[] }>;
-  const children = shell.props.children.map((c) => {
-    if (!isValidElement(c) || (c.props as { fallback?: unknown }).fallback === undefined) return c;
-    const dash = (c.props as { children: ReactElement<Record<string, unknown>, (p: unknown) => Promise<ReactNode>> }).children;
-    return dash.type(dash.props);
-  });
-  return render(<main>{await Promise.all(children)}</main>);
+  const shell = Page({ params: Promise.resolve({}), searchParams: Promise.resolve(searchParams) } as Parameters<typeof Page>[0]);
+  return render(<>{await resolve(shell)}</>);
 }
 
 // Other rows may be in the shared test database: only look at our cards (titles start with "TG ").
@@ -39,6 +46,22 @@ describe('job list page', () => {
     expect(screen.getByRole('button', { name: 'Fetch new jobs' })).toHaveAttribute('type', 'submit');
     expect(screen.getByText('Add jobs from Bayt')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Open Bayt ↗' })).toHaveAttribute('href', 'https://www.bayt.com/en/uae/jobs/laravel-jobs/');
+  });
+
+  it('links to the analytics page from the header', async () => {
+    await renderPage();
+    expect(within(screen.getByRole('banner')).getByRole('link', { name: 'Analytics' })).toHaveAttribute('href', '/analytics');
+  });
+
+  it('warns in the header when the latest fetch had errors, and not once a clean fetch follows', async () => {
+    await insertFetchRun({ finished_at: new Date(), errors: [{ company: 'Acme', error: 'HTTP 500' }, { company: 'Globex', error: 'timeout' }] });
+    const { unmount } = await renderPage();
+    expect(within(screen.getByRole('banner')).getByRole('link', { name: '⚠ Last fetch: 2 errors' })).toHaveAttribute('href', '/analytics#fetch');
+    unmount();
+
+    await insertFetchRun({ finished_at: new Date(), errors: [] });
+    await renderPage();
+    expect(screen.queryByText(/Last fetch: \d+ error/)).not.toBeInTheDocument();
   });
 
   it('shows a tab per status with counts that skip duplicates and filtered jobs outside target countries', async () => {
