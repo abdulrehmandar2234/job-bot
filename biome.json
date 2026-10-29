@@ -67,6 +67,26 @@
           }
         }
       }
+    },
+    {
+      "includes": ["web/tests/**"],
+      "linter": {
+        "rules": {
+          "complexity": {
+            "noUselessFragments": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["extension/**"],
+      "linter": {
+        "rules": {
+          "performance": {
+            "useDomNodeTextContent": "off"
+          }
+        }
+      }
     }
   ]
 }
