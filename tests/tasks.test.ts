@@ -1,6 +1,6 @@
 import { after, before, beforeEach, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { execFile } from 'node:child_process';
+import { execFile, spawnSync } from 'node:child_process';
 import { existsSync, readdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
@@ -8,7 +8,8 @@ import { TEST_DB } from './helpers.ts';
 import { getJob, migrate, pool } from '../src/db.ts';
 import { path } from '../src/settings.ts';
 import {
-  claim, cliArgs, DEADLINE_GRACE_MS, enqueue, expireStale, fail, finish, OUTPUT_CAP, TASK_TIMEOUT_MS,
+  claim, cliArgs, DEAD_WORKER_ERROR, DEADLINE_GRACE_MS, enqueue, expireStale, fail, failDeadWorkers, finish,
+  KEEP_FINISHED_DAYS, OUTPUT_CAP, pidAlive, pruneFinished, TASK_TIMEOUT_MS,
 } from '../src/tasks.ts';
 import type { Task } from '../src/types.ts';
 
@@ -160,6 +161,76 @@ describe('stale tasks', () => {
     await finish(t.id, 'ok');
     assert.equal((await getTask(t.id)).status, 'done');
     assert.equal((await getTask(t.id)).error, null);
+  });
+});
+
+/** The pid of a process that has exited (and been reaped), so nothing answers to it. */
+const deadPid = () => spawnSync(process.execPath, ['-e', '']).pid!;
+
+describe('dead workers', () => {
+  it('pidAlive: our own process and one we may not signal are alive, an exited one is not', () => {
+    assert.equal(pidAlive(process.pid), true);
+    assert.equal(pidAlive(1), true, 'launchd: EPERM means it exists');
+    assert.equal(pidAlive(deadPid()), false);
+  });
+
+  it('fails a running task whose worker pid is gone, before its deadline', async () => {
+    const dead = (await enqueue('prepare', JOB)).task;
+    const live = (await enqueue('ai_review', JOB)).task;
+    const queued = (await enqueue('fetch', null)).task;
+    await claim(dead.id);
+    await claim(live.id);
+    await pool.query('UPDATE tasks SET pid = $2 WHERE id = $1', [dead.id, deadPid()]);
+
+    assert.equal(await failDeadWorkers(), 1);
+    assert.deepEqual((({ status, error }) => ({ status, error }))(await getTask(dead.id)), { status: 'failed', error: DEAD_WORKER_ERROR });
+    assert.ok((await getTask(dead.id)).finished_at);
+    assert.equal((await getTask(live.id)).status, 'running');
+    assert.equal((await getTask(queued.id)).status, 'queued', 'a queued task has no worker yet');
+    assert.equal(await failDeadWorkers(), 0);
+  });
+
+  it('enqueue fails a dead worker first, so the same work can start again at once', async () => {
+    const dead = (await enqueue('prep', JOB)).task;
+    await claim(dead.id);
+    await pool.query('UPDATE tasks SET pid = $2 WHERE id = $1', [dead.id, deadPid()]);
+    const next = await enqueue('prep', JOB);
+    assert.equal(next.created, true);
+    assert.equal((await getTask(dead.id)).status, 'failed');
+  });
+
+  it('expireStale counts dead workers too', async () => {
+    const dead = (await enqueue('prepare', JOB)).task;
+    await claim(dead.id);
+    await pool.query('UPDATE tasks SET pid = $2 WHERE id = $1', [dead.id, deadPid()]);
+    assert.equal(await expireStale(), 1);
+  });
+});
+
+describe('pruning', () => {
+  it(`deletes done and failed tasks older than ${KEEP_FINISHED_DAYS} days, nothing else`, async () => {
+    const add = async (status: string, age: number) => (await pool.query<{ id: number }>(
+      `INSERT INTO tasks (kind, job_id, status, created_at, finished_at)
+       VALUES ('prepare', $1, $2, now() - make_interval(days => $3), CASE WHEN $2 IN ('done', 'failed') THEN now() - make_interval(days => $3) END)
+       RETURNING id`, [JOB, status, age])).rows[0].id;
+    const oldDone = await add('done', KEEP_FINISHED_DAYS + 1);
+    const oldFailed = await add('failed', KEEP_FINISHED_DAYS + 5);
+    const recent = await add('done', KEEP_FINISHED_DAYS - 1);
+    await pool.query(`INSERT INTO tasks (kind, status, created_at, started_at, deadline, pid)
+      VALUES ('fetch', 'running', now() - interval '40 days', now(), now() + interval '1 hour', $1)`, [process.pid]);
+
+    assert.equal(await pruneFinished(), 2);
+    const left = (await pool.query<Task>('SELECT * FROM tasks ORDER BY id')).rows;
+    assert.ok(!left.some((t) => t.id === oldDone || t.id === oldFailed));
+    assert.ok(left.some((t) => t.id === recent));
+    assert.ok(left.some((t) => t.kind === 'fetch' && t.status === 'running'), 'an old running task is not pruned');
+  });
+
+  it('enqueue prunes', async () => {
+    await pool.query(`INSERT INTO tasks (kind, status, created_at, finished_at)
+      VALUES ('rescore', 'done', now() - interval '60 days', now() - interval '60 days')`);
+    await enqueue('fetch', null);
+    assert.equal((await pool.query(`SELECT 1 FROM tasks WHERE kind = 'rescore'`)).rowCount, 0);
   });
 });
 
