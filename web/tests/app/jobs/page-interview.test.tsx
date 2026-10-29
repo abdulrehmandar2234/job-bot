@@ -7,6 +7,12 @@ import { cleanupDb, closeDb, ensureSchema, insertJob, PREFIX } from '../../helpe
 
 vi.mock('@/app/actions', () => ({
   setStatus: vi.fn(), prepare: vi.fn(), aiReview: vi.fn(), saveNotes: vi.fn(), draftAnswers: vi.fn(), clearAnswers: vi.fn(),
+  dismissTask: vi.fn(),
+}));
+// TaskWatcher (a client component) needs the app router; the page tests render outside Next.
+vi.mock('next/navigation', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('next/navigation')>()),
+  useRouter: () => ({ refresh: vi.fn() }),
 }));
 vi.mock('@/app/jobs/[id]/interview-actions', () => ({ prepareInterview: vi.fn() }));
 
