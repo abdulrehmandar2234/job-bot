@@ -60,7 +60,8 @@ Every posting is checked by `src/match.ts`. Jobs that fail a rule are kept with 
 
 ### Tracking
 
-- Statuses: `new` → `prepared` → `applied` → `interview` → `offer` / `rejected`, plus `skipped` and `filtered`.
+- Statuses: `new` → `prepared` → `applied` → `interview` → `offer` / `rejected`, plus `skipped`, `expired` and `filtered`.
+- Dead-link check: `bot check:open` asks each ATS API whether a posting still exists (Greenhouse, Lever, Recruitee, SmartRecruiters and Workday per posting; Ashby and Workable via the board list) and opens the page for other boards, where a 404/410, "no longer accepting applications" text or a redirect to a careers page means closed. Closed `new`/`prepared` jobs become `expired`; jobs you applied to keep their status and only show "Posting closed". Network errors, 5xx and rate limits never expire a job, and a LinkedIn 429 stops LinkedIn checks for that run. `prepare` checks first and stops on a closed posting (`--force` skips the check). The daily fetch checks up to 100 jobs not checked in 3 days.
 - Every status change is logged with an optional note (`job_events`), and every fetch is logged with counts and errors (`fetch_runs`).
 - Free-text notes per job (recruiter name, contacts, follow-ups).
 
@@ -72,7 +73,7 @@ npm run web          # http://localhost:3100
 
 - Tabs per status, search, country filter, minimum score and "best match first" sorting (AI score first, keyword score as fallback).
 - Per job: open the posting, prepare CV + letter (with a CV-version picker), download the CV, AI review, and status buttons.
-- Job page: full description, cover letter with Copy and Rewrite, form-answer helper, notes and status history.
+- Job page: "Check if still open" button, full description, cover letter with Copy and Rewrite, form-answer helper, notes and status history.
 - "Fetch new jobs" button and a "Add jobs from Bayt" page with the bookmarklet.
 
 ## How it works
@@ -194,11 +195,12 @@ npm run bot -- rescore                        # re-apply filters after editing c
 npm run bot -- list [--status new] [--country NL] [--min 60]
 npm run bot -- show <id> [--full]
 npm run bot -- ai:score [--id <id>]           # AI fit review
-npm run bot -- prepare <id> [--cv laravel] [--template]
+npm run bot -- prepare <id> [--cv laravel] [--template] [--force]
+npm run bot -- check:open [<id>...] [--status new,prepared] [--limit N]  # mark closed postings expired
 npm run bot -- answer <id> [--file q.txt] [--clear]
 npm run bot -- prep <id>                      # AI interview prep (questions, STAR stories, brief, gaps)
 npm run bot -- custom <id> --overrides o.json # one-off CV for a single job
-npm run bot -- mark <id> applied|interview|offer|rejected|skipped ["note"]
+npm run bot -- mark <id> applied|interview|offer|rejected|skipped|expired ["note"]
 npm run bot -- add [--file job.json]          # add a job manually (JSON or stdin)
 npm run bot -- discover <company...> [--add]
 npm run bot -- cv:default | cv:build [cluster...] | versions

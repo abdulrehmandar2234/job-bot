@@ -22,6 +22,7 @@ const commands: Record<string, () => Promise<Command>> = {
   show: async () => (await import('./commands/list.ts')).show,
   stats: async () => (await import('./commands/list.ts')).stats,
   prepare: async () => (await import('./commands/prepare.ts')).prepare,
+  'check:open': async () => (await import('./commands/open.ts')).checkOpen,
   'ai:score': async () => (await import('./commands/ai.ts')).aiScore,
   answer: async () => (await import('./commands/ai.ts')).answer,
   prep: async () => (await import('./commands/prep.ts')).prep,
@@ -45,13 +46,16 @@ if (!load) {
   discover <slug...> [--add]      find a company's job board (6 ATS, or a myworkdayjobs URL); --add saves hits
   list [--status new] [--country AE|SA|NL] [--min 60] [--limit 30]
   show <id> [--full]              details (+ full description)
-  prepare <id> [--cv cluster]     default CV (or --cv version) + AI cover letter (--template for the plain one)
+  prepare <id> [--cv cluster]     default CV (or --cv version) + AI cover letter (--template for the plain one);
+                                  checks the posting is still open first (--force skips that)
+  check:open [<id>...] [--status new,prepared] [--limit N]
+                                  mark closed postings expired (default: new + prepared not checked for 3 days)
   ai:score [--id x] [--limit n]   AI fit review of matching jobs via local Claude CLI (--all to redo)
   answer <id> [--file q.txt]      AI drafts answers to pasted form questions (--clear to reset)
   prep <id>                       AI interview prep: likely questions, STAR stories, company brief, gaps
   custom <id> --overrides f.json  one-off CV for a single job
   add [--file job.json]           add job found in browser (JSON or stdin)
-  mark <id> <status> [note]       applied | interview | offer | rejected | skipped
+  mark <id> <status> [note]       applied | interview | offer | rejected | skipped | expired
   cv:default                      rebuild default CV PDF from cv/master.json
   cv:build [cluster...]           pre-build CV versions
   versions                        list CV versions and usage
@@ -68,7 +72,7 @@ if (!load) {
       try {
         await run(args, flags);
         // Any command that adds jobs or changes their status can change which copy of a job is the primary.
-        if (['fetch', 'add', 'rescore', 'mark', 'prepare', 'dedupe'].includes(cmd)) {
+        if (['fetch', 'add', 'rescore', 'mark', 'prepare', 'check:open', 'dedupe'].includes(cmd)) {
           const n = await dedupe();
           if (n) console.log(`${n} duplicate postings grouped under their primary job.`);
         }

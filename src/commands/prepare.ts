@@ -5,12 +5,26 @@ import { cvFile, versionFor } from '../cv/versions.ts';
 import { PROFILES } from '../cv/profiles.ts';
 import { coverLetter } from '../cover.ts';
 import { aiCoverLetter } from '../ai.ts';
+import { isOpen } from '../sources/open.ts';
+import { record } from './open.ts';
 import { slug, today, type Flags } from './shared.ts';
 
 /** Picks or builds the CV version and writes a cover letter. Does not apply. */
 export async function prepare(args: string[], flags: Flags) {
   const j = await getJob(args[0]);
   if (!j) return console.log('Not found');
+  // A closed posting is not worth a CV and letter. --force skips the check (e.g. the site blocks the bot).
+  if (!flags.force) {
+    const r = await isOpen(j);
+    const outcome = await record(j, r);
+    if (r.state === 'closed') {
+      console.log(`${j.company} — ${j.title}: the posting is closed (${r.reason}).`);
+      console.log(outcome === 'expired' ? `Marked expired. Nothing prepared.` : `Status ${j.status} kept. Nothing prepared.`);
+      console.log(`To prepare it anyway: npm run bot -- prepare ${j.id} --force`);
+      return;
+    }
+    if (r.state === 'unknown') console.log(`Could not check whether the posting is still open (${r.reason}); preparing anyway.`);
+  }
   const forced = flags.cv; // --cv default | --cv laravel | --cv custom-xyz
   const cluster = forced ?? (config.autoCvVersions ? j.cluster ?? 'default' : 'default');
   const { id, created } = forced && !PROFILES[forced] ? { id: forced, created: false } : await versionFor(cluster);
@@ -32,8 +46,8 @@ export async function prepare(args: string[], flags: Flags) {
     jobId: j.id, company: j.company, title: j.title, applyUrl: j.url, cvVersion: id, cvFile: cvFile(id), preparedAt: new Date().toISOString(),
   }, null, 2));
   await pool.query('UPDATE jobs SET cv_version = $2, cover_letter = $3, cover_letter_ai = $4 WHERE id = $1', [j.id, id, letter, aiLetter]);
-  // Preparing a filtered/skipped job is a manual override, so it moves into the pipeline too.
-  if (['new', 'filtered', 'skipped'].includes(j.status)) await setStatus(j.id, 'prepared', `CV: ${id}`);
+  // Preparing a filtered/skipped/expired job is a manual override, so it moves into the pipeline too.
+  if (['new', 'filtered', 'skipped', 'expired'].includes(j.status)) await setStatus(j.id, 'prepared', `CV: ${id}`);
   console.log(`${j.company} — ${j.title}`);
   console.log(`CV version : ${id}${created ? ' (newly generated)' : ''}`);
   if (id === 'default' && j.cluster && j.cluster !== 'default') console.log(`             (if needed, a "${j.cluster}" version can be made: prepare ${j.id} --cv ${j.cluster})`);
