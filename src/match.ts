@@ -4,7 +4,7 @@ import type { RawJob } from './sources/index.ts';
 
 // Skills we look for in job descriptions. `have` = it is on the master CV.
 // Never flip `have` to true for something that is not genuinely on the CV.
-const SKILLS: { name: string; re: RegExp; have: boolean; weight?: number }[] = [
+export const SKILLS: { name: string; re: RegExp; have: boolean; weight?: number }[] = [
   { name: 'PHP', re: /\bphp\b/i, have: true },
   { name: 'Laravel', re: /\blaravel\b/i, have: true, weight: 2 },
   { name: 'Livewire', re: /\blivewire\b/i, have: true },

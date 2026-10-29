@@ -1,6 +1,7 @@
 import { getJson, postJson, sleep } from './http.ts';
 import { config, type Company } from '../config.ts';
-import type { RawJob } from '../types.ts';
+import type { RawJob, SalaryPeriod } from '../types.ts';
+import { structuredSalary } from '../salary.ts';
 
 export type { RawJob };
 
@@ -40,7 +41,15 @@ async function lever(c: Company): Promise<RawJob[]> {
     description: [j.descriptionPlain, ...(j.lists ?? []).map((l: any) => `${l.text}\n${stripHtml(l.content)}`), j.additionalPlain]
       .filter(Boolean).join('\n'),
     posted_at: j.createdAt ? new Date(j.createdAt).toISOString() : null,
+    salary: leverSalary(j.salaryRange),
   }));
+}
+
+/** Lever's optional salaryRange: { min, max, currency, interval: 'per-year-salary' | 'per-month-salary' | 'per-hour-wage' ... }. */
+function leverSalary(r: any) {
+  const period: SalaryPeriod | null = /year|annual/i.test(r?.interval ?? '') ? 'year' : /month/i.test(r?.interval ?? '') ? 'month'
+    : /hour/i.test(r?.interval ?? '') ? 'hour' : null;
+  return period ? structuredSalary(r.min, r.max, r.currency, period) : null;
 }
 
 async function ashby(c: Company): Promise<RawJob[]> {

@@ -8,6 +8,9 @@ import { CopyButton, SubmitButton } from '@/components/client';
 import { JobActions } from '@/components/job-actions';
 import { InterviewPrep } from '@/components/interview-prep';
 import { Busy, TaskBar } from '@/components/tasks';
+import { SalaryTag } from '@/components/salary';
+import { AtsCheck } from '@/components/ats-check';
+import { loadExpectations } from '@/lib/salary';
 import { AiReview, Chips, COUNTRIES, fmtDate, Posted, PostedOn, Score, STATUS_LABEL } from '@/components/ui';
 
 export default function Page(props: PageProps<'/jobs/[id]'>) {
@@ -43,6 +46,7 @@ async function JobDetail({ params }: { params: PageProps<'/jobs/[id]'>['params']
             Status: <b>{STATUS_LABEL[job.status]}</b> · <Posted date={job.posted_at} /> · first seen {fmtDate(job.first_seen_at)}
             {job.applied_at && <> · applied {fmtDate(job.applied_at)}</>} · suggested CV: {job.cluster ?? 'default'}
           </p>
+          <SalaryTag job={job} expected={loadExpectations()} />
           <PostedOn postings={postings} />
         </div>
       </header>
@@ -54,6 +58,7 @@ async function JobDetail({ params }: { params: PageProps<'/jobs/[id]'>['params']
       <AiReview job={job} />
 
       <InterviewPrep job={job} />
+      <AtsCheck jobId={job.id} />
 
       <section className="space-y-2 rounded-xl border border-zinc-200 p-4 text-sm dark:border-zinc-800">
         {job.visa && <p className="text-emerald-700 dark:text-emerald-400">✓ Visa: {job.visa}</p>}

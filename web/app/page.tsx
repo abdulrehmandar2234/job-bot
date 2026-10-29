@@ -7,6 +7,8 @@ import { BaytBookmarklet, SubmitButton } from '@/components/client';
 import { JobActions } from '@/components/job-actions';
 import { TaskBar } from '@/components/tasks';
 import { isActive, openTasks } from '@/lib/tasks';
+import { SalaryFilter, salaryParams, SalaryTag } from '@/components/salary';
+import { loadExpectations } from '@/lib/salary';
 import { ago, AiReview, Chips, COUNTRIES, fmtDate, Posted, PostedOn, Score, STATUS_LABEL } from '@/components/ui';
 
 export default function Page(props: PageProps<'/'>) {
@@ -54,16 +56,18 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<'/'>['searc
   const q = one('q');
   const days = Number(one('days')) || undefined;
   const sort = one('sort') === 'newest' ? 'newest' : 'score';
+  const salary = salaryParams(one);
+  const expected = loadExpectations();
 
   const [jobs, counts, run, week, tasks] = await Promise.all([
-    listJobs({ status, country, min, q, days, sort }), statusCounts(), lastRun(), weekStats(), openTasks(),
+    listJobs({ status, country, min, q, days, sort, ...salary.filter }), statusCounts(), lastRun(), weekStats(), openTasks(),
   ]);
   const busy = (id: string) => tasks.filter((t) => t.job_id === id && isActive(t)).map((t) => t.kind);
   const postings = await postingsFor(jobs.map((j) => j.id));
   const tabHref = (s: string) => {
     const p = new URLSearchParams({
       status: s, ...(country && { country }), ...(min && { min: String(min) }), ...(q && { q }),
-      ...(days && { days: String(days) }), ...(sort === 'newest' && { sort }),
+      ...(days && { days: String(days) }), ...(sort === 'newest' && { sort }), ...salary.query,
     });
     return `/?${p}`;
   };
@@ -110,6 +114,7 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<'/'>['searc
           <option value="score">Best match first</option>
           <option value="newest">Newest first</option>
         </select>
+        <SalaryFilter params={salary.params} />
         <button className="btn">Apply filters</button>
       </form>
 
@@ -134,6 +139,7 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<'/'>['searc
                   {j.country ? COUNTRIES[j.country] : ''} · {j.location}
                   {j.visa && <span className="text-emerald-700 dark:text-emerald-400"> · ✓ {j.visa}</span>}
                 </p>
+                <SalaryTag job={j} expected={expected} />
                 <PostedOn postings={postings.get(j.id) ?? []} />
                 {j.filter_reason && <p className="text-sm text-rose-700 dark:text-rose-400">✗ {j.filter_reason}</p>}
                 <AiReview job={j} />

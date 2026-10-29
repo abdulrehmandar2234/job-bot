@@ -1,6 +1,7 @@
 import { getJson, sleep } from './http.ts';
 import { config } from '../config.ts';
 import { stripHtml, type RawJob } from './index.ts';
+import { structuredSalary } from '../salary.ts';
 
 // Remote job boards. Unlike company ATS boards these list many companies, and the location
 // field says where a remote hire may live, e.g. "Remote — Worldwide" or "Remote — USA, Canada".
@@ -29,6 +30,8 @@ async function himalayas(): Promise<RawJob[]> {
           url: j.applicationLink ?? j.guid,
           description: strip(j.description ?? ''),
           posted_at: new Date(posted).toISOString(),
+          salary: structuredSalary(j.minSalary, j.maxSalary, j.currency,
+            /month/i.test(j.salaryPeriod ?? '') ? 'month' : /hour/i.test(j.salaryPeriod ?? '') ? 'hour' : 'year'),
         });
       }
       await sleep(400);
@@ -62,6 +65,7 @@ async function remoteok(): Promise<RawJob[]> {
     url: j.url,
     description: strip(`${j.description ?? ''}\n${(j.tags ?? []).join(', ')}`),
     posted_at: j.date ?? null,
+    salary: structuredSalary(j.salary_min, j.salary_max, 'USD'), // yearly USD, 0 when not given
   }));
 }
 
@@ -104,6 +108,7 @@ async function arbeitnow(): Promise<RawJob[]> {
 // and AI reviews of Adzuna jobs see less than for other sources.
 const ADZUNA_PAGE = 50;
 const ADZUNA_COUNTRY: Record<string, string> = { nl: 'Netherlands' };
+const ADZUNA_CURRENCY: Record<string, string> = { nl: 'EUR', de: 'EUR', at: 'EUR', be: 'EUR', fr: 'EUR', es: 'EUR', it: 'EUR', gb: 'GBP', us: 'USD' };
 
 async function adzuna(): Promise<RawJob[]> {
   const id = process.env.ADZUNA_APP_ID;
@@ -138,6 +143,9 @@ async function adzuna(): Promise<RawJob[]> {
             url: j.redirect_url,
             description: strip(j.description ?? ''),
             posted_at: j.created ?? null,
+            // Yearly. Adzuna estimates a salary when the ad has none (salary_is_predicted "1"); those are skipped.
+            salary: String(j.salary_is_predicted) === '1' ? null
+              : structuredSalary(j.salary_min, j.salary_max, ADZUNA_CURRENCY[country]),
           });
         }
         // The free plan has tight per-minute limits, so searches are spaced out.

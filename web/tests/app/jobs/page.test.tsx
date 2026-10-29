@@ -15,6 +15,7 @@ vi.mock('next/navigation', async (importOriginal) => ({
   ...(await importOriginal<typeof import('next/navigation')>()),
   useRouter: () => ({ refresh: vi.fn() }),
 }));
+vi.mock('@/lib/bot', async (orig) => ({ ...await orig<object>(), runBot: vi.fn(async () => 'Not found') })); // the CV keyword check (ats-check.test.tsx)
 
 /**
  * The page is a sync shell with the async JobDetail server component inside <Suspense>. Pull that element out,

@@ -3,6 +3,7 @@ import { pool, type Job } from '../db.ts';
 import { fetchCompany } from '../sources/index.ts';
 import { BOARDS } from '../sources/boards.ts';
 import { linkedin } from '../sources/linkedin.ts';
+import { parseSalary, rowSalary, SALARY_SOURCES } from '../salary.ts';
 import type { RawJob } from '../types.ts';
 import { save, type Flags } from './shared.ts';
 
@@ -42,12 +43,22 @@ export async function fetch(_args: string[], flags: Flags) {
   console.log(`\n${total} postings checked, ${added} new. ${waiting} matching jobs waiting (status=new).`);
 }
 
+// A salary that came from a source's API is not in the text, so re-parsing would lose it.
+const keptSalary = (j: Job) => (SALARY_SOURCES.includes(j.source) ? rowSalary(j) : null) ?? undefined;
+
 /** Re-applies filters and scoring to stored jobs after config.json / match.ts changes (no network). */
 export async function rescore() {
   const { rows } = await pool.query<Job>(`SELECT * FROM jobs WHERE status IN ('new', 'filtered')`);
   for (const j of rows) {
     await save({ id: j.id, source: j.source, company: j.company, title: j.title, location: j.location, url: j.url,
-      description: j.description, posted_at: j.posted_at ? new Date(j.posted_at).toISOString() : null });
+      description: j.description, posted_at: j.posted_at ? new Date(j.posted_at).toISOString() : null, salary: keptSalary(j) });
+  }
+  // Jobs the user acted on are not re-scored, but their salary is filled in (or corrected) too.
+  const { rows: acted } = await pool.query<Job>(`SELECT * FROM jobs WHERE status NOT IN ('new', 'filtered')`);
+  for (const j of acted) {
+    const s = keptSalary(j) ?? parseSalary(`${j.title}\n${j.description}`);
+    await pool.query('UPDATE jobs SET salary_min = $2, salary_max = $3, salary_currency = $4, salary_period = $5 WHERE id = $1',
+      [j.id, s?.min ?? null, s?.max ?? null, s?.currency ?? null, s?.period ?? null]);
   }
   console.log(`${rows.length} jobs re-scored. ${await waitingCount()} matching jobs waiting (status=new).`);
 }
