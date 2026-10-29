@@ -53,6 +53,28 @@ describe('ConfigForm', () => {
     expect(screen.getByLabelText('Company 2 ATS')).toHaveValue('taleo');
   });
 
+  it('shows strong-match alerts as on unless the file turns them off', () => {
+    const { unmount } = render(<ConfigForm config={file(CONFIG)} />);
+    expect(screen.getByLabelText(/Alert me at once for strong matches/)).toBeChecked(); // missing = on
+    unmount();
+    render(<ConfigForm config={file({ ...CONFIG, ai: { ...CONFIG.ai, alertStrong: false } })} />);
+    expect(screen.getByLabelText(/Alert me at once for strong matches/)).not.toBeChecked();
+  });
+
+  it('shows the Adzuna section, empty without one, and the boards note', () => {
+    const { unmount } = render(<ConfigForm config={file(CONFIG)} />);
+    expect(screen.getByLabelText(/^Adzuna countries/)).toHaveValue('');
+    expect(screen.getByLabelText(/^Adzuna keywords/)).toHaveValue('');
+    expect(screen.getByLabelText(/^Adzuna pages per search/)).toHaveValue(null);
+    expect(screen.getByText(/arbeitnow, adzuna/)).toBeInTheDocument();
+    expect(screen.getByText(/ADZUNA_APP_ID and ADZUNA_APP_KEY in \.env/)).toBeInTheDocument();
+    unmount();
+    render(<ConfigForm config={file({ ...CONFIG, adzuna: { countries: ['nl', 'de'], keywords: ['php'], pagesPerSearch: 2 } })} />);
+    expect(screen.getByLabelText(/^Adzuna countries/)).toHaveValue('nl\nde');
+    expect(screen.getByLabelText(/^Adzuna keywords/)).toHaveValue('php');
+    expect(screen.getByLabelText(/^Adzuna pages per search/)).toHaveValue(2);
+  });
+
   it('submits the fields and shows "Saved" with the re-score count', async () => {
     vi.mocked(saveConfig).mockResolvedValue(saved('Saved. Re-scored 3 jobs.'));
     const user = userEvent.setup();
@@ -68,6 +90,8 @@ describe('ConfigForm', () => {
     expect(fd.get('linkedin.enabled')).toBe('on');
     expect(fd.get('remote.boards')).toBe('himalayas\nremotive');
     expect(fd.get('companies[1].orig')).toBe('1');
+    expect(fd.get('ai.alertStrong')).toBe('on');
+    expect(fd.get('adzuna.countries')).toBe('');
   });
 
   it('adds and removes company rows, renumbering the fields', async () => {

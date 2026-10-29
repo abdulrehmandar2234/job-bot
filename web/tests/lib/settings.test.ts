@@ -105,6 +105,41 @@ describe('mergeConfig', () => {
     expect(cfg.maxAgeDays).toBe('abc');
   });
 
+  it('saves ai.alertStrong as a checkbox', () => {
+    expect(get(mergeConfig(CONFIG, configForm({ 'ai.alertStrong': 'on' })), 'ai.alertStrong')).toBe(true);
+    expect(get(mergeConfig(CONFIG, configForm()), 'ai.alertStrong')).toBe(false);
+  });
+
+  it('leaves adzuna alone when the form has no adzuna fields', () => {
+    const current = { ...CONFIG, adzuna: { countries: ['nl'], pagesPerSearch: 2 } };
+    expect(mergeConfig(current, configForm()).adzuna).toEqual({ countries: ['nl'], pagesPerSearch: 2 });
+    expect('adzuna' in mergeConfig(CONFIG, configForm())).toBe(false);
+  });
+
+  it('does not create an adzuna section from empty fields', () => {
+    const cfg = mergeConfig(CONFIG, configForm({ 'adzuna.countries': ' \n', 'adzuna.keywords': '', 'adzuna.pagesPerSearch': '' }));
+    expect('adzuna' in cfg).toBe(false);
+  });
+
+  it('removes the adzuna section when every field is cleared (the bot then uses its defaults)', () => {
+    const current = { ...CONFIG, adzuna: { countries: ['nl'], pagesPerSearch: 2 } };
+    const cfg = mergeConfig(current, configForm({ 'adzuna.countries': '', 'adzuna.keywords': '', 'adzuna.pagesPerSearch': '' }));
+    expect('adzuna' in cfg).toBe(false);
+  });
+
+  it('saves adzuna countries and pages, with keywords only when given, keeping unknown adzuna keys', () => {
+    const current = { ...CONFIG, adzuna: { countries: ['nl'], keywords: ['old'], pagesPerSearch: 2, extra: 1 } };
+    const cfg = mergeConfig(current, configForm({ 'adzuna.countries': 'nl\n de ', 'adzuna.keywords': '', 'adzuna.pagesPerSearch': '3' }));
+    expect(cfg.adzuna).toEqual({ countries: ['nl', 'de'], pagesPerSearch: 3, extra: 1 });
+    const withKeywords = mergeConfig(CONFIG, configForm({ 'adzuna.countries': 'nl', 'adzuna.keywords': 'php\nlaravel', 'adzuna.pagesPerSearch': '1' }));
+    expect(withKeywords.adzuna).toEqual({ countries: ['nl'], keywords: ['php', 'laravel'], pagesPerSearch: 1 });
+  });
+
+  it('passes a half-filled adzuna section on for the validator to report', () => {
+    const cfg = mergeConfig(CONFIG, configForm({ 'adzuna.countries': 'nl', 'adzuna.pagesPerSearch': '' }));
+    expect(cfg.adzuna).toEqual({ countries: ['nl'], pagesPerSearch: null });
+  });
+
   it('ignores country fields for countries that are not in the file', () => {
     const cfg = mergeConfig(CONFIG, configForm({ 'countries.XX.match': 'x', 'countries.__proto__.match': 'x' }));
     expect(Object.keys(cfg.countries as object)).toEqual(['AE']);

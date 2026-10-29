@@ -17,12 +17,54 @@ export const TASK_LABEL: Record<TaskKind, string> = {
   ai_review: 'AI reviewing',
   answers: 'Drafting answers',
   rescore: 'Re-scoring jobs',
+  prep: 'Preparing interview notes',
 };
 
 export const isActive = (t: Pick<Task, 'status'>) => t.status === 'queued' || t.status === 'running';
 
-/** Fails tasks whose worker died (process killed, Mac restarted); see expire_stale_tasks() in the migration. */
-const expireStale = () => pool.query('SELECT expire_stale_tasks()');
+/** Done and failed tasks are deleted this long after they finished (on enqueue), as in src/tasks.ts. */
+export const KEEP_FINISHED_DAYS = 30;
+export const DEAD_WORKER_ERROR = 'The worker process exited without recording a result (see data/logs/tasks.log).';
+
+/** Whether a process exists. Signal 0 only checks: ESRCH = no such process, EPERM = it exists but is not ours. */
+export function pidAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (e) {
+    return (e as NodeJS.ErrnoException).code !== 'ESRCH';
+  }
+}
+
+/**
+ * Fails running tasks whose worker process is gone, without waiting for the deadline. Workers are spawned by this
+ * dashboard on this Mac, so their pid is checked locally. The update re-checks `running`, so a worker that just
+ * recorded its result is left alone.
+ */
+export async function failDeadWorkers(): Promise<number> {
+  const { rows } = await pool.query<{ id: number; pid: number }>(
+    `SELECT id, pid FROM tasks WHERE status = 'running' AND pid IS NOT NULL`);
+  const dead = rows.filter((r) => !pidAlive(r.pid)).map((r) => r.id);
+  if (!dead.length) return 0;
+  const { rowCount } = await pool.query(
+    `UPDATE tasks SET status = 'failed', finished_at = now(), error = $2 WHERE id = ANY($1) AND status = 'running'`,
+    [dead, DEAD_WORKER_ERROR]);
+  return rowCount ?? 0;
+}
+
+/** Fails tasks whose worker died: a dead pid, or past the deadline (expire_stale_tasks() in the migration). */
+async function expireStale() {
+  await failDeadWorkers();
+  await pool.query('SELECT expire_stale_tasks()');
+}
+
+/** Deletes done and failed tasks that finished more than KEEP_FINISHED_DAYS ago. Returns how many. */
+export async function pruneFinished(): Promise<number> {
+  const { rowCount } = await pool.query(
+    `DELETE FROM tasks WHERE status IN ('done', 'failed') AND coalesce(finished_at, created_at) < now() - make_interval(days => $1)`,
+    [KEEP_FINISHED_DAYS]);
+  return rowCount ?? 0;
+}
 
 /**
  * Queues a task and starts its worker. If the same work is already queued or running (one fetch at a time,
@@ -31,6 +73,7 @@ const expireStale = () => pool.query('SELECT expire_stale_tasks()');
 export async function enqueueTask(kind: TaskKind, jobId: string | null, args: Record<string, string> = {}):
   Promise<{ task: Task; created: boolean }> {
   await expireStale();
+  await pruneFinished();
   for (let attempt = 0; attempt < 3; attempt++) {
     const { rows: [task] } = await pool.query<Task>(
       `INSERT INTO tasks (kind, job_id, args) VALUES ($1, $2, $3)

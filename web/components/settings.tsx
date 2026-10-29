@@ -193,13 +193,16 @@ export function ConfigForm({ config }: { config: SettingsFile }) {
         <Section title="Remote boards">
           <Check label="Search remote boards" name="remote.enabled" value={get(c, 'remote.enabled')} />
           <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="Boards" hint="one per line: himalayas, remotive, remoteok" {...f('remote.boards')}>
+            <Field label="Boards" hint="one per line: himalayas, remotive, remoteok, arbeitnow, adzuna" {...f('remote.boards')}>
               <textarea name="remote.boards" rows={3} defaultValue={lines(get(c, 'remote.boards'))} className={input} />
             </Field>
             <Field label="Himalayas queries" hint="one per line" {...f('remote.himalayasQueries')}>
               <textarea name="remote.himalayasQueries" rows={3} defaultValue={lines(get(c, 'remote.himalayasQueries'))} className={input} />
             </Field>
           </div>
+          <p className="text-xs text-zinc-500">
+            Adzuna needs a free API key: set ADZUNA_APP_ID and ADZUNA_APP_KEY in .env, or it is skipped.
+          </p>
           {(['allow', 'deny', 'flag'] as const).map((k) => (
             <Field key={k} label={`Region ${k}`} hint="regular expression" {...f(`remote.${k}`)}>
               <textarea name={`remote.${k}`} rows={2} defaultValue={text(get(c, `remote.${k}`))} className={`${input} font-mono text-xs`} />
@@ -207,8 +210,28 @@ export function ConfigForm({ config }: { config: SettingsFile }) {
           ))}
         </Section>
 
+        <Section title="Adzuna">
+          <p className="text-xs text-zinc-500">
+            Used when &quot;adzuna&quot; is in the remote boards list. Leave everything empty for the defaults (nl, 2 pages).
+          </p>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <Field label="Adzuna countries" hint="one per line, e.g. nl" {...f('adzuna.countries')}>
+              <textarea name="adzuna.countries" rows={3} defaultValue={lines(get(c, 'adzuna.countries'))} className={input} />
+            </Field>
+            <Field label="Adzuna keywords" hint="optional, one per line; empty = LinkedIn keywords" {...f('adzuna.keywords')}>
+              <textarea name="adzuna.keywords" rows={3} defaultValue={lines(get(c, 'adzuna.keywords'))} className={input} />
+            </Field>
+            <Field label="Adzuna pages per search" hint="50 results each" {...f('adzuna.pagesPerSearch')}>
+              <input type="number" min={0} name="adzuna.pagesPerSearch" defaultValue={text(get(c, 'adzuna.pagesPerSearch'))} className={input} />
+            </Field>
+          </div>
+        </Section>
+
         <Section title="AI review">
           <Check label="Use the AI (local Claude CLI)" name="ai.enabled" value={get(c, 'ai.enabled')} />
+          {/* Missing means on (src/settings.ts), so only an explicit false unchecks it. */}
+          <Check label="Alert me at once for strong matches (macOS notification)" name="ai.alertStrong"
+            value={get(c, 'ai.alertStrong') !== false} />
           <div className="grid gap-3 sm:grid-cols-3">
             <Field label="Score model" {...f('ai.scoreModel')}>
               <input name="ai.scoreModel" defaultValue={text(get(c, 'ai.scoreModel'))} className={input} />

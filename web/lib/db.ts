@@ -54,7 +54,8 @@ export async function listJobs(f: JobFilter) {
   const { rows } = await pool.query<Job>(
     `SELECT id, source, company, title, location, country, url, '' AS description, posted_at, first_seen_at, score, cluster,
       matched, missing, visa, flags, status, filter_reason, cv_version, NULL AS cover_letter, applied_at, notes,
-      ai_score, ai_verdict, ai_summary, ai_reasons, ai_gaps, ai_flags, salary_min, salary_max, salary_currency, salary_period
+      ai_score, ai_verdict, ai_summary, ai_reasons, ai_gaps, ai_flags, salary_min, salary_max, salary_currency, salary_period,
+      closed_at
      FROM jobs WHERE ${where.join(' AND ')} ORDER BY ${order} LIMIT 200`, params);
   return rows;
 }

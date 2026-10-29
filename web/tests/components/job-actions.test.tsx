@@ -62,6 +62,15 @@ describe('JobActions', () => {
   it('says "Prepare anyway" for a filtered job and offers no status moves', () => {
     render(<JobActions job={job({ status: 'filtered' })} />);
     expect(buttons()).toEqual(['Prepare anyway', 'AI review']);
+    expect(screen.getByRole('button', { name: 'Prepare anyway' }).closest('form')!.querySelector('input[name="force"]')).toBeNull();
+  });
+
+  it('offers "Prepare anyway" (forced past the open check) and "Move to matching" for an expired job', () => {
+    render(<JobActions job={job({ status: 'expired', ai_score: 70 })} />);
+    expect(buttons()).toEqual(['Prepare anyway', 'Move to matching']);
+    const form = screen.getByRole('button', { name: 'Prepare anyway' }).closest('form')!;
+    expect(form.querySelector('input[name="force"]')).toHaveValue('true');
+    expect(targetOf('Move to matching')).toBe('new');
   });
 
   it.each<[Status, [string, string][]]>([
@@ -70,6 +79,7 @@ describe('JobActions', () => {
     ['applied', [['Got interview', 'interview'], ['Rejected', 'rejected']]],
     ['interview', [['Offer 🎉', 'offer'], ['Rejected', 'rejected']]],
     ['skipped', [['Move to matching', 'new']]],
+    ['expired', [['Move to matching', 'new']]],
     ['offer', []],
     ['rejected', []],
   ])('status %s offers the right moves', (status, moves) => {

@@ -20,7 +20,7 @@ export const CONFIG_FIELDS: Record<string, FieldType> = {
   'linkedin.remoteFrom': 'text', 'linkedin.pagesPerSearch': 'number',
   'remote.enabled': 'bool', 'remote.boards': 'lines', 'remote.himalayasQueries': 'lines',
   'remote.allow': 'text', 'remote.deny': 'text', 'remote.flag': 'text',
-  'ai.enabled': 'bool', 'ai.scoreModel': 'text', 'ai.letterModel': 'text', 'ai.maxScorePerRun': 'number',
+  'ai.enabled': 'bool', 'ai.alertStrong': 'bool', 'ai.scoreModel': 'text', 'ai.letterModel': 'text', 'ai.maxScorePerRun': 'number',
 };
 
 export const APPLICANT_FACTS = [
@@ -75,6 +75,7 @@ export function mergeConfig(current: Json, fd: FormData): Json {
     // An unchecked checkbox is not sent at all.
     set(cfg, name, type === 'bool' ? fd.get(name) === 'on' : parse(type, str(fd, name)));
   }
+  mergeAdzuna(cfg, fd);
   // Only the location patterns of existing countries are editable.
   if (isObj(cfg.countries)) {
     for (const [code, c] of Object.entries(cfg.countries)) {
@@ -90,6 +91,27 @@ export function mergeConfig(current: Json, fd: FormData): Json {
     return { ...(isObj(orig) ? orig : {}), name: str(fd, p + 'name').trim(), ats: str(fd, p + 'ats'), token: str(fd, p + 'token').trim() };
   });
   return cfg;
+}
+
+/**
+ * The optional `adzuna` section. All three fields empty means no section (the bot then uses its defaults), so a
+ * config without one never gets an empty, invalid one. Empty keywords = use the LinkedIn keywords.
+ */
+function mergeAdzuna(cfg: Json, fd: FormData) {
+  if (!fd.has('adzuna.countries')) return;
+  const countries = parse('lines', str(fd, 'adzuna.countries')) as string[];
+  const keywords = parse('lines', str(fd, 'adzuna.keywords')) as string[];
+  const pages = str(fd, 'adzuna.pagesPerSearch');
+  if (!countries.length && !keywords.length && !pages.trim()) {
+    delete cfg.adzuna;
+    return;
+  }
+  const adzuna: Json = isObj(cfg.adzuna) ? cfg.adzuna : {};
+  adzuna.countries = countries;
+  adzuna.pagesPerSearch = parse('number', pages);
+  if (keywords.length) adzuna.keywords = keywords;
+  else delete adzuna.keywords;
+  cfg.adzuna = adzuna;
 }
 
 /** An empty fact is null (unknown), so the AI writes [FILL: ...]. Unchanged values keep their type (e.g. booleans). */

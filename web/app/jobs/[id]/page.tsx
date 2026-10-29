@@ -64,7 +64,7 @@ async function JobDetail({ params }: { params: PageProps<'/jobs/[id]'>['params']
 
       <AiReview job={job} />
 
-      <InterviewPrep job={job} />
+      <InterviewPrep job={job} busy={busy} />
       <AtsCheck jobId={job.id} />
 
       <section className="space-y-2 rounded-xl border border-zinc-200 p-4 text-sm dark:border-zinc-800">

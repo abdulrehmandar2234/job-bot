@@ -120,6 +120,16 @@ describe('prepare', () => {
     expect((await tasks())[0].args).toEqual({ cv: 'backend-lead-2' });
   });
 
+  it('carries force for "Prepare anyway" on an expired job, with or without a CV version', async () => {
+    await prepare(form({ id, force: 'true', cv: 'laravel' }));
+    expect((await tasks())[0].args).toEqual({ cv: 'laravel', force: 'true' });
+  });
+
+  it.each(['1', 'on', 'false', ''])('ignores force=%j', async (force) => {
+    await prepare(form({ id, force }));
+    expect((await tasks())[0].args).toEqual({});
+  });
+
   it.each(['../../etc', 'Backend', 'a b', 'x;rm', '', '--help', '-x'])('ignores an invalid CV version %j', async (cv) => {
     await prepare(form({ id, cv }));
     expect((await tasks())[0].args).toEqual({});
