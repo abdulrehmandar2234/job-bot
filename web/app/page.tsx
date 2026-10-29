@@ -1,7 +1,18 @@
 import Link from 'next/link';
 import { Fragment, Suspense } from 'react';
 import { fetchNow } from './actions';
-import { followUpCount, lastRun, listJobs, postingsFor, STATUSES, statusCounts, weekStats, type Status } from '@/lib/db';
+import {
+  countJobs,
+  followUpCount,
+  lastRun,
+  listJobs,
+  PAGE_SIZE,
+  postingsFor,
+  STATUSES,
+  statusCounts,
+  weekStats,
+  type Status,
+} from '@/lib/db';
 import { FetchWarning } from '@/components/analytics';
 import { BaytBookmarklet, SubmitButton } from '@/components/client';
 import { JobActions } from '@/components/job-actions';
@@ -13,6 +24,7 @@ import { ReferralBadge } from '@/components/contacts';
 import { allContacts } from '@/lib/contacts-db';
 import { ExpiredBadge } from '@/components/open-check';
 import { FollowUpBadge } from '@/components/follow-up';
+import { Pager } from '@/components/pager';
 import { ago, AiReview, Chips, fmtDate, Posted, PostedOn, Score, STATUS_LABEL } from '@/components/ui';
 import { FirstRunBanner, MarketHeader } from '@/components/profile-banner';
 import { readCountryLabels } from '@/lib/profile';
@@ -89,9 +101,12 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<'/'>['searc
   const sort = one('sort') === 'newest' ? 'newest' : 'score';
   const salary = salaryParams(one);
   const expected = loadExpectations();
+  const page = Math.max(1, Math.floor(Number(one('page'))) || 1);
+  const filter = { status, country, min, q, days, sort, followUp, ...salary.filter } as const;
 
-  const [jobs, counts, run, week, tasks, dueCount] = await Promise.all([
-    listJobs({ status, country, min, q, days, sort, followUp, ...salary.filter }),
+  const [jobs, total, counts, run, week, tasks, dueCount] = await Promise.all([
+    listJobs(filter, page),
+    countJobs(filter),
     statusCounts(),
     lastRun(),
     weekStats(),
@@ -100,7 +115,8 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<'/'>['searc
   ]);
   const busy = (id: string) => tasks.filter((t) => t.job_id === id && isActive(t)).map((t) => t.kind);
   const [postings, contacts] = await Promise.all([postingsFor(jobs.map((j) => j.id)), allContacts()]);
-  const tabHref = (s: string, view?: 'followup') => {
+  // Tabs and filters start again at page 1; the page links keep everything else.
+  const tabHref = (s: string, view?: 'followup', toPage = 1) => {
     const p = new URLSearchParams({
       ...(view ? { view } : { status: s }),
       ...(country && { country }),
@@ -109,9 +125,11 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<'/'>['searc
       ...(days && { days: String(days) }),
       ...(sort === 'newest' && { sort }),
       ...salary.query,
+      ...(toPage > 1 && { page: String(toPage) }),
     });
     return `/?${p}`;
   };
+  const pageHref = (n: number) => tabHref(status, followUp ? 'followup' : undefined, n);
 
   return (
     <>
@@ -123,7 +141,10 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<'/'>['searc
         <Stat label="Last fetch" value={ago(run?.finished_at ?? null)} sub={run ? `${run.checked} postings checked` : 'run Fetch'} />
       </section>
 
-      <nav className="mb-4 flex gap-1 overflow-x-auto [scrollbar-width:none] border-b border-zinc-200 dark:border-zinc-800">
+      <nav
+        aria-label="Job status"
+        className="mb-4 flex gap-1 overflow-x-auto [scrollbar-width:none] border-b border-zinc-200 dark:border-zinc-800"
+      >
         {STATUSES.map((s) => (
           <Fragment key={s}>
             <Link href={tabHref(s)} className={tabClass(!followUp && s === status)}>
@@ -173,6 +194,8 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<'/'>['searc
         </button>
       </form>
 
+      <Pager page={page} total={total} pageSize={PAGE_SIZE} href={pageHref} />
+
       {jobs.length === 0 && (
         <p className="py-10 text-center text-sm text-zinc-500">
           {followUp ? 'No follow-ups due: every application has had news or was sent less than a week ago.' : 'No jobs here.'}
@@ -214,6 +237,8 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<'/'>['searc
           </li>
         ))}
       </ul>
+
+      <Pager page={page} total={total} pageSize={PAGE_SIZE} href={pageHref} />
     </>
   );
 }

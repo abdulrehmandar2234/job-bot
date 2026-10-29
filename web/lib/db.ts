@@ -76,7 +76,11 @@ export type JobFilter = {
   followUp?: boolean; // only applied jobs due a follow-up (web/lib/followup.ts)
 }; // minSalary: euros per year
 
-export async function listJobs(f: JobFilter) {
+/** Jobs per page on the dashboard list. */
+export const PAGE_SIZE = 25;
+
+/** The WHERE clause and its parameters for a filter, shared by listJobs() and countJobs(). */
+function jobWhere(f: JobFilter) {
   // Copies of a job found on other sites are shown as "Posted on" links of the primary, not as rows.
   const where = ['status = $1', 'duplicate_of IS NULL'];
   const params: (string | number)[] = [f.status];
@@ -106,6 +110,12 @@ export async function listJobs(f: JobFilter) {
   // Filtered jobs are only useful when they were at least in a target country.
   if (f.status === 'filtered') where.push('country IS NOT NULL');
   if (f.followUp) where.push(FOLLOW_UP_DUE_SQL);
+  return { where: where.join(' AND '), params };
+}
+
+/** One page of the job list (1-based; a page past the end is empty). */
+export async function listJobs(f: JobFilter, page = 1, pageSize = PAGE_SIZE) {
+  const { where, params } = jobWhere(f);
   const newest = 'coalesce(posted_at, first_seen_at) DESC';
   const order =
     f.sort === 'newest'
@@ -115,15 +125,23 @@ export async function listJobs(f: JobFilter) {
         : f.status === 'new' || f.status === 'filtered'
           ? `ai_score DESC NULLS LAST, score DESC, ${newest}`
           : 'coalesce(applied_at, first_seen_at) DESC';
+  params.push(pageSize, (Math.max(1, Math.floor(page)) - 1) * pageSize);
   const { rows } = await pool.query<Job>(
     `SELECT id, source, company, title, location, country, url, '' AS description, posted_at, first_seen_at, score, cluster,
       matched, missing, visa, flags, status, filter_reason, cv_version, NULL AS cover_letter, applied_at, notes,
       ai_score, ai_verdict, ai_summary, ai_reasons, ai_gaps, ai_flags, salary_min, salary_max, salary_currency, salary_period,
       closed_at, follow_ups, followed_up_at
-     FROM jobs WHERE ${where.join(' AND ')} ORDER BY ${order} LIMIT 200`,
+     FROM jobs WHERE ${where} ORDER BY ${order}, id LIMIT $${params.length - 1} OFFSET $${params.length}`,
     params,
   );
   return rows;
+}
+
+/** How many jobs match a filter, for the page links. */
+export async function countJobs(f: JobFilter) {
+  const { where, params } = jobWhere(f);
+  const { rows } = await pool.query<{ n: number }>(`SELECT count(*)::int n FROM jobs WHERE ${where}`, params);
+  return rows[0].n;
 }
 
 export async function statusCounts() {

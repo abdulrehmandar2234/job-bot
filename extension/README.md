@@ -1,6 +1,6 @@
 # job-bot Chrome extension
 
-Sends the job you are looking at to your local job-bot, and shows what job-bot prepared for it (CV, cover letter, form answers) so you can copy it while you apply. It replaces the Bayt bookmarklet as the main way to add jobs from the browser. The bookmarklet still works.
+Sends the job you are looking at to your local job-bot, and shows what job-bot prepared for it (CV, cover letter, form answers) so you can copy it, or fill it into the application form, while you apply. It replaces the Bayt bookmarklet as the main way to add jobs from the browser. The bookmarklet still works.
 
 ## What it does
 
@@ -10,10 +10,19 @@ Sends the job you are looking at to your local job-bot, and shows what job-bot p
 
   You can fix the title, company and location, then press **Send to job-bot**. The dashboard runs it through `bot add` (same filters and scoring as fetched jobs) and the popup shows the result: added with its score, filtered with the reason, or already in job-bot.
 - **Apply helper** (side panel, opened from the popup). For the job in the active tab it shows the status, the scores and AI verdict, a link to download the prepared CV, the cover letter and every drafted form answer, each with a **Copy** button. It follows you when you switch tabs. **Open in dashboard** and **Mark applied (in dashboard)** open the job's page on the dashboard, where you record the application. If the job is not in job-bot yet, the panel offers **Read this page** and the same send form (Chrome asks once per site to let the panel read pages there).
+- **Fill this form** (side panel). Types into the form's **empty** fields, in the page and in its iframes (Greenhouse and Workday embed their forms):
+  - your name (first, last or full), email, phone, LinkedIn and location, from `cv/master.json` (`cv/applicant.json` `currentLocation` wins for the location);
+  - the cover letter, into a "Cover letter" text box;
+  - drafted form answers, into the field whose label matches the question (selects pick the matching option);
+  - the prepared CV PDF, into a "Resume" / "CV" file input.
+
+  Filled fields get an orange outline. The panel lists what it filled and what it left for you. Chrome asks once per site to let the panel work there.
 
 ## What it does not do
 
-- It never types into, clicks on or submits anything on a job site, and never logs in anywhere. It only reads the current page when you click, and shows text for you to copy. You fill in and submit every application yourself.
+- It never clicks a button, ticks a checkbox or radio, or submits a form, and never logs in anywhere. You check the filled form and submit every application yourself.
+- It never overwrites a field that already has a value, and never fills answers that need your input (`[FILL: ...]`), passwords, checkboxes or radios.
+- It only types into a page when you click **Fill this form**.
 - It does not run in the background or read pages you do not click it on.
 - It talks only to your local dashboard at `http://localhost:3100`. Nothing is sent anywhere else.
 
@@ -31,7 +40,7 @@ If the dashboard is not running, the popup and the side panel say so; start it a
 
 ## How the dashboard trusts it
 
-`/api/import` and `/api/jobs/lookup` accept only requests whose `Origin` is this extension: `chrome-extension://fmkmpckdcfhibobdiffankccildkcnij`. Web pages cannot forge the `Origin` header, so other sites cannot add jobs or read your letters. Other extensions you have installed are refused too.
+`/api/import` and `/api/jobs/lookup` accept only requests whose `Origin` is this extension, and `/api/cv/<version>` lets only this extension read the PDF cross-origin: `chrome-extension://fmkmpckdcfhibobdiffankccildkcnij`. Web pages cannot forge the `Origin` header, so other sites cannot add jobs or read your letters. Other extensions you have installed are refused too.
 
 The id is pinned by the public key in `manifest.json` (`"key"`): Chrome derives an unpacked extension's id from it, so every install gets the same id. The private key is not needed for loading unpacked and is not stored anywhere. If you replace the key, compute the new id (sha256 of the decoded key, first 32 hex digits mapped `0-f` → `a-p`, or read it on the extension's card in `chrome://extensions`) and set it for the dashboard in `web/.env.local`:
 
@@ -41,7 +50,7 @@ JOB_BOT_EXTENSION_ID=<new id>
 
 Then restart the dashboard. The extension deliberately has no host permission for `localhost:3100`: with one, Chrome leaves out `Origin` on GET requests, and the lookup route would refuse them.
 
-Permissions: `activeTab` + `scripting` (read the tab you clicked the button on), `tabs` (the side panel needs the active tab's url), `sidePanel`, `clipboardWrite` (Copy buttons). Reading pages from the side panel uses optional per-site permissions that Chrome asks you for.
+Permissions: `activeTab` + `scripting` (read the tab you clicked the button on, and fill its form when you ask), `tabs` (the side panel needs the active tab's url), `sidePanel`, `clipboardWrite` (Copy buttons). Reading pages from the side panel uses optional per-site permissions that Chrome asks you for.
 
 ## Files
 
@@ -49,9 +58,11 @@ Permissions: `activeTab` + `scripting` (read the tab you clicked the button on),
 - `popup.html`, `popup.js`: the toolbar popup.
 - `panel.html`, `panel.js`: the Apply helper side panel.
 - `send.js`, `dom.js`, `style.css`: the shared send form and UI helpers.
-- `lib/`: plain ES modules with no `chrome.*` calls, tested by `tests/extension.test.ts`:
+- `lib/`: plain ES modules with no `chrome.*` calls, tested by `tests/extension.test.ts` (and `web/tests/extension/` for the page side):
   - `collect.js` reads the page (runs inside the tab, read-only),
   - `jobposting.js` turns JSON-LD or page text into a job,
   - `text.js` HTML to text and cleanup, `url.js` URL normalization and the hostname → source name,
-  - `api.js` the calls to the dashboard and the result messages.
+  - `fill.js` plans the auto-fill (which empty field gets which value),
+  - `page-fill.js` runs in the page: lists the form fields and types the planned values (never submits),
+  - `api.js` the calls to the dashboard (job lookup, CV download) and the result messages.
 - `icons/`: PNG icons, drawn by `node extension/icons/make-icons.mjs`.

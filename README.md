@@ -34,7 +34,7 @@ Design principles:
   Without them Adzuna is skipped with one log line. Adzuna only returns a snippet of each description, so its keyword scores see less text.
 - **LinkedIn** guest job search (no login, your account is never used). It covers onsite jobs in `linkedin.locations` and remote jobs searched from `linkedin.remoteFrom`. Requests are 1.2 s apart, and LinkedIn is skipped for the day on a 429.
 - **Bayt** via a browser bookmarklet (`scripts/bayt-collect.js`), because Bayt blocks direct requests. You click it on bayt.com and it sends jobs to the dashboard's `/api/import`.
-- **Chrome extension** (`extension/`, see [extension/README.md](extension/README.md)): "Send to job-bot" from any job page (Bayt, GulfTalent, NaukriGulf, company sites), and an "Apply helper" side panel with the prepared CV, letter and answers to copy. It never fills in or submits forms.
+- **Chrome extension** (`extension/`, see [extension/README.md](extension/README.md)): "Send to job-bot" from any job page (Bayt, GulfTalent, NaukriGulf, company sites), and an "Apply helper" side panel with the prepared CV, letter and answers to copy. **Fill this form** types your name and contact details, the cover letter, drafted answers and the CV PDF into the form's empty fields (outlined in orange). It never overwrites what you typed, never fills answers that need your input, and never clicks a button or submits: you check the form and submit it yourself.
 - **Manual add** of any job as JSON (`bot add`), e.g. from GulfTalent or a referral.
 - **Company discovery** (`bot discover <names> --add`) tries a company name on the six ATS platforms that work by name (a full myworkdayjobs.com URL tries Workday) and adds it to the config if it has jobs in your target countries.
 - **Daily automatic fetch** at 9:00 through a macOS launchd job, followed by AI review of new matches and a macOS notification.
@@ -78,6 +78,7 @@ npm run web          # http://localhost:3100
 
 - Tabs per status, search, country filter, minimum score and "best match first" sorting (AI score first, keyword score as fallback).
 - Salary on each card ("AED 20k–25k / month") and a "Min salary" filter in any of the six currencies, per month or year. It compares in euros per year with fixed, approximate rates (`web/lib/salary.ts`). Jobs without a salary stay visible unless "only with salary" is ticked. When `cv/applicant.json` has `expectedSalary` for the job's country (`AE`, `SA`, `NL`, `remote`), a lower salary gets a "below your expectation" hint; it never hides the job. A plain number there is in the country's currency, per month for AE/SA and per year otherwise; text such as `"AED 25,000 per month"` says it itself.
+- The list shows 25 jobs per page, with page links above and below it. The page links keep the tab, filters and sort; changing the tab or filters goes back to page 1.
 - Per job: open the posting, prepare CV + letter (with a CV-version picker), download the CV, AI review, and status buttons.
 - Job page: "Check if still open" button, full description, CV keyword check, cover letter with Copy and Rewrite, form-answer helper, notes and status history.
 - "Fetch new jobs" button and a "Add jobs from Bayt" page with the bookmarklet.
@@ -380,7 +381,7 @@ web/
   components/       UI and client components
   lib/              DB queries and the CLI runner
 scripts/            daily fetch, Bayt bookmarklet
-extension/          Chrome extension: send a job, apply helper side panel
+extension/          Chrome extension: send a job, apply helper side panel with form auto-fill
 tests/              backend tests (node:test)
 web/tests/          dashboard tests (vitest)
 ```
