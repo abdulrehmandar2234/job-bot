@@ -2,7 +2,7 @@
 // imports here, so the dashboard build can erase the import and never bundles bot code.
 
 export type JobStatus =
-  | 'new' | 'prepared' | 'applied' | 'interview' | 'offer' | 'rejected' | 'skipped' | 'filtered';
+  | 'new' | 'prepared' | 'applied' | 'interview' | 'offer' | 'rejected' | 'skipped' | 'expired' | 'filtered';
 
 /** A drafted answer to one application-form question (`bot answer`). */
 export type FormAnswer = { question: string; answer: string; needs_input: boolean; note: string };
@@ -54,6 +54,8 @@ export type Job = {
   interview_prep: InterviewPrep | null;
   interview_prep_at: Date | null;
   alerted_at: Date | null; // macOS alert sent for a `strong` AI verdict (once per job)
+  checked_open_at: Date | null; // last time `check:open` got a clear open/closed answer
+  closed_at: Date | null;       // when the posting was found closed (status `expired`)
 };
 
 /** A posting as a source adapter returns it, before scoring. */
