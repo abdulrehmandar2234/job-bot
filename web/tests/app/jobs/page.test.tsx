@@ -9,6 +9,7 @@ import { cleanupDb, closeDb, ensureSchema, insertJob, PREFIX } from '../../helpe
 vi.mock('@/app/actions', () => ({
   setStatus: vi.fn(), prepare: vi.fn(), aiReview: vi.fn(), saveNotes: vi.fn(), draftAnswers: vi.fn(), clearAnswers: vi.fn(),
 }));
+vi.mock('@/lib/bot', async (orig) => ({ ...await orig<object>(), runBot: vi.fn(async () => 'Not found') })); // the CV keyword check (ats-check.test.tsx)
 
 /**
  * The page is a sync shell with the async JobDetail server component inside <Suspense>. Pull that element out,
