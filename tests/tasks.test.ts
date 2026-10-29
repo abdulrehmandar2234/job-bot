@@ -101,6 +101,13 @@ describe('task queue', () => {
     assert.equal(t.deadline!.getTime() - t.started_at!.getTime(), TASK_TIMEOUT_MS.prep + DEADLINE_GRACE_MS);
   });
 
+  it('drafting a follow-up is a task kind with a 4 minute timeout (migration 008)', async () => {
+    assert.equal(TASK_TIMEOUT_MS.follow_up, 4 * 60_000);
+    const { task, created } = await enqueue('follow_up', JOB);
+    assert.equal(created, true);
+    assert.equal(task.kind, 'follow_up');
+  });
+
   it('rejects unknown kinds and jobs at the database', async () => {
     await assert.rejects(enqueue('bogus' as 'fetch', null), /tasks_kind_check/);
     await assert.rejects(enqueue('prepare', 'tasktest:nope'), /foreign key/);
@@ -276,6 +283,7 @@ describe('cliArgs', () => {
     assert.deepEqual(cliArgs(t('prepare', { cv: 'backend-lead-2' })), ['prepare', JOB, '--cv', 'backend-lead-2']);
     assert.deepEqual(cliArgs(t('answers', { questions: 'Q' }), '/tmp/q.txt'), ['answer', JOB, '--file', '/tmp/q.txt']);
     assert.deepEqual(cliArgs(t('prep')), ['prep', JOB]);
+    assert.deepEqual(cliArgs(t('follow_up')), ['follow-up', JOB]);
   });
 
   it('passes --force to prepare only for force "true" ("Prepare anyway" on an expired job)', () => {

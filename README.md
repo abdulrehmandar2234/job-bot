@@ -59,6 +59,7 @@ Every posting is checked by `src/match.ts`. Jobs that fail a rule are kept with 
 - **CV keyword check** (`bot ats <id>`, and on the job page): the job's skill keywords split into those the CV version shows near the top, those you have (in `cv/master.json`) but this version keeps further down, and real gaps that are not on your CV at all. It names the CV version that shows the most of them. Gaps are only listed, never suggested for the CV.
 - **Form answers:** paste the questions from an application form and Claude drafts an answer for each one, using only your CV and `cv/applicant.json`. Personal decisions it cannot know (salary, notice period, start date) come back as `[FILL: ...]` and are highlighted. Each answer has a Copy button.
 - **Interview prep:** for applied and interview jobs, Claude (model `sonnet`) writes likely technical questions with what to emphasise from your CV, behavioural questions with STAR stories built only from your CV, a short company brief from the posting alone (no web research, so unsure points are marked "verify before interview"), questions to ask them, and the job's key requirements mapped to your CV or marked as gaps. Everything has Copy buttons and a Regenerate button.
+- **Follow-up reminders:** an `applied` job with no news for 7 days shows a "Follow up · N days" badge and appears in the **Needs follow-up** tab. On the job page, "Draft follow-up" has Claude write a short message (addressed to the job's recruiter or hiring manager contact if you added one, CV facts only), with a template fallback. You send it yourself and click "I sent a follow-up"; the reminder then waits another 7 days, and stops after 2 follow-ups. CLI: `follow-ups`, `follow-up <id>`, `followed-up <id>`.
 
 ### Tracking
 
@@ -127,7 +128,7 @@ flowchart LR
 The project has two parts that share one PostgreSQL database:
 
 1. **The bot CLI** (`src/`) does all the real work: fetching, scoring, AI calls and CV rendering. Node 24+ runs the TypeScript directly, so there is no build step.
-2. **The dashboard** (`web/`, Next.js) reads the database directly for display. For anything heavy (fetch, prepare, AI review, form answers, interview prep) its server actions queue a background task and return at once: they insert a row in `tasks` and start a detached `bot task:run <id>` (`web/lib/bot.ts` `spawnBot`, argument array, no shell, output in `data/logs/tasks.log`). That worker claims the row, runs the normal CLI command and stores the result, so the CLI and the dashboard always behave the same. The page shows "Working…" while a task runs, polls `/api/tasks` and refreshes when it finishes; failures stay on the page with their error until dismissed. Only one fetch, and one task per kind and job, runs at a time, and a task whose worker died is failed so it never blocks new ones: at once when its worker pid no longer exists, otherwise after its timeout (Mac slept or restarted). Finished tasks are deleted after 30 days (`src/tasks.ts`).
+2. **The dashboard** (`web/`, Next.js) reads the database directly for display. For anything heavy (fetch, prepare, AI review, form answers, interview prep, follow-up drafts) its server actions queue a background task and return at once: they insert a row in `tasks` and start a detached `bot task:run <id>` (`web/lib/bot.ts` `spawnBot`, argument array, no shell, output in `data/logs/tasks.log`). That worker claims the row, runs the normal CLI command and stores the result, so the CLI and the dashboard always behave the same. The page shows "Working…" while a task runs, polls `/api/tasks` and refreshes when it finishes; failures stay on the page with their error until dismissed. Only one fetch, and one task per kind and job, runs at a time, and a task whose worker died is failed so it never blocks new ones: at once when its worker pid no longer exists, otherwise after its timeout (Mac slept or restarted). Finished tasks are deleted after 30 days (`src/tasks.ts`).
 
 ### A job's journey
 
@@ -165,6 +166,7 @@ All AI features call the Claude Code CLI you are signed in to (`claude -p`) with
 | Cover letter   | `sonnet` | ~15–30 s     | `prepare`, "Rewrite letter"     |
 | Form answers   | `sonnet` | ~15 s        | `answer`, "Draft answers"       |
 | Interview prep | `sonnet` | ~30–60 s     | `prep`, "Prepare for interview" |
+| Follow-up      | `sonnet` | ~10–20 s     | `follow-up`, "Draft follow-up"  |
 
 The prompts only allow facts from `cv/master.json` and `cv/applicant.json`. Fill in `cv/applicant.json` (copy it from `cv/applicant.example.json`) with your notice period, expected salary per country, etc., so form answers can use them.
 
@@ -172,7 +174,7 @@ The prompts only allow facts from `cv/master.json` and `cv/applicant.json`. Fill
 
 Every CLI start applies the numbered SQL files in `src/migrations/` that the database has not run yet (recorded in `schema_migrations`), so there is no migration command. To change the schema, add the next `NNN_name.sql` file; never edit one that is already committed (see `src/migrate.ts`).
 
-- `jobs`: one row per posting. It holds the score, matched/missing skills, visa note, flags, status, filter reason, CV version, cover letter, AI review, form answers, interview prep, alert time, notes and `duplicate_of`.
+- `jobs`: one row per posting. It holds the score, matched/missing skills, visa note, flags, status, filter reason, CV version, cover letter, AI review, form answers, interview prep, follow-up count and draft, alert time, notes and `duplicate_of`.
 - `job_events`: every status change with a note.
 - `fetch_runs`: per fetch, how many postings were checked, how many were new and which sources failed.
 
@@ -202,6 +204,9 @@ npm run bot -- prepare <id> [--cv laravel] [--template] [--force]
 npm run bot -- check:open [<id>...] [--status new,prepared] [--limit N]  # mark closed postings expired
 npm run bot -- answer <id> [--file q.txt] [--clear]
 npm run bot -- prep <id>                      # AI interview prep (questions, STAR stories, brief, gaps)
+npm run bot -- follow-ups                      # applied jobs with no news for 7+ days
+npm run bot -- follow-up <id> [--template]     # draft a follow-up message (you send it yourself)
+npm run bot -- followed-up <id>                # record a sent follow-up (reminds again after 7 days, at most 2)
 npm run bot -- custom <id> --overrides o.json # one-off CV for a single job
 npm run bot -- mark <id> applied|interview|offer|rejected|skipped|expired ["note"] [--reason stack|seniority|salary|location|company|language|other]
 npm run bot -- contacts <id>                  # a job's contacts, plus people you know at the same company

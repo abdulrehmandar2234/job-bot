@@ -1,6 +1,8 @@
 import { Pool } from 'pg';
 // Row types are shared with the bot (job-bot/src/types.ts). Type-only import: erased at build time, so no bot code
 // is bundled and Turbopack's root stays web/.
+// .ts extension: the bot's tests (tests/statuses.test.ts) load this file in plain Node too.
+import { FOLLOW_UP_DUE_SQL } from './followup.ts';
 import type { FetchRun, FormAnswer, InterviewPrep, Job as JobRow, JobEvent, SalaryCurrency, SalaryPeriod } from '../../src/types';
 
 // Same Postgres database the CLI bot writes to (job-bot/.env and web/.env.local).
@@ -71,6 +73,7 @@ export type JobFilter = {
   sort?: 'score' | 'newest';
   minSalary?: number;
   salaryOnly?: boolean;
+  followUp?: boolean; // only applied jobs due a follow-up (web/lib/followup.ts)
 }; // minSalary: euros per year
 
 export async function listJobs(f: JobFilter) {
@@ -102,18 +105,21 @@ export async function listJobs(f: JobFilter) {
   if (f.salaryOnly) where.push('salary_currency IS NOT NULL');
   // Filtered jobs are only useful when they were at least in a target country.
   if (f.status === 'filtered') where.push('country IS NOT NULL');
+  if (f.followUp) where.push(FOLLOW_UP_DUE_SQL);
   const newest = 'coalesce(posted_at, first_seen_at) DESC';
   const order =
     f.sort === 'newest'
       ? newest
-      : f.status === 'new' || f.status === 'filtered'
-        ? `ai_score DESC NULLS LAST, score DESC, ${newest}`
-        : 'coalesce(applied_at, first_seen_at) DESC';
+      : f.followUp
+        ? 'coalesce(followed_up_at, applied_at)' // the longest wait first
+        : f.status === 'new' || f.status === 'filtered'
+          ? `ai_score DESC NULLS LAST, score DESC, ${newest}`
+          : 'coalesce(applied_at, first_seen_at) DESC';
   const { rows } = await pool.query<Job>(
     `SELECT id, source, company, title, location, country, url, '' AS description, posted_at, first_seen_at, score, cluster,
       matched, missing, visa, flags, status, filter_reason, cv_version, NULL AS cover_letter, applied_at, notes,
       ai_score, ai_verdict, ai_summary, ai_reasons, ai_gaps, ai_flags, salary_min, salary_max, salary_currency, salary_period,
-      closed_at
+      closed_at, follow_ups, followed_up_at
      FROM jobs WHERE ${where.join(' AND ')} ORDER BY ${order} LIMIT 200`,
     params,
   );
@@ -126,6 +132,12 @@ export async function statusCounts() {
      GROUP BY status`,
   );
   return Object.fromEntries(rows.map((r) => [r.status, r.n])) as Partial<Record<Status, number>>;
+}
+
+/** How many applied jobs are due a follow-up (the "Needs follow-up" tab). */
+export async function followUpCount() {
+  const { rows } = await pool.query<{ n: number }>(`SELECT count(*)::int n FROM jobs WHERE duplicate_of IS NULL AND ${FOLLOW_UP_DUE_SQL}`);
+  return rows[0].n;
 }
 
 export type Posting = { id: string; source: string; url: string };

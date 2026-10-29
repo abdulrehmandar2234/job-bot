@@ -1,7 +1,7 @@
 import Link from 'next/link';
-import { Suspense } from 'react';
+import { Fragment, Suspense } from 'react';
 import { fetchNow } from './actions';
-import { lastRun, listJobs, postingsFor, STATUSES, statusCounts, weekStats, type Status } from '@/lib/db';
+import { followUpCount, lastRun, listJobs, postingsFor, STATUSES, statusCounts, weekStats, type Status } from '@/lib/db';
 import { FetchWarning } from '@/components/analytics';
 import { BaytBookmarklet, SubmitButton } from '@/components/client';
 import { JobActions } from '@/components/job-actions';
@@ -12,6 +12,7 @@ import { loadExpectations } from '@/lib/salary';
 import { ReferralBadge } from '@/components/contacts';
 import { allContacts } from '@/lib/contacts-db';
 import { ExpiredBadge } from '@/components/open-check';
+import { FollowUpBadge } from '@/components/follow-up';
 import { ago, AiReview, Chips, COUNTRIES, fmtDate, Posted, PostedOn, Score, STATUS_LABEL } from '@/components/ui';
 
 export default function Page(props: PageProps<'/'>) {
@@ -72,7 +73,9 @@ export default function Page(props: PageProps<'/'>) {
 async function Dashboard({ searchParams }: { searchParams: PageProps<'/'>['searchParams'] }) {
   const sp = await searchParams;
   const one = (k: string) => (Array.isArray(sp[k]) ? sp[k][0] : sp[k]) || undefined;
-  const status = (STATUSES.includes(one('status') as Status) ? one('status') : 'new') as Status;
+  // "Needs follow-up" is a view of applied jobs (web/lib/followup.ts), not a status of its own.
+  const followUp = one('view') === 'followup';
+  const status = followUp ? 'applied' : ((STATUSES.includes(one('status') as Status) ? one('status') : 'new') as Status);
   const country = one('country') && COUNTRIES[one('country')!] ? one('country') : undefined;
   const min = Number(one('min')) || undefined;
   const q = one('q');
@@ -81,18 +84,19 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<'/'>['searc
   const salary = salaryParams(one);
   const expected = loadExpectations();
 
-  const [jobs, counts, run, week, tasks] = await Promise.all([
-    listJobs({ status, country, min, q, days, sort, ...salary.filter }),
+  const [jobs, counts, run, week, tasks, dueCount] = await Promise.all([
+    listJobs({ status, country, min, q, days, sort, followUp, ...salary.filter }),
     statusCounts(),
     lastRun(),
     weekStats(),
     openTasks(),
+    followUpCount(),
   ]);
   const busy = (id: string) => tasks.filter((t) => t.job_id === id && isActive(t)).map((t) => t.kind);
   const [postings, contacts] = await Promise.all([postingsFor(jobs.map((j) => j.id)), allContacts()]);
-  const tabHref = (s: string) => {
+  const tabHref = (s: string, view?: 'followup') => {
     const p = new URLSearchParams({
-      status: s,
+      ...(view ? { view } : { status: s }),
       ...(country && { country }),
       ...(min && { min: String(min) }),
       ...(q && { q }),
@@ -115,22 +119,21 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<'/'>['searc
 
       <nav className="mb-4 flex gap-1 overflow-x-auto [scrollbar-width:none] border-b border-zinc-200 dark:border-zinc-800">
         {STATUSES.map((s) => (
-          <Link
-            key={s}
-            href={tabHref(s)}
-            className={`whitespace-nowrap border-b-2 px-3 py-2 text-sm ${
-              s === status
-                ? 'border-zinc-900 font-medium dark:border-zinc-100'
-                : 'border-transparent text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100'
-            }`}
-          >
-            {STATUS_LABEL[s]} <span className="text-zinc-400">{counts[s] ?? 0}</span>
-          </Link>
+          <Fragment key={s}>
+            <Link href={tabHref(s)} className={tabClass(!followUp && s === status)}>
+              {STATUS_LABEL[s]} <span className="text-zinc-400">{counts[s] ?? 0}</span>
+            </Link>
+            {s === 'applied' && (
+              <Link href={tabHref(s, 'followup')} className={tabClass(followUp)}>
+                Needs follow-up <span className={dueCount ? 'text-amber-600' : 'text-zinc-400'}>{dueCount}</span>
+              </Link>
+            )}
+          </Fragment>
         ))}
       </nav>
 
       <form className="mb-4 flex flex-wrap items-end gap-2 text-sm">
-        <input type="hidden" name="status" value={status} />
+        {followUp ? <input type="hidden" name="view" value="followup" /> : <input type="hidden" name="status" value={status} />}
         <input name="q" defaultValue={q} placeholder="Search company or title" className="input w-56" />
         <select name="country" defaultValue={country ?? ''} className="input">
           <option value="">All countries</option>
@@ -164,7 +167,11 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<'/'>['searc
         </button>
       </form>
 
-      {jobs.length === 0 && <p className="py-10 text-center text-sm text-zinc-500">No jobs here.</p>}
+      {jobs.length === 0 && (
+        <p className="py-10 text-center text-sm text-zinc-500">
+          {followUp ? 'No follow-ups due: every application has had news or was sent less than a week ago.' : 'No jobs here.'}
+        </p>
+      )}
 
       <ul className="space-y-3">
         {jobs.map((j) => (
@@ -175,6 +182,7 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<'/'>['searc
                 <div className="flex flex-wrap items-baseline justify-between gap-x-3">
                   <Link href={`/jobs/${encodeURIComponent(j.id)}`} className="font-medium hover:underline">
                     {j.title} <span className="text-zinc-500">· {j.company}</span> <ExpiredBadge job={j} />
+                    <FollowUpBadge job={j} />
                   </Link>
                   <span className="text-xs text-zinc-500">
                     <Posted date={j.posted_at} />
@@ -203,6 +211,13 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<'/'>['searc
     </>
   );
 }
+
+const tabClass = (active: boolean) =>
+  `whitespace-nowrap border-b-2 px-3 py-2 text-sm ${
+    active
+      ? 'border-zinc-900 font-medium dark:border-zinc-100'
+      : 'border-transparent text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100'
+  }`;
 
 function Stat({ label, value, sub }: { label: string; value: number | string; sub?: string }) {
   return (
