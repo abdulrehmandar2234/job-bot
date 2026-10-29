@@ -81,6 +81,22 @@ describe('listJobs', () => {
     expect(ours(await listJobs({ status: 'new', q: "' OR 1=1 --" }))).toEqual([]);
   });
 
+  it('matches %, _ and \\ in the search text literally, not as wildcards', async () => {
+    await insertJob({ id: 'us', company: 'Acme', title: 'Zq_dev Engineer' });
+    await insertJob({ id: 'pct', company: 'Zq 100% Remote', title: 'Engineer' });
+    await insertJob({ id: 'bs', company: 'Acme', title: 'Zq\\path Engineer' });
+    await insertJob({ id: 'plain', company: 'Acme', title: 'Zqxdev 100x Engineer' });
+    const search = async (q: string) => ours(await listJobs({ status: 'new', q })).sort();
+    expect(await search('_')).toEqual([id('us')]);
+    expect(await search('%')).toEqual([id('pct')]);
+    expect(await search('\\')).toEqual([id('bs')]);
+    expect(await search('zq_dev')).toEqual([id('us')]);
+    expect(await search('100%')).toEqual([id('pct')]);
+    expect(await countJobs({ status: 'new', q: 'zq_' })).toBe(1);
+    // Ordinary text still matches as a substring.
+    expect(await search('zq')).toEqual([id('bs'), id('pct'), id('plain'), id('us')].sort());
+  });
+
   it('days keeps jobs posted (or, without a post date, first seen) within that many days', async () => {
     await insertJob({ id: 'fresh', posted_at: daysAgo(2), first_seen_at: daysAgo(30) });
     await insertJob({ id: 'old-post', posted_at: daysAgo(10), first_seen_at: daysAgo(1) });

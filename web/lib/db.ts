@@ -94,8 +94,9 @@ function jobWhere(f: JobFilter) {
     where.push(`coalesce(ai_score, score) >= $${params.length}`);
   }
   if (f.q) {
-    params.push(`%${f.q}%`);
-    where.push(`(company ILIKE $${params.length} OR title ILIKE $${params.length})`);
+    // The search text is matched literally: %, _ and the escape character itself are not wildcards.
+    params.push(`%${f.q.replace(/[\\%_]/g, '\\$&')}%`);
+    where.push(`(company ILIKE $${params.length} ESCAPE '\\' OR title ILIKE $${params.length} ESCAPE '\\')`);
   }
   if (f.days) {
     params.push(f.days);
