@@ -25,6 +25,13 @@ export function describeFields() {
         : '';
     return text.replace(/\s+/g, ' ').replace(/\*/g, '').trim();
   };
+  // A select is empty while its chosen option is a placeholder: no value, or a disabled "Select…" entry.
+  const emptySelect = (el) => {
+    const o = el.options[el.selectedIndex];
+    return !o || o.value === '' || o.disabled;
+  };
+  // Tags from an earlier run (a previous step of a multi-step form) must not be found again by applyFill().
+  for (const old of document.querySelectorAll('[data-jobbot-field]')) old.removeAttribute('data-jobbot-field');
   const els = [...document.querySelectorAll('input, textarea, select')].filter((el) => !el.disabled && !el.readOnly && visible(el));
   return els.map((el, index) => {
     el.setAttribute('data-jobbot-field', String(index));
@@ -38,7 +45,7 @@ export function describeFields() {
       name: el.getAttribute('name') ?? '',
       id: el.id ?? '',
       autocomplete: el.getAttribute('autocomplete') ?? '',
-      empty: el.type === 'file' ? el.files.length === 0 : el.tagName === 'SELECT' ? !el.value || el.selectedIndex <= 0 : !el.value.trim(),
+      empty: el.type === 'file' ? el.files.length === 0 : el.tagName === 'SELECT' ? emptySelect(el) : !el.value.trim(),
       options: el.tagName === 'SELECT' ? [...el.options].map((o) => ({ value: o.value, text: o.text.trim() })) : [],
     };
   });
@@ -50,10 +57,21 @@ export function describeFields() {
  * Returns how many fields were filled.
  */
 export function applyFill(fills, cv) {
+  // Checked again right before typing: the page may have changed since describeFields(), and a field the user
+  // filled in meanwhile, or one that is now hidden or disabled, is never touched.
+  const stillEmpty = (el) => {
+    if (el.disabled || el.readOnly) return false;
+    if (el.type === 'file') return el.files.length === 0;
+    if (el.tagName === 'SELECT') {
+      const o = el.options[el.selectedIndex];
+      return !o || o.value === '' || o.disabled;
+    }
+    return !el.value.trim() && getComputedStyle(el).display !== 'none' && el.getClientRects().length > 0;
+  };
   let filled = 0;
   for (const f of fills) {
     const el = document.querySelector(`[data-jobbot-field="${f.index}"]`);
-    if (!el) continue;
+    if (!el || !stillEmpty(el)) continue;
     if (f.kind === 'file') {
       if (!cv) continue;
       const bytes = Uint8Array.from(atob(cv.base64), (c) => c.charCodeAt(0));

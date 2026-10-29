@@ -17,6 +17,14 @@ export function normalizeUrl(url) {
   return `${u.protocol}//${u.host}${path}`;
 }
 
+/**
+ * Whether the tab a job was shown for is still the active tab, on the same page (ignoring query and hash).
+ * The side panel checks this before filling, so one job's answers never go into another tab's form.
+ */
+export function sameTab(shown, active) {
+  return Boolean(shown && active && shown.id === active.id && normalizeUrl(shown.url) === normalizeUrl(active.url));
+}
+
 // Job boards the bot knows by name; any other site is stored with the source "extension".
 const BOARDS = [
   ['bayt.com', 'bayt'],

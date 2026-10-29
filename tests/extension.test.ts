@@ -5,7 +5,7 @@ import { describeResult, fetchCv, lookupJob, missingFields, OFFLINE, sendJob } f
 import { pickOption, planFill, similarity, splitName } from '../extension/lib/fill.js';
 import { findJobPosting, guessFromTitle, jobFromPage, jobFromPosting, postingLocation } from '../extension/lib/jobposting.js';
 import { cleanText, decodeEntities, htmlToText } from '../extension/lib/text.js';
-import { isHttpUrl, normalizeUrl, sourceFromUrl } from '../extension/lib/url.js';
+import { isHttpUrl, normalizeUrl, sameTab, sourceFromUrl } from '../extension/lib/url.js';
 
 const posting = (over: Record<string, unknown> = {}) => ({
   '@context': 'https://schema.org',
@@ -420,6 +420,64 @@ describe('auto-fill plan', () => {
     );
   });
 
+  it("never puts the candidate's own details into questions or fields about someone else", () => {
+    const { fills, skipped } = planFill(
+      [
+        field(0, { tag: 'textarea', type: 'textarea', label: 'Do you have experience building mobile apps?' }),
+        field(1, { label: 'How did you hear about us? (e.g. LinkedIn, referral)' }),
+        field(2, { label: 'Preferred work location' }),
+        field(3, { label: 'Referrer full name' }),
+        field(4, { label: 'Emergency contact phone' }),
+        field(5, { label: 'Company name', id: 'name' }),
+        field(6, { label: 'Name of your current employer' }),
+      ],
+      data,
+    );
+    assert.deepEqual(fills, []);
+    assert.equal(skipped.length, 7);
+  });
+
+  it('uses the name/id attributes only when a field has no visible label', () => {
+    const { fills } = planFill([field(0, { name: 'phone' }), field(1, { id: 'email', placeholder: 'Your email' })], data);
+    assert.deepEqual(
+      fills.map((f) => [f.index, f.value]),
+      [
+        [0, '+971 50 000 0000'],
+        [1, 'sara@example.com'],
+      ],
+    );
+  });
+
+  it('does not match answers on common words only', () => {
+    assert.equal(similarity('Are you a citizen?', 'Are you willing to relocate to Riyadh?'), 0);
+    assert.ok(similarity('Years of Laravel', 'Years of Laravel experience') >= 0.6);
+    const { fills } = planFill([field(0, { label: 'Are you a citizen of the UAE?' })], {
+      ...data,
+      answers: [{ question: 'Are you willing to relocate to Riyadh?', answer: 'Yes, within a month.', needs_input: false, note: '' }],
+    });
+    assert.deepEqual(fills, []);
+  });
+
+  it('a select option must be the answer\'s first whole words, so "Notice period…" never picks "No"', () => {
+    const yesNo = [
+      { value: 'y', text: 'Yes' },
+      { value: 'n', text: 'No' },
+    ];
+    assert.equal(pickOption(yesNo, 'Notice period is one month'), null);
+    assert.equal(pickOption(yesNo, 'Now'), null);
+    assert.equal(pickOption(yesNo, 'Yes, I can relocate within a month'), 'y');
+    assert.equal(pickOption(yesNo, 'No'), 'n');
+  });
+
+  it('on equal scores the first drafted answer wins', () => {
+    const answers = [
+      { question: 'Laravel experience', answer: 'first', needs_input: false, note: '' },
+      { question: 'Laravel experience', answer: 'second', needs_input: false, note: '' },
+    ];
+    const { fills } = planFill([field(0, { label: 'Laravel experience' })], { ...data, answers });
+    assert.equal(fills[0].value, 'first');
+  });
+
   it('fills nothing from a missing profile value or without a CV', () => {
     const { fills } = planFill([field(0, { label: 'Phone' }), field(1, { type: 'file', label: 'Resume' })], {
       profile: { name: 'Sara Khan', phone: '' },
@@ -442,5 +500,16 @@ describe('fetchCv', () => {
       }),
       null,
     );
+  });
+});
+
+describe('sameTab', () => {
+  it('fills only the tab the job was shown for, on the same page', () => {
+    const shown = { id: 7, url: 'https://boards.greenhouse.io/acme/jobs/1?gh_src=x' };
+    assert.equal(sameTab(shown, { id: 7, url: 'https://boards.greenhouse.io/acme/jobs/1#app' }), true);
+    assert.equal(sameTab(shown, { id: 8, url: shown.url }), false); // another tab
+    assert.equal(sameTab(shown, { id: 7, url: 'https://boards.greenhouse.io/acme/jobs/2' }), false); // navigated away
+    assert.equal(sameTab(null, { id: 7, url: shown.url }), false);
+    assert.equal(sameTab(shown, undefined), false);
   });
 });
