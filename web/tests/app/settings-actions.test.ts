@@ -5,6 +5,7 @@ import { refresh } from 'next/cache';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { saveApplicant, saveConfig, saveJson } from '@/app/settings/actions';
 import { BOT_ROOT, runBot } from '@/lib/bot';
+import { enqueueTask } from '@/lib/tasks';
 
 vi.mock('next/cache', () => ({ refresh: vi.fn() }));
 // Keep the real module, but never spawn the bot CLI and write temp files into a temp "bot root".
@@ -19,7 +20,11 @@ vi.mock('@/lib/bot', async (importOriginal) => {
   };
 });
 
+// Re-scoring is queued as a background task; the queue itself is tested in tests/lib/tasks.test.ts.
+vi.mock('@/lib/tasks', () => ({ enqueueTask: vi.fn() }));
+
 const bot = vi.mocked(runBot);
+const enqueue = vi.mocked(enqueueTask);
 const dir = mkdtempSync(join(tmpdir(), 'job-bot-web-settings-files-'));
 const CONFIG_FILE = join(dir, 'config.json');
 const APPLICANT_FILE = join(dir, 'applicant.json');
@@ -96,16 +101,17 @@ afterAll(() => {
 });
 
 describe('saveConfig', () => {
-  it('saves the merged config through settings:save, then re-scores', async () => {
+  it('saves the merged config through settings:save, then queues a background re-score', async () => {
     cliSays('{"ok":true}\n');
-    bot.mockResolvedValueOnce('12 jobs re-scored. 3 matching jobs waiting (status=new).\n');
     const res = await saveConfig(null, configForm());
 
-    expect(res).toEqual({ ok: true, message: 'Saved. Re-scored 12 jobs.', errors: [] });
+    expect(res).toEqual({ ok: true, message: 'Saved. Re-scoring jobs in the background.', errors: [] });
     expect(saved[0].args).toEqual(['settings:save', '--kind', 'config', '--file', saved[0].file]);
     expect(saved[0].file.startsWith(tempDir())).toBe(true);
     expect(saved[0].json).toMatchObject({ minScore: 60, futureKey: 'kept', companies: [{ name: 'A', indName: 'A B.V.' }] });
-    expect(bot).toHaveBeenNthCalledWith(2, ['rescore'], 120_000);
+    // The CLI only saves; the re-score never runs inside the request.
+    expect(bot).toHaveBeenCalledOnce();
+    expect(enqueue).toHaveBeenCalledExactlyOnceWith('rescore', null);
     expect(refresh).toHaveBeenCalledOnce();
     // The action never writes the real file itself; the (mocked) CLI is the only writer.
     expect(JSON.parse(readFileSync(CONFIG_FILE, 'utf8'))).toEqual(CONFIG);
@@ -118,14 +124,19 @@ describe('saveConfig', () => {
 
     expect(res).toEqual({ ok: false, message: 'Not saved: 1 problem.', errors: [{ path: 'companies[0].ats', message: 'Invalid option' }] });
     expect(bot).toHaveBeenCalledOnce();
+    expect(enqueue).not.toHaveBeenCalled();
     expect(refresh).not.toHaveBeenCalled();
     expect(readdirSync(tempDir())).toEqual([]);
   });
 
-  it('still reports the save when re-scoring fails', async () => {
+  it('still reports the save when the re-score task cannot be queued', async () => {
     cliSays('{"ok":true}');
-    bot.mockRejectedValueOnce(new Error('timed out'));
-    expect(await saveConfig(null, configForm())).toMatchObject({ ok: true, message: 'Saved. Re-scoring failed: timed out' });
+    enqueue.mockRejectedValueOnce(new Error('Could not start re-scoring jobs'));
+    expect(await saveConfig(null, configForm())).toMatchObject({
+      ok: true,
+      message: 'Saved. Re-scoring could not start: Could not start re-scoring jobs',
+    });
+    expect(refresh).toHaveBeenCalledOnce();
   });
 
   it('reports a CLI crash without JSON output, and deletes the temp file', async () => {
@@ -160,6 +171,7 @@ describe('saveApplicant', () => {
       other: { github: 'gh' },
     });
     expect(bot).toHaveBeenCalledOnce();
+    expect(enqueue).not.toHaveBeenCalled();
     expect(refresh).toHaveBeenCalledOnce();
     expect(existsSync(APPLICANT_FILE)).toBe(false);
   });
@@ -178,12 +190,13 @@ describe('saveJson', () => {
     cliSays('{"ok":true}');
     expect(await saveJson(null, form({ kind: 'applicant', json: text }))).toMatchObject({ ok: true, message: 'Saved.' });
     expect(bot).toHaveBeenCalledOnce();
+    expect(enqueue).not.toHaveBeenCalled();
 
     cliSays('{"ok":true}');
-    bot.mockResolvedValueOnce('4 jobs re-scored.');
     expect(await saveJson(null, form({ kind: 'config', json: JSON.stringify(CONFIG) }))).toMatchObject({
-      message: 'Saved. Re-scored 4 jobs.',
+      message: 'Saved. Re-scoring jobs in the background.',
     });
+    expect(enqueue).toHaveBeenCalledExactlyOnceWith('rescore', null);
     expect(saved.map((s) => s.args[2])).toEqual(['applicant', 'config']);
   });
 
@@ -195,6 +208,7 @@ describe('saveJson', () => {
     );
     expect(await saveJson(null, form({ kind: 'config', json: '{' }))).toMatchObject({ ok: false, message: 'Not saved: 2 problems.' });
     expect(refresh).not.toHaveBeenCalled();
+    expect(enqueue).not.toHaveBeenCalled();
   });
 
   it('rejects an unknown kind without running the CLI', async () => {
