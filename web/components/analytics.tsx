@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { lastFetchErrorCount, rate, type FetchRunRow, type Funnel, type RateRow, type WeekRow } from '@/lib/analytics';
-import { COUNTRIES, fmtDate, STATUS_LABEL } from '@/components/ui';
+import { fmtDate, STATUS_LABEL } from '@/components/ui';
 
 export const pctText = (r: number | null) => (r == null ? '—' : `${Math.round(r * 100)}%`);
 
@@ -64,8 +64,8 @@ const EMPTY_KEY: Record<string, string> = {
 };
 
 /** Response rate per group; groups below MIN_N applications are muted and say so. */
-export function RateTable({ dim, rows }: { dim: string; rows: RateRow[] }) {
-  const label = (k: string | null) => (k == null ? EMPTY_KEY[dim] : dim === 'country' ? (COUNTRIES[k] ?? k) : k);
+export function RateTable({ dim, rows, countries = {} }: { dim: string; rows: RateRow[]; countries?: Record<string, string> }) {
+  const label = (k: string | null) => (k == null ? EMPTY_KEY[dim] : dim === 'country' ? (countries[k] ?? k) : k);
   return (
     <table className="w-full text-sm">
       <caption className="mb-1 text-left text-xs font-medium uppercase tracking-wide text-zinc-500">{DIM_TITLE[dim]}</caption>

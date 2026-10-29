@@ -5,6 +5,11 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 import Page from '@/app/page';
 import { cleanupDb, closeDb, ensureSchema, insertJob } from '../helpers/db';
 
+// The header and first-run banner read config.json per request (connection()); these tests render outside Next.
+vi.mock('next/server', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('next/server')>()),
+  connection: async () => {},
+}));
 vi.mock('@/app/actions', () => ({ fetchNow: vi.fn(), setStatus: vi.fn(), prepare: vi.fn(), aiReview: vi.fn(), dismissTask: vi.fn() }));
 // TaskWatcher (a client component) needs the app router; the page tests render outside Next.
 vi.mock('next/navigation', async (importOriginal) => ({

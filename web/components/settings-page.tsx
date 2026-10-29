@@ -1,5 +1,6 @@
 import { connection } from 'next/server';
 import { ApplicantForm, ConfigForm, JsonEditor } from '@/components/settings';
+import { salaryKeys } from '@/lib/settings-form';
 import { readApplicant, readConfig } from '@/lib/settings';
 
 /** Reads both files on every request: they change outside the dashboard too. */
@@ -19,10 +20,12 @@ export async function Settings() {
       </section>
       <section className="space-y-4">
         <div>
-          <h2 className="text-lg font-semibold">Applicant facts</h2>
-          <p className="text-sm text-zinc-500">cv/applicant.json · used by the AI to draft application-form answers.</p>
+          <h2 className="text-lg font-semibold">Your profile and applicant facts</h2>
+          <p className="text-sm text-zinc-500">
+            cv/applicant.json · signs your cover letters and follow-ups, and tells the AI and the filters who you are.
+          </p>
         </div>
-        <ApplicantForm applicant={applicant} />
+        <ApplicantForm applicant={applicant} salaryKeys={salaryKeys(config.data)} />
         <JsonEditor kind="applicant" file={applicant} />
       </section>
     </div>

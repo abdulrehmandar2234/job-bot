@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ago, AiReview, Chips, COUNTRIES, fmtDate, Posted, PostedOn, Score, STATUS_LABEL } from '@/components/ui';
+import { ago, AiReview, Chips, fmtDate, Posted, PostedOn, Score, STATUS_LABEL } from '@/components/ui';
 import { STATUSES } from '@/lib/db';
 
 const NOW = new Date('2026-10-29T12:00:00Z');
@@ -15,12 +15,6 @@ afterEach(() => {
 });
 
 describe('labels', () => {
-  it('has a label for every target country', () => {
-    expect(Object.keys(COUNTRIES).sort()).toEqual(['AE', 'NL', 'RM', 'SA']);
-    expect(COUNTRIES.AE).toContain('UAE');
-    expect(COUNTRIES.RM).toContain('Remote');
-  });
-
   it('has a label for every status', () => {
     for (const s of STATUSES) expect(STATUS_LABEL[s]).toBeTruthy();
     expect(STATUS_LABEL.new).toBe('Matching');

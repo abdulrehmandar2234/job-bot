@@ -2,10 +2,19 @@
 import { render, screen, within } from '@testing-library/react';
 import { cloneElement, Fragment, isValidElement, type ReactElement, type ReactNode } from 'react';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import Page from '@/app/page';
+import { BOT_ROOT } from '@/lib/bot';
 import { pool, statusCounts, type Status } from '@/lib/db';
 import { cleanupDb, closeDb, daysAgo, ensureSchema, insertFetchRun, insertJob } from '../helpers/db';
 
+// The header and first-run banner read config.json per request (connection()); these tests render outside Next.
+vi.mock('next/server', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('next/server')>()),
+  connection: async () => {},
+}));
 vi.mock('@/app/actions', () => ({ fetchNow: vi.fn(), setStatus: vi.fn(), prepare: vi.fn(), aiReview: vi.fn(), dismissTask: vi.fn() }));
 // TaskWatcher (a client component) needs the app router; the page tests render outside Next.
 vi.mock('next/navigation', async (importOriginal) => ({
@@ -51,6 +60,51 @@ describe('job list page', () => {
     expect(screen.getByRole('button', { name: 'Fetch new jobs' })).toHaveAttribute('type', 'submit');
     expect(screen.getByText('Add jobs from Bayt')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Open Bayt ↗' })).toHaveAttribute('href', 'https://www.bayt.com/en/uae/jobs/laravel-jobs/');
+  });
+
+  it("describes the target markets from config.json, the owner's as before", async () => {
+    await renderPage();
+    expect(
+      within(screen.getByRole('banner')).getByText(
+        'UAE · Saudi Arabia · Netherlands with visa sponsorship, plus remote roles open to Pakistan',
+      ),
+    ).toBeInTheDocument();
+    const countries = [...document.querySelectorAll('select[name="country"] option')].map((o) => o.textContent);
+    expect(countries).toEqual(['All countries', '🇦🇪 UAE', '🇸🇦 Saudi', '🇳🇱 Netherlands', '🌍 Remote (from Pakistan)']);
+  });
+
+  it('follows another config.json: countries, labels and header', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'job-bot-page-'));
+    const cfg = {
+      countries: { DE: { name: 'Germany', visa: 'employer', match: 'berlin', needsVisa: false } },
+      remote: { enabled: true, from: 'Portugal' },
+    };
+    writeFileSync(join(dir, 'config.json'), JSON.stringify(cfg));
+    vi.stubEnv('JOB_BOT_CONFIG', join(dir, 'config.json'));
+    try {
+      await renderPage();
+      expect(within(screen.getByRole('banner')).getByText('Germany, plus remote roles open to Portugal')).toBeInTheDocument();
+      const countries = [...document.querySelectorAll('select[name="country"] option')].map((o) => o.textContent);
+      expect(countries).toEqual(['All countries', '🇩🇪 Germany', '🌍 Remote (from Portugal)']);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it('shows the first-run banner until the profile is complete', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'job-bot-page-'));
+    vi.stubEnv('JOB_BOT_APPLICANT', join(dir, 'missing.json'));
+    try {
+      const { unmount } = await renderPage();
+      expect(screen.getByText('Welcome! Set up your profile first.')).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: 'Open Settings' })).toHaveAttribute('href', '/settings');
+      unmount();
+      vi.stubEnv('JOB_BOT_APPLICANT', join(BOT_ROOT, 'tests', 'fixtures', 'applicant-owner.json'));
+      await renderPage();
+      expect(screen.queryByText(/Set up your profile|profile is incomplete/)).not.toBeInTheDocument();
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 
   it('links to the analytics page from the header', async () => {

@@ -1,10 +1,3 @@
-export const COUNTRIES: Record<string, string> = {
-  AE: '🇦🇪 UAE',
-  SA: '🇸🇦 Saudi',
-  NL: '🇳🇱 Netherlands',
-  RM: '🌍 Remote (from Pakistan)',
-};
-
 export const STATUS_LABEL: Record<string, string> = {
   new: 'Matching',
   prepared: 'Prepared',

@@ -7,6 +7,11 @@ import JobPage from '@/app/jobs/[id]/page';
 import { followUpCount } from '@/lib/db';
 import { cleanupDb, closeDb, daysAgo, ensureSchema, insertJob } from '../helpers/db';
 
+// The header and first-run banner read config.json per request (connection()); these tests render outside Next.
+vi.mock('next/server', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('next/server')>()),
+  connection: async () => {},
+}));
 vi.mock('@/app/actions', () => ({
   fetchNow: vi.fn(),
   setStatus: vi.fn(),
