@@ -12,7 +12,7 @@ export type RawJob = {
   posted_at: string | null;
 };
 
-const stripHtml = (html: string) =>
+export const stripHtml = (html: string) =>
   html
     .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&')
     .replace(/<\/(p|li|h\d|div|br)>/gi, '\n').replace(/<br\s*\/?>/gi, '\n')
