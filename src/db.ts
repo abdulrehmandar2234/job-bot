@@ -5,7 +5,7 @@ import type { Job, JobStatus, SkipReason } from './types.ts';
 export type { FormAnswer, Job, JobStatus, SkipReason } from './types.ts';
 
 /** Every job status, in pipeline order; the dashboard's STATUSES must match (tests/statuses.test.ts). */
-export const JOB_STATUSES = ['new', 'prepared', 'applied', 'interview', 'offer', 'rejected', 'skipped', 'filtered'] as const satisfies readonly JobStatus[];
+export const JOB_STATUSES = ['new', 'prepared', 'applied', 'interview', 'offer', 'rejected', 'skipped', 'expired', 'filtered'] as const satisfies readonly JobStatus[];
 
 export type ScoredJob = Pick<Job,
   'id' | 'source' | 'company' | 'title' | 'location' | 'country' | 'url' | 'description' | 'score' | 'cluster' |
@@ -67,12 +67,15 @@ export function duplicateLinks(rows: DedupeRow[]): [string, string][] {
     if (!byCountry.size) groups.push(remote);
     else [...byCountry.values()].forEach((c, i) => groups.push(i === 0 ? [...c, ...remote] : c));
   }
-  const acted = (s: string) => !['new', 'filtered'].includes(s);
+  // `expired` is the bot's verdict, not the user's: a still-open copy becomes primary, so the job stays in Matching.
+  const acted = (s: string) => !['new', 'filtered', 'expired'].includes(s);
+  const expired = (s: string) => Number(s === 'expired');
   const rank = (s: string) => { const i = SOURCE_RANK.indexOf(s); return i === -1 ? SOURCE_RANK.length : i; };
   const links: [string, string][] = [];
   for (const g of groups) {
     if (g.length < 2) continue;
-    g.sort((a, b) => Number(acted(b.status)) - Number(acted(a.status)) || rank(a.source) - rank(b.source)
+    g.sort((a, b) => Number(acted(b.status)) - Number(acted(a.status)) || expired(a.status) - expired(b.status)
+      || rank(a.source) - rank(b.source)
       || new Date(a.first_seen_at).getTime() - new Date(b.first_seen_at).getTime());
     for (const copy of g.slice(1)) links.push([copy.id, g[0].id]);
   }

@@ -4,6 +4,7 @@ import { execFile } from 'node:child_process';
 import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
 import { daysAgo, TEST_DB } from './helpers.ts';
 import { getJob, migrate, pool } from '../src/db.ts';
@@ -11,12 +12,14 @@ import { path } from '../src/config.ts';
 
 // Runs the real CLI (same command as `npm run bot`) against the test database with a fake Claude.
 const FAKE = join(import.meta.dirname, 'fixtures', 'fake-claude.mjs');
+// prepare checks that the posting is still open; the fake fetch answers "open" without touching the network.
+const FAKE_FETCH = pathToFileURL(join(import.meta.dirname, 'fixtures', 'fake-fetch.mjs')).href;
 const tmp = mkdtempSync(join(tmpdir(), 'jobbot-cli-'));
 const run = promisify(execFile);
 
 async function bot(args: string[], env: Record<string, string> = {}, stdin?: string) {
   const p = run(process.execPath, ['--no-warnings', '--env-file-if-exists=.env', 'src/cli.ts', ...args], {
-    cwd: path(), env: { ...process.env, DATABASE_URL: TEST_DB, JOB_BOT_CLAUDE: FAKE, ...env }, timeout: 60_000,
+    cwd: path(), env: { ...process.env, DATABASE_URL: TEST_DB, JOB_BOT_CLAUDE: FAKE, NODE_OPTIONS: `--import=${FAKE_FETCH}`, ...env }, timeout: 60_000,
   });
   if (stdin !== undefined) { p.child.stdin!.end(stdin); }
   return (await p).stdout;

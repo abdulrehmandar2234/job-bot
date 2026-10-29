@@ -82,7 +82,7 @@ describe('job list page', () => {
     await renderPage();
     const nav = screen.getByRole('navigation');
     expect(within(nav).getAllByRole('link').map((a) => a.textContent!.replace(/ \d+$/, ''))).toEqual(
-      ['Matching', 'Prepared', 'Applied', 'Interview', 'Offer', 'Rejected', 'Skipped', 'Filtered out']);
+      ['Matching', 'Prepared', 'Applied', 'Interview', 'Offer', 'Rejected', 'Skipped', 'Expired', 'Filtered out']);
     expect(tab('Matching')).toHaveTextContent(`Matching ${n('new', 2)}`);
     expect(tab('Applied')).toHaveTextContent(`Applied ${n('applied', 1)}`);
     expect(tab('Filtered out')).toHaveTextContent(`Filtered out ${n('filtered', 1)}`);

@@ -7,15 +7,16 @@ import type { FetchRun, FormAnswer, InterviewPrep, Job as JobRow, JobEvent, Sala
 const g = globalThis as unknown as { jobBotPool?: Pool };
 export const pool = (g.jobBotPool ??= new Pool({ connectionString: process.env.DATABASE_URL, max: 5 }));
 
-export const STATUSES = ['new', 'prepared', 'applied', 'interview', 'offer', 'rejected', 'skipped', 'filtered'] as const;
+export const STATUSES = ['new', 'prepared', 'applied', 'interview', 'offer', 'rejected', 'skipped', 'expired', 'filtered'] as const;
 export type Status = (typeof STATUSES)[number];
 
 export type { FetchRun, FormAnswer, InterviewPrep, JobEvent };
 
 // listJobs() selects only part of a row, so these columns may be missing.
 export type Job = Omit<JobRow, 'fetched_at' | 'ai_scored_at' | 'duplicate_of' | 'cover_letter_ai' | 'form_answers'
-  | 'interview_prep' | 'interview_prep_at' | 'alerted_at'>
-  & Partial<Pick<JobRow, 'duplicate_of' | 'cover_letter_ai' | 'form_answers' | 'interview_prep' | 'interview_prep_at' | 'alerted_at'>>;
+  | 'interview_prep' | 'interview_prep_at' | 'alerted_at' | 'checked_open_at' | 'closed_at'>
+  & Partial<Pick<JobRow, 'duplicate_of' | 'cover_letter_ai' | 'form_answers' | 'interview_prep' | 'interview_prep_at' | 'alerted_at'
+    | 'checked_open_at' | 'closed_at'>>;
 
 // Salaries come in six currencies and three periods (src/salary.ts). To compare them, everything is turned into
 // euros per year. The rates are approximate and fixed on purpose: good enough to filter and hint, not for accounting.

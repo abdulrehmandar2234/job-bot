@@ -158,8 +158,8 @@ describe('jobFromPage', () => {
 
 describe('api', () => {
   type Call = { url: string; init?: RequestInit };
-  const fake = (status: number, body: unknown, calls: Call[] = []) => async (url: string, init?: RequestInit) => {
-    calls.push({ url, init });
+  const fake = (status: number, body: unknown, calls: Call[] = []) => async (url: string | URL | Request, init?: RequestInit) => {
+    calls.push({ url: String(url), init });
     return new Response(typeof body === 'string' ? body : JSON.stringify(body), { status });
   };
   const offline = async () => { throw new TypeError('Failed to fetch'); };
@@ -175,7 +175,7 @@ describe('api', () => {
   });
 
   it('explains a refused job, an error status and a stopped dashboard', async () => {
-    assert.match((await sendJob(job, fake(200, { added: 0, results: [] }))).error, /did not accept/);
+    assert.match(((await sendJob(job, fake(200, { added: 0, results: [] }))) as { error: string }).error, /did not accept/);
     assert.deepEqual(await sendJob(job, fake(403, 'Forbidden origin')), { ok: false, status: 403, error: 'The dashboard answered 403.' });
     assert.deepEqual(await sendJob(job, offline), { ok: false, error: OFFLINE });
   });

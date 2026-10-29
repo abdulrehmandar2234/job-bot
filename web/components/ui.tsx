@@ -4,7 +4,7 @@ export const COUNTRIES: Record<string, string> = {
 
 export const STATUS_LABEL: Record<string, string> = {
   new: 'Matching', prepared: 'Prepared', applied: 'Applied', interview: 'Interview',
-  offer: 'Offer', rejected: 'Rejected', skipped: 'Skipped', filtered: 'Filtered out',
+  offer: 'Offer', rejected: 'Rejected', skipped: 'Skipped', expired: 'Expired', filtered: 'Filtered out',
 };
 
 const SOURCE_LABEL: Record<string, string> = {

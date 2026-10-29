@@ -81,7 +81,7 @@ function writeCache(entry: Cached) {
 
 /** GET (or a read-only POST) with retries and, for GET, the conditional-request cache.
  * Resolves with the body text of a 2xx (or a 304 from cache). */
-export async function request(url: string, opts: RequestOptions = {}): Promise<{ status: number; body: string; fromCache: boolean }> {
+export async function request(url: string, opts: RequestOptions = {}): Promise<{ status: number; body: string; fromCache: boolean; url: string }> {
   const { attempts = 4, baseDelayMs = 1000, retryOn = retryable, timeoutMs = 30_000, method = 'GET' } = opts;
   const cache = method === 'GET' && (opts.cache ?? true);
   const host = new URL(url).host;
@@ -105,13 +105,14 @@ export async function request(url: string, opts: RequestOptions = {}): Promise<{
       if (attempt + 1 < attempts) await sleep(retryDelay(attempt, baseDelayMs));
       continue;
     }
-    if (res.status === 304 && cached) return { status: 304, body: cached.body, fromCache: true };
+    if (res.status === 304 && cached) return { status: 304, body: cached.body, fromCache: true, url };
     if (res.ok) {
       const body = await res.text();
       const etag = res.headers.get('etag');
       const lastModified = res.headers.get('last-modified');
       if (cache && (etag || lastModified)) writeCache({ url, etag, lastModified, body });
-      return { status: res.status, body, fromCache: false };
+      // `url` is where redirects ended up (the dead-link check reads it).
+      return { status: res.status, body, fromCache: false, url: res.url || url };
     }
     if (!retryOn(res.status)) throw new HttpError(res.status, url);
     last = String(res.status);
