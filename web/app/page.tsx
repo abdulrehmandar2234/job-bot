@@ -5,6 +5,7 @@ import { lastRun, listJobs, postingsFor, STATUSES, statusCounts, weekStats, type
 import { FetchWarning } from '@/components/analytics';
 import { BaytBookmarklet, SubmitButton } from '@/components/client';
 import { JobActions } from '@/components/job-actions';
+import { ExpiredBadge } from '@/components/open-check';
 import { ago, AiReview, Chips, COUNTRIES, fmtDate, Posted, PostedOn, Score, STATUS_LABEL } from '@/components/ui';
 
 export default function Page(props: PageProps<'/'>) {
@@ -119,7 +120,7 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<'/'>['searc
               <div className="min-w-0 flex-1 space-y-2">
                 <div className="flex flex-wrap items-baseline justify-between gap-x-3">
                   <Link href={`/jobs/${encodeURIComponent(j.id)}`} className="font-medium hover:underline">
-                    {j.title} <span className="text-zinc-500">· {j.company}</span>
+                    {j.title} <span className="text-zinc-500">· {j.company}</span> <ExpiredBadge job={j} />
                   </Link>
                   <span className="text-xs text-zinc-500">
                     <Posted date={j.posted_at} />

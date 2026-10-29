@@ -6,6 +6,7 @@ import { getJob, jobEvents, postingsFor } from '@/lib/db';
 import { CopyButton, SubmitButton } from '@/components/client';
 import { JobActions } from '@/components/job-actions';
 import { InterviewPrep } from '@/components/interview-prep';
+import { ExpiredBadge, OpenCheck } from '@/components/open-check';
 import { AiReview, Chips, COUNTRIES, fmtDate, Posted, PostedOn, Score, STATUS_LABEL } from '@/components/ui';
 
 export default function Page(props: PageProps<'/jobs/[id]'>) {
@@ -32,7 +33,7 @@ async function JobDetail({ params }: { params: PageProps<'/jobs/[id]'>['params']
       <header className="flex gap-4">
         <Score value={job.score} ai={job.ai_score} />
         <div className="space-y-1">
-          <h1 className="text-xl font-semibold">{job.title}</h1>
+          <h1 className="text-xl font-semibold">{job.title} <ExpiredBadge job={job} /></h1>
           <p className="text-zinc-600 dark:text-zinc-400">
             {job.company} · {job.country ? COUNTRIES[job.country] : ''} · {job.location}
           </p>
@@ -45,6 +46,7 @@ async function JobDetail({ params }: { params: PageProps<'/jobs/[id]'>['params']
       </header>
 
       <JobActions job={job} />
+      <OpenCheck job={job} />
 
       <AiReview job={job} />
 
