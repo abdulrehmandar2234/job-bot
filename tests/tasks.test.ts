@@ -355,6 +355,16 @@ describe('task:run (CLI worker)', () => {
     assert.deepEqual((await getJob(JOB))!.form_answers, []);
   });
 
+  it('records an AI review task as failed when Claude fails for that job', async () => {
+    const { task } = await enqueue('ai_review', JOB);
+    await taskRun(task.id, { FAKE_CLAUDE_FAIL: 'Not logged in' });
+    const failed = await getTask(task.id);
+    assert.equal(failed.status, 'failed');
+    assert.match(failed.error!, /AI review failed for 1 of 1 job: .*Not logged in/);
+    assert.match(failed.output!, /0 jobs scored, 1 failed/);
+    assert.equal((await getJob(JOB))!.ai_scored_at, null);
+  });
+
   it('fails an answers task without questions', async () => {
     const { task } = await enqueue('answers', JOB, {});
     await taskRun(task.id);

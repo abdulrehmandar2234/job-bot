@@ -43,6 +43,31 @@ export const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, ma
 /** Brings the database schema up to date (src/migrations, see src/migrate.ts). Returns the versions applied. */
 export const migrate = () => runMigrations(pool);
 
+/**
+ * Runs `fn` while holding a Postgres session advisory lock named `job_bot:<name>`, on a client of its own, so two
+ * processes (the dashboard's task and the launchd script, say) never run the same command at once. Returns false
+ * without running `fn` when another session holds the lock. The lock is released when `fn` ends, or with the session.
+ */
+export async function withLock(name: string, fn: () => Promise<unknown>): Promise<boolean> {
+  const client = await pool.connect();
+  let broken: Error | undefined;
+  try {
+    const { rows } = await client.query<{ locked: boolean }>(`SELECT pg_try_advisory_lock(hashtext('job_bot:' || $1)) AS locked`, [name]);
+    if (!rows[0].locked) return false;
+    try {
+      await fn();
+    } finally {
+      await client.query(`SELECT pg_advisory_unlock(hashtext('job_bot:' || $1))`, [name]).catch((e: Error) => {
+        broken = e;
+      });
+    }
+    return true;
+  } finally {
+    // A client whose unlock failed is closed rather than reused, which drops the lock with the session.
+    client.release(broken);
+  }
+}
+
 // Company career pages first (most direct), then big boards, then aggregators.
 const SOURCE_RANK = [
   'greenhouse',

@@ -4,6 +4,15 @@ on:
   push:
   pull_request:
 
+# Tests only read the repository.
+permissions:
+  contents: read
+
+# A newer push to the same branch replaces a run still in progress.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: ubuntu-latest

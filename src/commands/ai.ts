@@ -19,8 +19,11 @@ export async function aiScore(_args: string[], flags: Flags) {
     params,
   );
   if (!queue.length) return console.log('Nothing to score.');
-  console.log(`AI scoring ${queue.length} jobs with ${config.ai.scoreModel}...`);
+  const total = queue.length;
+  console.log(`AI scoring ${total} jobs with ${config.ai.scoreModel}...`);
   let done = 0;
+  let failed = 0;
+  let firstError = '';
   const strong: string[] = [];
   const worker = async () => {
     for (let j = queue.shift(); j; j = queue.shift()) {
@@ -35,13 +38,21 @@ export async function aiScore(_args: string[], flags: Flags) {
         done++;
         if (r.verdict === 'strong') strong.push(j.id);
       } catch (e) {
+        failed++;
+        firstError ||= (e as Error).message;
         console.log(`  ✗ ${j.company} — ${j.title}: ${(e as Error).message.slice(0, 120)}`);
       }
     }
   };
   await Promise.all(Array.from({ length: config.ai.concurrency }, worker));
-  console.log(`${done} jobs scored.`);
+  console.log(`${done} jobs scored${failed ? `, ${failed} failed` : ''}.`);
   await alertStrong(strong);
+  // A failed review must not look like success: the job asked for with --id, or the whole queue, failing exits 1,
+  // so a dashboard task ends as failed and the scheduled run reports the error.
+  if (failed && (flags.id || failed === total)) {
+    console.error(`AI review failed for ${failed} of ${total} job${total === 1 ? '' : 's'}: ${firstError.slice(0, 500)}`);
+    process.exitCode = 1;
+  }
 }
 
 const countryName = (c: string | null) => (c === 'RM' ? 'Remote' : c && config.countries[c]?.name) || c || 'unknown country';

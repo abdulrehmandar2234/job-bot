@@ -1,4 +1,4 @@
-import { JOB_STATUSES, pool, setStatus, type Job, type JobStatus } from '../db.ts';
+import { JOB_STATUSES, pool, setStatus, withLock, type Job, type JobStatus } from '../db.ts';
 import { sleep } from '../sources/http.ts';
 import { isOpen, openCheck, type OpenJob, type OpenResult } from '../sources/open.ts';
 import type { Flags } from './shared.ts';
@@ -120,6 +120,13 @@ const LINE: Record<Outcome, string> = {
 
 /** check:open [<id>...] [--status new,prepared] [--limit N]: marks postings that have closed as `expired`. */
 export async function checkOpen(args: string[], flags: Flags) {
+  // Only one bulk check runs at a time, so two runs never pace the same boards twice. Checking named jobs (the
+  // dashboard's "Check if still open") is a request or two and is never skipped.
+  if (args.length) return checkOpenLocked(args, flags);
+  if (!(await withLock('check:open', () => checkOpenLocked(args, flags)))) console.log('A check:open is already running; skipping.');
+}
+
+async function checkOpenLocked(args: string[], flags: Flags) {
   const statuses = (flags.status ?? 'new,prepared')
     .split(',')
     .map((s) => s.trim())

@@ -19,16 +19,15 @@ function fakePgDump(name: string, body: string) {
   return bin;
 }
 
-const run = (bin: string, dir: string) =>
+// A fixed date, so a run that crosses midnight still finds its file.
+const DATE = '2026-03-15';
+const run = (bin: string, dir: string, env: Record<string, string> = { JOB_BOT_BACKUP_DATE: DATE }) =>
   spawnSync('bash', [SCRIPT], {
     encoding: 'utf8',
-    env: { PATH: `${bin}:/usr/bin:/bin`, JOB_BOT_BACKUP_DIR: dir, JOB_BOT_BACKUP_DB: 'testdb' },
+    env: { PATH: `${bin}:/usr/bin:/bin`, JOB_BOT_BACKUP_DIR: dir, JOB_BOT_BACKUP_DB: 'testdb', ...env },
   });
 
-const today = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-};
+const localDate = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
 describe('scripts/backup-db.sh', () => {
   const ok = fakePgDump('ok', 'echo "-- dump of $*"');
@@ -37,7 +36,7 @@ describe('scripts/backup-db.sh', () => {
     const dir = join(root, 'out1');
     const r = run(ok, dir);
     assert.equal(r.status, 0, r.stderr);
-    const file = join(dir, `testdb-${today()}.sql.gz`);
+    const file = join(dir, `testdb-${DATE}.sql.gz`);
     assert.ok(existsSync(file));
     const sql = gunzipSync(readFileSync(file)).toString();
     assert.match(sql, /-- dump of .*-U postgres .*testdb$/m);
@@ -54,9 +53,28 @@ describe('scripts/backup-db.sh', () => {
       .filter((f) => f.startsWith('testdb-'))
       .sort();
     assert.equal(left.length, 14);
-    assert.equal(left.at(-1), `testdb-${today()}.sql.gz`);
+    assert.equal(left.at(-1), `testdb-${DATE}.sql.gz`);
     assert.equal(left[0], 'testdb-2026-01-08.sql.gz');
     assert.ok(existsSync(join(dir, 'other-2020-01-01.sql.gz')), 'files of other databases are left alone');
+  });
+
+  it("names the file after today's date when no date is given", () => {
+    const dir = join(root, 'out4');
+    const before = localDate(new Date());
+    const r = run(ok, dir, {});
+    const afterRun = localDate(new Date());
+    assert.equal(r.status, 0, r.stderr);
+    // Either side of midnight is fine.
+    const [file] = readdirSync(dir);
+    assert.ok([`testdb-${before}.sql.gz`, `testdb-${afterRun}.sql.gz`].includes(file), file);
+  });
+
+  it('refuses a JOB_BOT_BACKUP_DATE that is not YYYY-MM-DD', () => {
+    const dir = join(root, 'out5');
+    const r = run(ok, dir, { JOB_BOT_BACKUP_DATE: '../../etc' });
+    assert.notEqual(r.status, 0);
+    assert.match(r.stderr, /must be YYYY-MM-DD/);
+    assert.equal(existsSync(dir), false);
   });
 
   it('exits non-zero and leaves no file when pg_dump fails', () => {
