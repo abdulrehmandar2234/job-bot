@@ -29,6 +29,7 @@ const commands: Record<string, () => Promise<Command>> = {
   'cv:default': async () => (await import('./commands/cv.ts')).cvDefault,
   'cv:build': async () => (await import('./commands/cv.ts')).cvBuild,
   versions: async () => (await import('./commands/cv.ts')).versions,
+  ats: async () => (await import('./commands/ats.ts')).ats,
   'settings:check': async () => (await import('./commands/settings.ts')).settingsCheck,
   'settings:save': async () => (await import('./commands/settings.ts')).settingsSave,
 };
@@ -53,6 +54,7 @@ if (!load) {
   cv:default                      rebuild default CV PDF from cv/master.json
   cv:build [cluster...]           pre-build CV versions
   versions                        list CV versions and usage
+  ats <id> [--cv cluster]         CV keyword check: shown, hidden-but-true and missing job keywords (--json)
   stats
   settings:check --kind config|applicant [--file x.json]   validate settings (JSON result)
   settings:save --kind config|applicant [--file x.json]    validate, then save if valid`);
