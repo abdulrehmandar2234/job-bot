@@ -43,7 +43,7 @@ const job = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
-type Imported = { source: string; company: string; title: string; url: string };
+type Imported = { source: string; company: string; title: string; url: string; posted_at: string | null };
 const imported = () => JSON.parse(readFileSync(bot.mock.calls[0][0][2], 'utf8')) as Imported[];
 
 /** Plays `bot add`: saves each imported job, filtered when its title says so. */
@@ -194,6 +194,21 @@ describe('POST /api/import from the Chrome extension', () => {
     bot.mockResolvedValue('');
     const [r] = (await (await post([job({ url: `${SITE}/lost` })])).json()).results;
     expect(r).toEqual({ url: `${SITE}/lost`, outcome: 'error' });
+  });
+
+  it('answers a failed `bot add` with a JSON error the popup can show, and the extension CORS header', async () => {
+    bot.mockRejectedValue(Object.assign(new Error('Command failed'), { stderr: 'error: connection refused\n' }));
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const res = await post([job({ url: `${SITE}/boom` })]);
+    expect(res.status).toBe(500);
+    expect(res.headers.get('access-control-allow-origin')).toBe(EXT);
+    expect(await res.json()).toEqual({ error: 'Import failed: error: connection refused' });
+    error.mockRestore();
+  });
+
+  it('sends posted_at as a date or null, never a value Postgres rejects', async () => {
+    await post([job({ url: `${SITE}/d1`, posted_at: '2026-10-20T10:00:00+04:00' }), job({ url: `${SITE}/d2`, posted_at: 'Yesterday' })]);
+    expect(imported().map((j) => j.posted_at)).toEqual(['2026-10-20', null]);
   });
 
   it('still limits Bayt bookmarklet requests to bayt.com urls', async () => {

@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { refresh } from 'next/cache';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { addRoleExclude } from '@/app/settings/actions';
-import { BOT_ROOT, runBot } from '@/lib/bot';
+import { BOT_ROOT, runBot, spawnBot } from '@/lib/bot';
 import { pool } from '@/lib/db';
 import { MIN_SKIPS } from '@/lib/skip-insights';
 import { cleanupDb, closeDb, ensureSchema, insertJob } from '../helpers/db';
@@ -19,6 +19,7 @@ vi.mock('@/lib/bot', async (importOriginal) => {
     ...(await importOriginal<typeof import('@/lib/bot')>()),
     BOT_ROOT: mkdtempSync(j(tmpdir(), 'job-bot-web-skip-actions-')),
     runBot: vi.fn(),
+    spawnBot: vi.fn(),
   };
 });
 
@@ -43,7 +44,6 @@ beforeEach(async () => {
   writeFileSync(CONFIG_FILE, JSON.stringify(CONFIG));
   vi.stubEnv('JOB_BOT_CONFIG', CONFIG_FILE);
   bot.mockImplementation(async (args) => {
-    if (args[0] === 'rescore') return '5 jobs re-scored.';
     saved.push({ args, json: JSON.parse(readFileSync(args[args.indexOf('--file') + 1], 'utf8')) });
     return '{"ok":true}';
   });
@@ -64,14 +64,18 @@ afterAll(async () => {
 });
 
 describe('addRoleExclude', () => {
-  it('appends a current suggestion to roleExclude through settings:save, keeping the other keys, then re-scores', async () => {
+  it('appends a current suggestion to roleExclude through settings:save, keeping the other keys, then queues a re-score', async () => {
     const res = await addRoleExclude(null, form('\\bprincipal\\b'));
-    expect(res).toEqual({ ok: true, message: 'Saved. Re-scored 5 jobs.', errors: [] });
+    expect(res).toEqual({ ok: true, message: 'Saved. Re-scoring jobs in the background.', errors: [] });
     expect(saved).toHaveLength(1);
     expect(saved[0].args.slice(0, 3)).toEqual(['settings:save', '--kind', 'config']);
     expect(saved[0].json).toEqual({ ...CONFIG, roleExclude: 'golang|\\bprincipal\\b' });
     expect(() => new RegExp(saved[0].json.roleExclude as string)).not.toThrow();
-    expect(bot).toHaveBeenLastCalledWith(['rescore'], 120_000);
+    // The re-score is a queued background task with its own worker, not a blocking CLI call in the request.
+    expect(bot).toHaveBeenCalledOnce();
+    const { rows } = await pool.query(`SELECT id, kind, job_id, status FROM tasks WHERE kind = 'rescore'`);
+    expect(rows).toEqual([{ id: expect.any(Number), kind: 'rescore', job_id: null, status: 'queued' }]);
+    expect(spawnBot).toHaveBeenCalledExactlyOnceWith(['task:run', String(rows[0].id)]);
     expect(refresh).toHaveBeenCalledOnce();
     // The action never writes config.json itself; the (mocked) CLI is the only writer.
     expect(JSON.parse(readFileSync(CONFIG_FILE, 'utf8'))).toEqual(CONFIG);
@@ -89,6 +93,7 @@ describe('addRoleExclude', () => {
     writeFileSync(CONFIG_FILE, JSON.stringify({ ...CONFIG, roleExclude: 'principal' }));
     expect(await addRoleExclude(null, form('\\bprincipal\\b'))).toMatchObject({ ok: false });
     expect(bot).not.toHaveBeenCalled();
+    expect(spawnBot).not.toHaveBeenCalled();
     expect(refresh).not.toHaveBeenCalled();
   });
 
