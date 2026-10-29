@@ -45,13 +45,45 @@ export type ImportResult = {
   filter_reason?: string | null;
 };
 
+/** A source slug as `bot add` stores it; anything else falls back to the origin's own name. */
+const SOURCE = /^[a-z0-9-]{1,30}$/;
+
+/**
+ * `posted_at` as YYYY-MM-DD, or null. Collectors send whatever the site has (Bayt's datePosted can be "3 days ago"),
+ * and one value Postgres cannot read as a date would fail `bot add` for the whole batch. Same rule as isoDate()
+ * in extension/lib/jobposting.js, plus a check that the date exists (no 2026-02-30).
+ */
+function isoDate(v: unknown): string | null {
+  if (typeof v !== 'string' || !/^\d{4}-\d{2}-\d{2}/.test(v)) return null;
+  const day = v.slice(0, 10);
+  const d = new Date(`${day}T00:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().startsWith(day) ? day : null;
+}
+
 const result = (url: string, outcome: ImportResult['outcome'], j?: Awaited<ReturnType<typeof findJobByUrl>>): ImportResult =>
   j ? { url, outcome, id: j.id, status: j.status, score: j.score, ai_score: j.ai_score, filter_reason: j.filter_reason } : { url, outcome };
 
 export async function POST(req: NextRequest) {
   const origin = req.headers.get('origin');
   if (!allowed(origin)) return new Response('Forbidden origin', { status: 403 });
+  try {
+    return await importJobs(req, origin);
+  } catch (e) {
+    // A failed `bot add` (or database) still answers with JSON and CORS headers, so the collector can show why.
+    // Only the bot's last stderr line (or the first message line) goes back; the full error is in the server log.
+    console.error('POST /api/import failed:', e);
+    const err = e as { stderr?: unknown; message?: unknown };
+    const why =
+      (typeof err.stderr === 'string' && err.stderr.trim().split('\n').at(-1)) ||
+      (typeof err.message === 'string' && err.message.split('\n')[0]) ||
+      String(e);
+    return Response.json({ error: `Import failed: ${why}`.slice(0, 500) }, { status: 500, headers: cors(origin) });
+  }
+}
+
+async function importJobs(req: NextRequest, origin: string) {
   const extension = isExtensionOrigin(origin);
+  const fallbackSource = extension ? 'extension' : new URL(origin).hostname.replace(/^www\.|\.com$/g, '');
 
   const body = await req.json().catch(() => null);
   const jobs: Incoming[] = Array.isArray(body) ? body : [];
@@ -65,17 +97,13 @@ export async function POST(req: NextRequest) {
     )
     .slice(0, 500)
     .map((j) => ({
-      source: extension
-        ? typeof j.source === 'string' && /^[a-z0-9-]{1,30}$/.test(j.source)
-          ? j.source
-          : 'extension'
-        : String(j.source ?? new URL(origin).hostname.replace(/^www\.|\.com$/g, '')).slice(0, 30),
+      source: typeof j.source === 'string' && SOURCE.test(j.source) ? j.source : fallbackSource,
       company: j.company.slice(0, 200),
       title: j.title.slice(0, 300),
       location: String(j.location ?? '').slice(0, 300),
       url: j.url,
       description: String(j.description ?? '').slice(0, 20000),
-      posted_at: j.posted_at ?? null,
+      posted_at: isoDate(j.posted_at),
     }));
   if (!valid.length) return new Response(JSON.stringify(extension ? { added: 0, results: [] } : { added: 0 }), { headers: cors(origin) });
   if (!extension) return Response.json(await add(valid), { headers: cors(origin) });

@@ -1,7 +1,7 @@
 import { after, before, beforeEach, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
@@ -231,6 +231,59 @@ describe('strong-match alerts (ai:score)', () => {
 
   it('the daily fetch script runs ai:score, so it alerts with no extra step', () => {
     assert.match(readFileSync(path('scripts', 'daily-fetch.sh'), 'utf8'), /src\/cli\.ts ai:score/);
+  });
+});
+
+describe('ai:score failures', () => {
+  /** Runs the CLI and returns its exit code and output, failing or not. */
+  async function botResult(args: string[], env: Record<string, string> = {}) {
+    try {
+      return { code: 0, stdout: await bot(args, env), stderr: '' };
+    } catch (e) {
+      const err = e as { code: number; stdout: string; stderr: string };
+      return { code: err.code, stdout: err.stdout, stderr: err.stderr };
+    }
+  }
+
+  it('--id exits 1 with the error when that job fails', async () => {
+    const id = await insertJob('f:one');
+    const r = await botResult(['ai:score', '--id', id], { FAKE_CLAUDE_FAIL: 'Not logged in' });
+    assert.equal(r.code, 1);
+    assert.match(r.stdout, /0 jobs scored, 1 failed\./);
+    assert.match(r.stderr, /AI review failed for 1 of 1 job: .*Not logged in/);
+    assert.equal((await getJob(id))!.ai_scored_at, null);
+  });
+
+  it('exits 1 when every job in the queue fails', async () => {
+    await insertJob('f:a');
+    await insertJob('f:b');
+    const r = await botResult(['ai:score'], { FAKE_CLAUDE_FAIL: 'Not logged in' });
+    assert.equal(r.code, 1);
+    assert.match(r.stderr, /AI review failed for 2 of 2 jobs/);
+  });
+
+  it('exits 0 when some jobs of the queue are scored', async () => {
+    await insertJob('f:ok');
+    await insertJob('f:bad', { description: 'FAIL_ME' });
+    // A fake Claude that fails only for the job whose description says so.
+    const dir = mkdtempSync(join(tmp, 'claude-'));
+    const fake = join(dir, 'claude.mjs');
+    writeFileSync(
+      fake,
+      `#!/usr/bin/env node
+import { readFileSync } from 'node:fs';
+const stdin = readFileSync(0, 'utf8');
+if (stdin.includes('FAIL_ME')) { process.stdout.write(JSON.stringify({ is_error: true, result: 'boom' })); process.exit(1); }
+process.stdout.write(JSON.stringify({ is_error: false, structured_output: ${review('good', 70)} }));`,
+    );
+    chmodSync(fake, 0o755);
+    const r = await botResult(['ai:score'], { JOB_BOT_CLAUDE: fake });
+    assert.equal(r.code, 0, r.stderr);
+    assert.match(r.stdout, /1 jobs scored, 1 failed\./);
+  });
+
+  it('the daily fetch script reports a failed AI review instead of a score count', () => {
+    assert.match(readFileSync(path('scripts', 'daily-fetch.sh'), 'utf8'), /AI review failed/);
   });
 });
 

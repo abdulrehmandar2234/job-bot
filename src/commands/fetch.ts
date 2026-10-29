@@ -1,5 +1,5 @@
 import { config } from '../config.ts';
-import { pool, type Job } from '../db.ts';
+import { pool, withLock, type Job } from '../db.ts';
 import { fetchCompany, type Fetched } from '../sources/index.ts';
 import { BOARDS } from '../sources/boards.ts';
 import { linkedin } from '../sources/linkedin.ts';
@@ -8,8 +8,15 @@ import { save, type Flags } from './shared.ts';
 
 const waitingCount = async () => (await pool.query<{ n: number }>(`SELECT count(*)::int n FROM jobs WHERE status = 'new'`)).rows[0].n;
 
-/** fetch [--company name]: pulls jobs from every source, then filters and scores them. */
-export async function fetch(_args: string[], flags: Flags) {
+/**
+ * fetch [--company name]: pulls jobs from every source, then filters and scores them. Only one fetch runs at a time
+ * (the dashboard's Fetch task and the daily script would otherwise hit every board twice).
+ */
+export async function fetch(args: string[], flags: Flags) {
+  if (!(await withLock('fetch', () => fetchAll(args, flags)))) console.log('A fetch is already running; skipping.');
+}
+
+async function fetchAll(_args: string[], flags: Flags) {
   const only = flags.company?.toLowerCase();
   const {
     rows: [run],

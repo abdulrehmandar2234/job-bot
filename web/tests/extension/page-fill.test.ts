@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { applyFill, describeFields } from '../../../extension/lib/page-fill.js';
+import { applyFill, describeFields, listFrameUrls } from '../../../extension/lib/page-fill.js';
 import { planFill } from '../../../extension/lib/fill.js';
 import { fillProfile } from '@/lib/extension';
 
@@ -189,5 +189,12 @@ describe('never overwriting', () => {
       <label for="s2">Years of PHP</label><select id="s2"><option value="" disabled selected>Select…</option><option value="7">7</option></select>`;
     const fields = describeFields();
     expect(fields.map((f: { empty: boolean }) => f.empty)).toEqual([false, true]);
+  });
+});
+
+describe('listFrameUrls', () => {
+  it('returns the src of every iframe that has one', () => {
+    document.body.innerHTML = '<iframe src="https://job-boards.greenhouse.io/embed/job_app?for=acme"></iframe><iframe></iframe>';
+    expect(listFrameUrls()).toEqual(['https://job-boards.greenhouse.io/embed/job_app?for=acme']);
   });
 });

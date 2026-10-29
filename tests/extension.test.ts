@@ -5,7 +5,7 @@ import { describeResult, fetchCv, lookupJob, missingFields, OFFLINE, sendJob } f
 import { pickOption, planFill, similarity, splitName } from '../extension/lib/fill.js';
 import { findJobPosting, guessFromTitle, jobFromPage, jobFromPosting, postingLocation } from '../extension/lib/jobposting.js';
 import { cleanText, decodeEntities, htmlToText } from '../extension/lib/text.js';
-import { isHttpUrl, normalizeUrl, sameTab, sourceFromUrl } from '../extension/lib/url.js';
+import { frameOrigins, isHttpUrl, normalizeUrl, sameTab, sourceFromUrl } from '../extension/lib/url.js';
 
 const posting = (over: Record<string, unknown> = {}) => ({
   '@context': 'https://schema.org',
@@ -511,5 +511,23 @@ describe('sameTab', () => {
     assert.equal(sameTab(shown, { id: 7, url: 'https://boards.greenhouse.io/acme/jobs/2' }), false); // navigated away
     assert.equal(sameTab(null, { id: 7, url: shown.url }), false);
     assert.equal(sameTab(shown, undefined), false);
+  });
+});
+
+describe('frameOrigins', () => {
+  it('lists the other sites a page embeds, once each, as permission patterns', () => {
+    assert.deepEqual(
+      frameOrigins('https://careers.acme.com/jobs/1', [
+        'https://job-boards.greenhouse.io/embed/job_app?for=acme&token=1',
+        'https://job-boards.greenhouse.io/embed/other',
+        'https://careers.acme.com/widget',
+        'about:blank',
+        'javascript:void(0)',
+        'https://www.youtube.com/embed/x',
+      ]),
+      ['https://job-boards.greenhouse.io/*', 'https://www.youtube.com/*'],
+    );
+    assert.deepEqual(frameOrigins('https://careers.acme.com/jobs/1', []), []);
+    assert.deepEqual(frameOrigins('chrome://extensions', ['https://x.example/']), []);
   });
 });
