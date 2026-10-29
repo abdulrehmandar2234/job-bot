@@ -48,12 +48,14 @@ Every posting is checked by `src/match.ts`. Jobs that fail a rule are kept with 
 - **Age:** postings older than `maxAgeDays` (14) are skipped, and matching jobs expire automatically once they get older.
 - **Keyword score:** a weighted match of the job's skills against yours, with a `minScore` threshold. It also suggests which CV version fits.
 - **AI review:** the local Claude CLI (model `haiku`) reads each matching job together with your CV and returns a 0–100 score, a verdict (strong / good / stretch / poor), reasons, gaps and red flags (part-time, language, visa, region lock).
+- **Salary:** a salary range in the title or description (AED, SAR, EUR, USD, GBP, PKR; "20k–25k", "up to", per month / per year / per hour, Dutch "bruto per maand") is stored with the job. Funding rounds, budgets, bonuses and years of experience are ignored, and an unclear amount is left out rather than guessed. Adzuna, Himalayas, RemoteOK and Lever give salary data of their own, which wins over the text. `rescore` fills it in for jobs already stored.
 - **Duplicate grouping:** the same job found on several sites (company board, LinkedIn, Bayt, Himalayas) is shown once, with links to every copy.
 
 ### Application preparation
 
 - **CV versions:** a default CV plus versions per stack cluster (`laravel`, `tall`, `laravel-vue`, `mern`, `pern`, `next-nest`, `backend-node`, `frontend-react`, `ai-fullstack`) and one-off custom CVs for a single job. Every PDF has the same filename (`abdulrehman_dar_resume.pdf`), and the folder name identifies the version. Versions are reused and only rebuilt (`v2`, `v3`, ...) when the master CV, profiles or template change.
 - **Cover letters:** written by Claude (model `sonnet`) from the job description and your CV, using only true facts and making no promises about salary, notice period or start date. If AI fails, a template letter is used instead.
+- **CV keyword check** (`bot ats <id>`, and on the job page): the job's skill keywords split into those the CV version shows near the top, those you have (in `cv/master.json`) but this version keeps further down, and real gaps that are not on your CV at all. It names the CV version that shows the most of them. Gaps are only listed, never suggested for the CV.
 - **Form answers:** paste the questions from an application form and Claude drafts an answer for each one, using only your CV and `cv/applicant.json`. Personal decisions it cannot know (salary, notice period, start date) come back as `[FILL: ...]` and are highlighted. Each answer has a Copy button.
 
 ### Tracking
@@ -69,8 +71,9 @@ npm run web          # http://localhost:3100
 ```
 
 - Tabs per status, search, country filter, minimum score and "best match first" sorting (AI score first, keyword score as fallback).
+- Salary on each card ("AED 20k–25k / month") and a "Min salary" filter in any of the six currencies, per month or year. It compares in euros per year with fixed, approximate rates (`web/lib/salary.ts`). Jobs without a salary stay visible unless "only with salary" is ticked. When `cv/applicant.json` has `expectedSalary` for the job's country (`AE`, `SA`, `NL`, `remote`), a lower salary gets a "below your expectation" hint; it never hides the job. A plain number there is in the country's currency, per month for AE/SA and per year otherwise; text such as `"AED 25,000 per month"` says it itself.
 - Per job: open the posting, prepare CV + letter (with a CV-version picker), download the CV, AI review, and status buttons.
-- Job page: full description, cover letter with Copy and Rewrite, form-answer helper, notes and status history.
+- Job page: full description, CV keyword check, cover letter with Copy and Rewrite, form-answer helper, notes and status history.
 - "Fetch new jobs" button and a "Add jobs from Bayt" page with the bookmarklet.
 
 ## How it works
@@ -198,6 +201,7 @@ npm run bot -- mark <id> applied|interview|offer|rejected|skipped ["note"]
 npm run bot -- add [--file job.json]          # add a job manually (JSON or stdin)
 npm run bot -- discover <company...> [--add]
 npm run bot -- cv:default | cv:build [cluster...] | versions
+npm run bot -- ats <id> [--cv next-nest] [--json] # CV keyword check: shown, hidden but true, missing
 npm run bot -- sponsors:update | stats | dedupe
 npm run bot -- settings:check|settings:save --kind config|applicant [--file x.json]  # validate (and save) settings, JSON result
 ```
@@ -252,6 +256,8 @@ src/
   settings.ts       zod schemas for config.json and cv/applicant.json
   types.ts          row types shared with the dashboard
   match.ts          filters, keyword score, CV cluster
+  salary.ts         salary range extraction
+  ats.ts            CV keyword check (shown / hidden but true / missing)
   db.ts             Postgres access, upsert, status changes, dedupe
   migrate.ts        migration runner (applied on start)
   migrations/       numbered schema files (001_baseline.sql, ...)
