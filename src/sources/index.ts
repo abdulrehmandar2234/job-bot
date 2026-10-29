@@ -1,4 +1,4 @@
-import { sleep } from './http.ts';
+import { getJson, sleep } from './http.ts';
 import { config, type Company } from '../config.ts';
 
 export type RawJob = {
@@ -20,12 +20,6 @@ const stripHtml = (html: string) =>
     // Escaped HTML (Greenhouse) leaves a second layer of entities inside the text.
     .replace(/&amp;/g, '&').replace(/&#39;/g, "'").replace(/&quot;/g, '"')
     .replace(/[ \t]+/g, ' ').replace(/ ?\n ?/g, '\n').replace(/\n\s*\n+/g, '\n').trim();
-
-async function getJson(url: string) {
-  const res = await fetch(url, { headers: { 'user-agent': UA }, signal: AbortSignal.timeout(30_000) });
-  if (!res.ok) throw new Error(`${res.status} ${url}`);
-  return res.json();
-}
 
 async function greenhouse(c: Company): Promise<RawJob[]> {
   const data = await getJson(`https://boards-api.greenhouse.io/v1/boards/${c.token}/jobs?content=true`);
@@ -86,33 +80,26 @@ async function recruitee(c: Company): Promise<RawJob[]> {
   }));
 }
 
-// Workable throttles hard (Cloudflare 1015), so calls are spaced out and retried.
+// Workable throttles hard (Cloudflare 1015, sometimes as a 403), so calls are spaced out and retried slowly.
 let workableLast = 0;
 async function workable(c: Company): Promise<RawJob[]> {
-  const url = `https://apply.workable.com/api/v1/widget/accounts/${c.token}?details=true`;
-  for (let attempt = 0; ; attempt++) {
-    const wait = workableLast + 3000 - Date.now();
-    if (wait > 0) await sleep(wait);
-    workableLast = Date.now();
-    const res = await fetch(url, { headers: { 'user-agent': UA } });
-    if (res.ok) {
-      const data = await res.json();
-      return data.jobs.map((j: any) => ({
-        id: `workable:${c.token}:${j.shortcode}`,
-        source: 'workable',
-        company: c.name,
-        title: j.title,
-        location: [[j.city, j.country].filter(Boolean).join(', '),
-          ...(j.locations ?? []).map((l: any) => [l.city, l.country].filter(Boolean).join(', '))]
-          .filter(Boolean).join(' / '),
-        url: j.url ?? j.shortlink ?? `https://apply.workable.com/${c.token}/j/${j.shortcode}/`,
-        description: stripHtml(j.description ?? ''),
-        posted_at: toIso(j.published_on ?? j.created_at),
-      }));
-    }
-    if (attempt >= 3 || (res.status !== 429 && res.status < 500 && res.status !== 403)) throw new Error(`${res.status} ${url}`);
-    await sleep(15000 * (attempt + 1));
-  }
+  const wait = workableLast + 3000 - Date.now();
+  if (wait > 0) await sleep(wait);
+  workableLast = Date.now();
+  const data = await getJson(`https://apply.workable.com/api/v1/widget/accounts/${c.token}?details=true`,
+    { baseDelayMs: 15_000, retryOn: (s) => s === 429 || s === 403 || s >= 500 });
+  return data.jobs.map((j: any) => ({
+    id: `workable:${c.token}:${j.shortcode}`,
+    source: 'workable',
+    company: c.name,
+    title: j.title,
+    location: [[j.city, j.country].filter(Boolean).join(', '),
+      ...(j.locations ?? []).map((l: any) => [l.city, l.country].filter(Boolean).join(', '))]
+      .filter(Boolean).join(' / '),
+    url: j.url ?? j.shortlink ?? `https://apply.workable.com/${c.token}/j/${j.shortcode}/`,
+    description: stripHtml(j.description ?? ''),
+    posted_at: toIso(j.published_on ?? j.created_at),
+  }));
 }
 
 // The list endpoint has no descriptions, so details are fetched only for postings that could pass the filters.
@@ -147,7 +134,6 @@ async function smartrecruiters(c: Company): Promise<RawJob[]> {
   return out;
 }
 
-const UA = 'job-bot/0.1 (personal job search)';
 // Recruitee/Workable send "2026-10-08 10:28:31 UTC" or plain dates.
 const toIso = (s: string | null | undefined) => {
   if (!s) return null;

@@ -1,19 +1,12 @@
-import { sleep } from './http.ts';
+import { getJson, sleep } from './http.ts';
 import { config } from '../config.ts';
 import type { RawJob } from './index.ts';
 
 // Remote job boards. Unlike company ATS boards these list many companies, and the location
 // field says where a remote hire may live, e.g. "Remote — Worldwide" or "Remote — USA, Canada".
 
-const UA = 'job-bot/0.1 (personal job search)';
 const strip = (html: string) => html.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&')
   .replace(/[ \t]+/g, ' ').replace(/\n\s*\n+/g, '\n').trim();
-
-async function getJson(url: string) {
-  const res = await fetch(url, { headers: { 'user-agent': UA }, signal: AbortSignal.timeout(30_000) });
-  if (!res.ok) throw new Error(`${res.status} ${url}`);
-  return res.json();
-}
 
 /** Himalayas search with country=PK only returns remote jobs open to candidates in Pakistan. */
 async function himalayas(): Promise<RawJob[]> {

@@ -1,4 +1,4 @@
-import { sleep } from './http.ts';
+import { HttpError, getText, sleep } from './http.ts';
 import { config } from '../config.ts';
 import type { RawJob } from './index.ts';
 
@@ -13,12 +13,14 @@ const decode = (s: string) => s.replace(/&amp;/g, '&').replace(/&lt;/g, '<').rep
 const strip = (html: string) => decode(html.replace(/<\/(p|li|h\d|div)>|<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, ' '))
   .replace(/ ?\n ?/g, '\n');
 
+// A 429 from LinkedIn means the guest endpoints are throttling this IP: stop LinkedIn for today
+// (no retries, which would only prolong the block). Network errors and 5xx are still retried.
 async function get(url: string) {
-  for (let attempt = 0; ; attempt++) {
-    const res = await fetch(url, { headers: { 'user-agent': UA, 'accept-language': 'en' }, signal: AbortSignal.timeout(30_000) });
-    if (res.ok) return res.text();
-    if (res.status !== 429 || attempt >= 2) throw new Error(`${res.status} ${url}`);
-    await sleep(20_000 * (attempt + 1));
+  try {
+    return await getText(url, { headers: { 'user-agent': UA, 'accept-language': 'en' }, retryOn: (s) => s >= 500 });
+  } catch (e) {
+    if (e instanceof HttpError && e.status === 429) throw new Error(`429 LinkedIn rate limit: stopping LinkedIn for today (${url})`);
+    throw e;
   }
 }
 
