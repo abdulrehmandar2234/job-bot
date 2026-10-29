@@ -1,7 +1,8 @@
 import { NextRequest } from 'next/server';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { GET, OPTIONS } from '@/app/api/jobs/lookup/route';
-import { EXTENSION_ID } from '@/lib/extension';
+import { cvFileName } from '@/lib/bot';
+import { EXTENSION_ID, fillProfile } from '@/lib/extension';
 import { cleanupDb, closeDb, ensureSchema, insertJob, PREFIX } from '../../helpers/db';
 
 const EXT = `chrome-extension://${EXTENSION_ID}`;
@@ -74,9 +75,11 @@ describe('GET /api/jobs/lookup', () => {
       ai_summary: 'Good fit',
       cv_version: 'laravel-lead',
       cv_url: 'http://localhost:3100/api/cv/laravel-lead?download',
+      cv_file_name: cvFileName(),
       cover_letter: 'Dear Acme',
       form_answers: answers,
       dashboard_url: `http://localhost:3100/jobs/${encodeURIComponent(`${PREFIX}a`)}`,
+      profile: fillProfile(),
     });
   });
 

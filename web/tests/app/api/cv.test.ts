@@ -27,8 +27,8 @@ beforeAll(async () => {
 });
 afterAll(() => rmSync(root, { recursive: true, force: true }));
 
-const get = (version: string, query = '') =>
-  GET(new NextRequest(`http://localhost:3100/api/cv/${encodeURIComponent(version)}${query}`), {
+const get = (version: string, query = '', origin?: string) =>
+  GET(new NextRequest(`http://localhost:3100/api/cv/${encodeURIComponent(version)}${query}`, { headers: origin ? { origin } : {} }), {
     params: Promise.resolve({ version }),
   } as Parameters<typeof GET>[1]);
 
@@ -49,6 +49,17 @@ describe('GET /api/cv/[version]', () => {
   it('sends it as an attachment with ?download', async () => {
     const res = await get('default', '?download');
     expect(res.headers.get('content-disposition')).toBe('attachment; filename="Jane_Doe_CV.pdf"');
+  });
+
+  it('lets only the job-bot extension read it cross-origin (to attach it to a form), not other sites', async () => {
+    const { EXTENSION_ID } = await import('@/lib/extension');
+    const ext = `chrome-extension://${EXTENSION_ID}`;
+    const res = await get('default', '?download', ext);
+    expect(res.headers.get('access-control-allow-origin')).toBe(ext);
+    expect(res.headers.get('vary')).toBe('Origin');
+    for (const origin of [undefined, 'https://evil.example', 'chrome-extension://abcdefghijklmnopabcdefghijklmnop']) {
+      expect((await get('default', '', origin)).headers.get('access-control-allow-origin')).toBeNull();
+    }
   });
 
   it('returns 404 for a version without a CV', async () => {

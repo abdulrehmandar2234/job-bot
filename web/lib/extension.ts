@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { BOT_ROOT } from '@/lib/bot';
 import { type Job, pool } from '@/lib/db';
 
 // The job-bot Chrome extension (extension/ in the repo). Web pages cannot forge the Origin header, and the
@@ -42,4 +45,33 @@ export async function findJobByUrl(url: string): Promise<Job | null> {
   if (!job?.duplicate_of) return job ?? null;
   const { rows: primary } = await pool.query<Job>('SELECT * FROM jobs WHERE id = $1', [job.duplicate_of]);
   return primary[0] ?? job;
+}
+
+/** What the extension may type into application forms: name and contact details. */
+export type FillProfile = { name: string; email: string; phone: string; linkedin: string; location: string };
+
+const readJson = (file: string): Record<string, unknown> => {
+  try {
+    return JSON.parse(readFileSync(file, 'utf8'));
+  } catch {
+    return {};
+  }
+};
+const str = (v: unknown) => (typeof v === 'string' ? v.trim() : '');
+
+/**
+ * Name and contact from cv/master.json; cv/applicant.json currentLocation wins for the location.
+ * Missing files or fields give empty strings, which the extension leaves unfilled.
+ */
+export function fillProfile(root = BOT_ROOT): FillProfile {
+  const cv = readJson(join(root, 'cv', 'master.json'));
+  const contact = (cv.contact ?? {}) as Record<string, unknown>;
+  const facts = readJson(join(root, 'cv', 'applicant.json'));
+  return {
+    name: str(cv.name),
+    email: str(contact.email),
+    phone: str(contact.phone),
+    linkedin: str(contact.linkedin),
+    location: str(facts.currentLocation) || str(contact.location),
+  };
 }
