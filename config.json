@@ -10,7 +10,8 @@
     "scoreModel": "haiku",
     "letterModel": "sonnet",
     "maxScorePerRun": 80,
-    "concurrency": 2
+    "concurrency": 2,
+    "alertStrong": true
   },
   "linkedin": {
     "enabled": true,

@@ -8,6 +8,10 @@ if (!/^postgres:\/\/postgres@127\.0\.0\.1:5432\/job_bot_test_bot(_[a-z0-9]+)?$/.
   throw new Error(`Tests must run against job_bot_test_bot (use npm test), not ${TEST_DB}`);
 }
 
+// Never show a real macOS notification from a test (ai:score alerts strong matches; see src/notify.ts).
+// CLI subprocesses inherit this. Tests of the alerts point JOB_BOT_NOTIFY at tests/fixtures/fake-notify.mjs.
+process.env.JOB_BOT_NOTIFY ||= 'off';
+
 export const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString();
 
 export const raw = (o: Partial<RawJob> = {}): RawJob => ({
