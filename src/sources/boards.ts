@@ -1,6 +1,6 @@
 import { getJson, sleep } from './http.ts';
 import { config } from '../config.ts';
-import { stripHtml, type RawJob } from './index.ts';
+import { partial, stripHtml, type Fetched, type RawJob } from './index.ts';
 import { structuredSalary } from '../salary.ts';
 
 // Remote job boards. Unlike company ATS boards these list many companies, and the location
@@ -16,12 +16,18 @@ const strip = (html: string) =>
     .trim();
 
 /** Himalayas search with country=PK only returns remote jobs open to candidates in Pakistan. */
-async function himalayas(): Promise<RawJob[]> {
+async function himalayas(): Promise<Fetched> {
   const out = new Map<string, RawJob>();
   const cutoff = Date.now() - config.maxAgeDays * 86_400_000;
   for (const q of config.remote.himalayasQueries) {
     for (let page = 1; page <= 10; page++) {
-      const data = await getJson(`https://himalayas.app/jobs/api/search?country=PK&q=${encodeURIComponent(q)}&page=${page}`);
+      let data: any;
+      try {
+        data = await getJson(`https://himalayas.app/jobs/api/search?country=PK&q=${encodeURIComponent(q)}&page=${page}`);
+      } catch (e) {
+        // Usually a 429 on a later page: stop asking, but keep the earlier pages and queries.
+        return partial([...out.values()], e);
+      }
       if (!data.jobs?.length) break;
       for (const j of data.jobs) {
         const posted = j.pubDate * 1000;
@@ -86,12 +92,17 @@ async function remoteok(): Promise<RawJob[]> {
 // postings are kept; match.ts then decides about the remote region as for any other board.
 const ARBEITNOW_MAX_PAGES = 5;
 
-async function arbeitnow(): Promise<RawJob[]> {
+async function arbeitnow(): Promise<Fetched> {
   const nl = new RegExp(config.countries.NL?.match ?? 'netherlands|nederland', 'i');
   const cutoff = Date.now() - config.maxAgeDays * 86_400_000;
   const out: RawJob[] = [];
   for (let page = 1; page <= ARBEITNOW_MAX_PAGES; page++) {
-    const data = await getJson(`https://www.arbeitnow.com/api/job-board-api?page=${page}`);
+    let data: any;
+    try {
+      data = await getJson(`https://www.arbeitnow.com/api/job-board-api?page=${page}`);
+    } catch (e) {
+      return partial(out, e);
+    }
     const jobs: any[] = data.data ?? [];
     for (const j of jobs) {
       const posted = j.created_at * 1000;
@@ -132,7 +143,7 @@ const ADZUNA_CURRENCY: Record<string, string> = {
   us: 'USD',
 };
 
-async function adzuna(): Promise<RawJob[]> {
+async function adzuna(): Promise<Fetched> {
   const id = process.env.ADZUNA_APP_ID;
   const key = process.env.ADZUNA_APP_KEY;
   if (!id || !key) {
@@ -158,7 +169,7 @@ async function adzuna(): Promise<RawJob[]> {
           data = await getJson(`https://api.adzuna.com/v1/api/jobs/${country}/search/${page}?${q}`, { cache: false });
         } catch (e) {
           // Errors quote the URL and end up in fetch_runs; keep the credentials out of them.
-          throw new Error((e as Error).message.replaceAll(key, '***').replaceAll(id, '***'));
+          return partial([...out.values()], new Error((e as Error).message.replaceAll(key, '***').replaceAll(id, '***')));
         }
         const results: any[] = data.results ?? [];
         for (const j of results) {
@@ -184,4 +195,4 @@ async function adzuna(): Promise<RawJob[]> {
   return [...out.values()];
 }
 
-export const BOARDS: Record<string, () => Promise<RawJob[]>> = { himalayas, remotive, remoteok, arbeitnow, adzuna };
+export const BOARDS: Record<string, () => Promise<Fetched>> = { himalayas, remotive, remoteok, arbeitnow, adzuna };

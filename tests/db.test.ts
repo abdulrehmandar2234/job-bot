@@ -1,6 +1,9 @@
-import { after, before, beforeEach, describe, it } from 'node:test';
+import { after, afterEach, before, beforeEach, describe, it, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import './helpers.ts';
+import { daysAgo, mockFetch } from './helpers.ts';
+import { fetch } from '../src/commands/fetch.ts';
+import { config } from '../src/config.ts';
+import { timing } from '../src/sources/http.ts';
 import { dedupe, getJob, migrate, pool, setStatus, upsertJob, type ScoredJob } from '../src/db.ts';
 import { isIndSponsor } from '../src/sponsors.ts';
 
@@ -110,6 +113,71 @@ describe('setStatus expectFrom', () => {
     await setStatus('test:db1', 'applied');
     assert.equal(await setStatus('test:db1', 'rejected'), true);
     assert.equal(await statusOf(), 'rejected');
+  });
+});
+
+describe('fetch', () => {
+  const saved = { companies: config.companies, remote: config.remote.enabled, linkedin: config.linkedin.enabled };
+  let net: ReturnType<typeof mockFetch> | undefined;
+  let log: ReturnType<typeof mock.method> | undefined;
+  beforeEach(() => {
+    timing.scale = 0;
+    config.remote.enabled = false;
+    config.linkedin.enabled = false;
+    log = mock.method(console, 'log', () => {});
+  });
+  afterEach(() => {
+    net?.restore();
+    log?.mock.restore();
+    Object.assign(config, { companies: saved.companies });
+    config.remote.enabled = saved.remote;
+    config.linkedin.enabled = saved.linkedin;
+  });
+  const gh = (id: number, o: Record<string, unknown> = {}) => ({
+    id,
+    title: 'Senior Backend Engineer',
+    location: { name: 'Dubai, UAE' },
+    absolute_url: `https://x/${id}`,
+    content: 'Node, TypeScript, PostgreSQL',
+    first_published: new Date().toISOString(),
+    ...o,
+  });
+  const lastRun = async () => (await pool.query('SELECT checked, inserted, errors FROM fetch_runs ORDER BY id DESC LIMIT 1')).rows[0];
+
+  it('saves postings one by one: a posting the database rejects is skipped, the rest are saved', async () => {
+    config.companies = [{ name: 'Acme', ats: 'greenhouse', token: 'acme' }];
+    net = mockFetch({ 'boards/acme/jobs': { jobs: [gh(1), gh(2, { first_published: 'not a date' }), gh(3)] } });
+    await fetch([], {});
+    const { rows } = await pool.query('SELECT id FROM jobs ORDER BY id');
+    assert.deepEqual(
+      rows.map((r) => r.id),
+      ['greenhouse:acme:1', 'greenhouse:acme:3'],
+    );
+    const run = await lastRun();
+    assert.deepEqual([run.checked, run.inserted], [2, 2]);
+    assert.equal(run.errors.length, 1);
+    assert.equal(run.errors[0].company, 'Acme');
+    assert.match(run.errors[0].error, /^1 of 3 postings not saved \(first: greenhouse:acme:2: /);
+  });
+
+  it("saves a source's partial result and records its partial error", async () => {
+    config.companies = [{ name: 'Sr', ats: 'smartrecruiters', token: 'sr' }];
+    const p = (id: string) => ({
+      id,
+      name: 'Senior Backend Engineer',
+      location: { fullLocation: 'Riyadh, Saudi Arabia' },
+      releasedDate: daysAgo(1),
+    });
+    net = mockFetch({
+      'postings?limit=100': { totalFound: 2, content: [p('p1'), p('p2')] },
+      'postings/p1': { postingUrl: 'https://s/p1', jobAd: { sections: { a: { text: 'Node' } } } },
+    });
+    await fetch([], {});
+    assert.ok(await getJob('smartrecruiters:sr:p1'));
+    const run = await lastRun();
+    assert.equal(run.inserted, 1);
+    assert.equal(run.errors.length, 1);
+    assert.match(run.errors[0].error, /^partial: kept 1 postings; 1 of 2 details failed \(first: p2: .*404/);
   });
 });
 
