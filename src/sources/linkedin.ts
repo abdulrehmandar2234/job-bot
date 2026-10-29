@@ -1,4 +1,4 @@
-import { sleep } from './http.ts';
+import { HttpError, getText, sleep } from './http.ts';
 import { config } from '../config.ts';
 import type { RawJob } from './index.ts';
 
@@ -6,37 +6,52 @@ import type { RawJob } from './index.ts';
 // No account is involved. Requests are paced so a daily run stays small.
 
 const BASE = 'https://www.linkedin.com/jobs-guest/jobs/api';
-const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36';
+export const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36';
 
-const decode = (s: string) => s.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"')
-  .replace(/&#39;/g, "'").replace(/&#x27;/g, "'").replace(/\s+/g, ' ').trim();
-const strip = (html: string) => decode(html.replace(/<\/(p|li|h\d|div)>|<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, ' '))
-  .replace(/ ?\n ?/g, '\n');
+const decode = (s: string) =>
+  s
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&#x27;/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
+const strip = (html: string) =>
+  decode(html.replace(/<\/(p|li|h\d|div)>|<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, ' ')).replace(/ ?\n ?/g, '\n');
 
+// A 429 from LinkedIn means the guest endpoints are throttling this IP: stop LinkedIn for today
+// (no retries, which would only prolong the block). Network errors and 5xx are still retried.
 async function get(url: string) {
-  for (let attempt = 0; ; attempt++) {
-    const res = await fetch(url, { headers: { 'user-agent': UA, 'accept-language': 'en' }, signal: AbortSignal.timeout(30_000) });
-    if (res.ok) return res.text();
-    if (res.status !== 429 || attempt >= 2) throw new Error(`${res.status} ${url}`);
-    await sleep(20_000 * (attempt + 1));
+  try {
+    return await getText(url, { headers: { 'user-agent': UA, 'accept-language': 'en' }, retryOn: (s) => s >= 500 });
+  } catch (e) {
+    if (e instanceof HttpError && e.status === 429) throw new Error(`429 LinkedIn rate limit: stopping LinkedIn for today (${url})`);
+    throw e;
   }
 }
 
 type Card = { id: string; title: string; company: string; location: string; date: string | null };
 
 function parseCards(html: string): Card[] {
-  return html.split('<li').slice(1).flatMap((li) => {
-    const id = li.match(/urn:li:jobPosting:(\d+)/)?.[1];
-    const title = li.match(/base-search-card__title[^>]*>([\s\S]*?)<\//)?.[1];
-    if (!id || !title) return [];
-    return [{
-      id,
-      title: decode(title),
-      company: decode((li.match(/base-search-card__subtitle[^>]*>([\s\S]*?)<\/h4>/)?.[1] ?? '').replace(/<[^>]+>/g, '')),
-      location: decode(li.match(/job-search-card__location[^>]*>([\s\S]*?)<\//)?.[1] ?? ''),
-      date: li.match(/datetime="(\d{4}-\d{2}-\d{2})"/)?.[1] ?? null,
-    }];
-  });
+  return html
+    .split('<li')
+    .slice(1)
+    .flatMap((li) => {
+      const id = li.match(/urn:li:jobPosting:(\d+)/)?.[1];
+      const title = li.match(/base-search-card__title[^>]*>([\s\S]*?)<\//)?.[1];
+      if (!id || !title) return [];
+      return [
+        {
+          id,
+          title: decode(title),
+          company: decode((li.match(/base-search-card__subtitle[^>]*>([\s\S]*?)<\/h4>/)?.[1] ?? '').replace(/<[^>]+>/g, '')),
+          location: decode(li.match(/job-search-card__location[^>]*>([\s\S]*?)<\//)?.[1] ?? ''),
+          date: li.match(/datetime="(\d{4}-\d{2}-\d{2})"/)?.[1] ?? null,
+        },
+      ];
+    });
 }
 
 export async function linkedin(): Promise<RawJob[]> {
@@ -69,8 +84,10 @@ export async function linkedin(): Promise<RawJob[]> {
     // Same title rules as scoring, applied before the (slower) detail request.
     if (!include.test(c.title) || exclude.test(c.title)) continue;
     const html = await get(`${BASE}/jobPosting/${c.id}`);
-    const markup = html.match(/show-more-less-html__markup[^>]*>([\s\S]*?)<\/div>\s*<button/)?.[1]
-      ?? html.match(/description__text[^>]*>([\s\S]*?)<\/section>/)?.[1] ?? '';
+    const markup =
+      html.match(/show-more-less-html__markup[^>]*>([\s\S]*?)<\/div>\s*<button/)?.[1] ??
+      html.match(/description__text[^>]*>([\s\S]*?)<\/section>/)?.[1] ??
+      '';
     out.push({
       id: `linkedin:${c.id}`,
       source: 'linkedin',

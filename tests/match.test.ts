@@ -104,8 +104,13 @@ describe('scoreJob: visa', () => {
   });
 
   it('accepts NL jobs that mention visa sponsorship', () => {
-    const s = scoreJob(raw({ company: 'Totally Unknown Startup Xyz', location: 'Amsterdam',
-      description: `${raw().description} We offer visa sponsorship and relocation support.` }));
+    const s = scoreJob(
+      raw({
+        company: 'Totally Unknown Startup Xyz',
+        location: 'Amsterdam',
+        description: `${raw().description} We offer visa sponsorship and relocation support.`,
+      }),
+    );
     assert.equal(s.filterReason, null);
     assert.match(s.visa!, /visa\/relocation support/);
   });

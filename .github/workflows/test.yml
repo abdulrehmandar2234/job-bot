@@ -1,0 +1,44 @@
+name: Tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      # Tests never call the real Claude or show notifications; Chrome renders the CV PDF test.
+      JOB_BOT_CLAUDE: tests/fixtures/fake-claude.mjs
+      JOB_BOT_NOTIFY: "off"
+      JOB_BOT_CHROME: /usr/bin/google-chrome
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            web/package-lock.json
+      # scripts/daily-fetch.sh is a zsh script (macOS default shell); tests/open.test.ts runs it.
+      - run: sudo apt-get update && sudo apt-get install -y zsh
+      - run: npm ci
+      - run: npm ci --prefix web
+      - run: npm run test:db -- job_bot_test_bot job_bot_test
+      - run: npx biome ci .
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run test:web

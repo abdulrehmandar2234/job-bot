@@ -7,15 +7,29 @@
   "scripts": {
     "bot": "node --no-warnings --env-file-if-exists=.env src/cli.ts",
     "web": "npm --prefix web run dev",
-    "test": "DATABASE_URL=postgres://postgres@127.0.0.1:5432/job_bot_test_bot node --no-warnings --test --test-concurrency=1 'tests/**/*.test.ts'",
+    "test": "DATABASE_URL=postgres://postgres@127.0.0.1:5432/${BOT_TEST_DB:-job_bot_test_bot} node --no-warnings --test --test-concurrency=1 'tests/**/*.test.ts'",
     "test:web": "npm --prefix web test",
-    "test:all": "npm test && npm run test:web"
+    "test:all": "npm test && npm run test:web",
+    "test:db": "node scripts/create-test-db.mjs",
+    "typecheck": "tsc -p . && cd web && npx next typegen && npx tsc -p .",
+    "test:coverage": "DATABASE_URL=postgres://postgres@127.0.0.1:5432/${BOT_TEST_DB:-job_bot_test_bot} node --no-warnings --test --test-concurrency=1 --experimental-test-coverage --test-coverage-include='src/**' 'tests/**/*.test.ts'",
+    "test:web:coverage": "npm --prefix web run test:coverage",
+    "lint": "biome check .",
+    "format": "biome check --write .",
+    "prepare": "git config core.hooksPath .githooks || true"
   },
   "engines": {
     "node": ">=24"
   },
   "dependencies": {
     "pg": "^8.23.1",
-    "playwright-core": "^1.64.1"
+    "playwright-core": "^1.64.1",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.6.4",
+    "@types/node": "^24.19.2",
+    "@types/pg": "^8.23.1",
+    "typescript": "~5.9"
   }
 }

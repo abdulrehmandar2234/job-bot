@@ -7,17 +7,32 @@ import { pool } from '@/lib/db';
 import { cleanupDb, closeDb, ensureSchema, insertJob, PREFIX } from '../../helpers/db';
 
 vi.mock('@/app/actions', () => ({
-  setStatus: vi.fn(), prepare: vi.fn(), aiReview: vi.fn(), saveNotes: vi.fn(), draftAnswers: vi.fn(), clearAnswers: vi.fn(),
+  setStatus: vi.fn(),
+  prepare: vi.fn(),
+  aiReview: vi.fn(),
+  saveNotes: vi.fn(),
+  draftAnswers: vi.fn(),
+  clearAnswers: vi.fn(),
+  dismissTask: vi.fn(),
 }));
+// TaskWatcher (a client component) needs the app router; the page tests render outside Next.
+vi.mock('next/navigation', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('next/navigation')>()),
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
+vi.mock('@/lib/bot', async (orig) => ({ ...(await orig<object>()), runBot: vi.fn(async () => 'Not found') })); // the CV keyword check (ats-check.test.tsx)
 
 /**
  * The page is a sync shell with the async JobDetail server component inside <Suspense>. Pull that element out,
  * await it like the server would, and render its output (client components included) in jsdom.
  */
 async function renderJob(id: string) {
-  const shell = Page({ params: Promise.resolve({ id: encodeURIComponent(id) }) } as Parameters<typeof Page>[0]) as ReactElement<{ children: ReactNode }>;
+  const shell = Page({ params: Promise.resolve({ id: encodeURIComponent(id) }) } as Parameters<typeof Page>[0]) as ReactElement<{
+    children: ReactNode;
+  }>;
   const suspense = (shell.props.children as ReactNode[]).find(
-    (c): c is ReactElement<{ children: ReactElement }> => isValidElement(c) && (c.props as { fallback?: unknown }).fallback !== undefined)!;
+    (c): c is ReactElement<{ children: ReactElement }> => isValidElement(c) && (c.props as { fallback?: unknown }).fallback !== undefined,
+  )!;
   const detail = suspense.props.children as ReactElement<Record<string, unknown>, (p: unknown) => Promise<ReactNode>>;
   return render(<>{await detail.type(detail.props)}</>);
 }
@@ -36,8 +51,17 @@ describe('job page', () => {
   });
 
   it('shows the job header, postings on other sites and history', async () => {
-    await insertJob({ id, title: 'Senior Laravel Developer', company: 'Acme', country: 'AE', location: 'Dubai',
-      status: 'applied', score: 70, ai_score: 81, url: 'https://boards.greenhouse.io/acme/1' });
+    await insertJob({
+      id,
+      title: 'Senior Laravel Developer',
+      company: 'Acme',
+      country: 'AE',
+      location: 'Dubai',
+      status: 'applied',
+      score: 70,
+      ai_score: 81,
+      url: 'https://boards.greenhouse.io/acme/1',
+    });
     await insertJob({ id: 'page-li', source: 'linkedin', url: 'https://linkedin.com/jobs/1', duplicate_of: id });
     await pool.query(`INSERT INTO job_events (job_id, from_status, to_status, note) VALUES ($1, 'new', 'applied', 'via site')`, [id]);
 
@@ -50,6 +74,26 @@ describe('job page', () => {
     expect(screen.getByRole('button', { name: 'Got interview' })).toBeInTheDocument();
     const history = screen.getByRole('heading', { name: 'History' }).closest('section')!;
     expect(history).toHaveTextContent('new → applied (via site)');
+  });
+
+  it('shows contacts, people known at the same company, the referral reminder and the skip reason', async () => {
+    await insertJob({ id, company: 'Acme Inc.', status: 'new' });
+    const other = await insertJob({ id: 'page-other', company: 'ACME', title: 'Frontend Engineer', url: 'https://example.com/o' });
+    await pool.query(
+      `INSERT INTO contacts (job_id, name, role, referral_status) VALUES ($1, 'Jane', 'recruiter', 'asked'),
+      ($2, 'Sam', 'referral', 'to ask')`,
+      [id, other],
+    );
+    await pool.query(`INSERT INTO job_events (job_id, from_status, to_status, reason) VALUES ($1, 'new', 'skipped', 'stack')`, [id]);
+
+    await renderJob(id);
+    const contacts = screen.getByRole('heading', { name: /^Contacts/ }).closest('section')!;
+    expect(within(contacts).getByText('Jane').closest('li')).toHaveTextContent('referral: asked');
+    expect(contacts).toHaveTextContent('You know someone at Acme Inc.');
+    expect(screen.getByText(/for a referral before applying/)).toHaveTextContent(
+      'Ask Sam for a referral before applying (you added them on Frontend Engineer).',
+    );
+    expect(screen.getByRole('heading', { name: 'History' }).closest('section')).toHaveTextContent('new → skipped · Stack');
   });
 
   it('shows only the draft form when there are no answers yet', async () => {
@@ -69,10 +113,13 @@ describe('job page', () => {
   });
 
   it('lists drafted answers with copy buttons, highlights ones needing input, and offers Clear all', async () => {
-    await insertJob({ id, form_answers: [
-      { question: 'Why us?', answer: 'Because of the product.', needs_input: false, note: '' },
-      { question: 'Expected salary?', answer: '[your expected salary]', needs_input: true, note: 'Add salary to applicant.json' },
-    ] });
+    await insertJob({
+      id,
+      form_answers: [
+        { question: 'Why us?', answer: 'Because of the product.', needs_input: false, note: '' },
+        { question: 'Expected salary?', answer: '[your expected salary]', needs_input: true, note: 'Add salary to applicant.json' },
+      ],
+    });
     await renderJob(id);
     const section = answersSection();
     const items = within(section).getAllByRole('listitem');
@@ -96,5 +143,55 @@ describe('job page', () => {
     await insertJob({ id: 'page:with/slash', title: 'Encoded' });
     await renderJob(PREFIX + 'page:with/slash');
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Encoded');
+  });
+
+  describe('background tasks', () => {
+    const addTask = (kind: string, status = 'running', error: string | null = null) =>
+      pool.query(`INSERT INTO tasks (kind, job_id, status, error, deadline) VALUES ($1, $2, $3, $4, now() + interval '5 minutes')`, [
+        kind,
+        id,
+        status,
+        error,
+      ]);
+    const statuses = () => screen.queryAllByRole('status').map((s) => s.textContent);
+
+    it('shows "Preparing CV + letter…" and "Drafting answers…" in place of the buttons while they run', async () => {
+      await insertJob({ id });
+      await addTask('prepare');
+      await addTask('answers', 'queued');
+      await renderJob(id);
+      expect(statuses()).toEqual(['Working… Preparing CV + letter · Drafting answers', 'Preparing CV + letter…', 'Drafting answers…']);
+      expect(screen.queryByRole('button', { name: 'Prepare CV + letter' })).not.toBeInTheDocument();
+      expect(within(answersSection()).queryByRole('button', { name: 'Draft answers' })).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'AI review' })).toBeInTheDocument();
+    });
+
+    it('shows "Rewriting letter…" for a prepared job', async () => {
+      await insertJob({ id, cv_version: 'default', cover_letter: 'Dear Acme' });
+      await addTask('prepare');
+      await renderJob(id);
+      expect(screen.queryByRole('button', { name: 'Rewrite letter' })).not.toBeInTheDocument();
+      expect(statuses()).toContain('Rewriting letter…');
+    });
+
+    it("shows the buttons again once the task is done, and only this job's tasks", async () => {
+      await insertJob({ id });
+      await insertJob({ id: 'page-other' });
+      await addTask('prepare', 'done');
+      await pool.query(`INSERT INTO tasks (kind, job_id) VALUES ('answers', $1), ('fetch', NULL)`, [PREFIX + 'page-other']);
+      await renderJob(id);
+      expect(statuses()).toEqual([]);
+      expect(screen.getByRole('button', { name: 'Prepare CV + letter' })).toBeInTheDocument();
+      expect(within(answersSection()).getByRole('button', { name: 'Draft answers' })).toBeInTheDocument();
+    });
+
+    it('shows a failure with its error and a dismiss button', async () => {
+      await insertJob({ id });
+      await addTask('answers', 'failed', 'Claude is offline');
+      await renderJob(id);
+      const alert = screen.getByRole('alert');
+      expect(alert).toHaveTextContent(/^Drafting answers failed\s*Claude is offline\s*Dismiss$/);
+      expect(within(answersSection()).getByRole('button', { name: 'Draft answers' })).toBeInTheDocument();
+    });
   });
 });

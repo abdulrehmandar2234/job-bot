@@ -10,12 +10,44 @@
   "summary": "Senior Full Stack Engineer with 7+ years of experience designing and building scalable, high-performance web applications across the MERN stack (Node.js, NestJS, React, Next.js, MongoDB) and PHP/Laravel. Currently building LLM-powered recruitment features (AI screening and AI interviews) at Qureos on NestJS and Next.js, with prior fintech experience delivering KYC, portfolio management, and compliance features for a regulated robo-advisory platform in Laravel. Strong record of developing RESTful and GraphQL APIs, optimizing database performance, leading code reviews, and mentoring engineers in agile teams.",
   "skills": [
     { "group": "Languages & Runtimes", "items": ["PHP", "JavaScript", "TypeScript", "Node.js"] },
-    { "group": "Frameworks & Libraries", "items": ["Laravel", "Nest.js", "Express.js", "React.js", "Next.js", "Redux", "Vue.js", "Livewire", "Filament", "Inertia.js", "Alpine.js", "Tailwind CSS", "jQuery"] },
+    {
+      "group": "Frameworks & Libraries",
+      "items": [
+        "Laravel",
+        "Nest.js",
+        "Express.js",
+        "React.js",
+        "Next.js",
+        "Redux",
+        "Vue.js",
+        "Livewire",
+        "Filament",
+        "Inertia.js",
+        "Alpine.js",
+        "Tailwind CSS",
+        "jQuery"
+      ]
+    },
     { "group": "Databases & ORMs", "items": ["MongoDB", "PostgreSQL", "MySQL", "Mongoose", "Sequelize", "TypeORM", "Prisma", "Eloquent"] },
     { "group": "APIs & Web", "items": ["REST APIs", "GraphQL", "OAuth", "JWT", "Passport.js", "Web Scraping"] },
-    { "group": "AI Tools & Agentic Development", "items": ["OpenAI GPT APIs", "LLM feature development", "AI Agents", "Agent Skills", "Prompt Engineering", "Plugins", "Cursor", "Claude"] },
+    {
+      "group": "AI Tools & Agentic Development",
+      "items": [
+        "OpenAI GPT APIs",
+        "LLM feature development",
+        "AI Agents",
+        "Agent Skills",
+        "Prompt Engineering",
+        "Plugins",
+        "Cursor",
+        "Claude"
+      ]
+    },
     { "group": "DevOps & Tools", "items": ["AWS", "Docker", "Git", "Bitbucket", "Jira"] },
-    { "group": "Testing & Practices", "items": ["Pest", "PHPUnit", "Jest", "Mocha", "Unit & Integration Testing", "Agile/Scrum", "Code Review", "CI/CD"] }
+    {
+      "group": "Testing & Practices",
+      "items": ["Pest", "PHPUnit", "Jest", "Mocha", "Unit & Integration Testing", "Agile/Scrum", "Code Review", "CI/CD"]
+    }
   ],
   "experience": [
     {
@@ -88,15 +120,49 @@
     }
   ],
   "projects": [
-    { "name": "Qureos", "url": "https://www.qureos.com/", "tags": ["ai", "nest", "next", "mern"], "text": "An AI-powered job search and recruitment platform that connects job seekers with companies through intelligent matching and streamlined hiring workflows. Offers AI-matched job recommendations, one-click applications, and interview preparation for candidates, alongside AI-driven candidate screening and ranking that helps recruiters shortlist and hire faster." },
-    { "name": "Abyan Robo Advisory", "url": "https://www.abyancapital.sa/", "tags": ["laravel", "fintech"], "text": "A robo-advisory platform that automates investing by analyzing individual risk profiles and financial goals to build and manage diversified portfolios. Features include automated portfolio management and rebalancing, personalized investment plans, streamlined onboarding, real-time portfolio tracking, and access to multiple asset classes including sukuks, real estate, and local and international equities." },
-    { "name": "Vettted", "url": "https://vettted.com/", "tags": ["marketplace"], "text": "A freelance marketplace connecting SEO experts with buyers. Freelancers sign up to sell their SEO services while the platform facilitates daily transactions and growth opportunities for both freelancers and clients." },
-    { "name": "Ticket Picker", "url": "https://ticketrescue.com/", "tags": ["integrations"], "text": "A ticket-management platform that addresses limitations of existing ticketing systems such as Skybox, helping organize, track, and manage event tickets and client details in one place. Integrates with Skybox and ManyChat for streamlined communication and personalized client interactions." },
-    { "name": "The Good Goal", "url": "https://www.thegoodgoalapp.com/", "tags": ["mobile-web"], "text": "A sustainability app that challenges users to reduce their environmental impact, surfacing weekly and cumulative “Good Goals” achieved so users can track progress over time." },
-    { "name": "Equipbid", "url": "https://equip-bid.com/", "tags": ["marketplace", "laravel", "mern"], "text": "An online auction marketplace serving Kansas, Missouri, and nationwide for buying and selling used equipment, machinery, vehicles, furniture, and more." }
+    {
+      "name": "Qureos",
+      "url": "https://www.qureos.com/",
+      "tags": ["ai", "nest", "next", "mern"],
+      "text": "An AI-powered job search and recruitment platform that connects job seekers with companies through intelligent matching and streamlined hiring workflows. Offers AI-matched job recommendations, one-click applications, and interview preparation for candidates, alongside AI-driven candidate screening and ranking that helps recruiters shortlist and hire faster."
+    },
+    {
+      "name": "Abyan Robo Advisory",
+      "url": "https://www.abyancapital.sa/",
+      "tags": ["laravel", "fintech"],
+      "text": "A robo-advisory platform that automates investing by analyzing individual risk profiles and financial goals to build and manage diversified portfolios. Features include automated portfolio management and rebalancing, personalized investment plans, streamlined onboarding, real-time portfolio tracking, and access to multiple asset classes including sukuks, real estate, and local and international equities."
+    },
+    {
+      "name": "Vettted",
+      "url": "https://vettted.com/",
+      "tags": ["marketplace"],
+      "text": "A freelance marketplace connecting SEO experts with buyers. Freelancers sign up to sell their SEO services while the platform facilitates daily transactions and growth opportunities for both freelancers and clients."
+    },
+    {
+      "name": "Ticket Picker",
+      "url": "https://ticketrescue.com/",
+      "tags": ["integrations"],
+      "text": "A ticket-management platform that addresses limitations of existing ticketing systems such as Skybox, helping organize, track, and manage event tickets and client details in one place. Integrates with Skybox and ManyChat for streamlined communication and personalized client interactions."
+    },
+    {
+      "name": "The Good Goal",
+      "url": "https://www.thegoodgoalapp.com/",
+      "tags": ["mobile-web"],
+      "text": "A sustainability app that challenges users to reduce their environmental impact, surfacing weekly and cumulative “Good Goals” achieved so users can track progress over time."
+    },
+    {
+      "name": "Equipbid",
+      "url": "https://equip-bid.com/",
+      "tags": ["marketplace", "laravel", "mern"],
+      "text": "An online auction marketplace serving Kansas, Missouri, and nationwide for buying and selling used equipment, machinery, vehicles, furniture, and more."
+    }
   ],
   "education": [
     { "school": "University of Management & Technology", "degree": "Masters, Artificial Intelligence", "dates": "Oct 2025 — Present" },
-    { "school": "National College of Business Administration and Economics", "degree": "Bachelors, Information Technology", "dates": "Jan 2017 — Dec 2021" }
+    {
+      "school": "National College of Business Administration and Economics",
+      "degree": "Bachelors, Information Technology",
+      "dates": "Jan 2017 — Dec 2021"
+    }
   ]
 }

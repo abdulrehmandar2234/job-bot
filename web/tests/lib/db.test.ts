@@ -25,6 +25,15 @@ describe('listJobs', () => {
     expect(row.company).toBe('Acme');
   });
 
+  it('selects closed_at, so a card can say the posting closed', async () => {
+    const closed = new Date('2026-10-20T10:00:00Z');
+    await insertJob({ id: 'c', status: 'applied', closed_at: closed });
+    await insertJob({ id: 'o', status: 'applied' });
+    const rows = await listJobs({ status: 'applied' });
+    expect(rows.find((r) => r.id === id('c'))!.closed_at).toEqual(closed);
+    expect(rows.find((r) => r.id === id('o'))!.closed_at).toBeNull();
+  });
+
   it('filters by country', async () => {
     await insertJob({ id: 'ae', country: 'AE' });
     await insertJob({ id: 'nl', country: 'NL' });
@@ -36,8 +45,7 @@ describe('listJobs', () => {
     await insertJob({ id: 'ai-low', score: 90, ai_score: 40 });
     await insertJob({ id: 'ai-high', score: 30, ai_score: 70 });
     await insertJob({ id: 'edge', score: 60 });
-    expect(ours(await listJobs({ status: 'new', min: 60 })).sort())
-      .toEqual([id('ai-high'), id('edge'), id('kw-high')]);
+    expect(ours(await listJobs({ status: 'new', min: 60 })).sort()).toEqual([id('ai-high'), id('edge'), id('kw-high')]);
   });
 
   it('searches company and title case-insensitively', async () => {
@@ -73,8 +81,13 @@ describe('listJobs', () => {
     await insertJob({ id: 'ai-85', score: 20, ai_score: 85 });
     await insertJob({ id: 'unrev-50-old', score: 50, posted_at: daysAgo(5) });
     await insertJob({ id: 'unrev-50-new', score: 50, posted_at: daysAgo(1) });
-    expect(ours(await listJobs({ status: 'new' })))
-      .toEqual([id('ai-85'), id('ai-60'), id('unrev-90'), id('unrev-50-new'), id('unrev-50-old')]);
+    expect(ours(await listJobs({ status: 'new' }))).toEqual([
+      id('ai-85'),
+      id('ai-60'),
+      id('unrev-90'),
+      id('unrev-50-new'),
+      id('unrev-50-old'),
+    ]);
   });
 
   it('sort=newest orders by post date, falling back to first seen', async () => {
@@ -142,11 +155,22 @@ describe('postingsFor', () => {
 
 describe('getJob', () => {
   it('returns the full row, including description and form answers', async () => {
-    await insertJob({ id: 'g', description: 'Full JD', cover_letter: 'Dear team', matched: ['php'],
-      form_answers: [{ question: 'Q?', answer: 'A', needs_input: false, note: '' }] });
+    await insertJob({
+      id: 'g',
+      description: 'Full JD',
+      cover_letter: 'Dear team',
+      matched: ['php'],
+      form_answers: [{ question: 'Q?', answer: 'A', needs_input: false, note: '' }],
+    });
     const job = await getJob(id('g'));
-    expect(job).toMatchObject({ id: id('g'), description: 'Full JD', cover_letter: 'Dear team', matched: ['php'],
-      form_answers: [{ question: 'Q?', answer: 'A', needs_input: false, note: '' }], cover_letter_ai: false });
+    expect(job).toMatchObject({
+      id: id('g'),
+      description: 'Full JD',
+      cover_letter: 'Dear team',
+      matched: ['php'],
+      form_answers: [{ question: 'Q?', answer: 'A', needs_input: false, note: '' }],
+      cover_letter_ai: false,
+    });
     expect(job!.first_seen_at).toBeInstanceOf(Date);
   });
 
@@ -156,16 +180,21 @@ describe('getJob', () => {
 });
 
 describe('jobEvents', () => {
-  it('returns a job\'s events, newest first', async () => {
+  it("returns a job's events, newest first", async () => {
     await insertJob({ id: 'e' });
     await insertJob({ id: 'other' });
-    await pool.query(`INSERT INTO job_events (job_id, at, from_status, to_status, note) VALUES
+    await pool.query(
+      `INSERT INTO job_events (job_id, at, from_status, to_status, note) VALUES
       ($1, now() - interval '2 days', 'new', 'prepared', null),
       ($1, now() - interval '1 day', 'prepared', 'applied', 'via site'),
-      ($2, now(), 'new', 'skipped', null)`, [id('e'), id('other')]);
+      ($2, now(), 'new', 'skipped', null)`,
+      [id('e'), id('other')],
+    );
     const events = await jobEvents(id('e'));
-    expect(events.map((e) => [e.from_status, e.to_status, e.note]))
-      .toEqual([['prepared', 'applied', 'via site'], ['new', 'prepared', null]]);
+    expect(events.map((e) => [e.from_status, e.to_status, e.note])).toEqual([
+      ['prepared', 'applied', 'via site'],
+      ['new', 'prepared', null],
+    ]);
   });
 
   it('is removed together with the job', async () => {

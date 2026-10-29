@@ -1,6 +1,6 @@
 # job-bot
 
-Local job-search helper: Node CLI bot (`src/`, TypeScript run directly by Node 24+) and a Next.js dashboard (`web/`), both on the local Postgres DB `job_bot`. See README.md for features, architecture and usage, and ROADMAP.md for improvement ideas.
+Local job-search helper: Node CLI bot (`src/`, TypeScript run directly by Node 24+) and a Next.js dashboard (`web/`), both on the local Postgres DB `job_bot`. See README.md for features, architecture and usage, and ROADMAP.md for what is done and what is still open.
 
 ## Rules
 
@@ -11,4 +11,5 @@ Local job-search helper: Node CLI bot (`src/`, TypeScript run directly by Node 2
   - Frontend: `web/tests/` (vitest), run with `npm run test:web` (database `job_bot_test`).
   - Tests must never touch the real `job_bot` database. Network calls are mocked (`mockFetch` in tests/helpers.ts), and Claude is replaced by `tests/fixtures/fake-claude.mjs` via `JOB_BOT_CLAUDE`.
 - Run one test file at a time while working (`node --test tests/x.test.ts` with the test DATABASE_URL, or `npx vitest run <file>` in web/), and avoid overlapping full runs.
+- Everything in the project is written in English: code, comments, UI text, docs (README, ROADMAP), commit messages and PR descriptions.
 - The CV may only be re-framed, never given skills or claims that are not in `cv/master.json` (tests/cv.test.ts checks this).

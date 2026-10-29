@@ -7,8 +7,12 @@ import { STATUSES } from '@/lib/db';
 const NOW = new Date('2026-10-29T12:00:00Z');
 const hoursAgo = (h: number) => new Date(NOW.getTime() - h * 3_600_000);
 
-beforeEach(() => { vi.useFakeTimers({ now: NOW, toFake: ['Date'] }); });
-afterEach(() => { vi.useRealTimers(); });
+beforeEach(() => {
+  vi.useFakeTimers({ now: NOW, toFake: ['Date'] });
+});
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 describe('labels', () => {
   it('has a label for every target country', () => {
@@ -39,7 +43,12 @@ describe('PostedOn', () => {
     expect(screen.getByText('Posted on:')).toBeInTheDocument();
     const links = screen.getAllByRole('link');
     expect(links.map((a) => a.textContent)).toEqual([
-      'LinkedIn ↗', 'Bayt ↗', 'Himalayas ↗', 'Remotive ↗', 'RemoteOK ↗', 'Added manually ↗',
+      'LinkedIn ↗',
+      'Bayt ↗',
+      'Himalayas ↗',
+      'Remotive ↗',
+      'RemoteOK ↗',
+      'Added manually ↗',
       ...ats.map(() => 'Company site ↗'),
     ]);
     links.forEach((a, i) => {
@@ -136,16 +145,26 @@ describe('Score', () => {
     expect(container.firstElementChild).toHaveClass('bg-zinc-400');
   });
 
-  it.each([[75, 'bg-emerald-600'], [74, 'bg-amber-500'], [55, 'bg-amber-500'], [54, 'bg-zinc-400']])(
-    'score %i is %s', (v, cls) => {
-      const { container } = render(<Score value={v} ai={null} />);
-      expect(container.firstElementChild).toHaveClass(cls);
-    });
+  it.each([
+    [75, 'bg-emerald-600'],
+    [74, 'bg-amber-500'],
+    [55, 'bg-amber-500'],
+    [54, 'bg-zinc-400'],
+  ])('score %i is %s', (v, cls) => {
+    const { container } = render(<Score value={v} ai={null} />);
+    expect(container.firstElementChild).toHaveClass(cls);
+  });
 });
 
 describe('AiReview', () => {
-  const base = { ai_score: 82, ai_verdict: 'strong', ai_summary: 'Good fit for the role',
-    ai_reasons: ['Laravel'], ai_gaps: ['Go'], ai_flags: ['Onsite only'] };
+  const base = {
+    ai_score: 82,
+    ai_verdict: 'strong',
+    ai_summary: 'Good fit for the role',
+    ai_reasons: ['Laravel'],
+    ai_gaps: ['Go'],
+    ai_flags: ['Onsite only'],
+  };
 
   it('renders nothing for a job without an AI score', () => {
     const { container } = render(<AiReview job={{ ...base, ai_score: null }} />);

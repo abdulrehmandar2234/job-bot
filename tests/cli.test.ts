@@ -1,9 +1,10 @@
 import { after, before, beforeEach, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
 import { daysAgo, TEST_DB } from './helpers.ts';
 import { getJob, migrate, pool } from '../src/db.ts';
@@ -11,23 +12,38 @@ import { path } from '../src/config.ts';
 
 // Runs the real CLI (same command as `npm run bot`) against the test database with a fake Claude.
 const FAKE = join(import.meta.dirname, 'fixtures', 'fake-claude.mjs');
+// prepare checks that the posting is still open; the fake fetch answers "open" without touching the network.
+const FAKE_FETCH = pathToFileURL(join(import.meta.dirname, 'fixtures', 'fake-fetch.mjs')).href;
 const tmp = mkdtempSync(join(tmpdir(), 'jobbot-cli-'));
 const run = promisify(execFile);
 
 async function bot(args: string[], env: Record<string, string> = {}, stdin?: string) {
   const p = run(process.execPath, ['--no-warnings', '--env-file-if-exists=.env', 'src/cli.ts', ...args], {
-    cwd: path(), env: { ...process.env, DATABASE_URL: TEST_DB, JOB_BOT_CLAUDE: FAKE, ...env }, timeout: 60_000,
+    cwd: path(),
+    env: { ...process.env, DATABASE_URL: TEST_DB, JOB_BOT_CLAUDE: FAKE, NODE_OPTIONS: `--import=${FAKE_FETCH}`, ...env },
+    timeout: 60_000,
   });
-  if (stdin !== undefined) { p.child.stdin!.end(stdin); }
+  if (stdin !== undefined) {
+    p.child.stdin!.end(stdin);
+  }
   return (await p).stdout;
 }
 
 const posting = (o: object = {}) => ({
-  source: 'bayt', company: 'Testco Cli', title: 'Senior Laravel Developer', location: 'Dubai, UAE',
-  url: 'https://www.bayt.com/en/uae/jobs/test-1/', description: 'Laravel, PHP, Vue.js, MySQL, REST APIs and Docker.',
-  posted_at: daysAgo(1), ...o,
+  source: 'bayt',
+  company: 'Testco Cli',
+  title: 'Senior Laravel Developer',
+  location: 'Dubai, UAE',
+  url: 'https://www.bayt.com/en/uae/jobs/test-1/',
+  description: 'Laravel, PHP, Vue.js, MySQL, REST APIs and Docker.',
+  posted_at: daysAgo(1),
+  ...o,
 });
-const addFile = (jobs: object[]) => { const f = join(tmp, `add-${Math.random()}.json`); writeFileSync(f, JSON.stringify(jobs)); return f; };
+const addFile = (jobs: object[]) => {
+  const f = join(tmp, `add-${Math.random()}.json`);
+  writeFileSync(f, JSON.stringify(jobs));
+  return f;
+};
 const idOf = (out: string) => out.match(/id: (\S+)/)![1];
 
 before(migrate);
@@ -41,6 +57,12 @@ describe('CLI', () => {
   it('uses the test database, not the real one from .env', async () => {
     const id = idOf(await bot(['add', '--file', addFile([posting()])]));
     assert.ok(await getJob(id));
+  });
+
+  it('points the HTTP cache outside the repo (tests/helpers.ts), so no test writes data/http-cache', () => {
+    const dir = process.env.JOB_BOT_HTTP_CACHE ?? '';
+    assert.ok(dir.startsWith(tmpdir()), dir);
+    assert.ok(!dir.startsWith(path()), dir);
   });
 
   it('add scores matching jobs and explains filtered ones', async () => {
@@ -109,7 +131,7 @@ describe('CLI', () => {
     const id = idOf(await bot(['add', '--file', addFile([posting()])]));
     const review = { score: 87, verdict: 'strong', summary: 'Apply', reasons: ['Laravel'], gaps: [], red_flags: ['Arabic plus'] };
     assert.match(await bot(['ai:score', '--id', id], { FAKE_CLAUDE_OUT: JSON.stringify(review) }), /87 strong/);
-    const j = await getJob(id) as unknown as Record<string, unknown>;
+    const j = (await getJob(id)) as unknown as Record<string, unknown>;
     assert.equal(j.ai_score, 87);
     assert.deepEqual(j.ai_flags, ['Arabic plus']);
     assert.match(await bot(['ai:score']), /Nothing to score/);
@@ -129,7 +151,10 @@ describe('CLI', () => {
 
     const again = [{ question: 'notice period', answer: '1 month', needs_input: false, note: '' }];
     await bot(['answer', id], { FAKE_CLAUDE_OUT: JSON.stringify({ answers: again }) }, 'Notice period');
-    assert.deepEqual((await getJob(id)).form_answers.map((a) => a.answer), ['about 7 years', '1 month']);
+    assert.deepEqual(
+      (await getJob(id)).form_answers.map((a) => a.answer),
+      ['about 7 years', '1 month'],
+    );
 
     assert.match(await bot(['answer', id, '--clear']), /Answers cleared/);
     assert.deepEqual((await getJob(id)).form_answers, []);
@@ -144,11 +169,113 @@ describe('CLI', () => {
   });
 
   it('groups duplicates after adding', async () => {
-    const out = await bot(['add', '--file', addFile([posting(), posting({ source: 'linkedin', url: 'https://www.linkedin.com/jobs/view/1/' })])]);
+    const out = await bot([
+      'add',
+      '--file',
+      addFile([posting(), posting({ source: 'linkedin', url: 'https://www.linkedin.com/jobs/view/1/' })]),
+    ]);
     assert.match(out, /1 duplicate postings grouped/);
   });
 
   it('prints help for unknown commands', async () => {
     assert.match(await bot(['nope']), /Commands:[\s\S]*answer <id>/);
+  });
+});
+
+// Exit code and output of a run that may fail.
+const botExit = (args: string[], env: Record<string, string> = {}) =>
+  bot(args, env).then(
+    (stdout) => ({ code: 0, stdout, stderr: '' }),
+    (e: { code: number; stdout: string; stderr: string }) => ({ code: e.code, stdout: e.stdout, stderr: e.stderr }),
+  );
+
+describe('CLI settings', () => {
+  // Never the worktree's own config.json / cv/applicant.json: JOB_BOT_CONFIG / JOB_BOT_APPLICANT point at temp copies.
+  const realConfig = readFileSync(path('config.json'), 'utf8');
+  const target = () => {
+    const d = mkdtempSync(join(tmp, 'settings-'));
+    const config = join(d, 'config.json');
+    writeFileSync(config, realConfig);
+    return { config, applicant: join(d, 'applicant.json'), env: { JOB_BOT_CONFIG: config, JOB_BOT_APPLICANT: join(d, 'applicant.json') } };
+  };
+  const json = (o: unknown) => {
+    const f = join(tmp, `in-${Math.random()}.json`);
+    writeFileSync(f, JSON.stringify(o));
+    return f;
+  };
+  const badConfig = () => ({ ...JSON.parse(realConfig), maxAgeDays: 'two weeks' });
+
+  it('settings:check prints {ok:true} for a valid file and errors with paths for a bad one', async () => {
+    const t = target();
+    const ok = await botExit(['settings:check', '--kind', 'config', '--file', t.config], t.env);
+    assert.deepEqual([ok.code, JSON.parse(ok.stdout)], [0, { ok: true }]);
+    const bad = await botExit(['settings:check', '--kind', 'config', '--file', json(badConfig())], t.env);
+    assert.equal(bad.code, 1);
+    assert.deepEqual(JSON.parse(bad.stdout), {
+      ok: false,
+      errors: [{ path: 'maxAgeDays', message: 'Invalid input: expected number, received string' }],
+    });
+    const example = await botExit(['settings:check', '--kind', 'applicant', '--file', path('cv', 'applicant.example.json')], t.env);
+    assert.deepEqual(JSON.parse(example.stdout), { ok: true });
+  });
+
+  it('settings:check reports bad --kind, missing files and invalid JSON as JSON errors', async () => {
+    const t = target();
+    const kind = await botExit(['settings:check', '--kind', 'cv', '--file', t.config], t.env);
+    assert.deepEqual([kind.code, JSON.parse(kind.stdout).errors[0].path], [1, '--kind']);
+    const missing = await botExit(['settings:check', '--kind', 'config', '--file', join(tmp, 'nope.json')], t.env);
+    assert.deepEqual([missing.code, JSON.parse(missing.stdout).errors[0].path], [1, '--file']);
+    const f = join(tmp, 'broken.json');
+    writeFileSync(f, '{ "minScore": ');
+    const broken = await botExit(['settings:check', '--kind', 'config', '--file', f], t.env);
+    assert.equal(broken.code, 1);
+    assert.match(JSON.parse(broken.stdout).errors[0].message, /^invalid JSON/);
+  });
+
+  it('settings:save replaces the target only when valid', async () => {
+    const t = target();
+    const changed = { ...JSON.parse(realConfig), minScore: 61 };
+    const saved = await botExit(['settings:save', '--kind', 'config', '--file', json(changed)], t.env);
+    assert.deepEqual([saved.code, JSON.parse(saved.stdout)], [0, { ok: true }]);
+    assert.equal(readFileSync(t.config, 'utf8'), JSON.stringify(changed, null, 2) + '\n');
+
+    const refused = await botExit(['settings:save', '--kind', 'config', '--file', json(badConfig())], t.env);
+    assert.equal(refused.code, 1);
+    assert.equal(JSON.parse(readFileSync(t.config, 'utf8')).minScore, 61);
+    assert.deepEqual(readdirSync(dirname(t.config)), ['config.json']); // no temp file left behind
+  });
+
+  it('settings:save --kind applicant writes the applicant file, from stdin too', async () => {
+    const t = target();
+    const facts = { noticePeriod: '1 month', expectedSalary: { AE: 'AED 25,000' } };
+    const p = run(process.execPath, ['--no-warnings', 'src/cli.ts', 'settings:save', '--kind', 'applicant'], {
+      cwd: path(),
+      env: { ...process.env, ...t.env },
+    });
+    p.child.stdin!.end(JSON.stringify(facts));
+    assert.deepEqual(JSON.parse((await p).stdout), { ok: true });
+    assert.deepEqual(JSON.parse(readFileSync(t.applicant, 'utf8')), facts);
+  });
+
+  it('an invalid config.json stops other commands with the file and field, but settings commands still work', async () => {
+    const t = target();
+    writeFileSync(t.config, JSON.stringify(badConfig()));
+    const list = await botExit(['list'], t.env);
+    assert.equal(list.code, 1);
+    assert.ok(list.stderr.includes(`Invalid settings file ${t.config}:\n  - maxAgeDays: Invalid input: expected number`));
+    const fixed = await botExit(['settings:save', '--kind', 'config', '--file', json(JSON.parse(realConfig))], t.env);
+    assert.deepEqual(JSON.parse(fixed.stdout), { ok: true });
+    assert.equal((await botExit(['list'], t.env)).code, 0);
+  });
+
+  it('answer refuses an invalid applicant file with a clear message', async () => {
+    const t = target();
+    writeFileSync(t.applicant, JSON.stringify({ noticePeriod: ['1 month'] }));
+    const id = idOf(await bot(['add', '--file', addFile([posting()])]));
+    const q = join(tmp, 'q-applicant.txt');
+    writeFileSync(q, 'Notice period?');
+    const out = await botExit(['answer', id, '--file', q], { ...t.env, FAKE_CLAUDE_OUT: JSON.stringify({ answers: [] }) });
+    assert.equal(out.code, 1);
+    assert.match(out.stderr, /Invalid settings file .*applicant\.json:\n {2}- noticePeriod: /);
   });
 });

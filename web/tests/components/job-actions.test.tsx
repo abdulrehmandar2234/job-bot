@@ -8,11 +8,39 @@ import type { Job, Status } from '@/lib/db';
 vi.mock('@/app/actions', () => ({ setStatus: vi.fn(), prepare: vi.fn(), aiReview: vi.fn() }));
 
 const job = (over: Partial<Job> = {}): Job => ({
-  id: 'greenhouse:acme:1', source: 'greenhouse', company: 'Acme', title: 'Engineer', location: 'Dubai', country: 'AE',
-  url: 'https://boards.greenhouse.io/acme/1', description: '', posted_at: null, first_seen_at: new Date(), score: 60,
-  cluster: null, matched: [], missing: [], visa: null, flags: [], status: 'new', filter_reason: null, cv_version: null,
-  cover_letter: null, applied_at: null, notes: null, ai_score: null, ai_verdict: null, ai_summary: null,
-  ai_reasons: null, ai_gaps: null, ai_flags: null, ...over,
+  id: 'greenhouse:acme:1',
+  source: 'greenhouse',
+  company: 'Acme',
+  title: 'Engineer',
+  location: 'Dubai',
+  country: 'AE',
+  url: 'https://boards.greenhouse.io/acme/1',
+  description: '',
+  posted_at: null,
+  first_seen_at: new Date(),
+  score: 60,
+  cluster: null,
+  matched: [],
+  missing: [],
+  visa: null,
+  flags: [],
+  status: 'new',
+  filter_reason: null,
+  cv_version: null,
+  cover_letter: null,
+  applied_at: null,
+  notes: null,
+  ai_score: null,
+  ai_verdict: null,
+  ai_summary: null,
+  ai_reasons: null,
+  ai_gaps: null,
+  ai_flags: null,
+  salary_min: null,
+  salary_max: null,
+  salary_currency: null,
+  salary_period: null,
+  ...over,
 });
 
 const buttons = () => screen.queryAllByRole('button').map((b) => b.textContent);
@@ -61,14 +89,48 @@ describe('JobActions', () => {
   it('says "Prepare anyway" for a filtered job and offers no status moves', () => {
     render(<JobActions job={job({ status: 'filtered' })} />);
     expect(buttons()).toEqual(['Prepare anyway', 'AI review']);
+    expect(screen.getByRole('button', { name: 'Prepare anyway' }).closest('form')!.querySelector('input[name="force"]')).toBeNull();
+  });
+
+  it('offers "Prepare anyway" (forced past the open check) and "Move to matching" for an expired job', () => {
+    render(<JobActions job={job({ status: 'expired', ai_score: 70 })} />);
+    expect(buttons()).toEqual(['Prepare anyway', 'Move to matching']);
+    const form = screen.getByRole('button', { name: 'Prepare anyway' }).closest('form')!;
+    expect(form.querySelector('input[name="force"]')).toHaveValue('true');
+    expect(targetOf('Move to matching')).toBe('new');
   });
 
   it.each<[Status, [string, string][]]>([
-    ['new', [['Mark applied ✓', 'applied'], ['Skip', 'skipped']]],
-    ['prepared', [['Mark applied ✓', 'applied'], ['Skip', 'skipped']]],
-    ['applied', [['Got interview', 'interview'], ['Rejected', 'rejected']]],
-    ['interview', [['Offer 🎉', 'offer'], ['Rejected', 'rejected']]],
+    [
+      'new',
+      [
+        ['Mark applied ✓', 'applied'],
+        ['Skip', 'skipped'],
+      ],
+    ],
+    [
+      'prepared',
+      [
+        ['Mark applied ✓', 'applied'],
+        ['Skip', 'skipped'],
+      ],
+    ],
+    [
+      'applied',
+      [
+        ['Got interview', 'interview'],
+        ['Rejected', 'rejected'],
+      ],
+    ],
+    [
+      'interview',
+      [
+        ['Offer 🎉', 'offer'],
+        ['Rejected', 'rejected'],
+      ],
+    ],
     ['skipped', [['Move to matching', 'new']]],
+    ['expired', [['Move to matching', 'new']]],
     ['offer', []],
     ['rejected', []],
   ])('status %s offers the right moves', (status, moves) => {

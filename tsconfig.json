@@ -1,0 +1,17 @@
+{
+  // Type-check only: Node runs src/ and tests/ directly (type stripping), so nothing is emitted.
+  // The dashboard has its own web/tsconfig.json; `npm run typecheck` checks both.
+  "compilerOptions": {
+    "target": "esnext",
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "types": ["node"],
+    "strict": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "erasableSyntaxOnly": true,
+    "skipLibCheck": true,
+    "allowJs": true // tests import the extension's plain-JS helpers (types inferred, not checked)
+  },
+  "include": ["src/**/*.ts", "tests/**/*.ts"]
+}

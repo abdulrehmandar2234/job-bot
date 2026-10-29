@@ -7,6 +7,7 @@ web/.next/
 # Secrets and local settings
 .env
 .env.*
+!.env.example
 web/.env*.local
 
 # Personal data that stays on this Mac

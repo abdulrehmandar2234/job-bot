@@ -1,7 +1,8 @@
 import { spawn } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
-import { config, path } from './config.ts';
-import type { Job } from './db.ts';
+import { existsSync } from 'node:fs';
+import { config } from './config.ts';
+import { APPLICANT_EXAMPLE_FILE, APPLICANT_FILE, loadSettings } from './settings.ts';
+import type { FormAnswer, InterviewPrep, Job } from './types.ts';
 import { masterRaw } from './cv/versions.ts';
 import type { Cv } from './cv/render.ts';
 
@@ -13,16 +14,39 @@ const claudePath = () => process.env.JOB_BOT_CLAUDE || config.ai.claudePath;
 
 export function askClaude<T>(prompt: string, schema: object, model: string, system: string): Promise<T> {
   return new Promise((resolve, reject) => {
-    const child = spawn(claudePath(), [
-      '-p', '--model', model, '--output-format', 'json', '--json-schema', JSON.stringify(schema),
-      '--system-prompt', system, '--tools', '', '--strict-mcp-config', '--setting-sources', '', '--no-session-persistence',
-    ], { stdio: ['pipe', 'pipe', 'pipe'] });
+    const child = spawn(
+      claudePath(),
+      [
+        '-p',
+        '--model',
+        model,
+        '--output-format',
+        'json',
+        '--json-schema',
+        JSON.stringify(schema),
+        '--system-prompt',
+        system,
+        '--tools',
+        '',
+        '--strict-mcp-config',
+        '--setting-sources',
+        '',
+        '--no-session-persistence',
+      ],
+      { stdio: ['pipe', 'pipe', 'pipe'] },
+    );
     let out = '';
     let err = '';
-    const timer = setTimeout(() => { child.kill(); reject(new Error('claude timed out')); }, 180_000);
+    const timer = setTimeout(() => {
+      child.kill();
+      reject(new Error('claude timed out'));
+    }, 180_000);
     child.stdout.on('data', (d) => (out += d));
     child.stderr.on('data', (d) => (err += d));
-    child.on('error', (e) => { clearTimeout(timer); reject(e); });
+    child.on('error', (e) => {
+      clearTimeout(timer);
+      reject(e);
+    });
     child.on('close', (code) => {
       clearTimeout(timer);
       try {
@@ -50,12 +74,13 @@ export function cvText(): string {
   ].join('\n');
 }
 
-const jobText = (job: Job) => [
-  `TITLE: ${job.title}`,
-  `COMPANY: ${job.company}`,
-  `LOCATION: ${job.location}${job.country === 'RM' ? ' (remote; candidate would work from Pakistan)' : ''}`,
-  `DESCRIPTION:\n${job.description.slice(0, 12_000)}`,
-].join('\n');
+const jobText = (job: Job) =>
+  [
+    `TITLE: ${job.title}`,
+    `COMPANY: ${job.company}`,
+    `LOCATION: ${job.location}${job.country === 'RM' ? ' (remote; candidate would work from Pakistan)' : ''}`,
+    `DESCRIPTION:\n${job.description.slice(0, 12_000)}`,
+  ].join('\n');
 
 export type AiScore = {
   score: number;
@@ -89,8 +114,6 @@ Score: 85+ strong fit, 70-84 good, 50-69 stretch, below 50 poor. Keep every stri
   return askClaude<AiScore>(`CANDIDATE CV:\n${cvText()}\n\nJOB:\n${jobText(job)}`, SCORE_SCHEMA, config.ai.scoreModel, system);
 }
 
-export type FormAnswer = { question: string; answer: string; needs_input: boolean; note: string };
-
 const ANSWERS_SCHEMA = {
   type: 'object',
   properties: {
@@ -113,11 +136,11 @@ const ANSWERS_SCHEMA = {
 
 /**
  * Personal facts for forms that the CV lacks (salary, notice period...): cv/applicant.json, kept out of git.
- * Falls back to cv/applicant.example.json (all unknown). Nulls are unknown.
+ * Falls back to cv/applicant.example.json (all unknown). Nulls are unknown. Throws if the file is invalid.
  */
 export function applicantFacts(): string {
-  const file = existsSync(path('cv', 'applicant.json')) ? path('cv', 'applicant.json') : path('cv', 'applicant.example.json');
-  const facts = JSON.parse(readFileSync(file, 'utf8'));
+  const file = existsSync(APPLICANT_FILE) ? APPLICANT_FILE : APPLICANT_EXAMPLE_FILE;
+  const facts = { ...loadSettings('applicant', file) };
   delete facts._help;
   return JSON.stringify(facts, null, 1);
 }
@@ -137,12 +160,17 @@ Rules:
 - Years of experience: count from the CV dates; say "about N years" if unsure.
 - Free-text questions ("why this company", "describe a project"): 60-150 words, specific to this job and company, first
   person, plain text, no clichés. Link the job's requirements to concrete CV experience.
-- ${remote
-    ? 'Remote role: he works from Lahore, Pakistan (GMT+5).'
-    : 'Onsite role: he is in Lahore, Pakistan, would relocate, and needs employer visa sponsorship (answer sponsorship/right-to-work questions truthfully).'}`;
+- ${
+    remote
+      ? 'Remote role: he works from Lahore, Pakistan (GMT+5).'
+      : 'Onsite role: he is in Lahore, Pakistan, would relocate, and needs employer visa sponsorship (answer sponsorship/right-to-work questions truthfully).'
+  }`;
   const res = await askClaude<{ answers: FormAnswer[] }>(
     `CV:\n${cvText()}\n\nAPPLICANT FACTS (null = unknown):\n${applicantFacts()}\n\nJOB:\n${jobText(job)}\n\nFORM QUESTIONS:\n${questions.slice(0, 8000)}`,
-    ANSWERS_SCHEMA, config.ai.letterModel, system);
+    ANSWERS_SCHEMA,
+    config.ai.letterModel,
+    system,
+  );
   return res.answers;
 }
 
@@ -160,11 +188,86 @@ Best regards,
 Abdul Rehman Dar
 +92 321 4979646 | abdulrehmandar2234@gmail.com
 https://www.linkedin.com/in/abdulrehman-dar/
-- ${remote
-    ? 'This is a remote role: say he is based in Lahore, Pakistan (GMT+5) and has worked remotely with international clients and distributed teams.'
-    : 'This is an onsite role: say he is based in Lahore, Pakistan, ready to relocate, and would need employer visa sponsorship.'}
+- ${
+    remote
+      ? 'This is a remote role: say he is based in Lahore, Pakistan (GMT+5) and has worked remotely with international clients and distributed teams.'
+      : 'This is an onsite role: say he is based in Lahore, Pakistan, ready to relocate, and would need employer visa sponsorship.'
+  }
 - Confident and specific, no clichés like "I am writing to express my interest".`;
-  const res = await askClaude<{ letter: string }>(`CV:\n${cvText()}\n\nJOB:\n${jobText(job)}`,
-    { type: 'object', properties: { letter: { type: 'string' } }, required: ['letter'] }, config.ai.letterModel, system);
+  const res = await askClaude<{ letter: string }>(
+    `CV:\n${cvText()}\n\nJOB:\n${jobText(job)}`,
+    { type: 'object', properties: { letter: { type: 'string' } }, required: ['letter'] },
+    config.ai.letterModel,
+    system,
+  );
   return res.letter.trim() + '\n';
+}
+
+const str = { type: 'string' };
+const PREP_SCHEMA = {
+  type: 'object',
+  properties: {
+    technical: {
+      type: 'array',
+      minItems: 4,
+      maxItems: 8,
+      items: {
+        type: 'object',
+        properties: { question: str, hint: { type: 'string', description: 'What to emphasise from the CV.' } },
+        required: ['question', 'hint'],
+      },
+    },
+    behavioural: {
+      type: 'array',
+      minItems: 3,
+      maxItems: 6,
+      items: {
+        type: 'object',
+        properties: { question: str, situation: str, task: str, action: str, result: str },
+        required: ['question', 'situation', 'task', 'action', 'result'],
+      },
+    },
+    company: {
+      type: 'object',
+      properties: {
+        brief: { type: 'string', description: 'What the posting itself says about the company, product and team.' },
+        verify: { type: 'array', items: str, description: 'Points to verify before the interview.' },
+      },
+      required: ['brief', 'verify'],
+    },
+    questions_to_ask: { type: 'array', minItems: 3, maxItems: 8, items: str },
+    requirements: {
+      type: 'array',
+      maxItems: 12,
+      items: {
+        type: 'object',
+        properties: {
+          requirement: str,
+          evidence: { type: 'string', description: 'Matching CV experience, or what is missing when gap is true.' },
+          gap: { type: 'boolean' },
+        },
+        required: ['requirement', 'evidence', 'gap'],
+      },
+    },
+  },
+  required: ['technical', 'behavioural', 'company', 'questions_to_ask', 'requirements'],
+};
+
+/** Interview prep for one job: likely questions, STAR stories, a company brief and a requirement map. */
+export function aiInterviewPrep(job: Job): Promise<InterviewPrep> {
+  const system = `You help one candidate prepare for a job interview. Rules:
+- Use ONLY facts in the CV. Never invent employers, projects, numbers, skills, certifications or years. Never claim a skill
+  or experience the CV does not show; if the job asks for it, mark that requirement as a gap and say so honestly.
+- technical: questions this interviewer is likely to ask for this job's stack and level; each hint says which concrete CV
+  experience to emphasise (or, for a gap, how to answer honestly).
+- behavioural: common behavioural questions, each with a STAR story (situation, task, action, result) built only from CV
+  facts. Never make up outcomes or numbers the CV does not state.
+- company: you have NO web access and no research. Write the brief ONLY from the job description and the company name:
+  product, team, stack and what they emphasise. Do not add facts about the company from memory (size, funding, founders,
+  customers, news). Put anything you are unsure of, or that the candidate should check, in verify as "Verify before
+  interview: ...".
+- questions_to_ask: thoughtful questions the candidate can ask them, specific to this posting.
+- requirements: the job's key requirements, each mapped to CV evidence, or gap true with what is missing.
+- Plain text in every string, no markdown, concise.`;
+  return askClaude<InterviewPrep>(`CV:\n${cvText()}\n\nJOB:\n${jobText(job)}`, PREP_SCHEMA, config.ai.letterModel, system);
 }
