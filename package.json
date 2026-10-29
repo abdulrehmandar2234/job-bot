@@ -17,6 +17,12 @@
   },
   "dependencies": {
     "pg": "^8.23.1",
-    "playwright-core": "^1.64.1"
+    "playwright-core": "^1.64.1",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "@types/pg": "^8.23.1",
+    "typescript": "~5.9"
   }
 }
