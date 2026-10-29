@@ -27,18 +27,23 @@ export function SubmitButton({ children, pendingText, className = '' }:
 }
 
 export function CopyButton({ text, label = 'Copy' }: { text: string; label?: string }) {
-  const [done, setDone] = useState(false);
+  const [result, setResult] = useState<'copied' | 'failed' | null>(null);
   return (
     <button
       type="button"
       className="btn"
       onClick={async () => {
-        await navigator.clipboard.writeText(text);
-        setDone(true);
-        setTimeout(() => setDone(false), 1500);
+        // The clipboard API is missing on plain http (non-localhost) and rejects when the page is not focused.
+        try {
+          await navigator.clipboard.writeText(text);
+          setResult('copied');
+        } catch {
+          setResult('failed');
+        }
+        setTimeout(() => setResult(null), 1500);
       }}
     >
-      {done ? 'Copied ✓' : label}
+      {result === 'copied' ? 'Copied ✓' : result === 'failed' ? 'Copy failed' : label}
     </button>
   );
 }
