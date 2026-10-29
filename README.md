@@ -18,12 +18,22 @@ Design principles:
 
 ### Job discovery
 
-- **Company career boards** (about 50 companies in `config.json` → `companies`) via the public APIs of Greenhouse, Lever, Ashby, Recruitee, Workable and SmartRecruiters.
+- **Company career boards** (about 50 companies in `config.json` → `companies`) via the public APIs of Greenhouse, Lever, Ashby, Recruitee, Workable, SmartRecruiters and Workday.
 - **Remote job boards:** Himalayas (only jobs open to Pakistan), Remotive and RemoteOK.
+- **Workday career sites** (`*.myworkdayjobs.com`, used by many large UAE/Saudi employers): add a company with `"ats": "workday"` and `"token": "<tenant>/<wdN>/<site>"`, e.g. `acme/wd3/AcmeCareers` for `https://acme.wd3.myworkdayjobs.com/en-US/AcmeCareers`. Or pass that full URL to `bot discover`. Listings come from Workday's public JSON search (at most 500 per company); descriptions are only loaded for postings whose title, location (target country, remote or "N Locations") and age could pass the filters, at most 40 per company.
+- **Arbeitnow** (free public API, mostly Germany): only Netherlands and remote postings are kept. On by default (`remote.boards`).
+- **Adzuna** (official API, Netherlands index; Adzuna has no UAE or Saudi index): searches the LinkedIn keywords (or `adzuna.keywords`) in `adzuna.countries`, `adzuna.pagesPerSearch` pages of 50 each. It needs a free key you register yourself at developer.adzuna.com; put it in `.env` (see `.env.example`):
+
+  ```
+  ADZUNA_APP_ID=...
+  ADZUNA_APP_KEY=...
+  ```
+
+  Without them Adzuna is skipped with one log line. Adzuna only returns a snippet of each description, so its keyword scores see less text.
 - **LinkedIn** guest job search (no login, your account is never used). It covers onsite jobs in AE/SA/NL and remote jobs open to Pakistan. Requests are 1.2 s apart, and LinkedIn is skipped for the day on a 429.
 - **Bayt** via a browser bookmarklet (`scripts/bayt-collect.js`), because Bayt blocks direct requests. You click it on bayt.com and it sends jobs to the dashboard's `/api/import`.
 - **Manual add** of any job as JSON (`bot add`), e.g. from GulfTalent or a referral.
-- **Company discovery** (`bot discover <names> --add`) tries a company name on all six ATS platforms and adds it to the config if it has jobs in your target countries.
+- **Company discovery** (`bot discover <names> --add`) tries a company name on the six ATS platforms that work by name (a full myworkdayjobs.com URL tries Workday) and adds it to the config if it has jobs in your target countries.
 - **Daily automatic fetch** at 9:00 through a macOS launchd job, followed by AI review of new matches and a macOS notification.
 
 ### Filtering and scoring
