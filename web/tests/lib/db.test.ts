@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { getJob, jobEvents, lastRun, listJobs, pool, postingsFor, statusCounts, weekStats } from '@/lib/db';
+import { countJobs, getJob, jobEvents, lastRun, listJobs, PAGE_SIZE, pool, postingsFor, statusCounts, weekStats } from '@/lib/db';
 import { cleanupDb, closeDb, daysAgo, ensureSchema, insertFetchRun, insertJob, ours, PREFIX } from '../helpers/db';
 
 beforeAll(ensureSchema);
@@ -7,6 +7,26 @@ beforeEach(cleanupDb);
 afterAll(closeDb);
 
 const id = (s: string) => PREFIX + s;
+
+describe('listJobs paging and countJobs', () => {
+  it('returns one page at a time in a stable order, and counts every match', async () => {
+    const q = 'pagingtest';
+    for (let i = 0; i < 7; i++) await insertJob({ id: `page-${i}`, title: `TG ${q} ${i}`, status: 'new', score: 60 });
+    const f = { status: 'new' as const, q };
+    expect(await countJobs(f)).toBe(7);
+    const p1 = await listJobs(f, 1, 3);
+    const p2 = await listJobs(f, 2, 3);
+    const p3 = await listJobs(f, 3, 3);
+    expect([p1.length, p2.length, p3.length]).toEqual([3, 3, 1]);
+    // Same score, so the id breaks the tie: no job shows on two pages.
+    expect(new Set([...p1, ...p2, ...p3].map((r) => r.id)).size).toBe(7);
+    expect(await listJobs(f, 4, 3)).toEqual([]);
+    expect((await listJobs(f, 0, 3)).map((r) => r.id)).toEqual(p1.map((r) => r.id)); // bad page numbers mean page 1
+    expect(await countJobs({ ...f, q: 'nothing-matches-this' })).toBe(0);
+    expect(PAGE_SIZE).toBe(25);
+    expect(await listJobs(f)).toHaveLength(7); // default page size
+  });
+});
 
 describe('listJobs', () => {
   it('returns jobs of one status and hides duplicates', async () => {
