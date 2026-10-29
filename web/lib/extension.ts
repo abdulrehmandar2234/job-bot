@@ -1,10 +1,14 @@
 import { type Job, pool } from '@/lib/db';
 
-// The job-bot Chrome extension (extension/ in the repo). Web pages cannot forge the Origin header,
-// so a chrome-extension:// origin proves the request came from an extension the user installed.
-const EXTENSION_ORIGIN = /^chrome-extension:\/\/[a-p]{32}$/;
+// The job-bot Chrome extension (extension/ in the repo). Web pages cannot forge the Origin header, and the
+// manifest's public "key" pins the extension id, so only this extension (not any other one the user installed)
+// may add jobs or read cover letters and answers. JOB_BOT_EXTENSION_ID (web/.env.local) overrides it after a key change.
+export const EXTENSION_ID = 'fmkmpckdcfhibobdiffankccildkcnij';
 
-export const isExtensionOrigin = (origin: string | null): origin is string => !!origin && EXTENSION_ORIGIN.test(origin);
+const extensionId = () => process.env.JOB_BOT_EXTENSION_ID?.trim() || EXTENSION_ID;
+
+export const isExtensionOrigin = (origin: string | null): origin is string =>
+  /^[a-p]{32}$/.test(extensionId()) && origin === `chrome-extension://${extensionId()}`;
 
 export function isHttpUrl(url: unknown): url is string {
   if (typeof url !== 'string') return false;

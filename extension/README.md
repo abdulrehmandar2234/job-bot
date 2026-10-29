@@ -31,7 +31,15 @@ If the dashboard is not running, the popup and the side panel say so; start it a
 
 ## How the dashboard trusts it
 
-`/api/import` and `/api/jobs/lookup` accept requests whose `Origin` is a `chrome-extension://` id. Web pages cannot forge the `Origin` header, so other sites cannot add jobs or read your letters. The extension deliberately has no host permission for `localhost:3100`: with one, Chrome leaves out `Origin` on GET requests, and the lookup route would refuse them.
+`/api/import` and `/api/jobs/lookup` accept only requests whose `Origin` is this extension: `chrome-extension://fmkmpckdcfhibobdiffankccildkcnij`. Web pages cannot forge the `Origin` header, so other sites cannot add jobs or read your letters. Other extensions you have installed are refused too.
+
+The id is pinned by the public key in `manifest.json` (`"key"`): Chrome derives an unpacked extension's id from it, so every install gets the same id. The private key is not needed for loading unpacked and is not stored anywhere. If you replace the key, compute the new id (sha256 of the decoded key, first 32 hex digits mapped `0-f` → `a-p`, or read it on the extension's card in `chrome://extensions`) and set it for the dashboard in `web/.env.local`:
+
+```
+JOB_BOT_EXTENSION_ID=<new id>
+```
+
+Then restart the dashboard. The extension deliberately has no host permission for `localhost:3100`: with one, Chrome leaves out `Origin` on GET requests, and the lookup route would refuse them.
 
 Permissions: `activeTab` + `scripting` (read the tab you clicked the button on), `tabs` (the side panel needs the active tab's url), `sidePanel`, `clipboardWrite` (Copy buttons). Reading pages from the side panel uses optional per-site permissions that Chrome asks you for.
 

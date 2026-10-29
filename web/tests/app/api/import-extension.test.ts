@@ -1,8 +1,11 @@
+import { createHash } from 'node:crypto';
 import { readFileSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
 import { NextRequest } from 'next/server';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { OPTIONS, POST } from '@/app/api/import/route';
 import { BOT_ROOT, runBot } from '@/lib/bot';
+import { EXTENSION_ID } from '@/lib/extension';
 import { cleanupDb, closeDb, ensureSchema, insertJob, PREFIX } from '../../helpers/db';
 
 // Never spawn the bot; import files go to a temp "bot root". `bot add` is played by insertJob below.
@@ -18,7 +21,8 @@ vi.mock('@/lib/bot', async (importOriginal) => {
 });
 
 const bot = vi.mocked(runBot);
-const EXT = 'chrome-extension://abcdefghijklmnopabcdefghijklmnop';
+const EXT = `chrome-extension://${EXTENSION_ID}`;
+const OTHER = 'chrome-extension://abcdefghijklmnopabcdefghijklmnop';
 const SITE = 'https://careers.extension-test.example';
 
 const post = (body: unknown, origin: string | null = EXT) => POST(new NextRequest('http://localhost:3100/api/import', {
@@ -56,12 +60,38 @@ afterAll(async () => {
 });
 
 describe('POST /api/import from the Chrome extension', () => {
-  it('allows the extension origin in the CORS preflight', async () => {
-    const res = await OPTIONS(new NextRequest('http://localhost:3100/api/import', { method: 'OPTIONS', headers: { origin: EXT } }));
-    expect(res.headers.get('access-control-allow-origin')).toBe(EXT);
+  it('allows only the pinned extension in the CORS preflight', async () => {
+    const preflight = (origin: string) => OPTIONS(new NextRequest('http://localhost:3100/api/import', { method: 'OPTIONS', headers: { origin } }));
+    expect((await preflight(EXT)).headers.get('access-control-allow-origin')).toBe(EXT);
+    expect((await preflight(OTHER)).headers.get('access-control-allow-origin')).toBe('null');
   });
 
-  it.each(['chrome-extension://short', 'chrome-extension://abcdefghijklmnopabcdefghijklmnoz', 'moz-extension://abcdefghijklmnopabcdefghijklmnop',
+  it('accepts another id set in JOB_BOT_EXTENSION_ID instead of the pinned one', async () => {
+    vi.stubEnv('JOB_BOT_EXTENSION_ID', 'abcdefghijklmnopabcdefghijklmnop');
+    try {
+      expect((await post([job()], OTHER)).status).toBe(200);
+      expect((await post([job({ url: `${SITE}/jobs/2` })], EXT)).status).toBe(403);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it('ignores a JOB_BOT_EXTENSION_ID that is not an extension id', async () => {
+    vi.stubEnv('JOB_BOT_EXTENSION_ID', '*');
+    try {
+      expect((await post([job()], 'chrome-extension://*')).status).toBe(403);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it('pins the id that the public key in extension/manifest.json produces', () => {
+    const { key } = JSON.parse(readFileSync(join(process.cwd(), '..', 'extension', 'manifest.json'), 'utf8'));
+    const hex = createHash('sha256').update(Buffer.from(key, 'base64')).digest('hex').slice(0, 32);
+    expect([...hex].map((h) => String.fromCharCode(97 + parseInt(h, 16))).join('')).toBe(EXTENSION_ID);
+  });
+
+  it.each([OTHER, 'chrome-extension://short', `moz-extension://${EXTENSION_ID}`, `${EXT}x`,
     'https://evil.example'])('rejects origin %s', async (origin) => {
     const res = await post([job()], origin);
     expect(res.status).toBe(403);

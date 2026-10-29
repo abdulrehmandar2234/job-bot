@@ -1,9 +1,10 @@
 import { NextRequest } from 'next/server';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { GET, OPTIONS } from '@/app/api/jobs/lookup/route';
+import { EXTENSION_ID } from '@/lib/extension';
 import { cleanupDb, closeDb, ensureSchema, insertJob, PREFIX } from '../../helpers/db';
 
-const EXT = 'chrome-extension://abcdefghijklmnopabcdefghijklmnop';
+const EXT = `chrome-extension://${EXTENSION_ID}`;
 const SITE = 'https://careers.lookup-test.example';
 
 const get = (url: string | null, origin: string | null = EXT) => GET(new NextRequest(
@@ -15,7 +16,8 @@ beforeEach(cleanupDb);
 afterAll(closeDb);
 
 describe('GET /api/jobs/lookup', () => {
-  it.each([null, 'https://evil.example', 'https://www.bayt.com', 'chrome-extension://nope'])('rejects origin %s with 403', async (origin) => {
+  it.each([null, 'https://evil.example', 'https://www.bayt.com', 'chrome-extension://nope',
+    'chrome-extension://abcdefghijklmnopabcdefghijklmnop'])('rejects origin %s with 403', async (origin) => {
     await insertJob({ id: 'a', url: `${SITE}/1`, cover_letter: 'secret' });
     const res = await get(`${SITE}/1`, origin);
     expect(res.status).toBe(403);
