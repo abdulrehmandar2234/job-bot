@@ -4,6 +4,8 @@ import { fetchNow } from './actions';
 import { lastRun, listJobs, postingsFor, STATUSES, statusCounts, weekStats, type Status } from '@/lib/db';
 import { BaytBookmarklet, SubmitButton } from '@/components/client';
 import { JobActions } from '@/components/job-actions';
+import { TaskBar } from '@/components/tasks';
+import { isActive, openTasks } from '@/lib/tasks';
 import { ago, AiReview, Chips, COUNTRIES, fmtDate, Posted, PostedOn, Score, STATUS_LABEL } from '@/components/ui';
 
 export default function Page(props: PageProps<'/'>) {
@@ -15,7 +17,7 @@ export default function Page(props: PageProps<'/'>) {
           <p className="text-sm text-zinc-500">UAE · Saudi Arabia · Netherlands with visa sponsorship, plus remote roles open to Pakistan</p>
         </div>
         <form action={fetchNow}>
-          <SubmitButton pendingText="Fetching… (~10 min, keep this tab open)" className="btn-primary">Fetch new jobs</SubmitButton>
+          <SubmitButton pendingText="Starting…" className="btn-primary">Fetch new jobs</SubmitButton>
         </form>
       </header>
       <details className="mb-5 rounded-xl border border-zinc-200 px-4 py-3 text-sm dark:border-zinc-800">
@@ -47,9 +49,10 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<'/'>['searc
   const days = Number(one('days')) || undefined;
   const sort = one('sort') === 'newest' ? 'newest' : 'score';
 
-  const [jobs, counts, run, week] = await Promise.all([
-    listJobs({ status, country, min, q, days, sort }), statusCounts(), lastRun(), weekStats(),
+  const [jobs, counts, run, week, tasks] = await Promise.all([
+    listJobs({ status, country, min, q, days, sort }), statusCounts(), lastRun(), weekStats(), openTasks(),
   ]);
+  const busy = (id: string) => tasks.filter((t) => t.job_id === id && isActive(t)).map((t) => t.kind);
   const postings = await postingsFor(jobs.map((j) => j.id));
   const tabHref = (s: string) => {
     const p = new URLSearchParams({
@@ -61,6 +64,7 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<'/'>['searc
 
   return (
     <>
+      <TaskBar tasks={tasks} />
       <section className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Stat label="Matching now" value={counts.new ?? 0} />
         <Stat label="New today" value={week.new_today} />
@@ -131,7 +135,7 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<'/'>['searc
                 <Chips items={j.missing} tone="bad" />
                 <Chips items={j.flags} tone="warn" />
                 {j.notes && <p className="whitespace-pre-line text-sm text-zinc-500">📝 {j.notes}</p>}
-                <JobActions job={j} />
+                <JobActions job={j} busy={busy(j.id)} />
               </div>
             </div>
           </li>
