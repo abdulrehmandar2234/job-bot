@@ -2,8 +2,11 @@ import { mock } from 'node:test';
 import type { RawJob } from '../src/sources/index.ts';
 
 // Tests run against their own database (see package.json "test"); refuse anything else so the real job_bot is never touched.
-export const TEST_DB = 'postgres://postgres@127.0.0.1:5432/job_bot_test_bot';
-if (process.env.DATABASE_URL !== TEST_DB) throw new Error(`Tests must run with DATABASE_URL=${TEST_DB} (use npm test)`);
+// A suffix (job_bot_test_bot_<name>) lets parallel worktrees use separate databases.
+export const TEST_DB = process.env.DATABASE_URL ?? '';
+if (!/^postgres:\/\/postgres@127\.0\.0\.1:5432\/job_bot_test_bot(_[a-z0-9]+)?$/.test(TEST_DB)) {
+  throw new Error(`Tests must run against job_bot_test_bot (use npm test), not ${TEST_DB}`);
+}
 
 export const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString();
 
