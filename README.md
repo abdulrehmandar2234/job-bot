@@ -152,7 +152,7 @@ The prompts only allow facts from `cv/master.json` and `cv/applicant.json`. Fill
 
 ### Database
 
-Tables are created and updated automatically from `src/schema.sql` on every CLI start (idempotent), so there is no migration command.
+Every CLI start applies the numbered SQL files in `src/migrations/` that the database has not run yet (recorded in `schema_migrations`), so there is no migration command. To change the schema, add the next `NNN_name.sql` file; never edit one that is already committed (see `src/migrate.ts`).
 
 - `jobs`: one row per posting. It holds the score, matched/missing skills, visa note, flags, status, filter reason, CV version, cover letter, AI review, form answers, notes and `duplicate_of`.
 - `job_events`: every status change with a note.
@@ -236,7 +236,8 @@ src/
   config.ts         loads config.json
   match.ts          filters, keyword score, CV cluster
   db.ts             Postgres access, upsert, status changes, dedupe
-  schema.sql        tables (applied on start)
+  migrate.ts        migration runner (applied on start)
+  migrations/       numbered schema files (001_baseline.sql, ...)
   ai.ts             Claude CLI calls: review, letter, form answers
   cover.ts          template cover letter
   sponsors.ts       IND recognised-sponsor register

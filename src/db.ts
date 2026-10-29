@@ -1,6 +1,5 @@
 import pg from 'pg';
-import { readFileSync } from 'node:fs';
-import { path } from './config.ts';
+import { runMigrations } from './migrate.ts';
 import type { Job, JobStatus } from './types.ts';
 
 export type { FormAnswer, Job, JobStatus } from './types.ts';
@@ -15,9 +14,8 @@ export type ScoredJob = Pick<Job,
 if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL missing — add it to .env');
 export const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 4 });
 
-export async function migrate() {
-  await pool.query(readFileSync(path('src', 'schema.sql'), 'utf8'));
-}
+/** Brings the database schema up to date (src/migrations, see src/migrate.ts). Returns the versions applied. */
+export const migrate = () => runMigrations(pool);
 
 // Company career pages first (most direct), then big boards, then aggregators.
 const SOURCE_RANK = ['greenhouse', 'lever', 'ashby', 'recruitee', 'workable', 'smartrecruiters', 'linkedin', 'bayt',

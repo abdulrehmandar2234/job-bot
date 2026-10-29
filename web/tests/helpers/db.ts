@@ -1,27 +1,15 @@
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { pool } from '@/lib/db';
+// The bot's own migration runner (vitest can import bot code; the dashboard build never does).
+import { runMigrations } from '../../../src/migrate';
 import type { Job } from '../../../src/types';
 
 // job_bot_test is shared with the bot's own tests: only touch rows with this id prefix, and fetch_runs we inserted.
 export const PREFIX = 'webtest:';
 const fetchRunIds: number[] = [];
 
-// job-bot/src/schema.sql (a path string: jsdom replaces the global URL class).
-const SCHEMA = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'src', 'schema.sql'), 'utf8');
-
-/** Applies the bot's (idempotent) schema; retried because another test run may be applying it at the same time. */
+/** Applies the bot's migrations (src/migrations); an advisory lock keeps parallel test runs from racing. */
 export async function ensureSchema() {
-  for (let attempt = 1; ; attempt++) {
-    try {
-      await pool.query(SCHEMA);
-      return;
-    } catch (e) {
-      if (attempt >= 5) throw e;
-      await new Promise((r) => setTimeout(r, 200 * attempt));
-    }
-  }
+  await runMigrations(pool);
 }
 
 /** A jobs row to insert: any columns of the shared Job type, `id` required. */
