@@ -181,7 +181,8 @@ export async function lastRun() {
 export async function weekStats() {
   const { rows } = await pool.query<{ applied_week: number; new_today: number }>(`
     SELECT (SELECT count(*)::int FROM jobs WHERE applied_at > now() - interval '7 days') AS applied_week,
-           (SELECT count(*)::int FROM jobs WHERE status <> 'filtered' AND first_seen_at::date = current_date) AS new_today`);
+           (SELECT count(*)::int FROM jobs
+            WHERE status <> 'filtered' AND duplicate_of IS NULL AND first_seen_at::date = current_date) AS new_today`);
   return rows[0];
 }
 

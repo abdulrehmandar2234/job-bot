@@ -242,13 +242,15 @@ describe('jobEvents', () => {
 });
 
 describe('weekStats', () => {
-  it('counts applications in the last 7 days and non-filtered jobs first seen today', async () => {
+  it('counts applications in the last 7 days and non-filtered, non-duplicate jobs first seen today', async () => {
     const before = await weekStats();
     await insertJob({ id: 'ap-recent', status: 'applied', applied_at: daysAgo(2), first_seen_at: daysAgo(20) });
     await insertJob({ id: 'ap-old', status: 'applied', applied_at: daysAgo(8), first_seen_at: daysAgo(20) });
     await insertJob({ id: 'today' });
     await insertJob({ id: 'today-filtered', status: 'filtered' });
     await insertJob({ id: 'yesterday', first_seen_at: daysAgo(2) });
+    // A copy of a job found on another site today is the same job, shown under "Posted on".
+    await insertJob({ id: 'today-copy', source: 'linkedin', duplicate_of: id('today') });
     const after = await weekStats();
     expect(after.applied_week - before.applied_week).toBe(1);
     expect(after.new_today - before.new_today).toBe(1);
