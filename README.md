@@ -229,7 +229,7 @@ Each feature uses either the score model (fast) or the letter model (better writ
 - **Claude CLI models** are `ai.scoreModel` / `ai.letterModel`. **API models** are `ai.api.scoreModel` / `ai.api.letterModel`; missing ones use the preset's defaults above. `ai.api.baseUrl` (or `AI_BASE_URL`) points at a proxy or another compatible endpoint, and `ai.api.responseFormat` (`json_schema`, `json_object`, `text`) overrides how JSON is asked for. A fit review takes about 10 s and a letter 15–60 s with any provider.
 - **The key** lives only in `.env` in the job-bot folder (see `.env.example`), never in `config.json`, and is never logged or shown; it is only sent to that provider's base URL. A missing key stops before any request, a rejected key (401/403) stops at once with a message naming `AI_API_KEY` and the provider, and a reply that is not the JSON asked for is asked for once more.
 - **Older settings still work:** `ai.provider` `"openai"` / `"deepseek"` (with their `ai.openai` / `ai.deepseek` sections) are read as `api` with that preset, and `OPENAI_API_KEY` / `DEEPSEEK_API_KEY` are read when `AI_API_KEY` is not set.
-- **Without any AI**, set `ai.enabled: false`: letters and follow-ups then use the templates, and the CV summary, letter feedback and interview prep are off. The fit review (`ai:score`, also run by the daily fetch) and form answers do not check `ai.enabled` and fail with an error instead.
+- **Without any AI**, set `ai.enabled: false`: letters and follow-ups then use the templates; the fit review (`ai:score`, also in the daily run), form answers, CV summary, letter and CV feedback, CV review and interview prep say "AI is off" and exit normally, and the dashboard hides their buttons. A per-stack CV headline and summary (`src/cv/profiles.ts`) is used only when your master CV shows every skill and fact it names; otherwise your own title and summary are kept.
 - Switch on the dashboard's Settings page ("AI provider": Claude CLI or API key, then the preset and models, with a line saying whether `AI_API_KEY` is set and whose key it looks like) or in `npm run bot -- setup`. Neither asks for the key itself.
 
 ```bash
@@ -241,7 +241,7 @@ The prompts only allow facts from `cv/master.json` and `cv/applicant.json`, and 
 
 ### Database
 
-Every CLI command that uses the database first applies the numbered SQL files in `src/migrations/` that the database has not run yet (recorded in `schema_migrations`), so there is no migration command. The dashboard does not run them: after pulling, run any bot command (e.g. `npm run bot -- stats`) before using it. To change the schema, add the next `NNN_name.sql` file; never edit one that is already committed (see `src/migrate.ts`).
+Every CLI command that uses the database first applies the numbered SQL files in `src/migrations/` that the database has not run yet (recorded in `schema_migrations`), and the dashboard applies them when it starts (`web/instrumentation.ts` runs `npm run bot -- migrate`; a failure is logged and the dashboard still starts). `npm run bot -- migrate` applies them on its own. To change the schema, add the next `NNN_name.sql` file; never edit one that is already committed (see `src/migrate.ts`).
 
 - `jobs`: one row per posting. It holds the score, matched/missing skills, visa note, flags, status, filter reason, CV version, the CV template chosen for the job, the AI review of its CV, cover letter, CV summary for the job, when you last edited either by hand, AI review, form answers, interview prep, follow-up count and draft, alert time, notes and `duplicate_of`.
 - `job_events`: every status change with a note.
@@ -299,7 +299,8 @@ npm run bot -- contacts <id>                  # a job's contacts, plus people yo
 npm run bot -- contact:add <id> --name "Jane" [--role recruiter|"hiring manager"|referral|other] [--email x] [--phone x]
                 [--linkedin https://...] [--notes x] [--referral "to ask"]
 npm run bot -- add [--file job.json]          # add a job manually (JSON or stdin)
-npm run bot -- discover <company...> [--add]   # find a company's board (6 ATS by name, or a myworkdayjobs URL)
+npm run bot -- discover <company...> [--add]   # find a company's board (6 ATS by name, or a myworkdayjobs URL); --add validates config.json and writes it atomically
+npm run bot -- migrate                        # apply pending database migrations (the dashboard also does this on start)
 npm run bot -- cv:default | cv:build [cluster...] | versions
 npm run bot -- ats <id> [--cv next-nest] [--json] # CV keyword check: shown, hidden but true, missing
 npm run bot -- sponsors:update | stats | dedupe
