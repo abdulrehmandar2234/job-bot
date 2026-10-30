@@ -6,7 +6,9 @@ import {
   followUpCount,
   lastRun,
   listJobs,
-  PAGE_SIZE,
+  PAGE_SIZE as PAGE_SIZE_DEFAULT,
+  PAGE_SIZES,
+  pageSize,
   postingsFor,
   STATUSES,
   statusCounts,
@@ -104,10 +106,11 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<'/'>['searc
   const salary = salaryParams(one);
   const expected = loadExpectations();
   const page = Math.max(1, Math.floor(Number(one('page'))) || 1);
+  const size = pageSize(one('size'));
   const filter = { status, country, min, q, days, sort, followUp, visaOnly, ...salary.filter } as const;
 
   const [jobs, total, counts, run, week, tasks, dueCount] = await Promise.all([
-    listJobs(filter, page),
+    listJobs(filter, page, size),
     countJobs(filter),
     statusCounts(),
     lastRun(),
@@ -128,6 +131,7 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<'/'>['searc
       ...(sort === 'newest' && { sort }),
       ...(visaOnly && { visa: '1' }),
       ...salary.query,
+      ...(size !== PAGE_SIZE_DEFAULT && { size: String(size) }),
       ...(toPage > 1 && { page: String(toPage) }),
     });
     return `/?${p}`;
@@ -202,6 +206,13 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<'/'>['searc
           <option value="score">Best match first</option>
           <option value="newest">Newest first</option>
         </select>
+        <select name="size" defaultValue={size} aria-label="Jobs per page" className="input">
+          {PAGE_SIZES.map((n) => (
+            <option key={n} value={n}>
+              {n} per page
+            </option>
+          ))}
+        </select>
         <SalaryFilter params={salary.params} />
         <label className="flex items-center gap-1 text-zinc-600 dark:text-zinc-400">
           <input type="checkbox" name="visa" value="1" defaultChecked={visaOnly} />
@@ -212,7 +223,7 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<'/'>['searc
         </button>
       </form>
 
-      <Pager page={page} total={total} pageSize={PAGE_SIZE} href={pageHref} />
+      <Pager page={page} total={total} pageSize={size} href={pageHref} />
 
       {jobs.length === 0 && (
         <p className="py-10 text-center text-sm text-zinc-500">
@@ -261,7 +272,7 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<'/'>['searc
         ))}
       </ul>
 
-      <Pager page={page} total={total} pageSize={PAGE_SIZE} href={pageHref} />
+      <Pager page={page} total={total} pageSize={size} href={pageHref} />
     </>
   );
 }

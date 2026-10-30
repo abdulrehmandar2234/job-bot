@@ -90,6 +90,29 @@ describe('job list paging', () => {
     expect(screen.getByRole('checkbox', { name: 'Visa/relocation offered (or not needed)' })).toBeChecked();
   });
 
+  it('shows 10, 50 or 100 per page when chosen, and every link keeps the size', async () => {
+    for (let i = 0; i < 27; i++) await insertJob({ id: `ps-${String(i).padStart(2, '0')}`, title: `TG pagerzz ${i}`, score: 60 });
+    await renderList({ q: 'pagerzz', size: '10', page: '2' });
+    expect(cardTitles()).toHaveLength(10);
+    expect(within(pager()[0]).getByText('11–20 of 27 jobs')).toBeInTheDocument();
+    expect(within(pager()[0]).getByRole('link', { name: 'Next →' })).toHaveAttribute('href', '/?status=new&q=pagerzz&size=10&page=3');
+    expect(within(screen.getByRole('navigation', { name: 'Job status' })).getByRole('link', { name: /^Applied/ })).toHaveAttribute(
+      'href',
+      '/?status=applied&q=pagerzz&size=10',
+    );
+    expect(screen.getByRole('combobox', { name: 'Jobs per page' })).toHaveValue('10');
+
+    document.body.innerHTML = '';
+    await renderList({ q: 'pagerzz', size: '50' });
+    expect(cardTitles()).toHaveLength(27);
+    expect(screen.queryByRole('navigation', { name: 'Pages' })).not.toBeInTheDocument();
+
+    document.body.innerHTML = '';
+    await renderList({ q: 'pagerzz', size: '7' }); // not offered: the default 25
+    expect(cardTitles()).toHaveLength(25);
+    expect(screen.getByRole('combobox', { name: 'Jobs per page' })).toHaveValue('25');
+  });
+
   it('has no page links when the list fits on one page', async () => {
     await insertJob({ id: 'pg-one', title: 'TG pagerzz one' });
     await renderList({ q: 'pagerzz' });
