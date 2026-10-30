@@ -16,7 +16,7 @@
   "linkedin": {
     "enabled": true,
     "keywords": ["laravel", "php", "node.js", "nestjs", "react", "next.js", "full stack developer", "mern"],
-    "locations": ["United Arab Emirates", "Saudi Arabia", "Netherlands"],
+    "locations": ["United Arab Emirates", "Saudi Arabia", "Netherlands", "Pakistan"],
     "remoteFrom": "Pakistan",
     "pagesPerSearch": 2
   },
@@ -53,6 +53,12 @@
       "visa": "ind-register",
       "needsVisa": true,
       "match": "amsterdam|rotterdam|utrecht|eindhoven|the hague|den haag|netherlands|nederland|\\bnl\\b"
+    },
+    "PK": {
+      "name": "Pakistan",
+      "visa": "employer",
+      "needsVisa": false,
+      "match": "lahore|karachi|islamabad|rawalpindi|faisalabad|multan|peshawar|sialkot|hyderabad, sindh|pakistan"
     }
   },
   "companies": [
@@ -306,6 +312,31 @@
       "name": "Seera",
       "ats": "smartrecruiters",
       "token": "seera"
+    },
+    {
+      "name": "Motive",
+      "ats": "greenhouse",
+      "token": "gomotive"
+    },
+    {
+      "name": "Tajir",
+      "ats": "ashby",
+      "token": "tajir"
+    },
+    {
+      "name": "Devsinc",
+      "ats": "smartrecruiters",
+      "token": "devsinc"
+    },
+    {
+      "name": "Securiti",
+      "ats": "smartrecruiters",
+      "token": "securiti"
+    },
+    {
+      "name": "Educative",
+      "ats": "lever",
+      "token": "educative"
     }
   ],
   "roleInclude": "engineer|developer|full.?stack|back.?end|front.?end|software|web|php|laravel|node|react",
