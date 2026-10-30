@@ -55,4 +55,12 @@ describe('Pager', () => {
     expect(links()).toContainEqual(['← Previous', '/?status=new&page=2']); // back to the last page
     expect(links()).toContainEqual(['2', '/?status=new&page=2']);
   });
+
+  it('gives every button the h-9 height of the filter controls above it', () => {
+    render(<Pager page={2} total={100} pageSize={25} href={href} />);
+    const nav = screen.getByRole('navigation', { name: 'Pages' });
+    const buttons = nav.querySelectorAll('.btn');
+    expect(buttons.length).toBeGreaterThan(3);
+    for (const b of buttons) expect(b).toHaveClass('h-9');
+  });
 });

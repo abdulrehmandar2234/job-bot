@@ -22,11 +22,11 @@ export function Pager({ page, total, pageSize, href }: { page: number; total: nu
   const to = Math.min(total, page * pageSize);
   const step = (n: number, label: string) =>
     n >= 1 && n <= pages ? (
-      <Link href={href(n)} className="btn">
+      <Link href={href(n)} className="btn h-9">
         {label}
       </Link>
     ) : (
-      <span className="btn cursor-not-allowed opacity-40" aria-disabled="true">
+      <span className="btn h-9 cursor-not-allowed opacity-40" aria-disabled="true">
         {label}
       </span>
     );
@@ -38,15 +38,15 @@ export function Pager({ page, total, pageSize, href }: { page: number; total: nu
         {step(Math.min(page - 1, pages), '← Previous')}
         {pageNumbers(Math.min(page, pages), pages).map((n, i) =>
           n === null ? (
-            <span key={`gap-${i}`} className="px-1 text-zinc-400">
+            <span key={`gap-${i}`} className="flex h-9 items-center px-1 text-zinc-400">
               …
             </span>
           ) : n === page ? (
-            <span key={n} aria-current="page" className="btn btn-primary">
+            <span key={n} aria-current="page" className="btn btn-primary h-9 min-w-9 justify-center">
               {n}
             </span>
           ) : (
-            <Link key={n} href={href(n)} className="btn">
+            <Link key={n} href={href(n)} className="btn h-9 min-w-9 justify-center">
               {n}
             </Link>
           ),
