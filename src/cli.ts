@@ -49,9 +49,10 @@ const commands: Record<string, () => Promise<Command>> = {
   'settings:save': async () => (await import('./commands/settings.ts')).settingsSave,
   'task:run': async () => (await import('./commands/task.ts')).taskRun,
   setup: async () => (await import('./commands/setup.ts')).setup,
+  backup: async () => (await import('./commands/backup.ts')).backup,
 };
 // Commands that only touch files: no database connection or migrations.
-const NO_DB = ['settings:check', 'settings:save', 'setup'];
+const NO_DB = ['settings:check', 'settings:save', 'setup', 'backup'];
 
 const load = commands[cmd ?? ''];
 if (!load) {
@@ -93,7 +94,8 @@ if (!load) {
   stats
   settings:check --kind config|applicant [--file x.json]   validate settings (JSON result)
   settings:save --kind config|applicant [--file x.json]    validate, then save if valid
-  task:run <id>                   run a queued background task (the dashboard starts these)`);
+  task:run <id>                   run a queued background task (the dashboard starts these)
+  backup                          pg_dump of the database into data/backups/<db>-YYYY-MM-DD.sql.gz (keeps 14)`);
 } else {
   try {
     const run = await load();
