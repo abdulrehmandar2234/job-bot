@@ -12,7 +12,16 @@ import { DEFAULT_TEMPLATE, isTemplate, type TemplateId } from './templates/index
 //   cv/versions/custom-<slug>-v<N>/...         one-off variant made for a single job (a new N every time)
 // meta.json records the template; versions made before templates existed have none and are classic.
 
-export type VersionMeta = { id: string; cluster: string; masterHash: string; createdAt: string; jobId?: string; template?: TemplateId };
+export type VersionMeta = {
+  id: string;
+  cluster: string;
+  masterHash: string;
+  createdAt: string;
+  jobId?: string;
+  template?: TemplateId;
+  /** A CV revised with feedback (`cv:feedback`): the AI's note and what keepToMaster left out. */
+  feedbackNote?: string[];
+};
 
 const VERSIONS = path('cv', 'versions');
 // JOB_BOT_MASTER points at another CV (tests use cv/master.example.json).
@@ -76,12 +85,27 @@ export function applyProfile(master: Cv, p: Profile): Cv {
   };
 }
 
-async function writeVersion(id: string, cluster: string, cv: Cv, template: TemplateId, jobId?: string): Promise<VersionMeta> {
+async function writeVersion(
+  id: string,
+  cluster: string,
+  cv: Cv,
+  template: TemplateId,
+  jobId?: string,
+  extra: Pick<VersionMeta, 'feedbackNote'> = {},
+): Promise<VersionMeta> {
   const dir = path('cv', 'versions', id);
   mkdirSync(dir, { recursive: true });
   writeFileSync(`${dir}/cv.json`, JSON.stringify(cv, null, 2));
   await renderPdf(cv, `${dir}/${config.cvFileName}`, template);
-  const meta: VersionMeta = { id, cluster, masterHash: masterHash(template), createdAt: new Date().toISOString(), jobId, template };
+  const meta: VersionMeta = {
+    id,
+    cluster,
+    masterHash: masterHash(template),
+    createdAt: new Date().toISOString(),
+    jobId,
+    template,
+    ...extra,
+  };
   writeFileSync(`${dir}/meta.json`, JSON.stringify(meta, null, 2));
   return meta;
 }
@@ -162,8 +186,8 @@ export async function customVersion(
  * One-off variant for a single job from CV data as it is (a CV revised with feedback, or a CV shown in another
  * template), in a new folder every time (claimCustomId). The caller makes sure `cv` only holds master CV content.
  */
-export function customCv(slug: string, cluster: string, jobId: string, cv: Cv, template: TemplateId) {
-  return writeVersion(claimCustomId(slug), cluster, cv, template, jobId);
+export function customCv(slug: string, cluster: string, jobId: string, cv: Cv, template: TemplateId, feedbackNote?: string[]) {
+  return writeVersion(claimCustomId(slug), cluster, cv, template, jobId, feedbackNote?.length ? { feedbackNote } : {});
 }
 
 /** A version's meta.json, or null for "default" and unknown ids. */

@@ -155,14 +155,16 @@ export async function cvFeedback(args: string[], flags: Flags) {
     return;
   }
   const { cv, removed } = keepToMaster(res.cv ?? {}, master, current);
+  const note = (res.note ?? '').trim();
   const template = jobTemplate(j);
-  const meta = await customCv(jobSlug(j), (j.cv_version && versionMeta(j.cv_version)?.cluster) || 'default', j.id, cv, template);
+  const cluster = (j.cv_version && versionMeta(j.cv_version)?.cluster) || 'default';
+  // The note is kept in meta.json too, so the job page can show what was left out of this version.
+  const meta = await customCv(jobSlug(j), cluster, j.id, cv, template, [...(note ? [note] : []), ...removed]);
   await pool.query('UPDATE jobs SET cv_version = $2 WHERE id = $1', [j.id, meta.id]);
   console.log(`${j.company} — ${j.title}`);
   console.log(`CV version : ${meta.id} (revised by AI with your feedback${j.cv_version ? `; ${j.cv_version} stays as it is` : ''})`);
   console.log(`Template   : ${template}`);
   console.log(`CV file    : ${cvFile(meta.id)}`);
-  const note = (res.note ?? '').trim();
   if (note) console.log(`Note       : ${note}`);
   for (const r of removed) console.log(`Left out   : ${r}`);
 }

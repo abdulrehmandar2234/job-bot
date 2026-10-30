@@ -197,6 +197,11 @@ describe('cv:feedback', () => {
     assert.deepEqual(cv.skills[0].items, ['React.js', 'Next.js']);
     assert.deepEqual(cv.projects, []);
     assert.deepEqual([meta(v).template, meta(v).jobId], ['compact', id]);
+    assert.deepEqual(meta(v).feedbackNote, [
+      'Left out Kubernetes: the CV does not show it.',
+      'Skill "Kubernetes" (not on your master CV)',
+      'Employer "Google" (not on your master CV)',
+    ]);
     assert.equal((await getJob(id))!.cv_version, v);
 
     const { argv, stdin } = JSON.parse(readFileSync(log, 'utf8').trim()) as { argv: string[]; stdin: string };
@@ -209,6 +214,7 @@ describe('cv:feedback', () => {
       await bot(['cv:feedback', id, '--feedback', 'shorter'], { FAKE_CLAUDE_OUT: JSON.stringify({ ...proposal, note: '' }) }),
     );
     assert.notEqual(second, v);
+    assert.equal(meta(second).feedbackNote?.length, 2, 'only what this round left out');
     assert.equal((await getJob(id))!.cv_version, second);
     assert.ok(existsSync(path('cv', 'versions', v, config.cvFileName)), 'the first revision stays');
   });
