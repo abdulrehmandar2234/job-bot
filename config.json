@@ -1,7 +1,7 @@
 {
   "cvFileName": "abdulrehman_dar_resume.pdf",
   "autoCvVersions": false,
-  "chromePath": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+  "chromePath": "auto",
   "minScore": 45,
   "maxAgeDays": 14,
   "ai": {
