@@ -124,7 +124,7 @@ flowchart LR
 
   DB[("PostgreSQL job_bot<br/>jobs · job_events · fetch_runs")]
   Claude["AI provider<br/>Claude Code CLI (default) · any API key"]
-  Chrome["System Chrome<br/>(playwright-core, PDF render)"]
+  Chrome["Chrome headless shell<br/>(playwright-core, PDF render)"]
 
   subgraph Web["Dashboard (web/, Next.js 16)"]
     Pages["Pages<br/>job list · job detail"]
@@ -167,7 +167,7 @@ The project has two parts that share one PostgreSQL database:
 cv/master.json                       your CV data (the only file you edit)
 src/cv/profiles.ts                   per-cluster framing: headline, summary, skill/bullet order
 src/cv/versions.ts                   builds and reuses versions, bumps v2/v3 on change
-src/cv/render.ts                     HTML template → PDF via system Chrome (playwright-core)
+src/cv/render.ts                     HTML template → PDF via Chrome (playwright-core; src/cv/chrome.ts picks which)
 
 cv/original/<your original CV>.pdf  optional, never changes
 cv/default/<cvFileName>
@@ -333,7 +333,7 @@ An overview; [docs/SETUP.md](docs/SETUP.md#7-configuration-reference-configjson)
 | `linkedin`                                   | Keywords, locations, `remoteFrom`, pages per search                                                                             |
 | `adzuna`                                     | Optional: Adzuna country indexes, keywords, pages per search                                                                    |
 | `ai`                                         | `enabled`, `provider`, Claude path and models, `api` (preset, base URL, models), `maxScorePerRun`, `concurrency`, `alertStrong` |
-| `cvFileName`, `autoCvVersions`, `chromePath` | CV output settings                                                                                                              |
+| `cvFileName`, `autoCvVersions`, `chromePath` | CV output settings. `chromePath`: `"auto"` (default) uses the Chrome headless shell, else a system Chrome; or a path            |
 
 `needsVisa` missing means a visa is needed; `label` is the short name on the dashboard. `remote.from` / `remote.fromCode` are the country you work remotely from and its ISO code (missing: `linkedin.remoteFrom`, then your profile).
 

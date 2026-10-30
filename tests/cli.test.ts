@@ -1,5 +1,6 @@
 import { after, before, beforeEach, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { resolveChrome } from '../src/cv/chrome.ts';
 import { execFile } from 'node:child_process';
 import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -153,7 +154,7 @@ describe('CLI', () => {
       assert.equal(e.code, 1);
       return true;
     });
-    if (!existsSync(process.env.JOB_BOT_CHROME || JSON.parse(readFileSync(path('config.json'), 'utf8')).chromePath)) return;
+    if (!resolveChrome(JSON.parse(readFileSync(path('config.json'), 'utf8')).chromePath)) return;
     const out = await bot(['letter', id, '--template']);
     const dir = out.match(/Cover {6}: (\S+)\/cover-letter\.txt/)![1];
     try {
@@ -303,8 +304,7 @@ describe('CLI', () => {
   });
 
   it('cv:tailor builds a CV with the job summary in a new folder every run and sets it as the job CV', {
-    skip:
-      !existsSync(process.env.JOB_BOT_CHROME || JSON.parse(readFileSync(path('config.json'), 'utf8')).chromePath) && 'Chrome not installed',
+    skip: !resolveChrome(JSON.parse(readFileSync(path('config.json'), 'utf8')).chromePath) && 'Chrome not installed',
   }, async () => {
     const id = idOf(await bot(['add', '--file', addFile([posting({ company: 'Tailorco Cli' })])]));
     await pool.query(`UPDATE jobs SET cv_summary = 'Laravel engineer for Tailorco.' WHERE id = $1`, [id]);
@@ -334,8 +334,7 @@ describe('CLI', () => {
   });
 
   it('custom --overrides still builds a one-off CV, in a new folder each run', {
-    skip:
-      !existsSync(process.env.JOB_BOT_CHROME || JSON.parse(readFileSync(path('config.json'), 'utf8')).chromePath) && 'Chrome not installed',
+    skip: !resolveChrome(JSON.parse(readFileSync(path('config.json'), 'utf8')).chromePath) && 'Chrome not installed',
   }, async () => {
     const id = idOf(await bot(['add', '--file', addFile([posting({ company: 'Customco Cli' })])]));
     const overrides = join(tmp, 'overrides.json');
