@@ -1,4 +1,5 @@
 import type { SalaryCurrency, SalaryPeriod } from '../../src/types';
+import { AutoCheckbox } from '@/components/auto-submit';
 import { belowExpectation, CURRENCIES, formatSalary, yearlyEur, type Expectation, type JobSalary } from '@/lib/salary';
 
 /** The salary of a job, e.g. "💰 AED 20k–25k / month", with a hint when it is below what you expect for that country. */
@@ -37,7 +38,10 @@ export function salaryParams(one: (k: string) => string | undefined) {
   };
 }
 
-/** "Min salary" inputs for the list page's filter form. Compared in euros per year with approximate rates. */
+/**
+ * "Min salary" inputs for the list page's filter form. Compared in euros per year with approximate rates. Currency and
+ * period belong to the typed amount, so they apply with it (Apply filters); "only with salary" applies on change.
+ */
 export function SalaryFilter({ params }: { params: SalaryParams }) {
   return (
     <span className="flex flex-wrap items-center gap-2">
@@ -65,8 +69,9 @@ export function SalaryFilter({ params }: { params: SalaryParams }) {
           <option value="month">/ month</option>
         </select>
       </span>
+      {/* biome-ignore lint/a11y/noLabelWithoutControl: AutoCheckbox renders the checkbox input */}
       <label className="toggle">
-        <input type="checkbox" name="salonly" value="1" defaultChecked={params.only} /> only with salary
+        <AutoCheckbox name="salonly" value="1" defaultChecked={params.only} /> only with salary
       </label>
     </span>
   );

@@ -27,6 +27,7 @@ import { allContacts } from '@/lib/contacts-db';
 import { ExpiredBadge } from '@/components/open-check';
 import { FollowUpBadge } from '@/components/follow-up';
 import { Pager } from '@/components/pager';
+import { AutoCheckbox, AutoSelect } from '@/components/auto-submit';
 import { VisaBadge } from '@/components/visa';
 import { ago, AiReview, Chips, fmtDate, Posted, PostedOn, Score, STATUS_LABEL } from '@/components/ui';
 import { FirstRunBanner, MarketHeader } from '@/components/profile-banner';
@@ -201,7 +202,9 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<'/'>['searc
         </p>
       )}
 
-      {/* Row 1: the text filters and Apply; row 2: the choices. Every control is h-9 so both rows line up. */}
+      {/* Row 1: the text filters and Apply; row 2: the choices. Every control is h-9 so both rows line up.
+          The choices apply on change (AutoSelect / AutoCheckbox); typed text waits for Apply filters, which also
+          sends everything without JS. */}
       <form aria-label="Job filters" className="mb-4 space-y-2 rounded-xl border border-zinc-200 p-3 text-sm dark:border-zinc-800">
         {followUp ? <input type="hidden" name="view" value="followup" /> : <input type="hidden" name="status" value={status} />}
         <div className="flex flex-wrap items-center gap-2">
@@ -219,41 +222,42 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<'/'>['searc
           </button>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <select name="country" defaultValue={country ?? ''} aria-label="Country" className="input h-9">
+          <AutoSelect name="country" defaultValue={country ?? ''} aria-label="Country" className="input h-9">
             <option value="">All countries</option>
             {Object.entries(labels).map(([k, v]) => (
               <option key={k} value={k}>
                 {v}
               </option>
             ))}
-          </select>
-          <select name="min" defaultValue={min ?? ''} aria-label="Minimum score" className="input h-9">
+          </AutoSelect>
+          <AutoSelect name="min" defaultValue={min ?? ''} aria-label="Minimum score" className="input h-9">
             <option value="">Any score</option>
             {[50, 60, 70, 80].map((n) => (
               <option key={n} value={n}>
                 Score ≥ {n}
               </option>
             ))}
-          </select>
-          <select name="days" defaultValue={days ?? ''} aria-label="Posted within" className="input h-9">
+          </AutoSelect>
+          <AutoSelect name="days" defaultValue={days ?? ''} aria-label="Posted within" className="input h-9">
             <option value="">Posted: any time</option>
             <option value="1">Last 24 hours</option>
             <option value="3">Last 3 days</option>
             <option value="7">Last 7 days</option>
-          </select>
-          <select name="sort" defaultValue={sort} aria-label="Sort" className="input h-9">
+          </AutoSelect>
+          <AutoSelect name="sort" defaultValue={sort} aria-label="Sort" className="input h-9">
             <option value="score">Best match first</option>
             <option value="newest">Newest first</option>
-          </select>
-          <select name="size" defaultValue={size} aria-label="Jobs per page" className="input h-9">
+          </AutoSelect>
+          <AutoSelect name="size" defaultValue={size} aria-label="Jobs per page" className="input h-9">
             {PAGE_SIZES.map((n) => (
               <option key={n} value={n}>
                 {n} per page
               </option>
             ))}
-          </select>
+          </AutoSelect>
+          {/* biome-ignore lint/a11y/noLabelWithoutControl: AutoCheckbox renders the checkbox input */}
           <label className="toggle">
-            <input type="checkbox" name="visa" value="1" defaultChecked={visaOnly} />
+            <AutoCheckbox name="visa" value="1" defaultChecked={visaOnly} />
             Visa/relocation offered (or not needed)
           </label>
         </div>

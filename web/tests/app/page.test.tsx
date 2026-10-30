@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { cloneElement, Fragment, isValidElement, type ReactElement, type ReactNode } from 'react';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mkdtempSync, writeFileSync } from 'node:fs';
@@ -228,6 +228,38 @@ describe('job list page', () => {
     expect(screen.getByRole('checkbox', { name: 'only with salary' }).closest('label')).toHaveClass('toggle');
     for (const el of form.querySelectorAll('input:not([type="hidden"]):not([type="checkbox"]), select, button'))
       expect(el).toHaveClass('h-9');
+  });
+
+  it('applies the page size, sort and other choices on change, back on page 1; typed text waits for Apply', async () => {
+    const sent: Record<string, string>[] = [];
+    const submit = vi.spyOn(HTMLFormElement.prototype, 'requestSubmit').mockImplementation(function (this: HTMLFormElement) {
+      sent.push(Object.fromEntries(new FormData(this)) as Record<string, string>);
+    });
+    try {
+      await renderPage({ status: 'applied', q: 'laravel', sort: 'newest', page: '3' });
+      const form = screen.getByRole('form', { name: 'Job filters' });
+      fireEvent.change(within(form).getByRole('combobox', { name: 'Jobs per page' }), { target: { value: '50' } });
+      expect(submit).toHaveBeenCalledTimes(1);
+      // The other filters are kept; the page is not in the form, so the new size starts on page 1.
+      expect(sent[0]).toMatchObject({ status: 'applied', q: 'laravel', sort: 'newest', size: '50' });
+      expect(sent[0]).not.toHaveProperty('page');
+      for (const name of ['Country', 'Minimum score', 'Posted within', 'Sort']) {
+        const select = within(form).getByRole('combobox', { name }) as HTMLSelectElement;
+        fireEvent.change(select, { target: { value: select.options[1].value } });
+      }
+      fireEvent.click(within(form).getByRole('checkbox', { name: 'Visa/relocation offered (or not needed)' }));
+      fireEvent.click(within(form).getByRole('checkbox', { name: 'only with salary' }));
+      expect(submit).toHaveBeenCalledTimes(7);
+      // Text and the salary units wait for Apply filters.
+      fireEvent.change(within(form).getByRole('searchbox', { name: 'Search company or title' }), { target: { value: 'php' } });
+      fireEvent.change(within(form).getByRole('spinbutton', { name: 'Min salary' }), { target: { value: '5000' } });
+      fireEvent.change(within(form).getByRole('combobox', { name: 'Salary currency' }), { target: { value: 'USD' } });
+      fireEvent.change(within(form).getByRole('combobox', { name: 'Salary period' }), { target: { value: 'month' } });
+      expect(submit).toHaveBeenCalledTimes(7);
+      expect(within(form).getByRole('button', { name: 'Apply filters' })).toHaveAttribute('type', 'submit');
+    } finally {
+      submit.mockRestore();
+    }
   });
 
   it('marks only the active status tab as the current page', async () => {
