@@ -33,8 +33,16 @@ describe('labels and header from config.json', () => {
 
   it("the owner's config gives the same labels and header as before", () => {
     const m = market(OWNER_CONFIG, OWNER_APPLICANT);
-    expect(countryLabels(m)).toEqual({ AE: '🇦🇪 UAE', SA: '🇸🇦 Saudi', NL: '🇳🇱 Netherlands', RM: '🌍 Remote (from Pakistan)' });
-    expect(marketLine(m)).toBe('UAE · Saudi Arabia · Netherlands with visa sponsorship, plus remote roles open to Pakistan');
+    expect(countryLabels(m)).toEqual({
+      AE: '🇦🇪 UAE',
+      SA: '🇸🇦 Saudi',
+      NL: '🇳🇱 Netherlands',
+      PK: '🇵🇰 Pakistan',
+      RM: '🌍 Remote (from Pakistan)',
+    });
+    expect(marketLine(m)).toBe(
+      'UAE · Saudi Arabia · Netherlands with visa sponsorship · Pakistan onsite, plus remote roles open to Pakistan',
+    );
   });
 
   it('a new user: her countries, visa needs and remote-from country', () => {
@@ -48,8 +56,8 @@ describe('labels and header from config.json', () => {
     };
     const m = market(cfg, { country: 'Portugal' });
     expect(countryLabels(m)).toEqual({ NL: '🇳🇱 Netherlands', AE: '🇦🇪 UAE', RM: '🌍 Remote (from Portugal)' });
-    expect(marketLine(m)).toBe('Netherlands · UAE (visa sponsorship), plus remote roles open to Portugal');
-    expect(marketLine(market({ ...cfg, remote: { enabled: false } }, null))).toBe('Netherlands · UAE (visa sponsorship)');
+    expect(marketLine(m)).toBe('UAE with visa sponsorship · Netherlands onsite, plus remote roles open to Portugal');
+    expect(marketLine(market({ ...cfg, remote: { enabled: false } }, null))).toBe('UAE with visa sponsorship · Netherlands onsite');
     expect(countryLabels(market({ ...cfg, remote: { enabled: false } }, null))).not.toHaveProperty('RM');
     expect(marketLine(market({ countries: {}, remote: { enabled: true } }, null))).toBe('Remote roles');
     expect(marketLine(market(null, null))).toBe('No target countries yet: add them in Settings');

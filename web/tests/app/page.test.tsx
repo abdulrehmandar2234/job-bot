@@ -73,11 +73,11 @@ describe('job list page', () => {
     await renderPage();
     expect(
       within(screen.getByRole('banner')).getByText(
-        'UAE · Saudi Arabia · Netherlands with visa sponsorship, plus remote roles open to Pakistan',
+        'UAE · Saudi Arabia · Netherlands with visa sponsorship · Pakistan onsite, plus remote roles open to Pakistan',
       ),
     ).toBeInTheDocument();
     const countries = [...document.querySelectorAll('select[name="country"] option')].map((o) => o.textContent);
-    expect(countries).toEqual(['All countries', '🇦🇪 UAE', '🇸🇦 Saudi', '🇳🇱 Netherlands', '🌍 Remote (from Pakistan)']);
+    expect(countries).toEqual(['All countries', '🇦🇪 UAE', '🇸🇦 Saudi', '🇳🇱 Netherlands', '🇵🇰 Pakistan', '🌍 Remote (from Pakistan)']);
   });
 
   it('follows another config.json: countries, labels and header', async () => {
@@ -90,7 +90,7 @@ describe('job list page', () => {
     vi.stubEnv('JOB_BOT_CONFIG', join(dir, 'config.json'));
     try {
       await renderPage();
-      expect(within(screen.getByRole('banner')).getByText('Germany, plus remote roles open to Portugal')).toBeInTheDocument();
+      expect(within(screen.getByRole('banner')).getByText('Germany onsite, plus remote roles open to Portugal')).toBeInTheDocument();
       const countries = [...document.querySelectorAll('select[name="country"] option')].map((o) => o.textContent);
       expect(countries).toEqual(['All countries', '🇩🇪 Germany', '🌍 Remote (from Portugal)']);
     } finally {

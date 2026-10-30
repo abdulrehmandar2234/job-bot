@@ -1,5 +1,5 @@
 // Target markets and profile completeness for the dashboard, from config.json and cv/applicant.json. Pure: the files
-// are read by lib/profile.ts. The profile rules mirror the bot's src/profile.ts (web/tests/lib/profile.test.ts checks
+// are read by lib/profile.ts. The profile rules mirror the bot's src/profile.ts (web/tests/lib/market.test.ts checks
 // they agree), because the dashboard only imports types from the bot.
 
 export type MarketCountry = { code: string; name: string; label: string; needsVisa: boolean };
@@ -40,12 +40,15 @@ export function countryLabels(m: Market): Record<string, string> {
 
 /** The dashboard's subtitle, e.g. "UAE · Saudi Arabia · Netherlands with visa sponsorship, plus remote roles open to Pakistan". */
 export function marketLine(m: Market): string {
-  const visa = m.countries.filter((c) => c.needsVisa);
-  const names = m.countries.map((c) =>
-    visa.length && visa.length < m.countries.length && c.needsVisa ? `${c.name} (visa sponsorship)` : c.name,
-  );
-  let line = names.join(' · ');
-  if (line && visa.length && visa.length === m.countries.length) line += ' with visa sponsorship';
+  // Countries needing a visa first, as one group ("UAE · Saudi Arabia · Netherlands with visa sponsorship"), then
+  // the others ("Pakistan onsite"): "UAE · Netherlands with visa sponsorship · Pakistan onsite, plus remote roles…".
+  const names = (needsVisa: boolean) =>
+    m.countries
+      .filter((c) => c.needsVisa === needsVisa)
+      .map((c) => c.name)
+      .join(' · ');
+  const parts = [names(true) && `${names(true)} with visa sponsorship`, names(false) && `${names(false)} onsite`].filter(Boolean);
+  let line = parts.join(' · ');
   if (m.remote) {
     const remote = m.remoteFrom ? `remote roles open to ${m.remoteFrom}` : 'remote roles';
     line = line ? `${line}, plus ${remote}` : remote.charAt(0).toUpperCase() + remote.slice(1);
