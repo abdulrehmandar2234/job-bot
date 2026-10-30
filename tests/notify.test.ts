@@ -140,14 +140,33 @@ describe('PowerShell quoting', () => {
   });
 
   it('a quoted text reaches PowerShell unchanged', { skip: process.platform !== 'win32' }, async () => {
-    const script = `Write-Output (${psQuote(evil)})`;
+    // PowerShell prints the UTF-16 code units as numbers, so the console code page cannot garble the comparison.
+    const script = `Write-Output (([int[]][char[]](${psQuote(evil)})) -join ',')`;
     const { stdout } = await run('powershell.exe', [
       '-NoProfile',
       '-NonInteractive',
       '-EncodedCommand',
       Buffer.from(script, 'utf16le').toString('base64'),
     ]);
-    assert.equal(stdout.trim(), evil);
+    assert.equal(stdout.trim(), Array.from(evil, (c) => c.charCodeAt(0)).join(','));
+  });
+  it('the toast script parses without errors in Windows PowerShell', { skip: process.platform !== 'win32' }, async () => {
+    const toast = Buffer.from(windowsToastScript({ title: 'Job Bot', message: evil, url: 'http://localhost:3100' }), 'utf16le').toString(
+      'base64',
+    );
+    const script = [
+      `$s = [Text.Encoding]::Unicode.GetString([Convert]::FromBase64String('${toast}'))`,
+      '$tokens = $null; $errors = $null',
+      '$null = [System.Management.Automation.Language.Parser]::ParseInput($s, [ref]$tokens, [ref]$errors)',
+      'Write-Output $errors.Count',
+    ].join('\n');
+    const { stdout } = await run('powershell.exe', [
+      '-NoProfile',
+      '-NonInteractive',
+      '-EncodedCommand',
+      Buffer.from(script, 'utf16le').toString('base64'),
+    ]);
+    assert.equal(stdout.trim(), '0');
   });
 });
 

@@ -42,7 +42,7 @@ jobs:
           cache-dependency-path: |
             package-lock.json
             web/package-lock.json
-      # scripts/daily-fetch.sh is a zsh script (macOS default shell); tests/open.test.ts runs it.
+      # scripts/daily-fetch.sh (the launchd entry point) is a zsh script; tests/daily.test.ts runs it.
       - run: sudo apt-get update && sudo apt-get install -y zsh
       - run: npm ci
       - run: npm ci --prefix web
@@ -51,3 +51,37 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run test:web
+
+  # Windows: install, lint, typecheck and the tests that need no PostgreSQL (the OS-specific code: notifications,
+  # backup, the daily run, schedule snippets, npm scripts, Chrome paths, plus pure logic). The full suite stays on
+  # Ubuntu: many tests start POSIX fake programs (#!/bin/sh, chmod), which Windows cannot run, and the preinstalled
+  # PostgreSQL service on windows-latest needs a password, while the tests connect as postgres without one.
+  # macOS is left out: it is the owner's machine (full suite locally), and runner minutes cost 10x on a private repo.
+  portable:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    env:
+      JOB_BOT_CLAUDE: tests/fixtures/fake-claude.mjs
+      JOB_BOT_NOTIFY: "off"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            web/package-lock.json
+      - run: npm ci
+      - run: npm ci --prefix web
+      - run: npx biome ci .
+      - run: npm run typecheck
+      - run: >-
+          npm test --
+          tests/scripts.test.ts tests/notify.test.ts tests/backup.test.ts tests/daily.test.ts tests/chrome.test.ts
+          tests/ci.test.ts tests/settings.test.ts tests/match.test.ts tests/salary.test.ts tests/http.test.ts
+          tests/ai-providers.test.ts tests/sources.test.ts tests/extension.test.ts
