@@ -1,5 +1,18 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { countJobs, getJob, jobEvents, lastRun, listJobs, PAGE_SIZE, pool, postingsFor, statusCounts, weekStats } from '@/lib/db';
+import {
+  countJobs,
+  pageSize,
+  PAGE_SIZES,
+  getJob,
+  jobEvents,
+  lastRun,
+  listJobs,
+  PAGE_SIZE,
+  pool,
+  postingsFor,
+  statusCounts,
+  weekStats,
+} from '@/lib/db';
 import { cleanupDb, closeDb, daysAgo, ensureSchema, insertFetchRun, insertJob, ours, PREFIX } from '../helpers/db';
 
 beforeAll(ensureSchema);
@@ -7,6 +20,14 @@ beforeEach(cleanupDb);
 afterAll(closeDb);
 
 const id = (s: string) => PREFIX + s;
+
+describe('pageSize', () => {
+  it('accepts only the offered sizes, else the default 25', () => {
+    expect(PAGE_SIZES).toEqual([10, 25, 50, 100]);
+    expect([10, '50', '100', 25].map(pageSize)).toEqual([10, 50, 100, 25]);
+    expect([undefined, '', '7', '1000', 'abc', '-10', '25.5'].map(pageSize)).toEqual([25, 25, 25, 25, 25, 25, 25]);
+  });
+});
 
 describe('listJobs visa filter', () => {
   it('keeps only jobs whose posting offers visa/relocation, or that need no visa', async () => {

@@ -77,8 +77,12 @@ export type JobFilter = {
   visaOnly?: boolean; // only jobs whose posting offers visa/relocation support, or that need no visa
 }; // minSalary: euros per year
 
-/** Jobs per page on the dashboard list. */
+/** Jobs per page on the dashboard list: the default, and the choices offered (`?size=`). */
 export const PAGE_SIZE = 25;
+export const PAGE_SIZES = [10, 25, 50, 100] as const;
+
+/** A `?size=` value if it is one of PAGE_SIZES, else the default. */
+export const pageSize = (v: unknown) => (PAGE_SIZES as readonly number[]).find((n) => n === Number(v)) ?? PAGE_SIZE;
 
 /** The WHERE clause and its parameters for a filter, shared by listJobs() and countJobs(). */
 function jobWhere(f: JobFilter) {
