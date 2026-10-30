@@ -108,7 +108,7 @@ const CLAUDE_PATH_HINT = claudePathHint();
 export const NEXT_STEPS = [
   'Next: put your CV in cv/master.json (see cv/master.example.json), then `npm run bot -- cv:default` and `npm run bot -- fetch`.',
   "PDFs (CV and letters) need Chrome's headless shell, once: `npx playwright-core install chromium-headless-shell`.",
-  'Daily fetch: `npm run bot -- schedule:print` prints the scheduler setup for this computer (docs/SETUP.md, section 10).',
+  'Daily fetch: `npm run bot -- schedule:print` prints the scheduler setup for this computer (docs/install/<your OS>.md, step 12).',
 ];
 
 /** Runs the wizard. Returns true when the files were written. */

@@ -2,7 +2,7 @@
 
 A personal job-search assistant that runs on your own computer: macOS (the main platform), Linux or Windows. It finds software engineering jobs in the **countries you target** (onsite, with or without a visa) and **remote jobs open to the country you live in**. It filters and scores them against your CV, prepares the right CV version, cover letter and form answers for each one, and tracks where you applied.
 
-Everything personal lives in two files you fill in yourself, `cv/master.json` (your CV) and `cv/applicant.json` (your profile), plus the target markets in `config.json`. `npm run bot -- setup` asks for most of it: see [Getting started](#getting-started) and the full guide in [docs/SETUP.md](docs/SETUP.md). The `config.json` in the repository is the original author's (UAE, Saudi Arabia and the Netherlands with visa sponsorship, remote from Pakistan); the examples below use it.
+Everything personal lives in two files you fill in yourself, `cv/master.json` (your CV) and `cv/applicant.json` (your profile), plus the target markets in `config.json`. `npm run bot -- setup` asks for most of it: see [Getting started](#getting-started) and the guides in [docs/README.md](docs/README.md). The `config.json` in the repository is the original author's (UAE, Saudi Arabia and the Netherlands with visa sponsorship, onsite in Pakistan, remote from Pakistan); the examples below use it.
 
 ## Purpose
 
@@ -253,18 +253,19 @@ Connection: `DATABASE_URL` in `.env` (the bot) and `web/.env.local` (the dashboa
 
 ## Getting started
 
-The full step-by-step guide, with every setting explained, is **[docs/SETUP.md](docs/SETUP.md)**. In short, on macOS, Linux or Windows (PowerShell), with Node 24+, PostgreSQL, Git and (optionally) a signed-in Claude Code CLI:
+job-bot runs on **macOS, Linux and Windows**. Pick the install guide for your computer: each one goes from a fresh machine to a working dashboard, with copy-paste commands for that system only.
 
-```bash
-git clone <this repository> ~/job-bot && cd ~/job-bot && npm install && npm --prefix web install
-npx playwright-core install chromium-headless-shell   # the Chrome that prints the PDFs
-createdb -h 127.0.0.1 -U postgres job_bot   # then DATABASE_URL in .env and web/.env.local (see docs/SETUP.md)
-cp cv/master.example.json cv/master.json     # replace the example with your CV (PowerShell: Copy-Item)
-npm run bot -- setup && npm run bot -- cv:default   # your profile and target markets, then your CV PDF
-npm run bot -- fetch && npm run bot -- ai:score && npm run web   # http://localhost:3100
-```
+| Your computer                                   | Guide                                              |
+| ----------------------------------------------- | -------------------------------------------------- |
+| macOS                                           | [docs/install/macos.md](docs/install/macos.md)     |
+| Linux (Ubuntu / Debian; notes for Fedora, Arch) | [docs/install/linux.md](docs/install/linux.md)     |
+| Windows 10 / 11 (PowerShell)                    | [docs/install/windows.md](docs/install/windows.md) |
 
-`setup` does not change `companies`, `roleInclude` / `roleExclude`, `linkedin.keywords` or `remote.himalayasQueries`: the repository's values are the original author's (Laravel / Node / React in the UAE, Saudi Arabia and the Netherlands), so review them in `config.json` (see the [configuration reference](docs/SETUP.md#7-configuration-reference-configjson)).
+In short, you need Node.js 24+, PostgreSQL, Git and (optionally) a signed-in Claude Code CLI or one AI API key. Then: clone, `npm install` and `npm --prefix web install`, put `DATABASE_URL` in `.env` and `web/.env.local`, `npx playwright-core install chromium-headless-shell`, `npm run bot -- setup`, your CV in `cv/master.json`, `npm run bot -- fetch`, and `npm run web` (http://localhost:3100).
+
+Everything else is in **[docs/README.md](docs/README.md)**: your CV and profile, every setting, the AI choice, daily use, troubleshooting and updating.
+
+`setup` does not change `companies`, `roleInclude` / `roleExclude`, `linkedin.keywords` or `remote.himalayasQueries`: the repository's values are the original author's (Laravel / Node / React in the UAE, Saudi Arabia, the Netherlands and Pakistan), so review them in `config.json` (see [docs/configuration.md](docs/configuration.md)).
 
 ## CLI reference
 
@@ -324,7 +325,7 @@ npm run bot -- backup                        # pg_dump into data/backups/<db>-YY
 
 ### Daily fetch
 
-`npm run bot -- daily` runs `fetch`, `check:open --limit 100` and `ai:score`, shows a notification with the result and backs up the database, logging to `data/fetch.log`. A scheduler starts it at 9:00; `npm run bot -- schedule:print` prints the setup for your OS with your paths filled in ([docs/SETUP.md](docs/SETUP.md#10-the-daily-fetch-launchd-systemd-or-cron-task-scheduler) has all three):
+`npm run bot -- daily` runs `fetch`, `check:open --limit 100` and `ai:score`, shows a notification with the result and backs up the database, logging to `data/fetch.log`. A scheduler starts it at 9:00; `npm run bot -- schedule:print` prints the setup for your OS with your paths filled in (step 12 of each [install guide](docs/README.md#1-install-it-on-your-computer) has the details):
 
 | OS      | Scheduler                                                    | A missed 9:00 (computer off)    |
 | ------- | ------------------------------------------------------------ | ------------------------------- |
@@ -336,7 +337,7 @@ On macOS, keep the project out of `~/Desktop` and `~/Documents`, because macOS d
 
 ## Configuration (`config.json`)
 
-An overview; [docs/SETUP.md](docs/SETUP.md#7-configuration-reference-configjson) has every key with its type, default, sensible values and how the filters use it.
+An overview; [docs/configuration.md](docs/configuration.md) has every key with its type, default, sensible values and how the filters use it.
 
 | Key                                          | What it controls                                                                                                                |
 | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
@@ -355,7 +356,7 @@ An overview; [docs/SETUP.md](docs/SETUP.md#7-configuration-reference-configjson)
 
 ## Your profile (`cv/applicant.json`)
 
-Gitignored. Created by `npm run bot -- setup` or the Settings page; `cv/applicant.example.json` shows a fictional person. Every field is described in [docs/SETUP.md](docs/SETUP.md#6-your-profile-cvapplicantjson).
+Gitignored. Created by `npm run bot -- setup` or the Settings page; `cv/applicant.example.json` shows a fictional person. Every field is described in [docs/your-cv-and-profile.md](docs/your-cv-and-profile.md#your-profile-cvapplicantjson).
 
 | Key                                            | What it is for                                                           |
 | ---------------------------------------------- | ------------------------------------------------------------------------ |
@@ -406,7 +407,7 @@ web/
   lib/              DB queries, the CLI runner, settings and profile mirrors of the bot's logic
   proxy.ts          refuses requests whose Host is not localhost
 scripts/            launchd wrapper (daily-fetch.sh), test launcher, test-database creation, Bayt bookmarklet
-docs/SETUP.md       setup guide for a new user: install, every setting, first run, troubleshooting
+docs/               README.md (start here), install/{macos,linux,windows}.md, configuration, CV and profile, AI, daily use, troubleshooting, updating
 extension/          Chrome extension: send a job, apply helper side panel with form auto-fill
 tests/              backend tests (node:test)
 web/tests/          dashboard tests (vitest)

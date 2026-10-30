@@ -1,5 +1,5 @@
 #!/bin/zsh
-# Run by launchd every morning (~/Library/LaunchAgents/com.<you>.job-bot.fetch.plist, see docs/SETUP.md "The daily fetch").
+# Run by launchd every morning (~/Library/LaunchAgents/com.<you>.job-bot.fetch.plist, see docs/install/macos.md "Schedule the daily run").
 # The work itself is `bot daily` (src/commands/daily.ts), the same on every OS: fetch, check:open, ai:score, a
 # notification and the backup, logged to data/fetch.log. This wrapper only gives launchd's bare environment a PATH
 # with node (and claude, pg_dump) on it.
