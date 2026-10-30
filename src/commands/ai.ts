@@ -2,10 +2,11 @@ import { readFileSync } from 'node:fs';
 import { config } from '../config.ts';
 import { getJob, pool, setStatus, type Job } from '../db.ts';
 import { aiAnswers, aiScore as review } from '../ai.ts';
+import { aiLabel } from '../ai-providers.ts';
 import { notify, strongAlerts, type AlertJob } from '../notify.ts';
 import type { Flags } from './shared.ts';
 
-/** AI review of matching jobs via the local Claude CLI: ai:score [--id <job>] [--limit 80] [--all] */
+/** AI review of matching jobs via the configured AI provider (config.json ai.provider): ai:score [--id <job>] [--limit 80] [--all] */
 export async function aiScore(_args: string[], flags: Flags) {
   const params: (string | number)[] = [];
   let where = `status = 'new' AND duplicate_of IS NULL AND ai_scored_at IS NULL`;
@@ -20,7 +21,7 @@ export async function aiScore(_args: string[], flags: Flags) {
   );
   if (!queue.length) return console.log('Nothing to score.');
   const total = queue.length;
-  console.log(`AI scoring ${total} jobs with ${config.ai.scoreModel}...`);
+  console.log(`AI scoring ${total} jobs with ${aiLabel('score')}...`);
   let done = 0;
   let failed = 0;
   let firstError = '';

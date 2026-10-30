@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { createInterface } from 'node:readline';
 import { blankApplicant, buildProfile, profileGaps, readMaster, type MasterContact } from '../profile.ts';
+import { AI_BASE_URL_ENV, AI_KEY_ENV, API_PRESETS, PRESETS, type ApiPreset } from '../ai-presets.ts';
 import { APPLICANT_FILE, CONFIG_FILE, UTC_OFFSET, validate, type SettingsError } from '../settings.ts';
 import type { Flags } from './shared.ts';
 
@@ -188,7 +189,66 @@ export async function runSetup(io: SetupIO, files: SetupFiles = { config: CONFIG
     cfg.linkedin = linkedin;
 
     const ai = (isObj(cfg.ai) ? cfg.ai : {}) as Json;
-    ai.claudePath = await p.ask('Path to the Claude Code CLI (`which claude`)', text(ai.claudePath), (v) => (v ? null : 'required'));
+    p.say('AI for scoring, letters and answers: claude-cli (your signed-in Claude Code CLI, no API key) or api');
+    p.say('(one API key in .env: OpenAI, Anthropic, Gemini, Groq, DeepSeek, ...; paid per token).');
+    const wasApi = !!ai.provider && ai.provider !== 'claude-cli'; // "openai" / "deepseek" are older names for "api"
+    const mode = (
+      await p.ask('Claude CLI or API key (claude-cli / api)', wasApi ? 'api' : text(ai.provider) || 'claude-cli', (v) =>
+        /^(claude-cli|api)$/i.test(v) ? null : 'claude-cli or api',
+      )
+    ).toLowerCase();
+    if (mode === 'claude-cli') {
+      // Missing means claude-cli, so the default is only written when the file already named a provider.
+      if (ai.provider !== undefined) ai.provider = 'claude-cli';
+      ai.claudePath = await p.ask('Path to the Claude Code CLI (`which claude`)', text(ai.claudePath), (v) => (v ? null : 'required'));
+    } else {
+      const legacy = ai.provider === 'openai' || ai.provider === 'deepseek' ? (ai.provider as 'openai' | 'deepseek') : null;
+      const api = (isObj(ai.api) ? ai.api : {}) as Json;
+      if (legacy) {
+        // Move the older section's models into ai.api (its baseUrl had another form, so it is left to the user).
+        const old = (isObj(ai[legacy]) ? ai[legacy] : {}) as Json;
+        for (const k of ['scoreModel', 'letterModel']) if (old[k] && !api[k]) api[k] = old[k];
+        delete ai[legacy];
+      }
+      ai.provider = 'api';
+      ai.claudePath = text(ai.claudePath) || 'claude'; // still required by config.json, used if you switch back
+      const choices = ['auto', ...API_PRESETS];
+      const preset = (
+        await p.ask(`Which provider (${choices.join(', ')}; auto = from the key)`, text(api.preset) || legacy || 'auto', (v) =>
+          choices.includes(v.toLowerCase()) ? null : choices.join(', '),
+        )
+      ).toLowerCase() as ApiPreset | 'auto';
+      if (preset === 'auto') delete api.preset;
+      else api.preset = preset;
+      if (preset === 'custom') {
+        const base = await p.ask(`Its OpenAI-compatible base URL (empty = ${AI_BASE_URL_ENV} in .env)`, text(api.baseUrl), (v) =>
+          !v || /^https?:\/\/\S+$/.test(v) ? null : 'must start with https://',
+        );
+        if (base) api.baseUrl = base;
+        else delete api.baseUrl;
+        api.scoreModel = await p.ask('Model for scoring', text(api.scoreModel), (v) => (v ? null : 'required'));
+        api.letterModel = await p.ask('Model for writing', text(api.letterModel), (v) => (v ? null : 'required'));
+      }
+      if (Object.keys(api).length) ai.api = api;
+      else delete ai.api;
+      if (preset === 'ollama') {
+        p.say(`Ollama needs no key; it must be running at ${PRESETS.ollama.baseUrl}.`);
+      } else {
+        p.say(`Put your API key in .env (in the job-bot folder) as ${AI_KEY_ENV}=...`);
+        p.say('The wizard never asks for the key or saves it, and it never goes into config.json.');
+      }
+      if (preset === 'auto') {
+        p.say('The provider is told from the key: sk-ant- Anthropic, gsk_ Groq, sk-or- OpenRouter, AIza Gemini, other sk- OpenAI.');
+        p.say('DeepSeek keys also start with sk-: for DeepSeek, choose deepseek here.');
+      } else if (preset !== 'custom') {
+        const d = PRESETS[preset];
+        const score = text(api.scoreModel) || d.scoreModel;
+        const letter = text(api.letterModel) || d.letterModel;
+        p.say(
+          `${d.name} models: ${score} for scoring and ${letter} for writing; change them on the Settings page or in config.json ai.api.`,
+        );
+      }
+    }
     cfg.ai = ai;
     const slug = text(app.fullName)
       .toLowerCase()

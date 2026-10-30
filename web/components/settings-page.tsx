@@ -1,7 +1,7 @@
 import { connection } from 'next/server';
 import { ApplicantForm, ConfigForm, JsonEditor } from '@/components/settings';
 import { salaryKeys } from '@/lib/settings-form';
-import { readApplicant, readConfig } from '@/lib/settings';
+import { aiKeyStatus, readApplicant, readConfig } from '@/lib/settings';
 
 /** Reads both files on every request: they change outside the dashboard too. */
 export async function Settings() {
@@ -15,7 +15,7 @@ export async function Settings() {
           <h2 className="text-lg font-semibold">Search settings</h2>
           <p className="text-sm text-zinc-500">config.json · saving re-scores the stored jobs with the new filters.</p>
         </div>
-        <ConfigForm config={config} />
+        <ConfigForm config={config} keys={aiKeyStatus()} />
         <JsonEditor kind="config" file={config} />
       </section>
       <section className="space-y-4">
