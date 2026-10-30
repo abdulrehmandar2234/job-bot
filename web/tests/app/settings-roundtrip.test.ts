@@ -66,6 +66,21 @@ describe('settings round-trip through the CLI', () => {
     expect(after.futureKey).toEqual({ keep: true });
   }, 60_000);
 
+  it('saves an AI provider and its models through the bot validator, and rejects a bad base URL', async () => {
+    const cfg = JSON.parse(readFileSync(CONFIG_FILE, 'utf8'));
+    const res = await saveConfig(
+      null,
+      configForm(cfg, { 'ai.provider': 'api', 'ai.api.preset': 'gemini', 'ai.api.letterModel': 'gemini-x' }),
+    );
+    expect(res).toMatchObject({ ok: true });
+    const after = JSON.parse(readFileSync(CONFIG_FILE, 'utf8'));
+    expect(after).toEqual({ ...cfg, ai: { ...cfg.ai, provider: 'api', api: { preset: 'gemini', letterModel: 'gemini-x' } } });
+
+    const bad = await saveConfig(null, configForm(after, { 'ai.api.baseUrl': 'not a url', 'ai.api.preset': 'gemini' }));
+    expect(bad).toMatchObject({ ok: false, errors: [expect.objectContaining({ path: 'ai.api.baseUrl' })] });
+    expect(JSON.parse(readFileSync(CONFIG_FILE, 'utf8'))).toEqual(after);
+  }, 60_000);
+
   it('saves a config without adzuna (empty Adzuna fields) without adding an invalid section', async () => {
     const { adzuna: _, ...cfg } = JSON.parse(readFileSync(CONFIG_FILE, 'utf8')) as Json;
     writeFileSync(CONFIG_FILE, JSON.stringify(cfg, null, 2));

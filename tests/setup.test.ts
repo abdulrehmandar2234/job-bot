@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { copyFileSync, existsSync, mkdtempSync, readFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { PassThrough, Readable } from 'node:stream';
@@ -63,6 +63,7 @@ const JANE = [
   '', // allow: default for Portugal
   '', // deny: without Portugal
   'Amsterdam, Berlin', // LinkedIn locations
+  '', // Claude CLI or API key: the default, claude-cli
   '/usr/local/bin/claude',
   '', // CV file name
   'y', // save
@@ -107,6 +108,7 @@ describe('setup wizard', () => {
     assert.match(cfg.remote.deny, /\|spain\|/);
     assert.deepEqual(cfg.linkedin.locations, ['Amsterdam', 'Berlin']);
     assert.equal(cfg.ai.claudePath, '/usr/local/bin/claude');
+    assert.equal(cfg.ai.provider, undefined); // the default is not written
     assert.equal(cfg.cvFileName, 'abdulrehman_dar_resume.pdf'); // an existing value is only ever the default
     assert.equal(cfg.companies.length, json(join(ROOT, 'config.json')).companies.length);
     // Defaults are shown before they are kept.
@@ -131,6 +133,83 @@ describe('setup wizard', () => {
     assert.match(printed, /City you live in \[Lahore\]: /);
     assert.match(printed, /Its two-letter country code \(ISO\), e\.g\. PT \[PK\]: /);
     assert.match(printed, /Remote work from which country \[Pakistan\]: /);
+    assert.match(printed, /Claude CLI or API key \(claude-cli \/ api\) \[claude-cli\]: /);
+  });
+
+  /** JANE's answers with the Claude CLI question and path replaced by these AI answers. */
+  const withAi = (...ai: string[]) => {
+    const answers = [...JANE];
+    answers.splice(answers.indexOf('/usr/local/bin/claude') - 1, 2, ...ai);
+    return answers;
+  };
+
+  it('API key, auto-detected: saves provider "api" without a preset, says to put AI_API_KEY in .env, never asks for it', async () => {
+    const f = files();
+    const { ok, printed } = await run(withAi('api', ''), f, JANE_MASTER);
+    assert.equal(ok, true, printed);
+    const cfg = json(f.config);
+    assert.equal(validateConfig(cfg).ok, true);
+    assert.equal(cfg.ai.provider, 'api');
+    assert.equal(cfg.ai.api, undefined); // auto: nothing to store
+    assert.equal(cfg.ai.claudePath, json(join(ROOT, 'config.json')).ai.claudePath); // kept for switching back
+    assert.match(printed, /Which provider \(auto, openai, deepseek, anthropic, .*custom; auto = from the key\) \[auto\]: /);
+    assert.match(printed, /Put your API key in \.env \(in the job-bot folder\) as AI_API_KEY=\.\.\./);
+    assert.match(printed, /sk-ant- Anthropic, gsk_ Groq, sk-or- OpenRouter, AIza Gemini, other sk- OpenAI/);
+    assert.match(printed, /for DeepSeek, choose deepseek here/);
+    assert.doesNotMatch(printed, /Path to the Claude Code CLI/);
+    assert.doesNotMatch(readFileSync(f.config, 'utf8'), /API_KEY|sk-/);
+  });
+
+  it('API key with a preset: stores it and shows its models', async () => {
+    const f = files();
+    const { ok, printed } = await run(withAi('API', 'Anthropic'), f, JANE_MASTER);
+    assert.equal(ok, true, printed);
+    assert.deepEqual(json(f.config).ai.api, { preset: 'anthropic' });
+    assert.match(printed, /Anthropic models: claude-haiku-5-5 for scoring and claude-sonnet-5-5 for writing/);
+  });
+
+  it('ollama needs no key; custom asks for its base URL and models', async () => {
+    let f = files();
+    let res = await run(withAi('api', 'ollama'), f, JANE_MASTER);
+    assert.equal(res.ok, true, res.printed);
+    assert.match(res.printed, /Ollama needs no key/);
+    assert.doesNotMatch(res.printed, /AI_API_KEY=/);
+    f = files();
+    res = await run(withAi('api', 'custom', 'ftp://x', 'https://llm.example.test/v1', 'small', 'big'), f, JANE_MASTER);
+    assert.equal(res.ok, true, res.printed);
+    assert.match(res.printed, /must start with https:\/\//);
+    assert.deepEqual(json(f.config).ai.api, {
+      preset: 'custom',
+      baseUrl: 'https://llm.example.test/v1',
+      scoreModel: 'small',
+      letterModel: 'big',
+    });
+  });
+
+  it('a config with the older "deepseek" provider becomes "api" with that preset, keeping its models', async () => {
+    const f = files();
+    const cfg = json(f.config);
+    writeFileSync(
+      f.config,
+      JSON.stringify({ ...cfg, ai: { ...cfg.ai, provider: 'deepseek', deepseek: { letterModel: 'deepseek-reasoner' } } }),
+    );
+    const { ok, printed } = await run(withAi('', ''), f, JANE_MASTER);
+    assert.equal(ok, true, printed);
+    assert.match(printed, /Claude CLI or API key \(claude-cli \/ api\) \[api\]: /);
+    const ai = json(f.config).ai;
+    assert.equal(ai.provider, 'api');
+    assert.deepEqual(ai.api, { preset: 'deepseek', letterModel: 'deepseek-reasoner' });
+    assert.equal(ai.deepseek, undefined);
+  });
+
+  it('asks again for an unknown answer', async () => {
+    const f = files();
+    const answers = [...JANE];
+    answers.splice(answers.indexOf('/usr/local/bin/claude') - 1, 1, 'gemini', 'claude-cli');
+    const { ok, printed } = await run(answers, f, JANE_MASTER);
+    assert.equal(ok, true, printed);
+    assert.match(printed, / {2}claude-cli or api/);
+    assert.equal(json(f.config).ai.provider, undefined); // claude-cli is the default, so config.json stays as it was
   });
 
   it('asks again after an invalid answer', async () => {

@@ -4,7 +4,8 @@ import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import './helpers.ts';
-import { aiAnswers, aiCoverLetter, aiScore, applicantFacts, askClaude, cvText } from '../src/ai.ts';
+import { aiAnswers, aiCoverLetter, aiScore, applicantFacts, cvText } from '../src/ai.ts';
+import { askClaude } from '../src/ai-providers.ts';
 import type { Job } from '../src/db.ts';
 
 const FAKE = join(import.meta.dirname, 'fixtures', 'fake-claude.mjs');

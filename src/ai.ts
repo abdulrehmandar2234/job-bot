@@ -1,64 +1,12 @@
-import { spawn } from 'node:child_process';
 import { config } from './config.ts';
 import { listText, loadProfile, onsiteSituation, readApplicant, remoteFrom, signature, whereText, type Profile } from './profile.ts';
 import type { AiLocation, FormAnswer, InterviewPrep, Job } from './types.ts';
 import { masterRaw } from './cv/versions.ts';
 import type { Cv } from './cv/render.ts';
+import { askAi } from './ai-providers.ts';
 
-// AI features run through the locally signed-in Claude Code CLI (`claude -p`), so no API key is needed.
-// Calls are headless: no tools, no MCP servers, no session saved.
-
-// JOB_BOT_CLAUDE swaps in another executable (tests use a fake one).
-const claudePath = () => process.env.JOB_BOT_CLAUDE || config.ai.claudePath;
-
-export function askClaude<T>(prompt: string, schema: object, model: string, system: string): Promise<T> {
-  return new Promise((resolve, reject) => {
-    const child = spawn(
-      claudePath(),
-      [
-        '-p',
-        '--model',
-        model,
-        '--output-format',
-        'json',
-        '--json-schema',
-        JSON.stringify(schema),
-        '--system-prompt',
-        system,
-        '--tools',
-        '',
-        '--strict-mcp-config',
-        '--setting-sources',
-        '',
-        '--no-session-persistence',
-      ],
-      { stdio: ['pipe', 'pipe', 'pipe'] },
-    );
-    let out = '';
-    let err = '';
-    const timer = setTimeout(() => {
-      child.kill();
-      reject(new Error('claude timed out'));
-    }, 180_000);
-    child.stdout.on('data', (d) => (out += d));
-    child.stderr.on('data', (d) => (err += d));
-    child.on('error', (e) => {
-      clearTimeout(timer);
-      reject(e);
-    });
-    child.on('close', (code) => {
-      clearTimeout(timer);
-      try {
-        const res = JSON.parse(out);
-        if (res.is_error || !res.structured_output) throw new Error(res.result || `claude exited ${code}`);
-        resolve(res.structured_output as T);
-      } catch (e) {
-        reject(new Error(`${(e as Error).message} ${err.slice(0, 300)}`.trim()));
-      }
-    });
-    child.stdin.end(prompt);
-  });
-}
+// The AI features: prompts and output schemas. Which AI runs them (the local Claude CLI, or an OpenAI-compatible API with one key) is
+// config.json → ai.provider; see src/ai-providers.ts.
 
 /** The master CV as plain text: the only facts the AI may use about the candidate. */
 export function cvText(): string {
@@ -162,7 +110,7 @@ candidate out, and also when the description says the work is done from, or the 
 country or region that is not ${home} and not a target country with visa sponsorship: the description wins over the
 LOCATION line. An onsite role in a target country with visa sponsorship is fine. "unclear" only when a remote job never
 says where the person may live; "yes" when it is open to the candidate. Quote the deciding phrase in reason.`;
-  return askClaude<AiScore>(`CANDIDATE CV:\n${cvText()}\n\nJOB:\n${jobText(job)}`, SCORE_SCHEMA, config.ai.scoreModel, system);
+  return askAi<AiScore>(`CANDIDATE CV:\n${cvText()}\n\nJOB:\n${jobText(job)}`, SCORE_SCHEMA, 'score', system);
 }
 
 const ANSWERS_SCHEMA = {
@@ -239,10 +187,10 @@ Rules:
 - Free-text questions ("why this company", "describe a project"): 60-150 words, specific to this job and company, first
   person, plain text, no clichés. Link the job's requirements to concrete CV experience.
 - ${situationRule(job, 'answers')}`;
-  const res = await askClaude<{ answers: FormAnswer[] }>(
+  const res = await askAi<{ answers: FormAnswer[] }>(
     `CV:\n${cvText()}\n\nAPPLICANT FACTS (null = unknown):\n${applicantFacts()}\n\nJOB:\n${jobText(job)}\n\nFORM QUESTIONS:\n${questions.slice(0, 8000)}`,
     ANSWERS_SCHEMA,
-    config.ai.letterModel,
+    'letter',
     system,
   );
   return res.answers;
@@ -260,10 +208,10 @@ export async function aiCoverLetter(job: Job): Promise<string> {
 ${signature(loadProfile())}
 - ${situationRule(job, 'letter')}
 - Confident and specific, no clichés like "I am writing to express my interest".`;
-  const res = await askClaude<{ letter: string }>(
+  const res = await askAi<{ letter: string }>(
     `CV:\n${cvText()}\n\nJOB:\n${jobText(job)}`,
     { type: 'object', properties: { letter: { type: 'string' } }, required: ['letter'] },
-    config.ai.letterModel,
+    'letter',
     system,
   );
   return res.letter.trim() + '\n';
@@ -335,7 +283,7 @@ export function aiInterviewPrep(job: Job): Promise<InterviewPrep> {
 - questions_to_ask: thoughtful questions the candidate can ask them, specific to this posting.
 - requirements: the job's key requirements, each mapped to CV evidence, or gap true with what is missing.
 - Plain text in every string, no markdown, concise.`;
-  return askClaude<InterviewPrep>(`CV:\n${cvText()}\n\nJOB:\n${jobText(job)}`, PREP_SCHEMA, config.ai.letterModel, system);
+  return askAi<InterviewPrep>(`CV:\n${cvText()}\n\nJOB:\n${jobText(job)}`, PREP_SCHEMA, 'letter', system);
 }
 
 /** A short follow-up message for an application with no answer yet. The user reviews and sends it. */
@@ -350,10 +298,10 @@ Rules:
 - Use ONLY facts in the CV. Never invent employers, numbers, skills or years.
 - ${job.follow_ups > 0 ? 'The candidate has followed up before: acknowledge it briefly and keep this one even shorter.' : 'This is their first follow-up.'}
 - Polite and confident, never pushy or apologetic; no new commitments (salary, start date, hours).`;
-  const res = await askClaude<{ message: string }>(
+  const res = await askAi<{ message: string }>(
     `CV:\n${cvText()}\n\nAPPLIED ON: ${applied}\n\nJOB:\n${jobText(job)}`,
     { type: 'object', properties: { message: { type: 'string' } }, required: ['message'] },
-    config.ai.letterModel,
+    'letter',
     system,
   );
   return res.message.trim() + '\n';

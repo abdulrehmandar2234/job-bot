@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { BOT_ROOT } from './bot';
-import type { Json } from './settings-form';
+import { AI_KEY_ENV, detectPreset, LEGACY_KEY_ENV, type ApiPreset, type Json } from './settings-form';
 
 // Reads config.json and cv/applicant.json for the settings page. Read-only: saving always goes through the
 // bot's `settings:save` command, which is the single writer and validator (see app/settings/actions.ts).
@@ -10,6 +10,8 @@ import type { Json } from './settings-form';
 export const configFile = () => process.env.JOB_BOT_CONFIG || join(BOT_ROOT, 'config.json');
 export const applicantFile = () => process.env.JOB_BOT_APPLICANT || join(BOT_ROOT, 'cv', 'applicant.json');
 export const applicantExampleFile = () => join(BOT_ROOT, 'cv', 'applicant.example.json');
+// The bot's own env file (job-bot/.env, loaded by `npm run bot` and by the bot runs the dashboard starts).
+export const botEnvFile = () => process.env.JOB_BOT_ENV_FILE || join(BOT_ROOT, '.env');
 
 export type SettingsFile = {
   file: string; // the file that was read
@@ -37,4 +39,36 @@ export const readConfig = () => read(configFile());
 export function readApplicant(): SettingsFile {
   const file = applicantFile();
   return existsSync(file) ? read(file) : read(applicantExampleFile(), true);
+}
+
+/**
+ * Whether the bot will find an AI API key, and whose key it looks like. Only the variable name and the provider
+ * detected from the key's prefix leave this function: never the value.
+ */
+export type AiKeyStatus = { keyEnv: string | null; provider: ApiPreset | null };
+
+/**
+ * The bot reads AI_API_KEY (or the older OPENAI_API_KEY / DEEPSEEK_API_KEY) from job-bot/.env, and also inherits the
+ * environment of whoever starts it (the bot runs the dashboard starts get the dashboard's). The environment wins.
+ */
+export function aiKeyStatus(): AiKeyStatus {
+  const values = new Map<string, string>();
+  const file = botEnvFile();
+  if (existsSync(file)) {
+    for (const line of readFileSync(file, 'utf8').split('\n')) {
+      const [, name, raw] = /^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/.exec(line) ?? [];
+      const value = raw
+        ?.replace(/\s+#.*$/, '')
+        .replace(/^(['"])(.*)\1$/, '$2')
+        .trim();
+      if (name && value) values.set(name, value);
+    }
+  }
+  const read = (name: string) => process.env[name]?.trim() || values.get(name) || '';
+  const key = read(AI_KEY_ENV);
+  if (key) return { keyEnv: AI_KEY_ENV, provider: detectPreset(key) };
+  for (const [preset, name] of Object.entries(LEGACY_KEY_ENV) as [ApiPreset, string][]) {
+    if (read(name)) return { keyEnv: name, provider: preset };
+  }
+  return { keyEnv: null, provider: null };
 }
