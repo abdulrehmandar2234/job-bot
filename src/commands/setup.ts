@@ -1,7 +1,18 @@
 import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { createInterface } from 'node:readline';
 import { blankApplicant, buildProfile, profileGaps, readMaster, type MasterContact } from '../profile.ts';
-import { APPLICANT_FILE, CONFIG_FILE, UTC_OFFSET, validate, type SettingsError } from '../settings.ts';
+import {
+  AI_PROVIDERS,
+  API_DEFAULTS,
+  APPLICANT_FILE,
+  CONFIG_FILE,
+  KEY_ENV,
+  PROVIDER_NAME,
+  UTC_OFFSET,
+  validate,
+  type AiProvider,
+  type SettingsError,
+} from '../settings.ts';
 import type { Flags } from './shared.ts';
 
 // `npm run bot -- setup`: a question-and-answer wizard that fills in the profile (cv/applicant.json) and the target
@@ -188,7 +199,30 @@ export async function runSetup(io: SetupIO, files: SetupFiles = { config: CONFIG
     cfg.linkedin = linkedin;
 
     const ai = (isObj(cfg.ai) ? cfg.ai : {}) as Json;
-    ai.claudePath = await p.ask('Path to the Claude Code CLI (`which claude`)', text(ai.claudePath), (v) => (v ? null : 'required'));
+    p.say('AI provider for scoring, letters and answers: claude-cli (your signed-in Claude Code CLI, no API key),');
+    p.say('openai or deepseek (an API key in .env, paid per token).');
+    const provider = (
+      await p.ask('AI provider', text(ai.provider) || 'claude-cli', (v) =>
+        (AI_PROVIDERS as readonly string[]).includes(v.toLowerCase()) ? null : AI_PROVIDERS.join(', '),
+      )
+    ).toLowerCase() as AiProvider;
+    // Missing means claude-cli, so the default is only written when the file already named a provider.
+    if (provider !== 'claude-cli' || ai.provider !== undefined) ai.provider = provider;
+    if (provider === 'claude-cli') {
+      ai.claudePath = await p.ask('Path to the Claude Code CLI (`which claude`)', text(ai.claudePath), (v) => (v ? null : 'required'));
+    } else {
+      ai.claudePath = text(ai.claudePath) || 'claude'; // still required by config.json, used if you switch back
+      const own = (isObj(ai[provider]) ? ai[provider] : {}) as Json;
+      const d = {
+        scoreModel: text(own.scoreModel) || API_DEFAULTS[provider].scoreModel,
+        letterModel: text(own.letterModel) || API_DEFAULTS[provider].letterModel,
+      };
+      p.say(`Put your ${PROVIDER_NAME[provider]} API key in .env (in the job-bot folder) as ${KEY_ENV[provider]}=...`);
+      p.say('The wizard never asks for the key or saves it, and it never goes into config.json.');
+      p.say(
+        `Models: ${d.scoreModel} for scoring and ${d.letterModel} for writing; change them in config.json ai.${provider} or on the Settings page.`,
+      );
+    }
     cfg.ai = ai;
     const slug = text(app.fullName)
       .toLowerCase()

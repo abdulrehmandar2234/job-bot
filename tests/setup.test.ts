@@ -63,6 +63,7 @@ const JANE = [
   '', // allow: default for Portugal
   '', // deny: without Portugal
   'Amsterdam, Berlin', // LinkedIn locations
+  '', // AI provider: the default, claude-cli
   '/usr/local/bin/claude',
   '', // CV file name
   'y', // save
@@ -107,6 +108,7 @@ describe('setup wizard', () => {
     assert.match(cfg.remote.deny, /\|spain\|/);
     assert.deepEqual(cfg.linkedin.locations, ['Amsterdam', 'Berlin']);
     assert.equal(cfg.ai.claudePath, '/usr/local/bin/claude');
+    assert.equal(cfg.ai.provider, undefined); // the default is not written
     assert.equal(cfg.cvFileName, 'abdulrehman_dar_resume.pdf'); // an existing value is only ever the default
     assert.equal(cfg.companies.length, json(join(ROOT, 'config.json')).companies.length);
     // Defaults are shown before they are kept.
@@ -131,6 +133,38 @@ describe('setup wizard', () => {
     assert.match(printed, /City you live in \[Lahore\]: /);
     assert.match(printed, /Its two-letter country code \(ISO\), e\.g\. PT \[PK\]: /);
     assert.match(printed, /Remote work from which country \[Pakistan\]: /);
+    assert.match(printed, /AI provider \[claude-cli\]: /);
+  });
+
+  for (const [provider, keyEnv, scoreModel] of [
+    ['openai', 'OPENAI_API_KEY', 'gpt-4o-mini'],
+    ['DeepSeek', 'DEEPSEEK_API_KEY', 'deepseek-chat'],
+  ] as const) {
+    it(`an API provider (${provider}): saved, says which env var goes in .env, never asks for the key`, async () => {
+      const f = files();
+      const answers = [...JANE];
+      answers.splice(answers.indexOf('/usr/local/bin/claude') - 1, 2, provider); // no Claude CLI path question
+      const { ok, printed } = await run(answers, f, JANE_MASTER);
+      assert.equal(ok, true, printed);
+      const cfg = json(f.config);
+      assert.equal(validateConfig(cfg).ok, true);
+      assert.equal(cfg.ai.provider, provider.toLowerCase());
+      assert.equal(cfg.ai.claudePath, json(join(ROOT, 'config.json')).ai.claudePath); // kept for switching back
+      assert.match(printed, new RegExp(`API key in \\.env \\(in the job-bot folder\\) as ${keyEnv}=`));
+      assert.match(printed, new RegExp(`Models: ${scoreModel} for scoring`));
+      assert.doesNotMatch(printed, /Path to the Claude Code CLI/);
+      assert.doesNotMatch(readFileSync(f.config, 'utf8'), /API_KEY|sk-/);
+    });
+  }
+
+  it('asks again for an unknown AI provider', async () => {
+    const f = files();
+    const answers = [...JANE];
+    answers.splice(answers.indexOf('/usr/local/bin/claude') - 1, 1, 'gemini', 'claude-cli');
+    const { ok, printed } = await run(answers, f, JANE_MASTER);
+    assert.equal(ok, true, printed);
+    assert.match(printed, /claude-cli, openai, deepseek/);
+    assert.equal(json(f.config).ai.provider, undefined); // claude-cli is the default, so config.json stays as it was
   });
 
   it('asks again after an invalid answer', async () => {
