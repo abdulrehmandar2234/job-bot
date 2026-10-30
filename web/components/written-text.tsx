@@ -9,7 +9,7 @@ type Action = (prev: TextFormState, fd: FormData) => Promise<TextFormState>;
  * Submits through useActionState from onSubmit rather than <form action>, because React resets a form after an
  * action prop runs, which would wipe the typed text when the action answers with an error (as in settings.tsx).
  */
-function useTextForm(action: Action) {
+export function useTextForm(action: Action) {
   const [state, dispatch, pending] = useActionState(action, null);
   const onSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -19,7 +19,7 @@ function useTextForm(action: Action) {
   return { state, pending, onSubmit };
 }
 
-function Problem({ state }: { state: TextFormState }) {
+export function Problem({ state }: { state: TextFormState }) {
   if (!state || state.ok) return null;
   return (
     <p role="alert" className="text-sm text-rose-700 dark:text-rose-400">

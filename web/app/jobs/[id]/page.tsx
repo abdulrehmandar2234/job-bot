@@ -23,6 +23,7 @@ import { Busy, TaskBar } from '@/components/tasks';
 import { WrittenText } from '@/components/written-text';
 import { SalaryTag } from '@/components/salary';
 import { AtsCheck } from '@/components/ats-check';
+import { CvPanel } from '@/components/cv-panel';
 import { loadExpectations } from '@/lib/salary';
 import { Contacts, ReferralReminder } from '@/components/contacts';
 import { allContacts } from '@/lib/contacts-db';
@@ -86,6 +87,7 @@ async function JobDetail({ params }: { params: PageProps<'/jobs/[id]'>['params']
 
       <InterviewPrep job={job} busy={busy} />
       <AtsCheck jobId={job.id} />
+      <CvPanel job={job} busy={busy} />
 
       <section className="space-y-2 rounded-xl border border-zinc-200 p-4 text-sm dark:border-zinc-800">
         {job.visa && (

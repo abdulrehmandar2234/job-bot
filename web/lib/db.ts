@@ -32,6 +32,9 @@ export type Job = Omit<
   | 'cv_summary'
   | 'cv_summary_at'
   | 'cv_summary_edited_at'
+  | 'cv_template'
+  | 'cv_review'
+  | 'cv_review_at'
 > &
   Partial<
     Pick<
@@ -48,6 +51,9 @@ export type Job = Omit<
       | 'cv_summary'
       | 'cv_summary_at'
       | 'cv_summary_edited_at'
+      | 'cv_template'
+      | 'cv_review'
+      | 'cv_review_at'
     >
   >;
 
