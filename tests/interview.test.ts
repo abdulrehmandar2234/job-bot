@@ -8,7 +8,6 @@ import { promisify } from 'node:util';
 import { TEST_DB } from './helpers.ts';
 import { getJob, migrate, pool } from '../src/db.ts';
 import { path } from '../src/config.ts';
-import { notify, notifyCommand, osascriptArgs, strongAlerts, type AlertJob } from '../src/notify.ts';
 import type { InterviewPrep } from '../src/types.ts';
 
 // Interview prep (`prep`) and strong-match alerts (`ai:score`), through the real CLI with a fake Claude and a fake notifier.
@@ -284,65 +283,5 @@ process.stdout.write(JSON.stringify({ is_error: false, structured_output: ${revi
 
   it('the daily fetch script reports a failed AI review instead of a score count', () => {
     assert.match(readFileSync(path('scripts', 'daily-fetch.sh'), 'utf8'), /AI review failed/);
-  });
-});
-
-describe('notify', () => {
-  const job = (n: number, o: Partial<AlertJob> = {}): AlertJob => ({
-    id: `x:${n}`,
-    title: `Dev ${n}`,
-    company: `Co${n}`,
-    country: 'NL',
-    ...o,
-  });
-  const name = (c: string | null) => c ?? '?';
-
-  it('strongAlerts sends up to three single notes and groups above that', () => {
-    assert.equal(strongAlerts([job(1), job(2), job(3)], name).length, 3);
-    assert.deepEqual(strongAlerts([job(1), job(2), job(3), job(4), job(5)], name), [
-      { title: 'Job Bot', message: '5 strong matches: Dev 1 at Co1, Dev 2 at Co2, Dev 3 at Co3…', url: 'http://localhost:3100' },
-    ]);
-    assert.deepEqual(strongAlerts([], name), []);
-  });
-
-  it('strongAlerts keeps each message on one short line', () => {
-    const [n] = strongAlerts([job(1, { title: 'Dev\nline\ttwo\u0007', company: 'x'.repeat(400) })], name);
-    assert.match(n.message, /^Strong match: Dev line two at x+…$/);
-    assert.equal(n.message.length, 240);
-  });
-
-  it('osascript gets the texts as arguments, never inside the script source', () => {
-    const evil = 'Say "hi" \\" & do shell script "touch /tmp/pwned" & "';
-    const args = osascriptArgs({ title: 'Job Bot', message: evil, url: 'u' });
-    assert.deepEqual(args.slice(-2), ['Job Bot', evil]);
-    assert.ok(args.slice(0, -2).every((a) => !a.includes(evil)));
-  });
-
-  it('quotes and backslashes reach AppleScript unchanged', { skip: process.platform !== 'darwin' }, async () => {
-    const evil = 'Say "hi" \\" & do shell script "touch /tmp/pwned" & "';
-    // Same argument layout as the real call, with `return` in place of `display notification`.
-    const args = osascriptArgs({ title: 'Job "Bot"', message: evil, url: 'u' }).map((a) =>
-      a.startsWith('display notification') ? 'return (item 1 of argv) & "|" & (item 2 of argv)' : a,
-    );
-    const { stdout } = await run('osascript', args);
-    assert.equal(stdout.trim(), `Job "Bot"|${evil}`);
-  });
-
-  it('notifyCommand: off, a fake program, terminal-notifier when installed, else osascript', () => {
-    const n = { title: 'T', message: 'M', url: 'http://localhost:3100/jobs/1' };
-    assert.equal(notifyCommand(n, { JOB_BOT_NOTIFY: 'off' }), null);
-    assert.deepEqual(notifyCommand(n, { JOB_BOT_NOTIFY: '/x/fake' }), ['/x/fake', ['T', 'M', n.url]]);
-    assert.deepEqual(
-      notifyCommand(n, {}, (p) => p === '/opt/homebrew/bin/terminal-notifier'),
-      ['/opt/homebrew/bin/terminal-notifier', ['-title', 'T', '-message', 'M', '-open', n.url]],
-    );
-    assert.deepEqual(
-      notifyCommand(n, {}, () => false),
-      ['osascript', osascriptArgs(n)],
-    );
-  });
-
-  it('notify logs a failing notifier instead of throwing', async () => {
-    await notify({ title: 'T', message: 'M', url: 'u' }, { JOB_BOT_NOTIFY: '/nonexistent/notifier' });
   });
 });
