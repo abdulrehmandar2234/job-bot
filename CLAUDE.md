@@ -6,7 +6,7 @@ Local job-search helper: Node CLI bot (`src/`, TypeScript run directly by Node 2
 
 - The bot never applies to a job. It finds, scores and prepares (CV, cover letter, form answers). The user applies themselves.
 - Nothing personal is hardcoded. Name, contact, location, languages and letter sentences come from the profile (`cv/applicant.json`, `src/profile.ts`, falling back to `cv/master.json`); target countries, visa needs and the remote-from country from `config.json`. Prompts say "the candidate", never he/his. The dashboard mirrors the profile rules in `web/lib/market.ts` (parity test in `web/tests/lib/market.test.ts`).
-- `config.json` and `cv/master.json` in git are the owner's. `tests/fixtures/owner-golden.json` pins the owner's letters and filter results; a change that alters them must be deliberate.
+- `config.json` is personal and gitignored: it starts as a copy of `config.default.json` (`ensureConfigFile` in `src/settings.ts`, `web/lib/settings.ts`; tests use a temp copy via `tests/helpers.ts`, `web/tests/setup.ts`). `config.default.json` holds the owner's search settings, nothing personal; `presets/` (markets, stacks; `src/presets.ts`) are offered by the setup wizard and `tests/presets.test.ts` keeps the default equal to gulf+netherlands+pakistan with php-laravel+javascript. `cv/master.json` in git is the owner's. `tests/fixtures/owner-golden.json` pins the owner's letters and filter results; a change that alters them must be deliberate.
 - The Chrome extension may type prepared values into empty form fields when the user clicks "Fill this form". It never overwrites a filled field, never clicks a button and never submits a form.
 - Prefer public APIs over scraping, and pace requests (`src/sources/http.ts` `sleep`) so no site blocks the bot. Never automate logins, account creation or CAPTCHAs.
 - Every new feature or edit ships with tests in the same change:
@@ -56,7 +56,7 @@ Finds software jobs for the user's target countries (onsite, with or without a v
 - Logic the dashboard needs from the bot is copied into `web/lib/` (the dashboard only imports bot types), and each copy has a parity test that imports the bot's version: `web/tests/lib/market.test.ts` (profile), `settings.test.ts` (AI presets, ATS list), `followup.test.ts`, `skips.test.ts`. Change both sides together.
 - Migrations are append-only: add the next `NNN_name.sql`, idempotent where possible, never edit a committed one; update `src/types.ts` with new columns.
 - Every setting is in the zod schemas in `src/settings.ts`. A new key also needs `web/lib/settings-form.ts` (`CONFIG_FIELDS`) if the Settings page edits it, the setup wizard if a new user must answer it, and a row in docs/configuration.md.
-- `tests/fixtures/owner-golden.json` pins the owner's template letters, follow-ups and filter results against the real `config.json` and `cv/master.json`; update it only for a deliberate change.
+- `tests/fixtures/owner-golden.json` pins the owner's template letters, follow-ups and filter results against `config.default.json` and `cv/master.json`; update it only for a deliberate change.
 
 ### Machine limits
 

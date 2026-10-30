@@ -25,6 +25,7 @@ beforeAll(async () => {
     JSON.stringify({ id: 'custom-acme-v3', template: 'modern', feedbackNote: ['Employer "Google" (not on your master CV)'] }),
   );
   writeFileSync(join(root, 'config.json'), JSON.stringify({ cvTemplate: 'compact' }));
+  vi.stubEnv('JOB_BOT_CONFIG', join(root, 'config.json')); // not the shipped defaults tests/setup.ts points at
   const cwd = vi.spyOn(process, 'cwd').mockReturnValue(join(root, 'web'));
   try {
     ({ CvPanel } = await import('@/components/cv-panel'));
@@ -35,7 +36,10 @@ beforeAll(async () => {
 beforeEach(() => {
   vi.clearAllMocks();
 });
-afterAll(() => rmSync(root, { recursive: true, force: true }));
+afterAll(() => {
+  vi.unstubAllEnvs();
+  rmSync(root, { recursive: true, force: true });
+});
 
 const job = (o: Partial<Job> = {}) => ({ id: PREFIX + 'panel', cv_version: null, cv_template: null, cv_review: null, ...o }) as Job;
 const panel = () => screen.getByRole('region', { name: /CV for this job/ });

@@ -193,7 +193,7 @@ describe('recording a sent follow-up', () => {
 
 describe('the drafted follow-up for AI off', () => {
   it('uses the template without calling Claude', async () => {
-    const c = JSON.parse(readFileSync(path('config.json'), 'utf8'));
+    const c = JSON.parse(readFileSync(path('config.default.json'), 'utf8'));
     c.ai.enabled = false;
     const f = join(mkdtempSync(join(tmp, 'config-')), 'config.json');
     writeFileSync(f, JSON.stringify(c));

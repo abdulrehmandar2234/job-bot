@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { z } from 'zod';
@@ -19,6 +19,19 @@ export const configFile = () => process.env.JOB_BOT_CONFIG || path('config.json'
 export const applicantFile = () => process.env.JOB_BOT_APPLICANT || path('cv', 'applicant.json');
 export const masterFile = () => process.env.JOB_BOT_MASTER || path('cv', 'master.json');
 export const CONFIG_FILE = configFile();
+// The shipped settings: config.json is personal and gitignored, and starts as a copy of this file.
+export const DEFAULT_CONFIG_FILE = path('config.default.json');
+
+/**
+ * Creates config.json from config.default.json when it does not exist yet (a fresh clone). Only the default
+ * location is filled in: a missing JOB_BOT_CONFIG file stays missing, so a typo in it is still reported.
+ * Returns true when it copied.
+ */
+export function ensureConfigFile(file = configFile(), defaults = DEFAULT_CONFIG_FILE, home = path('config.json')): boolean {
+  if (file !== home || existsSync(file) || !existsSync(defaults)) return false;
+  copyFileSync(defaults, file);
+  return true;
+}
 export const APPLICANT_FILE = applicantFile();
 export const APPLICANT_EXAMPLE_FILE = path('cv', 'applicant.example.json');
 

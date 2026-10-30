@@ -20,7 +20,7 @@ const claudeLog = join(tmp, 'claude.jsonl');
 
 // A temp copy of config.json with the AI off.
 const configFile = join(tmp, 'config.json');
-const cfg = JSON.parse(readFileSync(path('config.json'), 'utf8'));
+const cfg = JSON.parse(readFileSync(path('config.default.json'), 'utf8'));
 cfg.ai.enabled = false;
 writeFileSync(configFile, JSON.stringify(cfg));
 

@@ -1,0 +1,8 @@
+{
+  "name": "PHP and Laravel",
+  "description": "Back-end and full-stack PHP roles: Laravel, Symfony, plain PHP.",
+  "linkedinKeywords": ["laravel", "php"],
+  "remoteQueries": ["laravel", "php"],
+  "roleInclude": "php|laravel",
+  "allowInTitles": []
+}

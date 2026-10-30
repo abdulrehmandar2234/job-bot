@@ -201,6 +201,7 @@ describe('bot backup and scripts/backup-db.sh', { skip: process.platform === 'wi
     PATH: `${bin}:${posix.dirname(process.execPath)}:/usr/bin:/bin`,
     JOB_BOT_BACKUP_DIR: dir,
     JOB_BOT_BACKUP_DB: 'testdb',
+    JOB_BOT_CONFIG: join(ROOT, 'config.default.json'), // read-only here: no config.json is created in the repository
     JOB_BOT_BACKUP_DATE: DATE,
     ...more,
   });

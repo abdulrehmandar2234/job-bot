@@ -139,7 +139,10 @@ describe('prompts', () => {
     process.env.FAKE_CLAUDE_OUT = JSON.stringify({ summary: '  Senior engineer with\n7+ years of Laravel.  ' });
     assert.deepEqual(await aiSummary(job()), { summary: 'Senior engineer with 7+ years of Laravel.', note: '' });
     const [{ argv, stdin }] = calls();
-    assert.equal(arg(argv, '--model'), JSON.parse(readFileSync(join(import.meta.dirname, '..', 'config.json'), 'utf8')).ai.letterModel);
+    assert.equal(
+      arg(argv, '--model'),
+      JSON.parse(readFileSync(join(import.meta.dirname, '..', 'config.default.json'), 'utf8')).ai.letterModel,
+    );
     const system = arg(argv, '--system-prompt');
     assert.match(system, /professional summary at the top of one candidate's CV, tailored to one job/);
     assert.match(system, /Use ONLY facts in the CV\. Never invent employers, numbers, skills, certifications or years/);

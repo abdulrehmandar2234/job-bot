@@ -15,7 +15,9 @@ cd ~/job-bot             # Windows: cd $HOME\job-bot
 git pull
 ```
 
-`config.json` and `cv/master.json` are tracked files. If you changed them (you will have), `git pull` may stop with a conflict on them. Keep your versions:
+`config.json`, `cv/applicant.json`, `.env` and `web/.env.local` are not tracked, so a pull never touches them. New default settings arrive in `config.default.json` and `presets/`; your `config.json` keeps your values (compare the two files to pick up a new company board or key).
+
+`cv/master.json` is a tracked file. If you changed it (you will have), `git pull` may stop with a conflict on it. Keep your version:
 
 ```bash
 git stash                # put your changes aside
@@ -23,7 +25,17 @@ git pull
 git stash pop            # bring them back; fix any conflict it reports, keeping your values
 ```
 
-Or keep your own branch (`git switch -c mine`, commit your files there) and merge `main` into it after each `git fetch`. `cv/applicant.json`, `.env` and `web/.env.local` are not tracked, so a pull never touches them.
+Or keep your own branch (`git switch -c mine`, commit your files there) and merge `main` into it after each `git fetch`.
+
+**Updating from a version where `config.json` was tracked** (before `config.default.json` existed): that pull deletes your `config.json`. Copy it aside first and put it back afterwards:
+
+```bash
+cp config.json config.json.mine          # Windows: Copy-Item config.json config.json.mine
+git pull
+mv config.json.mine config.json          # Windows: Move-Item -Force config.json.mine config.json
+```
+
+If you forgot, the bot makes a new `config.json` from `config.default.json`; run `npm run bot -- setup` again, or get your old file back with `git show HEAD~1:config.json > config.json` right after the pull.
 
 ## 3. Install the packages
 

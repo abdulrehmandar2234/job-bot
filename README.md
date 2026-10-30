@@ -265,7 +265,7 @@ In short, with Git already installed, you need Node.js 24+, PostgreSQL and (opti
 
 Everything else is in **[docs/README.md](docs/README.md)**: your CV and profile, every setting, the AI choice, daily use, troubleshooting and updating.
 
-`setup` does not change `companies`, `roleInclude` / `roleExclude`, `linkedin.keywords` or `remote.himalayasQueries`: the repository's values are the original author's (Laravel / Node / React in the UAE, Saudi Arabia, the Netherlands and Pakistan), so review them in `config.json` (see [docs/configuration.md](docs/configuration.md)).
+Your `config.json` starts as a copy of `config.default.json` (the original author's search settings: Laravel / Node / React in the UAE, Saudi Arabia, the Netherlands and Pakistan; nothing personal) and is never committed. `setup` offers ready-made **presets** from `presets/`: markets (`gulf`, `netherlands`, `pakistan`) set the countries and company boards, stacks (`php-laravel`, `javascript`, `python`) the keywords and job-title rules. Without them, review `companies`, `roleInclude` / `roleExclude`, `linkedin.keywords` and `remote.himalayasQueries` yourself (see [docs/configuration.md](docs/configuration.md#presets)).
 
 ## CLI reference
 

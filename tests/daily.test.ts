@@ -10,6 +10,9 @@ import type { Note } from '../src/notify.ts';
 
 // `bot daily` (the scheduled morning run) with a fake CLI and notifier: no database, network or real notification.
 const ROOT = join(import.meta.dirname, '..');
+// The CLI makes config.json from config.default.json when it is missing; pointing it at the shipped file (only read
+// here) keeps the repository free of one.
+const CLI_ENV = { ...process.env, JOB_BOT_CONFIG: join(ROOT, 'config.default.json') };
 const root = mkdtempSync(join(tmpdir(), 'job-bot-daily-'));
 after(() => rmSync(root, { recursive: true, force: true }));
 
@@ -185,6 +188,7 @@ describe('bot schedule:print', () => {
     const out = spawnSync(process.execPath, ['--no-warnings', 'src/cli.ts', 'schedule:print', '--os', 'linux'], {
       cwd: ROOT,
       encoding: 'utf8',
+      env: CLI_ENV,
     });
     assert.equal(out.status, 0, out.stderr);
     assert.match(out.stdout, /systemd user timer/);
@@ -192,6 +196,7 @@ describe('bot schedule:print', () => {
     const bad = spawnSync(process.execPath, ['--no-warnings', 'src/cli.ts', 'schedule:print', '--os', 'beos'], {
       cwd: ROOT,
       encoding: 'utf8',
+      env: CLI_ENV,
     });
     assert.equal(bad.status, 1);
     assert.match(bad.stdout, /Usage: schedule:print/);

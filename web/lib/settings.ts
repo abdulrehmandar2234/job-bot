@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { copyFileSync, existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { BOT_ROOT } from './bot';
 import { AI_KEY_ENV, detectPreset, LEGACY_KEY_ENV, type ApiPreset, type Json } from './settings-form';
@@ -9,6 +9,18 @@ import { AI_KEY_ENV, detectPreset, LEGACY_KEY_ENV, type ApiPreset, type Json } f
 // Same env overrides as the bot (JOB_BOT_CONFIG, JOB_BOT_APPLICANT, JOB_BOT_MASTER), read on every call so tests can
 // point them at temp files. Every dashboard read of these files goes through these helpers.
 export const configFile = () => process.env.JOB_BOT_CONFIG || join(BOT_ROOT, 'config.json');
+// The shipped settings: config.json is personal and gitignored, and starts as a copy of this file (as in the bot).
+export const defaultConfigFile = () => join(BOT_ROOT, 'config.default.json');
+
+/**
+ * Creates config.json from config.default.json when it does not exist yet (a fresh clone), like the bot's
+ * ensureConfigFile. A missing JOB_BOT_CONFIG file stays missing. Returns true when it copied.
+ */
+export function ensureConfigFile(file = configFile(), defaults = defaultConfigFile(), home = join(BOT_ROOT, 'config.json')): boolean {
+  if (file !== home || existsSync(file) || !existsSync(defaults)) return false;
+  copyFileSync(defaults, file);
+  return true;
+}
 export const applicantFile = () => process.env.JOB_BOT_APPLICANT || join(BOT_ROOT, 'cv', 'applicant.json');
 export const applicantExampleFile = () => join(BOT_ROOT, 'cv', 'applicant.example.json');
 export const masterFile = () => process.env.JOB_BOT_MASTER || join(BOT_ROOT, 'cv', 'master.json');

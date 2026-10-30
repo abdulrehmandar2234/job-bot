@@ -16,6 +16,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.unstubAllEnvs();
   vi.doUnmock('@/lib/migrate');
+  vi.doUnmock('@/lib/settings');
   vi.resetModules();
 });
 afterAll(() => pool.end());
@@ -66,22 +67,26 @@ describe('migrateOnce', () => {
 describe('instrumentation register', () => {
   const load = async () => {
     const migrateOnce = vi.fn(async () => true);
+    const ensureConfigFile = vi.fn(() => false);
     vi.doMock('@/lib/migrate', () => ({ migrateOnce }));
+    vi.doMock('@/lib/settings', async (orig) => ({ ...(await orig<typeof import('@/lib/settings')>()), ensureConfigFile }));
     const { register } = await import('@/instrumentation');
-    return { register, migrateOnce };
+    return { register, migrateOnce, ensureConfigFile };
   };
 
-  it('migrates in the Node.js runtime', async () => {
+  it('creates config.json on a fresh clone and migrates, in the Node.js runtime', async () => {
     vi.stubEnv('NEXT_RUNTIME', 'nodejs');
-    const { register, migrateOnce } = await load();
+    const { register, migrateOnce, ensureConfigFile } = await load();
     await register();
+    expect(ensureConfigFile).toHaveBeenCalledTimes(1);
     expect(migrateOnce).toHaveBeenCalledTimes(1);
   });
 
   it('does nothing in the edge runtime', async () => {
     vi.stubEnv('NEXT_RUNTIME', 'edge');
-    const { register, migrateOnce } = await load();
+    const { register, migrateOnce, ensureConfigFile } = await load();
     await register();
+    expect(ensureConfigFile).not.toHaveBeenCalled();
     expect(migrateOnce).not.toHaveBeenCalled();
   });
 });

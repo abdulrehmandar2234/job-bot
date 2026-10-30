@@ -171,7 +171,8 @@ It asks for your profile (name, contact, where you live, your country code and U
 
 Two answers to get right on a fresh clone:
 
-- **Target countries and "remote work from":** the repository's `config.json` has the owner's markets. The wizard proposes your own country for remote work and shows what the file had.
+- **Presets:** before the target countries it offers **market presets** (`gulf`, `netherlands`, `pakistan`: countries, LinkedIn locations and company boards), and after the LinkedIn locations **stack presets** (`php-laravel`, `javascript`, `python`: search keywords and job-title rules). Type one or more, comma-separated, or press Enter to keep what `config.json` has. See [configuration.md](../configuration.md#presets).
+- **Target countries and "remote work from":** your `config.json` starts as a copy of `config.default.json`, which has the original owner's markets. The wizard proposes your own country for remote work and shows what the file had.
 - **AI:** answer `claude-cli` and paste the `claude.exe` path from step 6 (the repository's path is the owner's, from a Mac; the wizard's hint says `where claude`, which in PowerShell must be typed `where.exe claude`), or `api` and pick a provider (`auto` detects it from the key).
 
 Nothing is written until both files pass validation and you answer `y` to `Save cv/applicant.json and config.json?`. Each question is explained in [your-cv-and-profile.md](../your-cv-and-profile.md#the-setup-wizard).
@@ -185,10 +186,10 @@ npm run bot -- settings:check --kind applicant --file cv/applicant.json  # {"ok"
 
 ## 9. Review the search settings
 
-The wizard does not touch the rest of `config.json`, which is still aimed at the owner's stack and markets. Open it (`notepad config.json`) and review at least:
+Without presets, the wizard does not touch the rest of `config.json`, which is still aimed at the owner's stack and markets. With presets, check that they fit you. Open it (`notepad config.json`) and review at least:
 
-- `companies`: the company career boards to fetch (the owner's are UAE, Saudi and Dutch employers). `npm run bot -- discover <company names> --add` finds a company's board and adds it.
-- `roleInclude` / `roleExclude`: which job titles pass. The repository's `roleExclude` drops Python, Java, Go, mobile, QA, DevOps and management titles: rewrite it for your stack.
+- `companies`: the company career boards to fetch (the defaults are UAE, Saudi, Dutch and Pakistani employers). `npm run bot -- discover <company names> --add` finds a company's board and adds it.
+- `roleInclude` / `roleExclude`: which job titles pass. The default `roleExclude` drops Python (unless you chose the `python` stack), Java, Go, mobile, QA, DevOps and management titles: rewrite it for your stack.
 - `linkedin.keywords` and `remote.himalayasQueries`: the search terms.
 
 [configuration.md](../configuration.md) explains every key, with sensible values. In JSON a backslash is written twice (`"C:\\Users\\<you>\\..."`; forward slashes work too). Check the file again afterwards with `npm run bot -- settings:check --kind config --file config.json`.

@@ -1,8 +1,18 @@
 import '@testing-library/jest-dom/vitest';
+import { copyFileSync, mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { afterEach } from 'vitest';
 
 if (!/\/job_bot_test(_[a-z0-9]+)?$/.test(process.env.DATABASE_URL ?? '')) {
   throw new Error(`Refusing to run tests against ${process.env.DATABASE_URL}: only job_bot_test is allowed`);
+}
+
+// config.json is personal and gitignored: tests read a temp copy of the shipped config.default.json, so they never
+// depend on (or write) whoever runs them. Tests of other settings stub JOB_BOT_CONFIG themselves.
+if (!process.env.JOB_BOT_CONFIG) {
+  process.env.JOB_BOT_CONFIG = join(mkdtempSync(join(tmpdir(), 'job-bot-web-config-')), 'config.json');
+  copyFileSync(join(import.meta.dirname, '..', '..', 'config.default.json'), process.env.JOB_BOT_CONFIG);
 }
 
 if (typeof document !== 'undefined') {

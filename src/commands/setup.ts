@@ -2,6 +2,7 @@ import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { createInterface } from 'node:readline';
 import { blankApplicant, buildProfile, profileGaps, readMaster, type MasterContact } from '../profile.ts';
 import { AI_BASE_URL_ENV, AI_KEY_ENV, API_PRESETS, PRESETS, type ApiPreset } from '../ai-presets.ts';
+import { applyMarkets, applyStacks, loadMarkets, loadStacks, pick, PRESETS_DIR, type PresetKind } from '../presets.ts';
 import { APPLICANT_FILE, CONFIG_FILE, UTC_OFFSET, validate, type SettingsError } from '../settings.ts';
 import type { Flags } from './shared.ts';
 
@@ -12,7 +13,7 @@ import type { Flags } from './shared.ts';
 
 type Json = Record<string, unknown>;
 export type SetupIO = { input: NodeJS.ReadableStream; output: NodeJS.WritableStream };
-export type SetupFiles = { config: string; applicant: string; master?: MasterContact };
+export type SetupFiles = { config: string; applicant: string; master?: MasterContact; presets?: string };
 
 const isObj = (v: unknown): v is Json => !!v && typeof v === 'object' && !Array.isArray(v);
 const text = (v: unknown) => (v == null ? '' : String(v));
@@ -71,6 +72,21 @@ const checks = {
   },
 };
 
+/** Checks a comma-separated list of preset ids: null when every id is known (or the list is empty). */
+const presetIds =
+  <T extends { id: string }>(all: T[], kind: PresetKind) =>
+  (v: string) => {
+    try {
+      pick(all, list(v), kind);
+      return null;
+    } catch (e) {
+      return (e as Error).message;
+    }
+  };
+
+/** The CV file name config.default.json ships with: the wizard proposes one from the user's name instead. */
+export const SHIPPED_CV_FILE_NAME = 'resume.pdf';
+
 /** The remote "allow" pattern for a new remote-from country: worldwide-style regions plus the country itself. */
 export function defaultAllow(current: string, country: string): string {
   const c = country.toLowerCase();
@@ -117,7 +133,7 @@ export async function runSetup(io: SetupIO, files: SetupFiles = { config: CONFIG
   try {
     const cfg = readJson(files.config);
     if (!cfg) {
-      p.say(`${files.config} is missing or not a JSON object. Restore it from git first (git checkout config.json).`);
+      p.say(`${files.config} is missing or not a JSON object. Start again from the shipped settings: copy config.default.json to it.`);
       return false;
     }
     const app: Json = readJson(files.applicant) ?? (blankApplicant() as Json);
@@ -142,6 +158,15 @@ export async function runSetup(io: SetupIO, files: SetupFiles = { config: CONFIG
     app.willingToRelocate = (await p.ask('Willing to relocate? (e.g. "Yes", "No")', text(app.willingToRelocate))) || null;
 
     p.say('\n== Where you are looking (config.json) ==');
+    const markets = loadMarkets(files.presets ?? PRESETS_DIR);
+    if (markets.length) {
+      p.say('Market presets set the countries, LinkedIn locations and company boards (the list of companies is replaced):');
+      for (const m of markets) p.say(`  ${m.id}: ${m.description}`);
+      const ids = list(
+        await p.ask('Start from market presets, comma-separated (Enter keeps config.json as it is)', '', presetIds(markets, 'markets')),
+      );
+      if (ids.length) Object.assign(cfg, applyMarkets(cfg, pick(markets, ids, 'markets')));
+    }
     const countries = (isObj(cfg.countries) ? cfg.countries : {}) as Record<string, Json>;
     const codes = list(
       (
@@ -198,6 +223,15 @@ export async function runSetup(io: SetupIO, files: SetupFiles = { config: CONFIG
     linkedin.locations = list(await p.ask('LinkedIn onsite search locations, comma-separated', locations));
     cfg.remote = remote;
     cfg.linkedin = linkedin;
+    const stacks = loadStacks(files.presets ?? PRESETS_DIR);
+    if (stacks.length) {
+      p.say('Stack presets set the search keywords and which job titles are kept:');
+      for (const s of stacks) p.say(`  ${s.id}: ${s.description}`);
+      const ids = list(
+        await p.ask('Start from stack presets, comma-separated (Enter keeps config.json as it is)', '', presetIds(stacks, 'stacks')),
+      );
+      if (ids.length) Object.assign(cfg, applyStacks(cfg, pick(stacks, ids, 'stacks')));
+    }
 
     const ai = (isObj(cfg.ai) ? cfg.ai : {}) as Json;
     p.say('AI for scoring, letters and answers: claude-cli (your signed-in Claude Code CLI, no API key) or api');
@@ -265,8 +299,10 @@ export async function runSetup(io: SetupIO, files: SetupFiles = { config: CONFIG
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '_')
       .replace(/^_|_$/g, '');
-    cfg.cvFileName = await p.ask('File name of your CV PDF', text(cfg.cvFileName) || `${slug || 'my'}_resume.pdf`, (v) =>
-      /^[\w.-]+\.pdf$/.test(v) ? null : 'a file name ending in .pdf',
+    cfg.cvFileName = await p.ask(
+      'File name of your CV PDF',
+      cfg.cvFileName && cfg.cvFileName !== SHIPPED_CV_FILE_NAME ? text(cfg.cvFileName) : `${slug || 'my'}_resume.pdf`,
+      (v) => (/^[\w.-]+\.pdf$/.test(v) ? null : 'a file name ending in .pdf'),
     );
 
     const errors: SettingsError[] = [];

@@ -54,7 +54,7 @@ const arg = (argv: string[], name: string) => argv[argv.indexOf(name) + 1];
 
 /** A temp copy of config.json with `edit` applied, as env for the CLI. */
 function configWith(edit: (c: { ai: Record<string, unknown> }) => void) {
-  const c = JSON.parse(readFileSync(path('config.json'), 'utf8'));
+  const c = JSON.parse(readFileSync(path('config.default.json'), 'utf8'));
   edit(c);
   const f = join(mkdtempSync(join(tmp, 'config-')), 'config.json');
   writeFileSync(f, JSON.stringify(c));
@@ -119,7 +119,7 @@ describe('prep', () => {
     const id = await insertJob('prep:2');
     await bot(['prep', id], { FAKE_CLAUDE_OUT: JSON.stringify(PREP) });
     const [{ argv, stdin }] = claudeCalls();
-    assert.equal(arg(argv, '--model'), JSON.parse(readFileSync(path('config.json'), 'utf8')).ai.letterModel);
+    assert.equal(arg(argv, '--model'), JSON.parse(readFileSync(path('config.default.json'), 'utf8')).ai.letterModel);
     assert.match(stdin, /CV:\nAbdul Rehman Dar[\s\S]*JOB:\nTITLE: Senior Laravel Developer\nCOMPANY: Acme/);
     const system = arg(argv, '--system-prompt');
     assert.match(system, /Use ONLY facts in the CV/);
