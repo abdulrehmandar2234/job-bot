@@ -81,8 +81,8 @@ npm run web          # http://localhost:3100
 - Tabs per status, search, country filter, minimum score and "best match first" sorting (AI score first, keyword score as fallback).
 - Salary on each card ("AED 20k–25k / month") and a "Min salary" filter in any of the six currencies, per month or year. It compares in euros per year with fixed, approximate rates (`web/lib/salary.ts`). Jobs without a salary stay visible unless "only with salary" is ticked. When `cv/applicant.json` has `expectedSalary` for the job's country (`AE`, `SA`, `NL`, `remote`), a lower salary gets a "below your expectation" hint; it never hides the job. A plain number there is in the country's currency, per month for AE/SA and per year otherwise; text such as `"AED 25,000 per month"` says it itself.
 - The list shows 25 jobs per page, with page links above and below it. The page links keep the tab, filters and sort; changing the tab or filters goes back to page 1.
-- Per job: open the posting, prepare CV + letter (with a CV-version picker), download the CV, AI review, and status buttons.
-- Job page: "Check if still open" button, full description, CV keyword check, cover letter with Copy and Rewrite, form-answer helper, notes and status history.
+- Per job: open the posting, **Prepare CV** (picks or builds the CV version), **Download CV**, AI review, and status buttons.
+- Job page: "Check if still open" button, full description, CV keyword check, cover letter, form-answer helper, notes and status history. The cover letter is never written automatically: **Write letter** writes it (AI from the description, else the template), **Rewrite letter** writes a new one, and **Copy** copies it.
 - "Fetch new jobs" button and a "Add jobs from Bayt" page with the bookmarklet.
 
 ## How it works
@@ -141,7 +141,7 @@ The project has two parts that share one PostgreSQL database:
 2. **Score.** Every job goes through `scoreJob()` in `src/match.ts`. It detects the country, applies the filters, computes the keyword score and picks a CV cluster. The result is upserted into `jobs` with status `new` or `filtered` (+ reason).
 3. **Group.** `dedupe()` links copies of the same job (normalized company + title + country) to one primary row, preferring the company's own site or the copy you already worked on.
 4. **AI review.** `bot ai:score` sends each new match plus your CV to `claude -p` with a JSON schema and stores the score, verdict, reasons, gaps, flags and the location check (a `no` moves the job to `filtered`). `ai:score --all` reviews every matching job again.
-5. **Prepare.** `bot prepare <id>` picks the CV version (default, or `--cv <cluster>`), renders the PDF if that version does not exist yet, writes the cover letter with Claude, and sets the status to `prepared`.
+5. **Prepare.** `bot prepare <id>` picks the CV version (default, or `--cv <cluster>`), renders the PDF if that version does not exist yet, and sets the status to `prepared`. It writes no cover letter: `bot letter <id>` ("Write letter" on the job page) does that on request, or `prepare --letter` for both at once.
 6. **Answer.** `bot answer <id>` drafts application-form answers and stores them on the job.
 7. **Apply (you).** You open the posting, upload the CV, paste the letter and answers, submit, then mark the job `applied`.
 
@@ -170,7 +170,7 @@ All AI features call the Claude Code CLI you are signed in to (`claude -p`) with
 | Feature        | Model    | Time per job | Used by                         |
 | -------------- | -------- | ------------ | ------------------------------- |
 | Fit review     | `haiku`  | ~10 s        | `ai:score`, daily fetch, button |
-| Cover letter   | `sonnet` | ~15–30 s     | `prepare`, "Rewrite letter"     |
+| Cover letter   | `sonnet` | ~15–30 s     | `letter`, "Write letter"        |
 | Form answers   | `sonnet` | ~15 s        | `answer`, "Draft answers"       |
 | Interview prep | `sonnet` | ~30–60 s     | `prep`, "Prepare for interview" |
 | Follow-up      | `sonnet` | ~10–20 s     | `follow-up`, "Draft follow-up"  |
@@ -275,7 +275,8 @@ npm run bot -- rescore                        # re-apply filters after editing c
 npm run bot -- list [--status new] [--country NL] [--min 60]
 npm run bot -- show <id> [--full]
 npm run bot -- ai:score [--id <id>]           # AI fit review
-npm run bot -- prepare <id> [--cv laravel] [--template] [--force]
+npm run bot -- prepare <id> [--cv laravel] [--force] [--letter]   # CV only; --letter also writes the letter
+npm run bot -- letter <id> [--template]       # write or rewrite the cover letter
 npm run bot -- check:open [<id>...] [--status new,prepared] [--limit N]  # mark closed postings expired
 npm run bot -- answer <id> [--file q.txt] [--clear]
 npm run bot -- prep <id>                      # AI interview prep (questions, STAR stories, brief, gaps)

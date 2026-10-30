@@ -284,6 +284,7 @@ describe('cliArgs', () => {
     assert.deepEqual(cliArgs(t('answers', { questions: 'Q' }), '/tmp/q.txt'), ['answer', JOB, '--file', '/tmp/q.txt']);
     assert.deepEqual(cliArgs(t('prep')), ['prep', JOB]);
     assert.deepEqual(cliArgs(t('follow_up')), ['follow-up', JOB]);
+    assert.deepEqual(cliArgs(t('letter')), ['letter', JOB]);
   });
 
   it('passes --force to prepare only for force "true" ("Prepare anyway" on an expired job)', () => {
@@ -300,21 +301,29 @@ describe('cliArgs', () => {
 });
 
 describe('task:run (CLI worker)', () => {
-  it('runs a prepare task with the fake Claude and marks it done', async () => {
+  it('runs a prepare task and marks it done; the letter is left for a letter task', async () => {
     const { task } = await enqueue('prepare', JOB);
-    const letter = 'Dear Taskco Hiring Team,\nTask letter';
-    const out = await taskRun(task.id, { FAKE_CLAUDE_OUT: JSON.stringify({ letter }) });
+    const out = await taskRun(task.id, { FAKE_CLAUDE_FAIL: 'prepare must not call the AI' });
     assert.match(out, new RegExp(`task ${task.id}: done`));
-
     const done = await getTask(task.id);
     assert.equal(done.status, 'done');
     assert.notEqual(done.pid, process.pid);
     assert.match(done.output!, /CV version : default/);
+    assert.match(done.output!, /Cover {6}: not written yet/);
+    const job = await getJob(JOB);
+    assert.deepEqual([job!.status, job!.cover_letter], ['prepared', null]);
+  });
+
+  it('runs a letter task with the fake Claude and stores the letter', async () => {
+    const { task } = await enqueue('letter', JOB);
+    const letter = 'Dear Taskco Hiring Team,\nTask letter';
+    const out = await taskRun(task.id, { FAKE_CLAUDE_OUT: JSON.stringify({ letter }) });
+    assert.match(out, new RegExp(`task ${task.id}: done`));
+    const done = await getTask(task.id);
     const dir = done.output!.match(/Cover {6}: (\S+)\/cover-letter\.txt/)![1];
     rmSync(dir, { recursive: true, force: true });
-    const job = await getJob(JOB);
-    assert.equal(job!.cover_letter, `${letter}\n`);
-    assert.equal(job!.status, 'prepared');
+    assert.equal((await getJob(JOB))!.cover_letter, `${letter}\n`);
+    assert.equal(TASK_TIMEOUT_MS.letter, 4 * 60_000);
   });
 
   it('runs an answers task from args and removes the questions file', async () => {

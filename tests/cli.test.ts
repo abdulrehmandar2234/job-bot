@@ -1,7 +1,7 @@
 import { after, before, beforeEach, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -9,6 +9,18 @@ import { promisify } from 'node:util';
 import { daysAgo, TEST_DB } from './helpers.ts';
 import { getJob, migrate, pool } from '../src/db.ts';
 import { path } from '../src/config.ts';
+import { slug } from '../src/commands/shared.ts';
+
+/** The job's newest applications/<date>-<company>-<title> folder (what prepare and letter write to). */
+function applicationDirOf(j: { company: string; title: string }) {
+  const name = `${slug(j.company)}-${slug(j.title)}`;
+  const hit = readdirSync(path('applications'))
+    .filter((d) => d.slice(11) === name)
+    .sort()
+    .at(-1);
+  if (!hit) throw new Error(`no applications folder for ${name}`);
+  return path('applications', hit);
+}
 
 // Runs the real CLI (same command as `npm run bot`) against the test database with a fake Claude.
 const FAKE = join(import.meta.dirname, 'fixtures', 'fake-claude.mjs');
@@ -97,34 +109,58 @@ describe('CLI', () => {
     assert.match(await bot(['mark', id, 'hired']), /Usage: mark/);
   });
 
-  it('prepare writes the default CV path and an AI cover letter, never applies', async () => {
+  it('prepare picks the CV and writes no cover letter, never applies', async () => {
     const id = idOf(await bot(['add', '--file', addFile([posting()])]));
-    const letter = 'Dear Testco Cli Hiring Team,\nAI letter';
-    const out = await bot(['prepare', id], { FAKE_CLAUDE_OUT: JSON.stringify({ letter }) });
+    const out = await bot(['prepare', id], { FAKE_CLAUDE_FAIL: 'prepare must not call the AI' });
     assert.match(out, /CV version : default/);
-    assert.match(out, /written by AI/);
-    const dir = out.match(/Cover {6}: (\S+)\/cover-letter\.txt/)![1];
+    assert.match(out, new RegExp(`Cover {6}: not written yet \\(npm run bot -- letter ${id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`));
+    assert.doesNotMatch(out, /AI cover letter failed/);
+    const j = await getJob(id);
+    assert.deepEqual([j.status, j.cv_version, j.cover_letter, j.applied_at], ['prepared', 'default', null, null]);
+    const dir = applicationDirOf(j);
     try {
-      assert.equal(readFileSync(join(dir, 'cover-letter.txt'), 'utf8'), `${letter}\n`);
       const meta = JSON.parse(readFileSync(join(dir, 'application.json'), 'utf8'));
       assert.match(meta.cvFile, /cv\/default\/abdulrehman_dar_resume\.pdf$/);
-      const j = await getJob(id);
-      assert.equal(j.status, 'prepared');
-      assert.equal(j.cover_letter_ai, true);
-      assert.equal(j.applied_at, null);
+      assert.equal(existsSync(join(dir, 'cover-letter.txt')), false);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
   });
 
-  it('prepare falls back to the template letter when AI fails', async () => {
+  it('letter writes the AI letter next to the CV notes, and rewrites it; status and CV stay', async () => {
     const id = idOf(await bot(['add', '--file', addFile([posting()])]));
-    const out = await bot(['prepare', id], { FAKE_CLAUDE_FAIL: 'offline' });
+    await bot(['prepare', id]);
+    const letter = 'Dear Testco Cli Hiring Team,\nAI letter';
+    const out = await bot(['letter', id], { FAKE_CLAUDE_OUT: JSON.stringify({ letter }) });
+    assert.match(out, /written by AI/);
     const dir = out.match(/Cover {6}: (\S+)\/cover-letter\.txt/)![1];
-    rmSync(dir, { recursive: true, force: true });
-    assert.match(out, /AI cover letter failed, using template/);
-    assert.match((await getJob(id)).cover_letter!, /^Dear Testco Cli Hiring Team,/);
-    assert.equal((await getJob(id)).cover_letter_ai, false);
+    try {
+      assert.equal(dir, applicationDirOf(await getJob(id))); // the folder prepare made
+      assert.equal(readFileSync(join(dir, 'cover-letter.txt'), 'utf8'), `${letter}\n`);
+      const j = await getJob(id);
+      assert.deepEqual([j.status, j.cv_version, j.cover_letter, j.cover_letter_ai], ['prepared', 'default', `${letter}\n`, true]);
+      await bot(['letter', id], { FAKE_CLAUDE_OUT: JSON.stringify({ letter: 'Dear Testco Cli Hiring Team,\nSecond' }) });
+      assert.match((await getJob(id)).cover_letter!, /Second/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('letter falls back to the template when AI fails; prepare --letter writes both at once', async () => {
+    const id = idOf(await bot(['add', '--file', addFile([posting()])]));
+    const out = await bot(['letter', id], { FAKE_CLAUDE_FAIL: 'offline' });
+    const dir = out.match(/Cover {6}: (\S+)\/cover-letter\.txt/)![1];
+    try {
+      assert.match(out, /AI cover letter failed, using template/);
+      assert.match((await getJob(id)).cover_letter!, /^Dear Testco Cli Hiring Team,/);
+      assert.equal((await getJob(id)).cover_letter_ai, false);
+      assert.match(await bot(['letter', 'nope']), /Not found/);
+
+      const both = await bot(['prepare', id, '--letter', '--template']);
+      assert.match(both, /CV version : default[\s\S]*Cover {6}: \S+\/cover-letter\.txt \(template\)/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it('ai:score stores the review', async () => {
