@@ -117,7 +117,7 @@ flowchart LR
 
   DB[("PostgreSQL job_bot<br/>jobs · job_events · fetch_runs")]
   Claude["AI provider<br/>Claude Code CLI (default) · any API key"]
-  Chrome["System Chrome<br/>(playwright-core, PDF render)"]
+  Chrome["Chrome headless shell<br/>(playwright-core, PDF render)"]
 
   subgraph Web["Dashboard (web/, Next.js 16)"]
     Pages["Pages<br/>job list · job detail"]
@@ -160,7 +160,7 @@ The project has two parts that share one PostgreSQL database:
 cv/master.json                       your CV data (the only file you edit)
 src/cv/profiles.ts                   per-cluster framing: headline, summary, skill/bullet order
 src/cv/versions.ts                   builds and reuses versions, bumps v2/v3 on change
-src/cv/render.ts                     HTML template → PDF via system Chrome (playwright-core)
+src/cv/render.ts                     HTML template → PDF via Chrome (playwright-core; src/cv/chrome.ts picks which)
 
 cv/original/<your original CV>.pdf  optional, never changes
 cv/default/<cvFileName>
@@ -238,7 +238,7 @@ Connection: `postgres://postgres@127.0.0.1:5432/job_bot`, set in `.env` and `web
 - macOS (the daily fetch and the notifications use launchd and `osascript`; the rest also runs elsewhere).
 - Node.js 24 or newer (`node --version`).
 - PostgreSQL 15+ on `127.0.0.1:5432` with a `postgres` user, e.g. via [DBngin](https://dbngin.com) or Homebrew.
-- Google Chrome (CV PDFs are rendered with it).
+- Chrome for the CV and letter PDFs. Best: Playwright's headless shell, `npx playwright-core install chromium-headless-shell` (no window or Dock icon, works on macOS, Windows and Linux). Without it, an installed Google Chrome or Chromium is used.
 - For the AI features, one of: the [Claude Code CLI](https://docs.claude.com/en/docs/claude-code), signed in (`claude` on your PATH; the default, no API key), or one API key from OpenAI, Anthropic, Gemini, Groq, DeepSeek or another OpenAI-compatible provider (paid per token; see [AI](#ai)). Without any, set `ai.enabled: false`; letters and follow-ups then use the templates.
 
 ### 1. Clone and install
@@ -374,16 +374,16 @@ launchctl bootout gui/$(id -u)/com.<you>.job-bot.fetch
 
 ## Configuration (`config.json`)
 
-| Key                                          | What it controls                                                                                    |
-| -------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| `countries`                                  | Target countries: `name`, `match`, `visa`, `needsVisa`, `label`                                     |
-| `companies`                                  | Company boards to fetch (`ats` + `token`)                                                           |
-| `roleInclude`/`roleExclude`                  | Title rules                                                                                         |
-| `minScore`, `maxAgeDays`                     | Keyword-score threshold (45) and maximum posting age (14 days)                                      |
-| `remote`                                     | Remote boards, region rules, `from` / `fromCode`                                                    |
-| `linkedin`                                   | Keywords, locations, `remoteFrom`, pages per search                                                 |
-| `ai`                                         | `provider`, Claude path and models, `api` (preset, base URL, models), `maxScorePerRun`, concurrency |
-| `cvFileName`, `autoCvVersions`, `chromePath` | CV output settings                                                                                  |
+| Key                                          | What it controls                                                                                                   |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `countries`                                  | Target countries: `name`, `match`, `visa`, `needsVisa`, `label`                                                    |
+| `companies`                                  | Company boards to fetch (`ats` + `token`)                                                                          |
+| `roleInclude`/`roleExclude`                  | Title rules                                                                                                        |
+| `minScore`, `maxAgeDays`                     | Keyword-score threshold (45) and maximum posting age (14 days)                                                     |
+| `remote`                                     | Remote boards, region rules, `from` / `fromCode`                                                                   |
+| `linkedin`                                   | Keywords, locations, `remoteFrom`, pages per search                                                                |
+| `ai`                                         | `provider`, Claude path and models, `api` (preset, base URL, models), `maxScorePerRun`, concurrency                |
+| `cvFileName`, `autoCvVersions`, `chromePath` | CV output settings. `chromePath`: `"auto"` (default) uses the headless shell, else a system Chrome; or give a path |
 
 `needsVisa` missing means a visa is needed; `label` is the short name on the dashboard. `remote.from` / `remote.fromCode` are the country you work remotely from and its ISO code (missing: `linkedin.remoteFrom`, then your profile).
 

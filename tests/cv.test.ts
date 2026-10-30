@@ -1,5 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { resolveChrome } from '../src/cv/chrome.ts';
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -65,7 +66,7 @@ describe('CV template', () => {
   });
 
   it('renders a PDF with Chrome', {
-    skip: !existsSync(process.env.JOB_BOT_CHROME || config.chromePath) && 'Chrome not installed',
+    skip: !resolveChrome(config.chromePath) && 'Chrome not installed',
     timeout: 60_000,
   }, async () => {
     const out = join(mkdtempSync(join(tmpdir(), 'jobbot-cv-')), config.cvFileName);
@@ -128,7 +129,7 @@ describe('cover letter PDF', () => {
   });
 
   it('prints a PDF with Chrome', {
-    skip: !existsSync(process.env.JOB_BOT_CHROME || config.chromePath) && 'Chrome not installed',
+    skip: !resolveChrome(config.chromePath) && 'Chrome not installed',
     timeout: 60_000,
   }, async () => {
     const out = join(mkdtempSync(join(tmpdir(), 'jobbot-letter-')), 'cover-letter.pdf');

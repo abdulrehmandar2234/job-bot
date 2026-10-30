@@ -68,7 +68,7 @@ const companySchema = z.object({
 export const configSchema = z.object({
   cvFileName: text,
   autoCvVersions: z.boolean(), // false = always send the default CV unless `prepare --cv <cluster>` is given
-  chromePath: text,
+  chromePath: text.optional(), // "auto" or missing: Playwright's headless shell, else a system Chrome (src/cv/chrome.ts)
   minScore: z.number(),
   maxAgeDays: count, // postings older than this are filtered out
   countries: z.record(z.string(), countrySchema),
