@@ -178,11 +178,17 @@ export async function upsertJob(j: ScoredJob): Promise<'inserted' | 'updated'> {
       title = EXCLUDED.title, location = EXCLUDED.location, country = EXCLUDED.country, url = EXCLUDED.url,
       description = EXCLUDED.description, posted_at = EXCLUDED.posted_at, fetched_at = now(),
       score = EXCLUDED.score, cluster = EXCLUDED.cluster, matched = EXCLUDED.matched, missing = EXCLUDED.missing,
-      visa = EXCLUDED.visa, flags = EXCLUDED.flags, filter_reason = EXCLUDED.filter_reason,
+      visa = EXCLUDED.visa, flags = EXCLUDED.flags,
+      -- A job the AI review found closed to the candidate's location stays filtered, whatever the keyword rules say.
+      filter_reason = CASE WHEN EXCLUDED.status = 'new' AND jobs.ai_location = 'no'
+        THEN left('location (AI): ' || coalesce(jobs.ai_location_reason, 'not open to where you live'), 300)
+        ELSE EXCLUDED.filter_reason END,
       salary_min = EXCLUDED.salary_min, salary_max = EXCLUDED.salary_max,
       salary_currency = EXCLUDED.salary_currency, salary_period = EXCLUDED.salary_period,
       -- Re-scoring may move a job between new <-> filtered, but only while the user hasn't acted on it.
-      status = CASE WHEN jobs.status IN ('new', 'filtered') THEN EXCLUDED.status ELSE jobs.status END
+      status = CASE WHEN jobs.status NOT IN ('new', 'filtered') THEN jobs.status
+        WHEN EXCLUDED.status = 'new' AND jobs.ai_location = 'no' THEN 'filtered'
+        ELSE EXCLUDED.status END
     RETURNING (xmax = 0) AS inserted`,
     [
       j.id,
