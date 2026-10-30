@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { JobActions } from '@/components/job-actions';
+import { CvAction, JobActions, OpenJobLink, StatusActions } from '@/components/job-actions';
 import type { Job, Status } from '@/lib/db';
 
 // Server actions are only referenced as form actions here; they are tested in tests/app/actions.test.ts.
@@ -155,5 +155,37 @@ describe('JobActions', () => {
     render(<JobActions job={job({ status: 'interview' })} />);
     expect(screen.getByRole('button', { name: 'Offer 🎉' })).toHaveClass('btn-good');
     expect(screen.getByRole('button', { name: 'Rejected' })).not.toHaveClass('btn-good');
+  });
+});
+
+// The job page places these apart (summary card, CV block); JobActions keeps them in one row for the list cards.
+describe('JobActions parts', () => {
+  it('OpenJobLink is only the link to the posting', () => {
+    const { container } = render(<OpenJobLink job={job()} />);
+    expect(screen.getByRole('link', { name: 'Open job ↗' })).toHaveAttribute('href', 'https://boards.greenhouse.io/acme/1');
+    expect(container.children).toHaveLength(1);
+  });
+
+  it('CvAction is only the CV button: Prepare CV, then Download CV, or Preparing CV… while it runs', () => {
+    const { rerender } = render(<CvAction job={job({ status: 'prepared' })} />);
+    expect(buttons()).toEqual(['Prepare CV']);
+    rerender(<CvAction job={job({ status: 'prepared', cv_version: 'backend-lead' })} />);
+    expect(buttons()).toEqual([]);
+    expect(screen.getByRole('link', { name: 'Download CV (backend-lead) ↓' })).toBeInTheDocument();
+    rerender(<CvAction job={job()} busy={['prepare']} />);
+    expect(screen.getByRole('status')).toHaveTextContent('Preparing CV…');
+  });
+
+  it('StatusActions has the AI review and pipeline moves, but no Open job or CV', () => {
+    render(<StatusActions job={job({ status: 'new' })} />);
+    expect(buttons()).toEqual(['AI review', 'Mark applied ✓', 'Skip']);
+    expect(screen.queryByRole('link')).toBeNull();
+  });
+
+  it('JobActions shows the three parts in one row, in order', () => {
+    const { container } = render(<JobActions job={job({ status: 'new' })} />);
+    expect(container.children).toHaveLength(1);
+    expect(screen.getByRole('link', { name: 'Open job ↗' }).parentElement).toBe(container.firstElementChild);
+    expect(buttons()).toEqual(['Prepare CV', 'AI review', 'Mark applied ✓', 'Skip']);
   });
 });

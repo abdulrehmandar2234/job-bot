@@ -4,7 +4,8 @@ import { APPLICANT_EXAMPLE_FILE, loadSettings, path, type Applicant, type Config
 // The candidate's profile: the personal facts that letters, prompts and filters need (name, contact, where they live,
 // languages, relocation). It comes from cv/applicant.json; name and contact fall back to cv/master.json, so a CV alone
 // already signs letters correctly. Nothing here is hardcoded for one person: `npm run bot -- setup` fills it in.
-// The dashboard reads the same files itself (web/lib/profile.ts, kept in step by web/tests/lib/profile.test.ts).
+// The dashboard reads the same files itself (web/lib/profile.ts and web/lib/market.ts, kept in step by
+// web/tests/lib/market.test.ts).
 
 export type MasterContact = {
   name?: string;

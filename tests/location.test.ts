@@ -141,6 +141,33 @@ describe('AI location check', () => {
   });
 });
 
+describe('re-checking jobs an earlier review filtered for location', () => {
+  it('brings back a job that now passes ("unclear" or "yes"), leaves keyword filters alone, and updates a "no"', async () => {
+    const back = await insertJob('loc:back', { status: 'filtered', filter_reason: 'location (AI): sponsorship not mentioned' });
+    const still = await insertJob('loc:still', { status: 'filtered', filter_reason: 'location (AI): old reason' });
+    await insertJob('loc:keyword', { status: 'filtered', filter_reason: 'title excluded (other stack / non-dev / level)' });
+    const out = await bot(['ai:score', '--location-filtered'], {
+      FAKE_CLAUDE_OUT: review('unclear', 'posting does not mention visa or relocation', 'good'),
+    });
+    assert.match(out, /AI scoring 2 jobs/); // only the two the AI filtered
+    assert.match(out, /→ back in Matching: location check passed/);
+    for (const id of [back, still]) {
+      const j = (await getJob(id))!;
+      assert.deepEqual([j.status, j.filter_reason, j.ai_location], ['new', null, 'unclear']);
+    }
+    const { rows } = await pool.query(`SELECT to_status, note FROM job_events WHERE job_id = $1`, [back]);
+    assert.deepEqual(rows, [{ to_status: 'new', note: 'location (AI) passed: posting does not mention visa or relocation' }]);
+    assert.equal((await getJob('loc:keyword'))!.status, 'filtered');
+  });
+
+  it('a job ruled out again stays filtered, with the new reason', async () => {
+    const id = await insertJob('loc:again', { status: 'filtered', filter_reason: 'location (AI): old reason' });
+    await bot(['ai:score', '--location-filtered'], { FAKE_CLAUDE_OUT: review('no', 'US only') });
+    const j = (await getJob(id))!;
+    assert.deepEqual([j.status, j.filter_reason], ['filtered', 'location (AI): US only']);
+  });
+});
+
 describe('Himalayas time zones', () => {
   it('a job limited to time zones far from Pakistan is not "Worldwide"', () => {
     assert.equal(himalayasRegion([], [-10, -9, -8, -7, -6, -5, 14], 5), 'time zones UTC-10, UTC-9, UTC-8, UTC-7, UTC-6, UTC-5, UTC+14');
