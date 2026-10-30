@@ -6,7 +6,9 @@ import {
   followUpCount,
   lastRun,
   listJobs,
-  PAGE_SIZE,
+  PAGE_SIZE as PAGE_SIZE_DEFAULT,
+  PAGE_SIZES,
+  pageSize,
   postingsFor,
   STATUSES,
   statusCounts,
@@ -98,16 +100,20 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<'/'>['searc
   const country = one('country') && labels[one('country')!] ? one('country') : undefined;
   const min = Number(one('min')) || undefined;
   const q = one('q');
+  // A search looks in every tab (each card says which), unless "only in this tab" was chosen (in=tab).
+  const onlyTab = one('in') === 'tab';
   const days = Number(one('days')) || undefined;
   const sort = one('sort') === 'newest' ? 'newest' : 'score';
   const visaOnly = one('visa') === '1';
   const salary = salaryParams(one);
   const expected = loadExpectations();
   const page = Math.max(1, Math.floor(Number(one('page'))) || 1);
-  const filter = { status, country, min, q, days, sort, followUp, visaOnly, ...salary.filter } as const;
+  const size = pageSize(one('size'));
+  const everyTab = Boolean(q) && !followUp && !onlyTab;
+  const filter = { status, country, min, q, days, sort, followUp, visaOnly, everyTab, ...salary.filter } as const;
 
   const [jobs, total, counts, run, week, tasks, dueCount] = await Promise.all([
-    listJobs(filter, page),
+    listJobs(filter, page, size),
     countJobs(filter),
     statusCounts(),
     lastRun(),
@@ -118,21 +124,30 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<'/'>['searc
   const busy = (id: string) => tasks.filter((t) => t.job_id === id && isActive(t)).map((t) => t.kind);
   const [postings, contacts] = await Promise.all([postingsFor(jobs.map((j) => j.id)), allContacts()]);
   // Tabs and filters start again at page 1; the page links keep everything else.
-  const tabHref = (s: string, view?: 'followup', toPage = 1) => {
+  // While searching, a tab link narrows the search to that tab (in=tab); page links keep the current scope.
+  const tabHref = (s: string, view?: 'followup', toPage = 1, scope: 'tab' | 'keep' = 'tab') => {
     const p = new URLSearchParams({
       ...(view ? { view } : { status: s }),
       ...(country && { country }),
       ...(min && { min: String(min) }),
       ...(q && { q }),
+      ...(q && (scope === 'tab' || onlyTab) && { in: 'tab' }),
       ...(days && { days: String(days) }),
       ...(sort === 'newest' && { sort }),
       ...(visaOnly && { visa: '1' }),
       ...salary.query,
+      ...(size !== PAGE_SIZE_DEFAULT && { size: String(size) }),
       ...(toPage > 1 && { page: String(toPage) }),
     });
     return `/?${p}`;
   };
-  const pageHref = (n: number) => tabHref(status, followUp ? 'followup' : undefined, n);
+  const pageHref = (n: number) => tabHref(status, followUp ? 'followup' : undefined, n, 'keep');
+  // The same search in every tab: the current URL without in=tab and page.
+  const everyTabHref = () => {
+    const p = new URLSearchParams(tabHref(status, undefined, 1, 'keep').slice(2));
+    p.delete('in');
+    return `/?${p}`;
+  };
 
   return (
     <>
@@ -152,8 +167,8 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<'/'>['searc
           <Fragment key={s}>
             <Link
               href={tabHref(s)}
-              aria-current={!followUp && s === status ? 'page' : undefined}
-              className={tabClass(!followUp && s === status)}
+              aria-current={!followUp && !everyTab && s === status ? 'page' : undefined}
+              className={tabClass(!followUp && !everyTab && s === status)}
             >
               {STATUS_LABEL[s]} <span className="text-zinc-400">{counts[s] ?? 0}</span>
             </Link>
@@ -165,6 +180,26 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<'/'>['searc
           </Fragment>
         ))}
       </nav>
+
+      {q && !followUp && (
+        <p className="mb-3 text-sm text-zinc-600 dark:text-zinc-400">
+          {everyTab ? (
+            <>
+              Results for <b>“{q}”</b> in every tab ·{' '}
+              <Link href={tabHref(status)} className="underline">
+                Search only in {STATUS_LABEL[status]}
+              </Link>
+            </>
+          ) : (
+            <>
+              Results for <b>“{q}”</b> in {STATUS_LABEL[status]} only ·{' '}
+              <Link href={everyTabHref()} className="underline">
+                Search every tab
+              </Link>
+            </>
+          )}
+        </p>
+      )}
 
       <form className="mb-4 flex flex-wrap items-end gap-2 text-sm">
         {followUp ? <input type="hidden" name="view" value="followup" /> : <input type="hidden" name="status" value={status} />}
@@ -202,6 +237,13 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<'/'>['searc
           <option value="score">Best match first</option>
           <option value="newest">Newest first</option>
         </select>
+        <select name="size" defaultValue={size} aria-label="Jobs per page" className="input">
+          {PAGE_SIZES.map((n) => (
+            <option key={n} value={n}>
+              {n} per page
+            </option>
+          ))}
+        </select>
         <SalaryFilter params={salary.params} />
         <label className="flex items-center gap-1 text-zinc-600 dark:text-zinc-400">
           <input type="checkbox" name="visa" value="1" defaultChecked={visaOnly} />
@@ -212,7 +254,7 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<'/'>['searc
         </button>
       </form>
 
-      <Pager page={page} total={total} pageSize={PAGE_SIZE} href={pageHref} />
+      <Pager page={page} total={total} pageSize={size} href={pageHref} />
 
       {jobs.length === 0 && (
         <p className="py-10 text-center text-sm text-zinc-500">
@@ -229,6 +271,7 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<'/'>['searc
                 <div className="flex flex-wrap items-baseline justify-between gap-x-3">
                   <Link href={`/jobs/${encodeURIComponent(j.id)}`} className="font-medium hover:underline">
                     {j.title} <span className="text-zinc-500">· {j.company}</span> <ExpiredBadge job={j} />
+                    {everyTab && j.status !== 'expired' && <StatusTag status={j.status} />}
                     <FollowUpBadge job={j} />
                   </Link>
                   <span className="text-xs text-zinc-500">
@@ -261,8 +304,20 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<'/'>['searc
         ))}
       </ul>
 
-      <Pager page={page} total={total} pageSize={PAGE_SIZE} href={pageHref} />
+      <Pager page={page} total={total} pageSize={size} href={pageHref} />
     </>
+  );
+}
+
+/** On search results from every tab: which tab the job is in. */
+function StatusTag({ status }: { status: Status }) {
+  return (
+    <span
+      title="The tab this job is in"
+      className="ml-1 rounded-full bg-zinc-200 px-2 py-0.5 text-xs font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+    >
+      {STATUS_LABEL[status]}
+    </span>
   );
 }
 
