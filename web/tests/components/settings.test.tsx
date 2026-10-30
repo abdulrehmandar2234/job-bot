@@ -86,51 +86,94 @@ describe('ConfigForm', () => {
     expect(screen.getByLabelText(/Alert me at once for strong matches/)).not.toBeChecked();
   });
 
-  it('shows the AI provider select (Claude CLI by default) and per-provider model fields, with no key field', () => {
-    render(<ConfigForm config={file(CONFIG)} keys={{ openai: false, deepseek: false }} />);
+  const NO_KEY = { keyEnv: null, provider: null };
+
+  it('shows the AI provider select (Claude CLI by default) with no key field, and the API fields only for "API key"', async () => {
+    const user = userEvent.setup();
+    render(<ConfigForm config={file(CONFIG)} keys={NO_KEY} />);
     const select = screen.getByLabelText(/^AI provider/);
     expect(select).toHaveValue('claude-cli');
     expect(
       within(select)
         .getAllByRole('option')
         .map((o) => o.textContent),
-    ).toEqual(['Claude CLI', 'OpenAI', 'DeepSeek']);
+    ).toEqual(['Claude CLI', 'API key']);
     expect(screen.getByText(/no API key, usage comes from your Claude plan/)).toBeInTheDocument();
     expect(screen.queryByTestId('ai-key-status')).toBeNull(); // the Claude CLI needs no key
-    expect(screen.getByLabelText(/^OpenAI score model/)).toHaveValue('');
-    expect(screen.getByText('empty = gpt-4o-mini')).toBeInTheDocument();
-    expect(screen.getByLabelText(/^DeepSeek base URL/)).toHaveValue('');
-    expect(screen.getByText(/put OPENAI_API_KEY or DEEPSEEK_API_KEY in \.env/)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/^API provider/)).toBeNull();
+    expect(screen.getByText(/put AI_API_KEY=\.\.\. in \.env in the job-bot folder/)).toBeInTheDocument();
+
+    await user.selectOptions(select, 'api');
+    const preset = screen.getByLabelText(/^API provider/);
+    expect(preset).toHaveValue('');
+    expect(
+      within(preset)
+        .getAllByRole('option')
+        .map((o) => o.textContent),
+    ).toEqual([
+      'Auto-detect from key',
+      'OpenAI',
+      'DeepSeek',
+      'Anthropic',
+      'Gemini',
+      'Groq',
+      'OpenRouter',
+      'Mistral',
+      'Together AI',
+      'Ollama',
+      'Custom',
+    ]);
+    expect(screen.getByTestId('ai-key-status')).toHaveTextContent('AI_API_KEY is not set');
+    expect(screen.getByLabelText(/^Base URL/)).toHaveValue('');
+    expect(screen.getByText(/paid per token/)).toBeInTheDocument();
+    expect(screen.getByText(/DeepSeek keys also start with sk-/)).toBeInTheDocument();
     expect(document.querySelector('input[name*="key" i]')).toBeNull();
     expect(document.querySelector('input[type="password"]')).toBeNull();
   });
 
-  it('says whether the chosen provider key is set, never its value', async () => {
+  it('says whose key AI_API_KEY looks like, and shows the defaults of the detected or chosen preset', async () => {
     const user = userEvent.setup();
-    const ai = { ...CONFIG.ai, provider: 'openai', openai: { scoreModel: 'gpt-4.1-mini' } };
-    render(<ConfigForm config={file({ ...CONFIG, ai })} keys={{ openai: true, deepseek: false }} />);
-    expect(screen.getByLabelText(/^AI provider/)).toHaveValue('openai');
-    expect(screen.getByLabelText(/^OpenAI score model/)).toHaveValue('gpt-4.1-mini');
-    expect(screen.getByTestId('ai-key-status')).toHaveTextContent('OPENAI_API_KEY is set.');
-    expect(screen.getByText(/paid per token/)).toBeInTheDocument();
-    await user.selectOptions(screen.getByLabelText(/^AI provider/), 'deepseek');
-    expect(screen.getByTestId('ai-key-status')).toHaveTextContent('DEEPSEEK_API_KEY is not set');
-    await user.selectOptions(screen.getByLabelText(/^AI provider/), 'claude-cli');
-    expect(screen.queryByTestId('ai-key-status')).toBeNull();
+    const ai = { ...CONFIG.ai, provider: 'api', api: { scoreModel: 'claude-x' } };
+    render(<ConfigForm config={file({ ...CONFIG, ai })} keys={{ keyEnv: 'AI_API_KEY', provider: 'anthropic' }} />);
+    expect(screen.getByLabelText(/^AI provider/)).toHaveValue('api');
+    expect(screen.getByTestId('ai-key-status')).toHaveTextContent('AI_API_KEY is set (looks like an Anthropic key).');
+    expect(screen.getByLabelText(/^API score model/)).toHaveValue('claude-x');
+    expect(screen.getByText('empty = https://api.anthropic.com/v1')).toBeInTheDocument();
+    await user.selectOptions(screen.getByLabelText(/^API provider/), 'groq');
+    expect(screen.getByText('empty = llama-3.3-70b-versatile')).toBeInTheDocument();
+    await user.selectOptions(screen.getByLabelText(/^API provider/), 'ollama');
+    expect(screen.getByTestId('ai-key-status')).toHaveTextContent('Ollama needs no key');
   });
 
-  it('submits the chosen provider and model fields', async () => {
+  it('a key whose provider cannot be told asks to choose one', () => {
+    const ai = { ...CONFIG.ai, provider: 'api' };
+    render(<ConfigForm config={file({ ...CONFIG, ai })} keys={{ keyEnv: 'AI_API_KEY', provider: null }} />);
+    expect(screen.getByTestId('ai-key-status')).toHaveTextContent('its provider cannot be told from the key: choose its provider below');
+  });
+
+  it('shows an older "deepseek" config as "API key" with that preset and its models', () => {
+    const ai = { ...CONFIG.ai, provider: 'deepseek', deepseek: { letterModel: 'deepseek-reasoner' } };
+    render(<ConfigForm config={file({ ...CONFIG, ai })} keys={{ keyEnv: 'DEEPSEEK_API_KEY', provider: 'deepseek' }} />);
+    expect(screen.getByLabelText(/^AI provider/)).toHaveValue('api');
+    expect(screen.getByLabelText(/^API provider/)).toHaveValue('deepseek');
+    expect(screen.getByLabelText(/^API letter model/)).toHaveValue('deepseek-reasoner');
+    expect(screen.getByTestId('ai-key-status')).toHaveTextContent('DEEPSEEK_API_KEY is set (looks like a DeepSeek key).');
+  });
+
+  it('submits the chosen provider, preset and model fields', async () => {
     vi.mocked(saveConfig).mockResolvedValue(saved('Saved.'));
     const user = userEvent.setup();
     render(<ConfigForm config={file(CONFIG)} />);
-    await user.selectOptions(screen.getByLabelText(/^AI provider/), 'deepseek');
-    await user.type(screen.getByLabelText(/^DeepSeek letter model/), 'deepseek-reasoner');
+    await user.selectOptions(screen.getByLabelText(/^AI provider/), 'api');
+    await user.selectOptions(screen.getByLabelText(/^API provider/), 'deepseek');
+    await user.type(screen.getByLabelText(/^API letter model/), 'deepseek-reasoner');
     await user.click(screen.getByRole('button', { name: 'Save search settings' }));
     await waitFor(() => expect(saveConfig).toHaveBeenCalled());
     const fd = lastForm(saveConfig);
-    expect(fd.get('ai.provider')).toBe('deepseek');
-    expect(fd.get('ai.deepseek.letterModel')).toBe('deepseek-reasoner');
-    expect(fd.get('ai.openai.scoreModel')).toBe('');
+    expect(fd.get('ai.provider')).toBe('api');
+    expect(fd.get('ai.api.preset')).toBe('deepseek');
+    expect(fd.get('ai.api.letterModel')).toBe('deepseek-reasoner');
+    expect(fd.get('ai.api.baseUrl')).toBe('');
   });
 
   it('shows the Adzuna section, empty without one, and the boards note', () => {
@@ -359,15 +402,16 @@ describe('Settings page content', () => {
     await waitFor(() => expect(screen.getByLabelText('config JSON')).toHaveValue(JSON.stringify(CONFIG)));
   });
 
-  it("passes the key status from the bot's env file to the form", async () => {
-    writeFileSync(join(dir, 'config.json'), JSON.stringify({ ...CONFIG, ai: { ...CONFIG.ai, provider: 'deepseek' } }));
-    writeFileSync(join(dir, 'env'), 'DEEPSEEK_API_KEY=ds-secret\n');
+  it("passes the key status from the bot's env file to the form, by name and detected provider only", async () => {
+    writeFileSync(join(dir, 'config.json'), JSON.stringify({ ...CONFIG, ai: { ...CONFIG.ai, provider: 'api' } }));
+    writeFileSync(join(dir, 'env'), 'AI_API_KEY=gsk_very-secret\n');
     vi.stubEnv('JOB_BOT_CONFIG', join(dir, 'config.json'));
     vi.stubEnv('JOB_BOT_APPLICANT', join(dir, 'missing.json'));
     vi.stubEnv('JOB_BOT_ENV_FILE', join(dir, 'env'));
-    vi.stubEnv('DEEPSEEK_API_KEY', '');
-    render(await Settings());
-    expect(screen.getByTestId('ai-key-status')).toHaveTextContent('DEEPSEEK_API_KEY is set.');
-    expect(document.body.textContent).not.toContain('ds-secret');
+    for (const k of ['AI_API_KEY', 'OPENAI_API_KEY', 'DEEPSEEK_API_KEY']) vi.stubEnv(k, '');
+    const { container } = render(await Settings());
+    expect(screen.getByTestId('ai-key-status')).toHaveTextContent('AI_API_KEY is set (looks like a Groq key).');
+    expect(container.innerHTML).not.toContain('very-secret');
+    expect(container.innerHTML).not.toContain('gsk_');
   });
 });

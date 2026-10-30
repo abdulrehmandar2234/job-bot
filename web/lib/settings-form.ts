@@ -1,21 +1,159 @@
 // Pure helpers for the settings forms, safe to import from client components (no node: modules).
 // Type-only imports from the bot: erased at build time, so no bot code is bundled into the dashboard.
-import type { AiProvider, Company, SettingsError, SettingsKind } from '../../src/settings';
+import type { Company, SettingsError, SettingsKind } from '../../src/settings';
 
 export type { SettingsError, SettingsKind };
 export type Json = Record<string, unknown>;
 const isObj = (v: unknown): v is Json => !!v && typeof v === 'object' && !Array.isArray(v);
 
-/** Same as the bot's AI_PROVIDERS, PROVIDER_NAME, KEY_ENV and API_DEFAULTS (src/settings.ts); tests/lib/settings.test.ts checks they match. */
-export const AI_PROVIDERS: readonly AiProvider[] = ['claude-cli', 'openai', 'deepseek'];
-export type ApiProvider = Exclude<AiProvider, 'claude-cli'>;
-export const API_PROVIDERS: readonly ApiProvider[] = ['openai', 'deepseek'];
-export const PROVIDER_NAME: Record<AiProvider, string> = { 'claude-cli': 'Claude CLI', openai: 'OpenAI', deepseek: 'DeepSeek' };
-export const KEY_ENV: Record<ApiProvider, string> = { openai: 'OPENAI_API_KEY', deepseek: 'DEEPSEEK_API_KEY' };
-export const API_DEFAULTS: Record<ApiProvider, { scoreModel: string; letterModel: string; baseUrl: string }> = {
-  openai: { scoreModel: 'gpt-4o-mini', letterModel: 'gpt-4o', baseUrl: 'https://api.openai.com' },
-  deepseek: { scoreModel: 'deepseek-chat', letterModel: 'deepseek-chat', baseUrl: 'https://api.deepseek.com' },
+// ---- AI presets: a copy of src/ai-presets.ts (web/tests/lib/settings.test.ts checks they match) ----
+
+export const RESPONSE_FORMATS = ['json_schema', 'json_object', 'text'] as const;
+export type ResponseFormat = (typeof RESPONSE_FORMATS)[number];
+
+export const API_PRESETS = [
+  'openai',
+  'deepseek',
+  'anthropic',
+  'gemini',
+  'groq',
+  'openrouter',
+  'mistral',
+  'together',
+  'ollama',
+  'custom',
+] as const;
+export type ApiPreset = (typeof API_PRESETS)[number];
+
+export type Preset = {
+  name: string;
+  /** OpenAI-compatible base URL; requests go to `${baseUrl}/chat/completions`. Empty for custom. */
+  baseUrl: string;
+  scoreModel: string;
+  letterModel: string;
+  format: ResponseFormat;
+  /** False when the API needs no key (a local Ollama). */
+  needsKey: boolean;
+  /** False when the API rejects `temperature` (Anthropic's current models). */
+  temperature: boolean;
 };
+
+// Defaults only: every model can be changed in config.json ai.api or on the dashboard's Settings page.
+export const PRESETS: Record<ApiPreset, Preset> = {
+  openai: {
+    name: 'OpenAI',
+    baseUrl: 'https://api.openai.com/v1',
+    scoreModel: 'gpt-4o-mini',
+    letterModel: 'gpt-4o',
+    format: 'json_schema',
+    needsKey: true,
+    temperature: true,
+  },
+  deepseek: {
+    name: 'DeepSeek',
+    baseUrl: 'https://api.deepseek.com',
+    scoreModel: 'deepseek-chat',
+    letterModel: 'deepseek-chat',
+    format: 'json_object',
+    needsKey: true,
+    temperature: true,
+  },
+  // OpenAI SDK compatibility layer: response_format is ignored there, and current models reject temperature.
+  anthropic: {
+    name: 'Anthropic',
+    baseUrl: 'https://api.anthropic.com/v1',
+    scoreModel: 'claude-haiku-5-5',
+    letterModel: 'claude-sonnet-5-5',
+    format: 'text',
+    needsKey: true,
+    temperature: false,
+  },
+  gemini: {
+    name: 'Gemini',
+    baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
+    scoreModel: 'gemini-2.5-flash',
+    letterModel: 'gemini-2.5-pro',
+    format: 'json_schema',
+    needsKey: true,
+    temperature: true,
+  },
+  groq: {
+    name: 'Groq',
+    baseUrl: 'https://api.groq.com/openai/v1',
+    scoreModel: 'llama-3.1-8b-instant',
+    letterModel: 'llama-3.3-70b-versatile',
+    format: 'json_object',
+    needsKey: true,
+    temperature: true,
+  },
+  // Many models behind one key: JSON mode with the schema in the prompt works for most of them.
+  openrouter: {
+    name: 'OpenRouter',
+    baseUrl: 'https://openrouter.ai/api/v1',
+    scoreModel: 'openai/gpt-4o-mini',
+    letterModel: 'openai/gpt-4o',
+    format: 'json_object',
+    needsKey: true,
+    temperature: true,
+  },
+  mistral: {
+    name: 'Mistral',
+    baseUrl: 'https://api.mistral.ai/v1',
+    scoreModel: 'mistral-small-latest',
+    letterModel: 'mistral-large-latest',
+    format: 'json_schema',
+    needsKey: true,
+    temperature: true,
+  },
+  together: {
+    name: 'Together AI',
+    baseUrl: 'https://api.together.xyz/v1',
+    scoreModel: 'meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo',
+    letterModel: 'meta-llama/Llama-3.3-70B-Instruct-Turbo',
+    format: 'json_object',
+    needsKey: true,
+    temperature: true,
+  },
+  ollama: {
+    name: 'Ollama',
+    baseUrl: 'http://localhost:11434/v1',
+    scoreModel: 'llama3.1',
+    letterModel: 'llama3.1',
+    format: 'json_object',
+    needsKey: false,
+    temperature: true,
+  },
+  // Any other OpenAI-compatible endpoint: base URL from AI_BASE_URL or ai.api.baseUrl, models from ai.api.
+  custom: {
+    name: 'Custom endpoint',
+    baseUrl: '',
+    scoreModel: '',
+    letterModel: '',
+    format: 'json_object',
+    needsKey: false,
+    temperature: true,
+  },
+};
+
+/**
+ * The provider a key belongs to, from its prefix, or null when it cannot be told. DeepSeek keys also start with
+ * "sk-", so they look like OpenAI keys: DeepSeek needs ai.api.preset "deepseek" (or AI_BASE_URL).
+ */
+export function detectPreset(key: string | undefined | null): ApiPreset | null {
+  const k = key?.trim() ?? '';
+  if (k.startsWith('sk-ant-')) return 'anthropic';
+  if (k.startsWith('sk-or-')) return 'openrouter';
+  if (k.startsWith('gsk_')) return 'groq';
+  if (k.startsWith('AIza')) return 'gemini';
+  if (k.startsWith('sk-')) return 'openai';
+  return null;
+}
+
+export const AI_KEY_ENV = 'AI_API_KEY';
+/** Older per-provider key variables, still read by the bot as fallbacks for AI_API_KEY. */
+export const LEGACY_KEY_ENV = { openai: 'OPENAI_API_KEY', deepseek: 'DEEPSEEK_API_KEY' } as const;
+/** The provider select: "openai" / "deepseek" in config.json are older names for "api". */
+export const isApiProvider = (v: unknown) => v === 'api' || v === 'openai' || v === 'deepseek';
 
 /** Same list as the bot's ATS (src/settings.ts); tests/lib/settings.test.ts checks they match. */
 export const ATS: readonly Company['ats'][] = ['greenhouse', 'lever', 'ashby', 'recruitee', 'workable', 'smartrecruiters', 'workday'];
@@ -50,13 +188,11 @@ export const CONFIG_FIELDS: Record<string, FieldType> = {
   'ai.scoreModel': 'text',
   'ai.letterModel': 'text',
   'ai.maxScorePerRun': 'number',
-  // Per-provider models: empty = the provider's default (API_DEFAULTS).
-  'ai.openai.scoreModel': 'optional',
-  'ai.openai.letterModel': 'optional',
-  'ai.openai.baseUrl': 'optional',
-  'ai.deepseek.scoreModel': 'optional',
-  'ai.deepseek.letterModel': 'optional',
-  'ai.deepseek.baseUrl': 'optional',
+  // The API provider: empty = auto-detect the preset / the preset's base URL and models.
+  'ai.api.preset': 'optional',
+  'ai.api.baseUrl': 'optional',
+  'ai.api.scoreModel': 'optional',
+  'ai.api.letterModel': 'optional',
 };
 
 /** The profile part of cv/applicant.json (see src/profile.ts). */
@@ -99,7 +235,7 @@ export function get(obj: unknown, path: string): unknown {
 }
 
 /**
- * Sets a dotted path; `undefined` removes the key instead, and an object it leaves empty (`ai.openai: {}`) too, so
+ * Sets a dotted path; `undefined` removes the key instead, and an object it leaves empty (`ai.api: {}`) too, so
  * clearing an optional field never adds a section the file did not have.
  */
 function set(obj: Json, path: string, value: unknown) {
@@ -163,7 +299,10 @@ export function mergeConfig(current: Json, fd: FormData): Json {
   // The provider: missing means claude-cli, so choosing it only writes the key when the file already had one.
   if (fd.has('ai.provider')) {
     const v = str(fd, 'ai.provider').trim();
-    set(cfg, 'ai.provider', !v || (v === 'claude-cli' && get(current, 'ai.provider') === undefined) ? undefined : v);
+    const was = get(current, 'ai.provider');
+    set(cfg, 'ai.provider', !v || (v === 'claude-cli' && was === undefined) ? undefined : v);
+    // Saving an older "openai" / "deepseek" config as "api": the form showed that section's models in ai.api.
+    if (v === 'api' && (was === 'openai' || was === 'deepseek')) set(cfg, `ai.${was}`, undefined);
   }
   // For existing countries: the location pattern, the dashboard label and whether a visa is needed.
   if (isObj(cfg.countries)) {

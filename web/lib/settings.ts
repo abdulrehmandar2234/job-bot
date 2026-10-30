@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { BOT_ROOT } from './bot';
-import { API_PROVIDERS, KEY_ENV, type ApiProvider, type Json } from './settings-form';
+import { AI_KEY_ENV, detectPreset, LEGACY_KEY_ENV, type ApiPreset, type Json } from './settings-form';
 
 // Reads config.json and cv/applicant.json for the settings page. Read-only: saving always goes through the
 // bot's `settings:save` command, which is the single writer and validator (see app/settings/actions.ts).
@@ -41,15 +41,18 @@ export function readApplicant(): SettingsFile {
   return existsSync(file) ? read(file) : read(applicantExampleFile(), true);
 }
 
-/** Whether each API provider's key is set, as the bot will see it. Only names are checked; values never leave here. */
-export type AiKeyStatus = Record<ApiProvider, boolean>;
+/**
+ * Whether the bot will find an AI API key, and whose key it looks like. Only the variable name and the provider
+ * detected from the key's prefix leave this function: never the value.
+ */
+export type AiKeyStatus = { keyEnv: string | null; provider: ApiPreset | null };
 
 /**
- * The bot reads its API keys from job-bot/.env, and also inherits the environment of whoever starts it (the bot
- * runs the dashboard starts get the dashboard's). A key counts as set when either has a non-empty value.
+ * The bot reads AI_API_KEY (or the older OPENAI_API_KEY / DEEPSEEK_API_KEY) from job-bot/.env, and also inherits the
+ * environment of whoever starts it (the bot runs the dashboard starts get the dashboard's). The environment wins.
  */
 export function aiKeyStatus(): AiKeyStatus {
-  const names = new Set<string>();
+  const values = new Map<string, string>();
   const file = botEnvFile();
   if (existsSync(file)) {
     for (const line of readFileSync(file, 'utf8').split('\n')) {
@@ -58,10 +61,14 @@ export function aiKeyStatus(): AiKeyStatus {
         ?.replace(/\s+#.*$/, '')
         .replace(/^(['"])(.*)\1$/, '$2')
         .trim();
-      if (name && value) names.add(name);
+      if (name && value) values.set(name, value);
     }
   }
-  const status = {} as AiKeyStatus;
-  for (const p of API_PROVIDERS) status[p] = names.has(KEY_ENV[p]) || !!process.env[KEY_ENV[p]]?.trim();
-  return status;
+  const read = (name: string) => process.env[name]?.trim() || values.get(name) || '';
+  const key = read(AI_KEY_ENV);
+  if (key) return { keyEnv: AI_KEY_ENV, provider: detectPreset(key) };
+  for (const [preset, name] of Object.entries(LEGACY_KEY_ENV) as [ApiPreset, string][]) {
+    if (read(name)) return { keyEnv: name, provider: preset };
+  }
+  return { keyEnv: null, provider: null };
 }

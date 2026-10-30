@@ -68,13 +68,16 @@ describe('settings round-trip through the CLI', () => {
 
   it('saves an AI provider and its models through the bot validator, and rejects a bad base URL', async () => {
     const cfg = JSON.parse(readFileSync(CONFIG_FILE, 'utf8'));
-    const res = await saveConfig(null, configForm(cfg, { 'ai.provider': 'openai', 'ai.openai.letterModel': 'gpt-4.1' }));
+    const res = await saveConfig(
+      null,
+      configForm(cfg, { 'ai.provider': 'api', 'ai.api.preset': 'gemini', 'ai.api.letterModel': 'gemini-x' }),
+    );
     expect(res).toMatchObject({ ok: true });
     const after = JSON.parse(readFileSync(CONFIG_FILE, 'utf8'));
-    expect(after).toEqual({ ...cfg, ai: { ...cfg.ai, provider: 'openai', openai: { letterModel: 'gpt-4.1' } } });
+    expect(after).toEqual({ ...cfg, ai: { ...cfg.ai, provider: 'api', api: { preset: 'gemini', letterModel: 'gemini-x' } } });
 
-    const bad = await saveConfig(null, configForm(after, { 'ai.deepseek.baseUrl': 'not a url' }));
-    expect(bad).toMatchObject({ ok: false, errors: [expect.objectContaining({ path: 'ai.deepseek.baseUrl' })] });
+    const bad = await saveConfig(null, configForm(after, { 'ai.api.baseUrl': 'not a url', 'ai.api.preset': 'gemini' }));
+    expect(bad).toMatchObject({ ok: false, errors: [expect.objectContaining({ path: 'ai.api.baseUrl' })] });
     expect(JSON.parse(readFileSync(CONFIG_FILE, 'utf8'))).toEqual(after);
   }, 60_000);
 
