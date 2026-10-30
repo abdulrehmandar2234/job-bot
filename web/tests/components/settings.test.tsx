@@ -8,6 +8,7 @@ import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vites
 import { saveApplicant, saveConfig, saveJson, type SaveState } from '@/app/settings/actions';
 import { ApplicantForm, ConfigForm, JsonEditor, SaveStatus } from '@/components/settings';
 import { Settings } from '@/components/settings-page';
+import { SETTINGS_GROUPS } from '@/lib/settings-sections';
 import type { SettingsFile } from '@/lib/settings';
 
 vi.mock('@/app/settings/actions', () => ({ saveConfig: vi.fn(), saveApplicant: vi.fn(), saveJson: vi.fn() }));
@@ -415,7 +416,7 @@ describe('Settings page content', () => {
     render(await Settings());
     expect(screen.getByRole('form', { name: 'Search settings' })).toBeInTheDocument();
     expect(screen.getByRole('form', { name: 'Applicant facts' })).toBeInTheDocument();
-    expect(screen.getAllByText('Advanced: edit JSON')).toHaveLength(2);
+    expect(screen.getAllByText('Advanced: edit JSON', { selector: 'summary' })).toHaveLength(2);
     expect(screen.getByLabelText('Minimum score')).toHaveValue(45);
     expect(screen.getByText(/does not exist yet/)).toBeInTheDocument(); // example applicant file
     await waitFor(() => expect(screen.getByLabelText('config JSON')).toHaveValue(JSON.stringify(CONFIG)));
@@ -432,5 +433,50 @@ describe('Settings page content', () => {
     expect(screen.getByTestId('ai-key-status')).toHaveTextContent('AI_API_KEY is set (looks like a Groq key).');
     expect(container.innerHTML).not.toContain('very-secret');
     expect(container.innerHTML).not.toContain('gsk_');
+  });
+
+  it('links the section nav to every section, and every section is still rendered with its title', async () => {
+    writeFileSync(join(dir, 'config.json'), JSON.stringify(CONFIG));
+    vi.stubEnv('JOB_BOT_CONFIG', join(dir, 'config.json'));
+    vi.stubEnv('JOB_BOT_APPLICANT', join(dir, 'missing.json'));
+    render(await Settings());
+    const nav = screen.getByRole('navigation', { name: 'Settings sections' });
+    const hrefs = within(nav)
+      .getAllByRole('link')
+      .map((a) => a.getAttribute('href'));
+    const ids = SETTINGS_GROUPS.flatMap((g) => [g.id, ...g.sections.map((x) => x.id)]);
+    expect(hrefs).toEqual(ids.map((id) => `#${id}`));
+    for (const g of SETTINGS_GROUPS) {
+      const group = document.getElementById(g.id)!;
+      expect(group).toBeInTheDocument();
+      expect(within(group).getByRole('heading', { level: 2, name: g.title })).toBeInTheDocument();
+      for (const x of g.sections) {
+        // Each section is inside its group, and shows its title: a fieldset legend, or the JSON editor's summary.
+        const el = document.getElementById(x.id)!;
+        expect(group).toContainElement(el);
+        expect(el.querySelector('legend, summary')).toHaveTextContent(x.title);
+      }
+    }
+    expect([...document.querySelectorAll('fieldset')].map((f) => f.id)).toEqual(
+      SETTINGS_GROUPS.flatMap((g) => g.sections.map((x) => x.id)).filter((id) => !id.endsWith('-json')),
+    );
+  });
+
+  it("keeps each form's save button and status in a sticky bar at the end of the form", async () => {
+    writeFileSync(join(dir, 'config.json'), JSON.stringify(CONFIG));
+    vi.stubEnv('JOB_BOT_CONFIG', join(dir, 'config.json'));
+    vi.stubEnv('JOB_BOT_APPLICANT', join(dir, 'missing.json'));
+    render(await Settings());
+    for (const [form, button] of [
+      ['Search settings', 'Save search settings'],
+      ['Applicant facts', 'Save applicant facts'],
+    ]) {
+      const bar = within(screen.getByRole('form', { name: form })).getByRole('button', { name: button }).parentElement!;
+      expect(bar).toHaveAttribute('data-testid', 'save-bar');
+      expect(bar).toHaveClass('sticky', 'bottom-0');
+      expect(bar.parentElement!.lastElementChild).toBe(bar);
+    }
+    // The JSON editors keep their plain save row inside the folded card.
+    for (const b of screen.getAllByRole('button', { name: 'Save JSON', hidden: true })) expect(b.parentElement).not.toHaveClass('sticky');
   });
 });

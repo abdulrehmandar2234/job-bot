@@ -20,6 +20,7 @@ import {
   type SettingsError,
   type SettingsKind,
 } from '@/lib/settings-form';
+import { type SettingsSectionId, sectionTitle } from '@/lib/settings-sections';
 
 type Action = (prev: SaveState, fd: FormData) => Promise<SaveState>;
 
@@ -97,10 +98,11 @@ const input = 'input w-full';
 const text = (v: unknown) => (v == null ? '' : String(v));
 const lines = (v: unknown) => (Array.isArray(v) ? v.join('\n') : '');
 
-function Section({ title, children }: { title: string; children: ReactNode }) {
+/** One card of the Settings page; its id (the section nav's anchor) and title come from lib/settings-sections.ts. */
+function Section({ id, children }: { id: SettingsSectionId; children: ReactNode }) {
   return (
-    <fieldset className="space-y-3 rounded-xl border border-zinc-200 p-4 dark:border-zinc-800">
-      <legend className="px-1 text-sm font-semibold">{title}</legend>
+    <fieldset id={id} className="scroll-mt-4 space-y-3 rounded-xl border border-zinc-200 p-4 dark:border-zinc-800">
+      <legend className="px-1 text-sm font-semibold">{sectionTitle(id)}</legend>
       {children}
     </fieldset>
   );
@@ -114,9 +116,16 @@ function Check({ label, name, value }: { label: string; name: string; value: unk
   );
 }
 
-function SaveBar({ label, state, pending }: { label: string; state: SaveState; pending: boolean }) {
+/**
+ * The save button and its status. `sticky` keeps it at the bottom of the window while its (long) form is on screen, so
+ * the button and the result of a save are always in view; it scrolls away with the form.
+ */
+function SaveBar({ label, state, pending, sticky }: { label: string; state: SaveState; pending: boolean; sticky?: boolean }) {
+  const stick = sticky
+    ? 'sticky bottom-0 z-10 max-h-[40vh] overflow-y-auto rounded-xl border border-zinc-200 bg-background/95 p-3 backdrop-blur dark:border-zinc-800'
+    : '';
   return (
-    <div className="flex flex-wrap items-start gap-3">
+    <div data-testid="save-bar" className={`flex flex-wrap items-start gap-3 ${stick}`}>
       <button type="submit" disabled={pending} className={`btn btn-primary ${pending ? 'cursor-wait opacity-60' : ''}`}>
         {label}
       </button>
@@ -200,7 +209,7 @@ export function ConfigForm({ config, keys }: { config: SettingsFile; keys?: AiKe
     <form onSubmit={onSubmit} aria-label="Search settings" className="space-y-4">
       {/* Remounts the fields when the file changes on disk (e.g. after a JSON save), so they show what was saved. */}
       <div key={config.text} className="space-y-4">
-        <Section title="Matching">
+        <Section id="matching">
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Minimum score" {...f('minScore')}>
               <input type="number" name="minScore" defaultValue={text(c.minScore)} className={input} />
@@ -239,7 +248,7 @@ export function ConfigForm({ config, keys }: { config: SettingsFile; keys?: AiKe
           </p>
         </Section>
 
-        <Section title="Target countries">
+        <Section id="countries">
           {countries.map(([code, country]) => (
             <div key={code} className="space-y-2 border-b border-zinc-100 pb-3 last:border-0 dark:border-zinc-900">
               <Field
@@ -267,7 +276,7 @@ export function ConfigForm({ config, keys }: { config: SettingsFile; keys?: AiKe
           </p>
         </Section>
 
-        <Section title="LinkedIn">
+        <Section id="linkedin">
           <Check label="Search LinkedIn" name="linkedin.enabled" value={get(c, 'linkedin.enabled')} />
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Keywords" hint="one per line" {...f('linkedin.keywords')}>
@@ -291,7 +300,7 @@ export function ConfigForm({ config, keys }: { config: SettingsFile; keys?: AiKe
           </div>
         </Section>
 
-        <Section title="Remote boards">
+        <Section id="remote-boards">
           <Check label="Search remote boards" name="remote.enabled" value={get(c, 'remote.enabled')} />
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Boards" hint="one per line: himalayas, remotive, remoteok, arbeitnow, adzuna" {...f('remote.boards')}>
@@ -319,7 +328,7 @@ export function ConfigForm({ config, keys }: { config: SettingsFile; keys?: AiKe
           ))}
         </Section>
 
-        <Section title="Adzuna">
+        <Section id="adzuna">
           <p className="text-xs text-zinc-500">
             Used when &quot;adzuna&quot; is in the remote boards list. Leave everything empty for the defaults (nl, 2 pages).
           </p>
@@ -344,11 +353,11 @@ export function ConfigForm({ config, keys }: { config: SettingsFile; keys?: AiKe
 
         <AiSection c={c} errors={errors} keys={keys} />
 
-        <Section title="Companies (careers pages)">
+        <Section id="companies">
           <CompaniesEditor companies={c.companies} errors={errors} />
         </Section>
       </div>
-      <SaveBar label="Save search settings" state={state} pending={pending} />
+      <SaveBar label="Save search settings" state={state} pending={pending} sticky />
     </form>
   );
 }
@@ -381,7 +390,7 @@ function AiSection({ c, errors, keys }: { c: Json; errors: SettingsError[]; keys
   const defaults = effective ? PRESETS[effective] : null;
   const status = keyStatus(keys, preset);
   return (
-    <Section title="AI review">
+    <Section id="ai-review">
       <Check label="Use the AI" name="ai.enabled" value={get(c, 'ai.enabled')} />
       {/* Missing means on (src/settings.ts), so only an explicit false unchecks it. */}
       <Check
@@ -562,8 +571,8 @@ export function ApplicantForm({ applicant, salaryKeys = ['remote'] }: { applican
       )}
       <p className="text-sm text-zinc-500">Leave a field empty when unknown: the AI then writes [FILL: …] instead of guessing.</p>
       <div key={applicant.text} className="space-y-4">
-        <Section title="Profile">
-          <div className="grid gap-3 sm:grid-cols-2">
+        <Section id="profile">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {PROFILE_FIELDS.map((k) => (
               <Field key={k} label={PROFILE_LABEL[k][0]} hint={PROFILE_LABEL[k][1]} name={k} errors={errors}>
                 <input name={k} {...value(k)} className={input} />
@@ -571,8 +580,8 @@ export function ApplicantForm({ applicant, salaryKeys = ['remote'] }: { applican
             ))}
           </div>
         </Section>
-        <Section title="Facts">
-          <div className="grid gap-3 sm:grid-cols-2">
+        <Section id="facts">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {APPLICANT_FACTS.map((k) => (
               <Field key={k} label={FACT_LABEL[k]} name={k} errors={errors}>
                 <input name={k} {...value(k)} className={input} />
@@ -580,7 +589,7 @@ export function ApplicantForm({ applicant, salaryKeys = ['remote'] }: { applican
             ))}
           </div>
         </Section>
-        <Section title="Template cover letter">
+        <Section id="cover-letter">
           <p className="text-xs text-zinc-500">Used when the AI is off or fails. Empty sentences are left out.</p>
           {LETTER_FIELDS.map((k) => (
             <Field key={k} label={LETTER_LABEL[k][0]} hint={LETTER_LABEL[k][1]} name={`coverLetter.${k}`} errors={errors}>
@@ -588,7 +597,7 @@ export function ApplicantForm({ applicant, salaryKeys = ['remote'] }: { applican
             </Field>
           ))}
         </Section>
-        <Section title="Expected salary">
+        <Section id="expected-salary">
           <div className="grid gap-3 sm:grid-cols-4">
             {salaryKeys.map((k) => (
               <Field key={k} label={k === 'remote' ? 'Remote' : k} name={`expectedSalary.${k}`} errors={errors}>
@@ -597,11 +606,11 @@ export function ApplicantForm({ applicant, salaryKeys = ['remote'] }: { applican
             ))}
           </div>
         </Section>
-        <Section title="Other facts">
+        <Section id="other-facts">
           <OtherEditor other={a.other} errors={errors} />
         </Section>
       </div>
-      <SaveBar label="Save applicant facts" state={state} pending={pending} />
+      <SaveBar label="Save applicant facts" state={state} pending={pending} sticky />
     </form>
   );
 }
@@ -611,8 +620,8 @@ export function ApplicantForm({ applicant, salaryKeys = ['remote'] }: { applican
 export function JsonEditor({ kind, file }: { kind: SettingsKind; file: SettingsFile }) {
   const { state, pending, onSubmit } = useSave(saveJson);
   return (
-    <details className="rounded-xl border border-zinc-200 px-4 py-3 text-sm dark:border-zinc-800">
-      <summary className="cursor-pointer font-medium">Advanced: edit JSON</summary>
+    <details id={`${kind}-json`} className="scroll-mt-4 rounded-xl border border-zinc-200 px-4 py-3 text-sm dark:border-zinc-800">
+      <summary className="cursor-pointer font-medium">{sectionTitle(`${kind}-json`)}</summary>
       <form onSubmit={onSubmit} aria-label={`Edit ${kind} JSON`} className="mt-3 space-y-3">
         <p className="text-xs text-zinc-500">{file.file}</p>
         <input type="hidden" name="kind" value={kind} />

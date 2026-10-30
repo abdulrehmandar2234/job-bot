@@ -4,7 +4,7 @@ import { Settings } from '@/components/settings-page';
 
 export default function Page() {
   return (
-    <main className="mx-auto w-full max-w-4xl px-4 py-6 sm:px-6">
+    <main className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6">
       <Link href="/" className="text-sm text-zinc-500 hover:underline">
         ← All jobs
       </Link>
