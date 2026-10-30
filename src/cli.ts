@@ -22,6 +22,7 @@ const commands: Record<string, () => Promise<Command>> = {
   show: async () => (await import('./commands/list.ts')).show,
   stats: async () => (await import('./commands/list.ts')).stats,
   prepare: async () => (await import('./commands/prepare.ts')).prepare,
+  letter: async () => (await import('./commands/prepare.ts')).letter,
   'check:open': async () => (await import('./commands/open.ts')).checkOpen,
   'ai:score': async () => (await import('./commands/ai.ts')).aiScore,
   answer: async () => (await import('./commands/ai.ts')).answer,
@@ -55,8 +56,9 @@ if (!load) {
   discover <slug...> [--add]      find a company's job board (6 ATS, or a myworkdayjobs URL); --add saves hits
   list [--status new] [--country AE|SA|NL] [--min 60] [--limit 30]
   show <id> [--full]              details (+ full description)
-  prepare <id> [--cv cluster]     default CV (or --cv version) + AI cover letter (--template for the plain one);
-                                  checks the posting is still open first (--force skips that)
+  prepare <id> [--cv cluster]     default CV (or --cv version); checks the posting is still open first (--force
+                                  skips that); --letter also writes the cover letter
+  letter <id> [--template]        write or rewrite the cover letter (AI from the description, else the template)
   check:open [<id>...] [--status new,prepared] [--limit N]
                                   mark closed postings expired (default: new + prepared not checked for 3 days)
   ai:score [--id x] [--limit n]   AI fit review of matching jobs via local Claude CLI (--all to redo)

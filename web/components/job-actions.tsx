@@ -22,10 +22,10 @@ export function JobActions({ job, busy = [] }: { job: Job; busy?: readonly TaskK
       </a>
 
       {busy.includes('prepare') ? (
-        <Busy>Preparing CV + letter…</Busy>
+        <Busy>Preparing CV…</Busy>
       ) : job.cv_version ? (
-        <a href={`/api/cv/${job.cv_version}`} target="_blank" rel="noreferrer" className="btn">
-          CV ({job.cv_version})
+        <a href={`/api/cv/${encodeURIComponent(job.cv_version)}?download`} className="btn" title={`CV version: ${job.cv_version}`}>
+          Download CV ({job.cv_version}) ↓
         </a>
       ) : (
         <form action={prepare}>
@@ -33,7 +33,7 @@ export function JobActions({ job, busy = [] }: { job: Job; busy?: readonly TaskK
           {/* An expired posting would stop `prepare` at its open check, so "anyway" skips it (--force). */}
           {job.status === 'expired' && <input type="hidden" name="force" value="true" />}
           <SubmitButton pendingText="Starting…">
-            {job.status === 'filtered' || job.status === 'expired' ? 'Prepare anyway' : 'Prepare CV + letter'}
+            {job.status === 'filtered' || job.status === 'expired' ? 'Prepare anyway' : 'Prepare CV'}
           </SubmitButton>
         </form>
       )}

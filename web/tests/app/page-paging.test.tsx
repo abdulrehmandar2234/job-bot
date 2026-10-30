@@ -6,6 +6,7 @@ import Page from '@/app/page';
 import { cleanupDb, closeDb, ensureSchema, insertJob } from '../helpers/db';
 
 vi.mock('@/app/actions', () => ({
+  writeLetter: vi.fn(),
   fetchNow: vi.fn(),
   setStatus: vi.fn(),
   prepare: vi.fn(),

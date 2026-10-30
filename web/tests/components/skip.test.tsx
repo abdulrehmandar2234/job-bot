@@ -7,7 +7,10 @@ import { SkipButton } from '@/components/skip-button';
 import { SkipPatterns } from '@/components/skip-patterns';
 import type { SkipInsights } from '@/lib/skip-insights';
 
-vi.mock('@/app/actions', () => ({ setStatus: vi.fn() }));
+vi.mock('@/app/actions', () => ({
+  writeLetter: vi.fn(),
+  setStatus: vi.fn(),
+}));
 vi.mock('@/app/settings/actions', () => ({ addRoleExclude: vi.fn() }));
 
 beforeEach(() => vi.clearAllMocks());

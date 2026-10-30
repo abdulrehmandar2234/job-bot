@@ -10,7 +10,14 @@ vi.mock('next/server', async (importOriginal) => ({
   ...(await importOriginal<typeof import('next/server')>()),
   connection: async () => {},
 }));
-vi.mock('@/app/actions', () => ({ fetchNow: vi.fn(), setStatus: vi.fn(), prepare: vi.fn(), aiReview: vi.fn(), dismissTask: vi.fn() }));
+vi.mock('@/app/actions', () => ({
+  writeLetter: vi.fn(),
+  fetchNow: vi.fn(),
+  setStatus: vi.fn(),
+  prepare: vi.fn(),
+  aiReview: vi.fn(),
+  dismissTask: vi.fn(),
+}));
 // TaskWatcher (a client component) needs the app router; the page tests render outside Next.
 vi.mock('next/navigation', async (importOriginal) => ({
   ...(await importOriginal<typeof import('next/navigation')>()),

@@ -15,12 +15,13 @@ export type TaskView = Pick<Task, 'id' | 'kind' | 'job_id' | 'status' | 'error' 
 
 export const TASK_LABEL: Record<TaskKind, string> = {
   fetch: 'Fetching new jobs',
-  prepare: 'Preparing CV + letter',
+  prepare: 'Preparing CV',
   ai_review: 'AI reviewing',
   answers: 'Drafting answers',
   rescore: 'Re-scoring jobs',
   prep: 'Preparing interview notes',
   follow_up: 'Drafting follow-up',
+  letter: 'Writing cover letter',
 };
 
 export const isActive = (t: Pick<Task, 'status'>) => t.status === 'queued' || t.status === 'running';

@@ -8,7 +8,13 @@ import { TaskBar } from '@/components/tasks';
 import type { Job } from '@/lib/db';
 import type { TaskView } from '@/lib/tasks';
 
-vi.mock('@/app/actions', () => ({ setStatus: vi.fn(), prepare: vi.fn(), aiReview: vi.fn(), dismissTask: vi.fn() }));
+vi.mock('@/app/actions', () => ({
+  writeLetter: vi.fn(),
+  setStatus: vi.fn(),
+  prepare: vi.fn(),
+  aiReview: vi.fn(),
+  dismissTask: vi.fn(),
+}));
 vi.mock('next/navigation', () => ({ useRouter: vi.fn() }));
 
 const refresh = vi.fn();
@@ -125,7 +131,7 @@ describe('TaskBar', () => {
     render(
       <TaskBar tasks={[view({}), view({ id: 2, kind: 'prepare', job_id: 'j', status: 'queued', company: 'Acme', title: 'Engineer' })]} />,
     );
-    expect(screen.getByRole('status')).toHaveTextContent('Working… Fetching new jobs · Preparing CV + letter (Acme — Engineer)');
+    expect(screen.getByRole('status')).toHaveTextContent('Working… Fetching new jobs · Preparing CV (Acme — Engineer)');
   });
 
   it('leaves out the job on its own page', () => {
@@ -162,12 +168,12 @@ describe('JobActions while a task runs', () => {
   it('shows progress in place of the prepare and AI review buttons', () => {
     render(<JobActions job={job} busy={['prepare', 'ai_review']} />);
     expect(buttons()).toEqual(['Mark applied ✓', 'Skip']);
-    expect(screen.getAllByRole('status').map((s) => s.textContent)).toEqual(['Preparing CV + letter…', 'AI reviewing…']);
+    expect(screen.getAllByRole('status').map((s) => s.textContent)).toEqual(['Preparing CV…', 'AI reviewing…']);
   });
 
   it('shows progress even when a CV exists (rewriting)', () => {
     render(<JobActions job={{ ...job, cv_version: 'default', ai_score: 80 }} busy={['prepare']} />);
     expect(screen.queryByRole('link', { name: /CV \(/ })).not.toBeInTheDocument();
-    expect(screen.getByRole('status')).toHaveTextContent('Preparing CV + letter…');
+    expect(screen.getByRole('status')).toHaveTextContent('Preparing CV…');
   });
 });

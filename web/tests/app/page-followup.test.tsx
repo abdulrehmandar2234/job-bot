@@ -13,6 +13,7 @@ vi.mock('next/server', async (importOriginal) => ({
   connection: async () => {},
 }));
 vi.mock('@/app/actions', () => ({
+  writeLetter: vi.fn(),
   fetchNow: vi.fn(),
   setStatus: vi.fn(),
   prepare: vi.fn(),
