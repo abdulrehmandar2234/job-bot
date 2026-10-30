@@ -35,20 +35,33 @@ const suspenseChild = (nodes: ReactNode) =>
     (c): c is ReactElement<{ children: AsyncEl }> => isValidElement(c) && (c.props as { fallback?: unknown }).fallback !== undefined,
   )!.props.children;
 
+/** The <AtsCheck> element, wherever the layout nests it among the page's own elements. */
+function findAts(node: ReactNode): ReactElement<{ jobId: string }> | undefined {
+  if (Array.isArray(node)) {
+    for (const c of node) {
+      const hit = findAts(c);
+      if (hit) return hit;
+    }
+    return undefined;
+  }
+  if (!isValidElement(node)) return undefined;
+  const props = node.props as { jobId?: string; children?: ReactNode };
+  if (props.jobId !== undefined) return node as ReactElement<{ jobId: string }>;
+  return typeof node.type === 'string' ? findAts(props.children) : undefined;
+}
+
 /** Renders the job detail, and the CV keyword check inside it, after awaiting both like the server would. */
 async function renderJob(id: string) {
   const shell = Page({ params: Promise.resolve({ id: encodeURIComponent(id) }) } as Parameters<typeof Page>[0]) as ReactElement<{
     children: ReactNode;
   }>;
   const detail = suspenseChild(shell.props.children);
-  const article = (await detail.type(detail.props)) as ReactElement<{ children: ReactNode[] }>;
-  const ats = article.props.children.find(
-    (c): c is ReactElement<{ jobId: string }> => isValidElement(c) && 'jobId' in (c.props as object),
-  )!;
+  const rendered = (await detail.type(detail.props)) as ReactElement<{ children: ReactNode }>;
+  const ats = findAts(rendered)!;
   const loader = suspenseChild((ats.type as (p: unknown) => ReactNode)(ats.props));
   render(
     <>
-      {article}
+      {rendered}
       {await loader.type(loader.props)}
     </>,
   );
@@ -84,8 +97,11 @@ describe('job page: salary and CV keyword check', () => {
     await renderJob(id);
     expect(screen.getAllByText('💰 AED 20k–25k / month').length).toBeGreaterThan(0);
     expect(runBot).toHaveBeenCalledWith(['ats', id, '--json']);
-    expect(screen.getAllByRole('heading', { name: /CV keyword check/ }).at(-1)).toHaveTextContent(
-      'laravel (suggested) shows 1 of 3 job keywords',
-    );
+    const heading = screen.getAllByRole('heading', { name: /CV keyword check/ }).at(-1)!;
+    expect(heading).toHaveTextContent('laravel (suggested) shows 1 of 3 job keywords');
+    // Folded behind that count.
+    const details = heading.closest('details')!;
+    expect(details).not.toHaveAttribute('open');
+    expect(details).toHaveTextContent('Kafka');
   });
 });
