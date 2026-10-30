@@ -45,6 +45,17 @@ describe('AtsLists', () => {
     expect(screen.queryByText(/💡/)).not.toBeInTheDocument();
   });
 
+  it('folds the lists behind the heading, which keeps the count visible', () => {
+    render(<AtsLists report={report()} />);
+    const heading = screen.getByRole('heading', { name: /CV keyword check/ });
+    const details = heading.closest('details')!;
+    expect(details).toHaveAttribute('id', 'ats');
+    expect(details).not.toHaveAttribute('open');
+    expect(heading.closest('summary')).toHaveTextContent('shows 2 of 5 job keywords');
+    expect(heading.closest('summary')).not.toHaveTextContent('Kubernetes');
+    expect(details).toHaveTextContent('Kubernetes');
+  });
+
   it('never offers a missing keyword in the suggestion', () => {
     render(<AtsLists report={report()} />);
     expect(screen.getByText(/version shows 4 of them/)).not.toHaveTextContent('Kubernetes');
