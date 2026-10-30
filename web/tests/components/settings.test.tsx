@@ -78,6 +78,25 @@ describe('ConfigForm', () => {
     expect(screen.getByLabelText('Company 2 ATS')).toHaveValue('taleo');
   });
 
+  it('shows the CV template select (classic when not set) with preview links', () => {
+    const { unmount } = render(<ConfigForm config={file(CONFIG)} />);
+    const select = screen.getByLabelText(/^CV template/);
+    expect(select).toHaveValue('');
+    expect(
+      within(select)
+        .getAllByRole('option')
+        .map((o) => [o.getAttribute('value'), o.textContent?.split(' · ')[0]]),
+    ).toEqual([
+      ['', 'Classic'],
+      ['modern', 'Modern'],
+      ['compact', 'Compact'],
+    ]);
+    expect(screen.getByRole('link', { name: 'Modern' })).toHaveAttribute('href', '/api/cv/preview/modern');
+    unmount();
+    render(<ConfigForm config={file({ ...CONFIG, cvTemplate: 'compact' })} />);
+    expect(screen.getByLabelText(/^CV template/)).toHaveValue('compact');
+  });
+
   it('shows strong-match alerts as on unless the file turns them off', () => {
     const { unmount } = render(<ConfigForm config={file(CONFIG)} />);
     expect(screen.getByLabelText(/Alert me at once for strong matches/)).toBeChecked(); // missing = on

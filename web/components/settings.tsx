@@ -3,6 +3,7 @@
 import { startTransition, useActionState, useState, type FormEvent, type ReactNode } from 'react';
 import { saveApplicant, saveConfig, saveJson, type SaveState } from '@/app/settings/actions';
 import type { AiKeyStatus, SettingsFile } from '@/lib/settings';
+import { DEFAULT_TEMPLATE, TEMPLATES } from '@/lib/cv-template-list';
 import {
   AI_KEY_ENV,
   API_PRESETS,
@@ -215,6 +216,27 @@ export function ConfigForm({ config, keys }: { config: SettingsFile; keys?: AiKe
             <textarea name="roleExclude" rows={2} defaultValue={text(c.roleExclude)} className={`${input} font-mono text-xs`} />
           </Field>
           <Check label="Pick a CV version automatically (autoCvVersions)" name="autoCvVersions" value={c.autoCvVersions} />
+          <Field label="CV template" hint="the design of new CVs; a job can use another one" {...f('cvTemplate')}>
+            {/* Classic is the built-in default, so choosing it leaves the key out of config.json. */}
+            <select name="cvTemplate" defaultValue={text(c.cvTemplate) === 'classic' ? '' : text(c.cvTemplate)} className={input}>
+              {TEMPLATES.map((t) => (
+                <option key={t.id} value={t.id === DEFAULT_TEMPLATE ? '' : t.id}>
+                  {t.name} · {t.description}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <p className="text-xs text-zinc-500">
+            Preview:{' '}
+            {TEMPLATES.map((t, i) => (
+              <span key={t.id}>
+                {i > 0 && ' · '}
+                <a href={`/api/cv/preview/${t.id}`} target="_blank" rel="noreferrer" className="underline">
+                  {t.name}
+                </a>
+              </span>
+            ))}
+          </p>
         </Section>
 
         <Section title="Target countries">

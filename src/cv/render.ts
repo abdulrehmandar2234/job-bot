@@ -1,5 +1,7 @@
 import { chromium } from 'playwright-core';
 import { config } from '../config.ts';
+import { classicHtml } from './templates/classic.ts';
+import { DEFAULT_TEMPLATE, templateHtml, type TemplateId } from './templates/index.ts';
 import { resolveChrome } from './chrome.ts';
 
 export type Cv = {
@@ -15,71 +17,8 @@ export type Cv = {
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-// ATS-friendly single column layout: real text, no tables or images, standard section names.
-export function cvHtml(cv: Cv): string {
-  const c = cv.contact;
-  return `<!doctype html><html><head><meta charset="utf-8"><style>
-  @page { size: A4; margin: 11mm 13mm; }
-  * { box-sizing: border-box; }
-  body { font-family: Helvetica, Arial, sans-serif; font-size: 9.4pt; line-height: 1.3; color: #1a1a1a; margin: 0; }
-  h1 { font-size: 21pt; margin: 0; letter-spacing: .3px; }
-  .title { font-size: 11.5pt; color: #2b4c7e; font-weight: 600; margin: 2px 0 4px; }
-  .contact { font-size: 9.3pt; color: #444; }
-  .contact a { color: #2b4c7e; text-decoration: none; }
-  h2 { font-size: 10.5pt; text-transform: uppercase; letter-spacing: 1px; color: #2b4c7e;
-       border-bottom: 1.2px solid #2b4c7e; padding-bottom: 2px; margin: 10px 0 5px; }
-  p { margin: 0; }
-  .skills div { margin-bottom: 2px; }
-  .skills b { font-weight: 600; }
-  .job { margin-bottom: 6px; break-inside: avoid-page; }
-  .row { display: flex; justify-content: space-between; gap: 12px; }
-  .row b { font-weight: 600; }
-  .dates { color: #555; white-space: nowrap; font-size: 9.3pt; }
-  ul { margin: 3px 0 0; padding-left: 15px; }
-  li { margin-bottom: 1px; }
-  .proj { margin-bottom: 3px; break-inside: avoid; }
-  .proj a { color: #2b4c7e; text-decoration: none; font-size: 9pt; }
-  </style></head><body>
-  <h1>${esc(cv.name)}</h1>
-  <div class="title">${esc(cv.title)}</div>
-  <div class="contact">${esc(c.phone)} | <a href="mailto:${esc(c.email)}">${esc(c.email)}</a> | ${esc(c.location)} |
-    <a href="${esc(c.linkedin)}">LinkedIn</a></div>
-
-  <h2>Summary</h2><p>${esc(cv.summary)}</p>
-
-  <h2>Technical Skills</h2><div class="skills">
-  ${cv.skills.map((g) => `<div><b>${esc(g.group)}:</b> ${g.items.map(esc).join(', ')}</div>`).join('')}
-  </div>
-
-  <h2>Work Experience</h2>
-  ${cv.experience
-    .map(
-      (e) => `<div class="job">
-    <div class="row"><span><b>${esc(e.role)}</b>, ${esc(e.company)}${e.location ? `, ${esc(e.location)}` : ''}</span>
-    <span class="dates">${esc(e.dates)}</span></div>
-    <ul>${e.bullets.map((b) => `<li>${esc(b)}</li>`).join('')}</ul></div>`,
-    )
-    .join('')}
-
-  <h2>Projects</h2>
-  ${cv.projects
-    .map(
-      (
-        p,
-      ) => `<div class="proj"><b>${esc(p.name)}</b> — <a href="${esc(p.url)}">${esc(p.url.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, ''))}</a>
-    <p>${esc(p.text)}</p></div>`,
-    )
-    .join('')}
-
-  <h2>Education</h2>
-  ${cv.education
-    .map(
-      (e) => `<div class="row"><span><b>${esc(e.school)}</b> — ${esc(e.degree)}</span>
-    <span class="dates">${esc(e.dates)}</span></div>`,
-    )
-    .join('')}
-  </body></html>`;
-}
+/** The CV in the classic template (the original design). Other designs: src/cv/templates/. */
+export const cvHtml = (cv: Cv): string => classicHtml(cv);
 
 /**
  * A cover letter as a one-page A4 document in the CV's style: the CV's name, title and contact line as the header,
@@ -134,4 +73,6 @@ export async function htmlToPdf(html: string, outFile: string) {
   }
 }
 
-export const renderPdf = (cv: Cv, outFile: string) => htmlToPdf(cvHtml(cv), outFile);
+/** Prints the CV to an A4 PDF in a template (classic when not given). */
+export const renderPdf = (cv: Cv, outFile: string, template: TemplateId = DEFAULT_TEMPLATE) =>
+  htmlToPdf(templateHtml(template, cv), outFile);

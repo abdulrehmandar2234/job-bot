@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render, screen, within } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import { isValidElement, type ReactElement, type ReactNode } from 'react';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import Page from '@/app/jobs/[id]/page';
@@ -14,6 +14,9 @@ vi.mock('@/app/actions', () => ({
   rewriteSummary: vi.fn(),
   saveSummary: vi.fn(),
   tailorCv: vi.fn(),
+  applyCvTemplate: vi.fn(),
+  improveCv: vi.fn(),
+  reviewCv: vi.fn(),
   setStatus: vi.fn(),
   prepare: vi.fn(),
   aiReview: vi.fn(),
@@ -84,6 +87,28 @@ describe('job page', () => {
     expect(history()).toHaveTextContent('new → applied (via site)');
     expect(screen.getByRole('heading', { name: /^History/ })).toHaveTextContent('History · 1 change');
     expect(history()).not.toHaveAttribute('open');
+  });
+
+  it('shows the CV panel with the template select, previews, feedback and suggestions, and hides it while a CV task runs', async () => {
+    await insertJob({ id, status: 'prepared', cv_version: 'default', cv_review: '- Lead with Laravel.' });
+    await renderJob(id);
+    const panel = screen.getByRole('region', { name: /CV for this job/ });
+    expect(panel).toHaveTextContent('· default · Classic template');
+    expect(within(panel).getByLabelText('Template')).toHaveValue('classic');
+    expect(within(panel).getByRole('button', { name: 'Apply template' })).toBeInTheDocument();
+    expect(within(panel).getByRole('link', { name: 'Modern' })).toHaveAttribute('href', '/api/cv/preview/modern');
+    expect(within(panel).getByRole('link', { name: /Download CV/ })).toHaveAttribute('href', '/api/cv/default?download');
+    expect(within(panel).getByLabelText(/What should change in this CV\?/)).toBeInTheDocument();
+    expect(within(panel).getByText('- Lead with Laravel.')).toBeInTheDocument();
+    expect(within(panel).getByRole('button', { name: 'Suggest again' })).toBeInTheDocument();
+
+    cleanup();
+    await pool.query(`INSERT INTO tasks (kind, job_id, status) VALUES ('cv_feedback', $1, 'running')`, [id]);
+    await renderJob(id);
+    const busy = screen.getByRole('region', { name: /CV for this job/ });
+    expect(within(busy).getByText('Improving CV with your feedback…')).toBeInTheDocument();
+    expect(within(busy).queryByRole('button', { name: 'Apply template' })).toBeNull();
+    expect(within(busy).queryByLabelText(/What should change in this CV\?/)).toBeNull();
   });
 
   it('shows contacts, people known at the same company, the referral reminder and the skip reason', async () => {
@@ -232,6 +257,7 @@ describe('job page', () => {
       expect(links).toEqual([
         ['Cover letter', '#letter'],
         ['CV summary', '#cv-summary'],
+        ['CV template', '#cv-panel'],
         ['Form answers', '#answers'],
         ['Job description', '#description'],
       ]);

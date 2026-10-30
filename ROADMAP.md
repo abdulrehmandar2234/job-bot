@@ -10,6 +10,7 @@ Nothing planned right now. Ideas from real use go here.
 
 ### Features
 
+- **CV templates and feedback on the CV:** classic, modern and compact designs (src/cv/templates), `cvTemplate` in config.json and per job (`bot cv:template`), `bot cv:feedback` with the master-CV check (src/cv/feedback.ts) and `bot cv:review`; the CV panel on the job page (web/components/cv-panel.tsx).
 - **Funnel analytics:** `/analytics` (web/app/analytics, web/lib/analytics.ts).
 - **Follow-up reminders:** "Needs follow-up" tab and a section on the job page; `bot follow-ups` / `follow-up` / `followed-up` (src/followup.ts, web/lib/followup.ts).
 - **Interview prep:** `bot prep <id>`; on the job page for applied and interview jobs, run as a background task.

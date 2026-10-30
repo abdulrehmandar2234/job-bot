@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { z } from 'zod';
 import { API_PRESETS, RESPONSE_FORMATS } from './ai-presets.ts';
+import { TEMPLATE_IDS } from './cv/templates/index.ts';
 
 // Schemas for the two hand-edited settings files, config.json and cv/applicant.json. Loading them (config.ts, ai.ts)
 // validates first, so a typo fails at startup with the file and field instead of deep inside a fetch.
@@ -68,6 +69,7 @@ const companySchema = z.object({
 export const configSchema = z.object({
   cvFileName: text,
   autoCvVersions: z.boolean(), // false = always send the default CV unless `prepare --cv <cluster>` is given
+  cvTemplate: z.enum(TEMPLATE_IDS).optional(), // CV design for jobs without one of their own (src/cv/templates); missing = classic
   chromePath: text.optional(), // "auto" or missing: Playwright's headless shell, else a system Chrome (src/cv/chrome.ts)
   minScore: z.number(),
   maxAgeDays: count, // postings older than this are filtered out

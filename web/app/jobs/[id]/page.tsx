@@ -24,6 +24,7 @@ import { Busy, TaskBar } from '@/components/tasks';
 import { WrittenText } from '@/components/written-text';
 import { SalaryTag } from '@/components/salary';
 import { AtsCheck } from '@/components/ats-check';
+import { CvPanel } from '@/components/cv-panel';
 import { loadExpectations } from '@/lib/salary';
 import { Contacts, ReferralReminder } from '@/components/contacts';
 import { allContacts } from '@/lib/contacts-db';
@@ -251,6 +252,9 @@ async function JobDetail({ params }: { params: PageProps<'/jobs/[id]'>['params']
             <a href="#cv-summary" className={navLink}>
               CV summary
             </a>
+            <a href="#cv-panel" className={navLink}>
+              CV template
+            </a>
             <a href="#answers" className={navLink}>
               Form answers
             </a>
@@ -361,6 +365,10 @@ async function JobDetail({ params }: { params: PageProps<'/jobs/[id]'>['params']
                 The summary at the top of your CV, rewritten for this job from your CV and the job description. Only facts from your CV.
               </p>
             )}
+          </section>
+
+          <section id="cv-panel" className="scroll-mt-4">
+            <CvPanel job={job} busy={busy} />
           </section>
 
           <section id="answers" className="scroll-mt-4 space-y-3">
