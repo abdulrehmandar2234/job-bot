@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { config, path } from '../config.ts';
+import { masterFile } from '../settings.ts';
 import { PROFILES, type Profile } from './profiles.ts';
 import { renderPdf, type Cv } from './render.ts';
 import { DEFAULT_TEMPLATE, isTemplate, type TemplateId } from './templates/index.ts';
@@ -25,7 +26,7 @@ export type VersionMeta = {
 
 const VERSIONS = path('cv', 'versions');
 // JOB_BOT_MASTER points at another CV (tests use cv/master.example.json).
-export const masterRaw = () => readFileSync(process.env.JOB_BOT_MASTER || path('cv', 'master.json'), 'utf8');
+export const masterRaw = () => readFileSync(masterFile(), 'utf8');
 // Covers everything that shapes a version's content and look, so editing the CV, a profile or the template yields
 // v(N+1) while older versions stay on disk for the jobs they were sent to.
 export const masterHash = (template: TemplateId = DEFAULT_TEMPLATE) =>

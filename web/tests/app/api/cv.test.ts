@@ -5,7 +5,7 @@ import { NextRequest } from 'next/server';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 // lib/bot.ts resolves BOT_ROOT from the working directory (web/..) at import time, so point the cwd at a
-// temp "web" folder while importing: the real cvPath/cvFileName then read a temp config.json and CVs.
+// temp "web" folder while importing: the real cvPath/cvFileName (lib/cv-templates.ts) then read a temp config.json and CVs.
 const root = mkdtempSync(join(tmpdir(), 'job-bot-web-cv-'));
 let GET: typeof import('@/app/api/cv/[version]/route').GET;
 

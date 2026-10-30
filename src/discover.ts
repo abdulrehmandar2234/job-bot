@@ -1,6 +1,7 @@
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { getJson, sleep } from './sources/http.ts';
-import { ATS, config, path, type Company } from './config.ts';
+import { ATS, config, type Company } from './config.ts';
+import { configFile, InvalidSettingsError, validateConfig, writeSettingsFile } from './settings.ts';
 import { workdayList } from './sources/index.ts';
 
 // Finds which public job board (ATS) a company uses and how many of its jobs are in target countries.
@@ -92,9 +93,12 @@ export async function discover(slugs: string[]): Promise<Hit[]> {
   return hits.sort((a, b) => b.target - a.target);
 }
 
-/** Appends boards with target-country jobs to config.json (skips ones already there). */
-export function addToConfig(hits: Hit[]) {
-  const file = path('config.json');
+/**
+ * Appends boards with target-country jobs to config.json (or the file JOB_BOT_CONFIG names), skipping ones already
+ * there. The result is validated before it is written (atomically, as settings:save does); an invalid result throws
+ * InvalidSettingsError and leaves the file as it was.
+ */
+export function addToConfig(hits: Hit[], file = configFile()) {
   const raw = JSON.parse(readFileSync(file, 'utf8'));
   const known = new Set(raw.companies.map((c: Company) => `${c.ats}:${c.token}`));
   const added: Company[] = [];
@@ -104,7 +108,10 @@ export function addToConfig(hits: Hit[]) {
     added.push({ name, ats: h.ats, token: h.slug });
     known.add(`${h.ats}:${h.slug}`);
   }
+  if (!added.length) return added;
   raw.companies.push(...added);
-  writeFileSync(file, JSON.stringify(raw, null, 2) + '\n');
+  const res = validateConfig(raw);
+  if (!res.ok) throw new InvalidSettingsError(file, res.errors);
+  writeSettingsFile(file, raw);
   return added;
 }

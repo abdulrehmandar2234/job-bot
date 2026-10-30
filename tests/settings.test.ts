@@ -1,9 +1,20 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { InvalidSettingsError, loadSettings, path, validateApplicant, validateConfig, validateText } from '../src/settings.ts';
+import {
+  applicantFile,
+  configFile,
+  InvalidSettingsError,
+  loadSettings,
+  masterFile,
+  path,
+  validateApplicant,
+  validateConfig,
+  validateText,
+  writeSettingsFile,
+} from '../src/settings.ts';
 
 const realConfig = () => JSON.parse(readFileSync(path('config.json'), 'utf8'));
 const example = () => JSON.parse(readFileSync(path('cv', 'applicant.example.json'), 'utf8'));
@@ -123,5 +134,40 @@ describe('settings files', () => {
       },
     );
     assert.throws(() => loadSettings('applicant', join(dir, 'missing.json')), /missing\.json:\n {2}- \(root\): file not found/);
+  });
+
+  it('configFile, applicantFile and masterFile follow JOB_BOT_CONFIG / JOB_BOT_APPLICANT / JOB_BOT_MASTER on every call', () => {
+    const saved = { c: process.env.JOB_BOT_CONFIG, a: process.env.JOB_BOT_APPLICANT, m: process.env.JOB_BOT_MASTER };
+    try {
+      delete process.env.JOB_BOT_CONFIG;
+      delete process.env.JOB_BOT_APPLICANT;
+      delete process.env.JOB_BOT_MASTER;
+      assert.equal(configFile(), path('config.json'));
+      assert.equal(applicantFile(), path('cv', 'applicant.json'));
+      assert.equal(masterFile(), path('cv', 'master.json'));
+      process.env.JOB_BOT_CONFIG = join(dir, 'c.json');
+      process.env.JOB_BOT_APPLICANT = join(dir, 'a.json');
+      process.env.JOB_BOT_MASTER = join(dir, 'm.json');
+      assert.equal(configFile(), join(dir, 'c.json'));
+      assert.equal(applicantFile(), join(dir, 'a.json'));
+      assert.equal(masterFile(), join(dir, 'm.json'));
+    } finally {
+      for (const [k, v] of [
+        ['JOB_BOT_CONFIG', saved.c],
+        ['JOB_BOT_APPLICANT', saved.a],
+        ['JOB_BOT_MASTER', saved.m],
+      ] as const)
+        if (v === undefined) delete process.env[k];
+        else process.env[k] = v;
+    }
+  });
+
+  it('writeSettingsFile writes pretty JSON with a final newline and leaves no temp file', () => {
+    const sub = mkdtempSync(join(dir, 'write-'));
+    const f = join(sub, 'config.json');
+    writeFileSync(f, 'old');
+    writeSettingsFile(f, { a: 1 });
+    assert.equal(readFileSync(f, 'utf8'), '{\n  "a": 1\n}\n');
+    assert.deepEqual(readdirSync(sub), ['config.json']);
   });
 });

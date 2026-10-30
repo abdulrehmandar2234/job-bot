@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it, vi } from 'vitest';
 import { belowExpectation, EUR_RATE, formatSalary, loadExpectations, parseExpectation, PER_YEAR, yearlyEur } from '@/lib/salary';
 
 const job = (
@@ -75,6 +75,17 @@ describe('expectations', () => {
     expect(loadExpectations(join(dir, 'nope.json'))).toEqual({});
     writeFileSync(file, '{');
     expect(loadExpectations(file)).toEqual({});
+  });
+
+  it('reads the applicant file JOB_BOT_APPLICANT names by default', () => {
+    const file = join(dir, 'override.json');
+    writeFileSync(file, JSON.stringify({ expectedSalary: { AE: 30000 } }));
+    vi.stubEnv('JOB_BOT_APPLICANT', file);
+    try {
+      expect(loadExpectations()).toEqual({ AE: { amount: 30_000, currency: 'AED', period: 'month' } });
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 
   it('flags a job only when the top of its range is below the expectation, across currencies', () => {

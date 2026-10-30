@@ -1,5 +1,5 @@
-import { readFileSync, renameSync, writeFileSync } from 'node:fs';
-import { APPLICANT_FILE, CONFIG_FILE, validateText, type SettingsError, type SettingsKind } from '../settings.ts';
+import { readFileSync } from 'node:fs';
+import { APPLICANT_FILE, CONFIG_FILE, validateText, writeSettingsFile, type SettingsError, type SettingsKind } from '../settings.ts';
 import type { Flags } from './shared.ts';
 
 // For the dashboard's settings page (via runBot): both print one JSON line, {"ok":true} or {"ok":false,"errors":[...]},
@@ -38,12 +38,6 @@ export function settingsCheck(_args: string[], flags: Flags) {
 /** settings:save --kind config|applicant [--file x.json]: validates, then replaces config.json / cv/applicant.json. */
 export function settingsSave(_args: string[], flags: Flags) {
   const r = check(flags);
-  if ('kind' in r) {
-    // Write a temp file next to the target and rename it over, so a crash never leaves a half-written file.
-    const target = TARGET[r.kind];
-    const tmp = `${target}.${process.pid}.tmp`;
-    writeFileSync(tmp, JSON.stringify(r.obj, null, 2) + '\n');
-    renameSync(tmp, target);
-  }
+  if ('kind' in r) writeSettingsFile(TARGET[r.kind], r.obj);
   report(r);
 }

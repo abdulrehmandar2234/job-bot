@@ -1,13 +1,26 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { BOT_ROOT } from './bot';
-import { readConfig } from './settings';
+import { configFile, readConfig } from './settings';
 import { DEFAULT_TEMPLATE, isTemplate, type TemplateId } from './cv-template-list';
 
-// Server-side helpers for the CV templates: the default from config.json, and a version's template and feedback
-// note from its meta.json. The list itself is in cv-template-list.ts, which client components can import too.
+// Server-side helpers for the CV files and templates: the PDF path and file name, the default template from
+// config.json, and a version's template and feedback note from its meta.json. The list itself is in cv-template-list.ts, which client components can import too.
 
 export { DEFAULT_TEMPLATE, isTemplate, TEMPLATES, templateName, type TemplateId } from './cv-template-list';
+
+/**
+ * config.json cvFileName, from the file the bot uses (JOB_BOT_CONFIG when set). It lives here, not in bot.ts, because
+ * settings.ts imports bot.ts.
+ */
+export function cvFileName(): string {
+  return JSON.parse(readFileSync(configFile(), 'utf8')).cvFileName;
+}
+
+/** The PDF of a CV version ("default" is the untouched original). */
+export function cvPath(version: string) {
+  return version === 'default' ? join(BOT_ROOT, 'cv', 'default', cvFileName()) : join(BOT_ROOT, 'cv', 'versions', version, cvFileName());
+}
 
 /** config.json cvTemplate (the default for jobs without one of their own), else classic. */
 export function defaultTemplate(): TemplateId {

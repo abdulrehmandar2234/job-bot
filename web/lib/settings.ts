@@ -6,10 +6,12 @@ import { AI_KEY_ENV, detectPreset, LEGACY_KEY_ENV, type ApiPreset, type Json } f
 // Reads config.json and cv/applicant.json for the settings page. Read-only: saving always goes through the
 // bot's `settings:save` command, which is the single writer and validator (see app/settings/actions.ts).
 
-// Same env overrides as the bot, read on every call so tests can point them at temp files.
+// Same env overrides as the bot (JOB_BOT_CONFIG, JOB_BOT_APPLICANT, JOB_BOT_MASTER), read on every call so tests can
+// point them at temp files. Every dashboard read of these files goes through these helpers.
 export const configFile = () => process.env.JOB_BOT_CONFIG || join(BOT_ROOT, 'config.json');
 export const applicantFile = () => process.env.JOB_BOT_APPLICANT || join(BOT_ROOT, 'cv', 'applicant.json');
 export const applicantExampleFile = () => join(BOT_ROOT, 'cv', 'applicant.example.json');
+export const masterFile = () => process.env.JOB_BOT_MASTER || join(BOT_ROOT, 'cv', 'master.json');
 // The bot's own env file (job-bot/.env, loaded by `npm run bot` and by the bot runs the dashboard starts).
 export const botEnvFile = () => process.env.JOB_BOT_ENV_FILE || join(BOT_ROOT, '.env');
 
