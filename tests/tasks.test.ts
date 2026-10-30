@@ -119,6 +119,19 @@ describe('task queue', () => {
     }
   });
 
+  it('applying a CV template, improving the CV with feedback and a CV review are task kinds (migration 014)', async () => {
+    assert.deepEqual(
+      [TASK_TIMEOUT_MS.cv_template, TASK_TIMEOUT_MS.cv_feedback, TASK_TIMEOUT_MS.cv_review],
+      [4 * 60_000, 5 * 60_000, 4 * 60_000],
+    );
+    const args = { cv_template: { template: 'modern' }, cv_feedback: { feedback: 'shorter' }, cv_review: {} };
+    for (const kind of ['cv_template', 'cv_feedback', 'cv_review'] as const) {
+      const { task, created } = await enqueue(kind, JOB, args[kind]);
+      assert.equal(created, true);
+      assert.deepEqual([task.kind, task.args], [kind, args[kind]]);
+    }
+  });
+
   it('rejects unknown kinds and jobs at the database', async () => {
     await assert.rejects(enqueue('bogus' as 'fetch', null), /tasks_kind_check/);
     await assert.rejects(enqueue('prepare', 'tasktest:nope'), /foreign key/);
@@ -298,6 +311,30 @@ describe('cliArgs', () => {
     assert.deepEqual(cliArgs(t('letter')), ['letter', JOB]);
     assert.deepEqual(cliArgs(t('summary')), ['summary', JOB]);
     assert.deepEqual(cliArgs(t('tailored_cv')), ['cv:tailor', JOB]);
+    assert.deepEqual(cliArgs(t('cv_template', { template: 'compact' })), ['cv:template', JOB, 'compact']);
+    assert.deepEqual(cliArgs(t('cv_feedback', { feedback: '  put Laravel first ' })), ['cv:feedback', JOB, '--feedback=put Laravel first']);
+    assert.deepEqual(cliArgs(t('cv_review')), ['cv:review', JOB]);
+  });
+
+  it('runs cv:template only with a known template name', () => {
+    for (const template of ['', 'Modern', 'fancy', '--pdf', '../classic', undefined])
+      assert.throws(
+        () => cliArgs({ kind: 'cv_template', job_id: JOB, args: { template } as unknown as Record<string, string> }),
+        /Unknown CV template/,
+      );
+    assert.throws(() => cliArgs(t('cv_template', { template: 'modern' }, null)), /cv_template task without a job/);
+  });
+
+  it('runs cv:feedback only with feedback of at most 1000 characters', () => {
+    for (const feedback of ['', '   '])
+      assert.throws(() => cliArgs(t('cv_feedback', { feedback })), /Write what should change in the CV first/);
+    assert.throws(() => cliArgs(t('cv_feedback')), /Write what should change in the CV first/);
+    assert.throws(() => cliArgs(t('cv_feedback', { feedback: 'x'.repeat(FEEDBACK_CAP + 1) })), /Feedback is too long/);
+    assert.deepEqual(cliArgs(t('cv_feedback', { feedback: '--template; rm -rf ~' })), [
+      'cv:feedback',
+      JOB,
+      '--feedback=--template; rm -rf ~',
+    ]);
   });
 
   it('passes feedback to letter and summary as one --feedback=<text> argument, trimmed', () => {

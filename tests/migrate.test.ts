@@ -161,7 +161,34 @@ describe('migration 013 (CV summary)', () => {
     await runMigrations(db, d);
     await db.query(`INSERT INTO jobs (id, source, company, title, url) VALUES ('a', 's', 'c', 't', 'u')`);
     await db.query(`INSERT INTO tasks (kind, job_id) VALUES ('letter', 'a')`);
-    assert.deepEqual(await runMigrations(db), ['013_cv_summary']);
+    assert.equal((await runMigrations(db))[0], '013_cv_summary');
     assert.deepEqual((await db.query('SELECT kind FROM tasks')).rows, [{ kind: 'letter' }]);
+  });
+});
+
+describe('migration 014 (CV templates)', () => {
+  it('adds the template and review columns, and the cv_template, cv_feedback and cv_review task kinds', async () => {
+    await runMigrations(db);
+    await db.query(`INSERT INTO jobs (id, source, company, title, url) VALUES ('a', 's', 'c', 't', 'u')`);
+    const { rows } = await db.query('SELECT cv_template, cv_review, cv_review_at FROM jobs');
+    assert.deepEqual(rows, [{ cv_template: null, cv_review: null, cv_review_at: null }]);
+    await db.query(`UPDATE jobs SET cv_template = 'modern'`);
+    await assert.rejects(db.query(`UPDATE jobs SET cv_template = 'Bad Name; --'`), /check constraint/);
+    const kinds = ['fetch', 'prepare', 'ai_review', 'answers', 'rescore', 'prep', 'follow_up', 'letter', 'summary', 'tailored_cv'];
+    for (const kind of [...kinds, 'cv_template', 'cv_feedback', 'cv_review'])
+      await db.query(`INSERT INTO tasks (kind, job_id) VALUES ($1, $2)`, [kind, ['fetch', 'rescore'].includes(kind) ? null : 'a']);
+    assert.equal((await db.query('SELECT count(*)::int n FROM tasks')).rows[0].n, kinds.length + 3);
+    await assert.rejects(db.query(`INSERT INTO tasks (kind) VALUES ('bogus')`), /tasks_kind_check/);
+  });
+
+  it('upgrades a database at migration 013 without losing its tasks or CV summaries', async () => {
+    const d = dir({});
+    for (const f of migrationFiles().filter((f) => f < '014')) writeFileSync(join(d, f), readFileSync(join(MIGRATIONS_DIR, f), 'utf8'));
+    await runMigrations(db, d);
+    await db.query(`INSERT INTO jobs (id, source, company, title, url, cv_summary) VALUES ('a', 's', 'c', 't', 'u', 'Kept.')`);
+    await db.query(`INSERT INTO tasks (kind, job_id) VALUES ('tailored_cv', 'a')`);
+    assert.deepEqual(await runMigrations(db), ['014_cv_templates']);
+    assert.deepEqual((await db.query('SELECT kind FROM tasks')).rows, [{ kind: 'tailored_cv' }]);
+    assert.deepEqual((await db.query('SELECT cv_summary FROM jobs')).rows, [{ cv_summary: 'Kept.' }]);
   });
 });

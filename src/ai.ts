@@ -3,6 +3,7 @@ import { listText, loadProfile, onsiteSituation, readApplicant, remoteFrom, sign
 import type { AiLocation, FormAnswer, InterviewPrep, Job } from './types.ts';
 import { masterRaw } from './cv/versions.ts';
 import type { Cv } from './cv/render.ts';
+import type { CvProposal } from './cv/feedback.ts';
 import { askAi } from './ai-providers.ts';
 
 // The AI features: prompts and output schemas. Which AI runs them (the local Claude CLI, or an OpenAI-compatible API with one key) is
@@ -278,6 +279,102 @@ export async function aiSummary(job: Job, feedback?: string): Promise<Revised<'s
 }
 
 const str = { type: 'string' };
+const strs = { type: 'array', items: str };
+const CV_FEEDBACK_SCHEMA = {
+  type: 'object',
+  properties: {
+    cv: {
+      type: 'object',
+      properties: {
+        title: str,
+        summary: str,
+        skills: {
+          type: 'array',
+          items: { type: 'object', properties: { group: str, items: strs }, required: ['group', 'items'] },
+        },
+        experience: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: { company: str, role: str, bullets: strs },
+            required: ['company', 'role', 'bullets'],
+          },
+        },
+        projects: { ...strs, description: 'Project names to show, in order.' },
+      },
+      required: ['title', 'summary', 'skills', 'experience', 'projects'],
+    },
+    note: str,
+  },
+  required: ['cv', 'note'],
+};
+
+/** The parts of a CV the feedback may change, as JSON for the prompt (projects with their text, for choosing). */
+const cvJson = (cv: Cv) =>
+  JSON.stringify(
+    {
+      title: cv.title,
+      summary: cv.summary,
+      skills: cv.skills,
+      experience: cv.experience.map((e) => ({ company: e.company, role: e.role, dates: e.dates, bullets: e.bullets })),
+      projects: cv.projects.map((p) => ({ name: p.name, text: p.text })),
+    },
+    null,
+    1,
+  );
+
+/**
+ * Revises the job's CV to follow the candidate's feedback ("summary too generic", "put Laravel experience first",
+ * "fit on one page"). Returns the AI's proposal as it is: src/cv/feedback.ts keepToMaster() then keeps only what
+ * the master CV supports. `current` is the job's CV now (its cv.json).
+ */
+export function aiCvFeedback(job: Job, master: Cv, current: Cv, feedback: string): Promise<{ cv: CvProposal; note: string }> {
+  const system = `You revise one candidate's CV for one job, following the candidate's feedback. You get the MASTER CV
+(every fact the candidate has), the CURRENT CV for this job, the job description and the FEEDBACK. Return the revised CV.
+Rules:
+- You may only reorder, re-frame, shorten or select content of the MASTER CV: rewrite the title and the summary,
+  reorder skill groups and the skills in them, leave out skills, reorder and leave out bullets, and leave out projects.
+- Never add an employer, role, skill, bullet, project, number, date, degree, certification or claim the MASTER CV does
+  not have. Copy every skill, skill group name, bullet, company and role EXACTLY as the MASTER CV writes it; never
+  rewrite or merge bullets. Projects are given by name.
+- Keep every employer of the MASTER CV (you may leave out some of its bullets, but keep at least one per employer).
+- The title and summary may be reworded, using only facts from the MASTER CV; keep every number and year exactly as it
+  states it. The summary: plain text, no "I", never third person, no clichés, no commitments (salary, relocation,
+  notice period, start date, working hours).
+- "Fit on one page" or "shorter" means fewer bullets, skills or projects and a shorter summary, not new wording.
+- Start from the CURRENT CV and change what the feedback asks; keep the rest as it is.
+- If the feedback asks for something the rules forbid (a skill, employer, number or claim the MASTER CV does not show),
+  do not add it and say so in "note" in one short sentence. Otherwise "note" is "".`;
+  return askAi<{ cv: CvProposal; note: string }>(
+    `MASTER CV:\n${cvJson(master)}\n\nCURRENT CV FOR THIS JOB:\n${cvJson(current)}\n\nJOB:\n${jobText(job)}\n\nFEEDBACK FROM THE CANDIDATE:\n${feedback.trim()}`,
+    CV_FEEDBACK_SCHEMA,
+    'letter',
+    system,
+  );
+}
+
+/**
+ * A short, honest review of the job's CV against the job ("Suggest improvements"): what is weak or missing and what to
+ * emphasise, as lines the candidate can turn into feedback for aiCvFeedback.
+ */
+export async function aiCvReview(job: Job, master: Cv, current: Cv): Promise<string> {
+  const system = `You review one candidate's CV for one job and suggest how to improve it. You get the MASTER CV (every
+fact the candidate has), the CURRENT CV for this job and the job description. Rules:
+- 3-6 suggestions, each one short line starting with "- ", plain text, no markdown headings.
+- Suggest only changes that use the MASTER CV: what to put first, what to emphasise in the title or summary, which
+  skills, bullets or projects to move up, shorten or leave out, and whether it should be shorter.
+- Be truthful about gaps: when the job asks for something the MASTER CV does not show, say it is missing; never suggest
+  adding it to the CV.
+- Specific to this job; no generic advice ("use action verbs").`;
+  const res = await askAi<{ review: string }>(
+    `MASTER CV:\n${cvJson(master)}\n\nCURRENT CV FOR THIS JOB:\n${cvJson(current)}\n\nJOB:\n${jobText(job)}`,
+    { type: 'object', properties: { review: str }, required: ['review'] },
+    'letter',
+    system,
+  );
+  return res.review.trim();
+}
+
 const PREP_SCHEMA = {
   type: 'object',
   properties: {
