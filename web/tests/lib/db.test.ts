@@ -21,6 +21,23 @@ afterAll(closeDb);
 
 const id = (s: string) => PREFIX + s;
 
+describe('listJobs everyTab (search across every status)', () => {
+  it('finds a company in every tab, but never a filtered job outside the target countries', async () => {
+    const q = 'everytabco';
+    await insertJob({ id: 'et-new', company: `Acme ${q}`, status: 'new' });
+    await insertJob({ id: 'et-prep', company: `Acme ${q}`, status: 'prepared' });
+    await insertJob({ id: 'et-skip', company: `Acme ${q}`, status: 'skipped' });
+    await insertJob({ id: 'et-filt', company: `Acme ${q}`, status: 'filtered', country: 'AE' });
+    await insertJob({ id: 'et-nowhere', company: `Acme ${q}`, status: 'filtered', country: null });
+    await insertJob({ id: 'et-dup', company: `Acme ${q}`, status: 'new' });
+    await pool.query(`UPDATE jobs SET duplicate_of = $1 WHERE id = $2`, [id('et-new'), id('et-dup')]);
+    const all = await listJobs({ status: 'new', q, everyTab: true });
+    expect(ours(all).sort()).toEqual([id('et-filt'), id('et-new'), id('et-prep'), id('et-skip')]);
+    expect(await countJobs({ status: 'new', q, everyTab: true })).toBe(4);
+    expect(ours(await listJobs({ status: 'new', q }))).toEqual([id('et-new')]); // one tab only
+  });
+});
+
 describe('pageSize', () => {
   it('accepts only the offered sizes, else the default 25', () => {
     expect(PAGE_SIZES).toEqual([10, 25, 50, 100]);

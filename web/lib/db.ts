@@ -75,6 +75,7 @@ export type JobFilter = {
   salaryOnly?: boolean;
   followUp?: boolean; // only applied jobs due a follow-up (web/lib/followup.ts)
   visaOnly?: boolean; // only jobs whose posting offers visa/relocation support, or that need no visa
+  everyTab?: boolean; // ignore status: a search across every tab (each card then shows its status)
 }; // minSalary: euros per year
 
 /** Jobs per page on the dashboard list: the default, and the choices offered (`?size=`). */
@@ -87,8 +88,13 @@ export const pageSize = (v: unknown) => (PAGE_SIZES as readonly number[]).find((
 /** The WHERE clause and its parameters for a filter, shared by listJobs() and countJobs(). */
 function jobWhere(f: JobFilter) {
   // Copies of a job found on other sites are shown as "Posted on" links of the primary, not as rows.
-  const where = ['status = $1', 'duplicate_of IS NULL'];
-  const params: (string | number)[] = [f.status];
+  const where = ['duplicate_of IS NULL'];
+  const params: (string | number)[] = [];
+  if (f.everyTab) where.push(`(status <> 'filtered' OR country IS NOT NULL)`);
+  else {
+    params.push(f.status);
+    where.push(`status = $${params.length}`);
+  }
   if (f.country) {
     params.push(f.country);
     where.push(`country = $${params.length}`);
@@ -115,7 +121,7 @@ function jobWhere(f: JobFilter) {
   if (f.salaryOnly) where.push('salary_currency IS NOT NULL');
   if (f.visaOnly) where.push(`visa_evidence IN ('offered', 'not-needed')`);
   // Filtered jobs are only useful when they were at least in a target country.
-  if (f.status === 'filtered') where.push('country IS NOT NULL');
+  if (!f.everyTab && f.status === 'filtered') where.push('country IS NOT NULL');
   if (f.followUp) where.push(FOLLOW_UP_DUE_SQL);
   return { where: where.join(' AND '), params };
 }
@@ -129,7 +135,7 @@ export async function listJobs(f: JobFilter, page = 1, pageSize = PAGE_SIZE) {
       ? newest
       : f.followUp
         ? 'coalesce(followed_up_at, applied_at)' // the longest wait first
-        : f.status === 'new' || f.status === 'filtered'
+        : f.everyTab || f.status === 'new' || f.status === 'filtered'
           ? `ai_score DESC NULLS LAST, score DESC, ${newest}`
           : 'coalesce(applied_at, first_seen_at) DESC';
   params.push(pageSize, (Math.max(1, Math.floor(page)) - 1) * pageSize);
