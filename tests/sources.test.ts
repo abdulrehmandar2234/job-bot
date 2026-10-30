@@ -609,6 +609,25 @@ describe('linkedin (guest search)', () => {
     assert.ok(searches.every((u) => u.includes('f_TPR=r')));
   });
 
+  it('reads the "Base pay range" box as the salary; none when the job has no box', async () => {
+    net = mockFetch({
+      'seeMoreJobPostings/search': (url: string) =>
+        new URL(url).searchParams.get('keywords') === 'laravel' ? card('111', 'Laravel Developer') + card('333', 'Node Developer') : '',
+      // As on the real page: the wrapper's class also starts with "compensation__salary".
+      'jobPosting/111': `<section class="compensation"><div class="compensation__salary-range">
+        <h3 class="compensation__heading">Base pay range</h3>
+        <div class="salary compensation__salary">
+          $50.00/mo - $100.00/mo
+        </div></div></section>
+        <div class="show-more-less-html__markup">Build Laravel APIs</div>\n<button>`,
+      'jobPosting/333': '<div class="show-more-less-html__markup">Node APIs, no pay stated</div>\n<button>',
+    });
+    const jobs = await linkedin();
+    const byId = (id: string) => jobs.find((j) => j.id === id)!;
+    assert.deepEqual(byId('linkedin:111').salary, { min: 50, max: 100, currency: 'USD', period: 'month' });
+    assert.equal(byId('linkedin:333').salary, null);
+  });
+
   it('stops LinkedIn for today on the first 429, without retrying', async () => {
     net = mockFetch({ linkedin: () => new Response('', { status: 429 }) });
     await assert.rejects(linkedin(), /429 LinkedIn rate limit: stopping LinkedIn for today/);

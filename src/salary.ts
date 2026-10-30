@@ -63,7 +63,8 @@ const NOT_PAY_AFTER =
   /^\s*(\+\s*)?(signing |annual |yearly |sign-on )?(bonus|budget|allowance|stipend|in (funding|revenue|arr)|funding|revenue|arr|equity|grants?|vouchers?|m|mm|mn|million|bn|b|billion|trillion)\b/i;
 const UP_TO = /\b(up to|upto|max(imum)?|tot)\s*$/i;
 const FROM = /\b(from|starting at|vanaf|min(imum)?|at least)\s*$/i;
-const RANGE_SEP = /^\s*(-|–|—|to|tot|and|en)\s*$/i;
+// "$120,000/yr - $150,000/yr": a per-period suffix may sit between the two ends.
+const RANGE_SEP = /^\s*(\/\s?(year|yr|y|annum|month|mo|hour|hr|h)\b)?\s*(-|–|—|to|tot|and|en)\s*$/i;
 
 type Token = { start: number; end: number; value: number; k: boolean; currency: SalaryCurrency | null; foreign: boolean };
 
@@ -156,6 +157,39 @@ export function structuredSalary(min: unknown, max: unknown, currency: unknown, 
     hi = num(max);
   if (!(cur in BANDS) || (lo == null && hi == null)) return null;
   return lo != null && hi != null && lo > hi ? { min: hi, max: lo, currency: cur, period } : { min: lo, max: hi, currency: cur, period };
+}
+
+const PAY_CURRENCY: Record<string, SalaryCurrency> = {
+  $: 'USD',
+  usd: 'USD',
+  '€': 'EUR',
+  eur: 'EUR',
+  '£': 'GBP',
+  gbp: 'GBP',
+  aed: 'AED',
+  sar: 'SAR',
+  sr: 'SAR',
+  pkr: 'PKR',
+  rs: 'PKR',
+};
+const PAY_PERIOD: Record<string, SalaryPeriod> = { yr: 'year', year: 'year', mo: 'month', month: 'month', hr: 'hour', hour: 'hour' };
+const PAY_END = /(\$|€|£|[a-z]{2,3})\s?([\d,]+(?:\.\d+)?)\s?(k)?\s?\/\s?(yr|year|mo|month|hr|hour)\b/gi;
+
+/**
+ * A pay range a job site shows in its own field, such as LinkedIn's "Base pay range": "$50.00/mo - $100.00/mo",
+ * "SAR 15,000.00/mo", "€60K/yr - €80K/yr". The company entered it, so unlike text in a description it is taken as
+ * given (no plausibility bands). Null when it cannot be read or mixes currencies or periods.
+ */
+export function parsePayRange(text: string | null | undefined): Salary | null {
+  const ends = [...(text ?? '').matchAll(PAY_END)].slice(0, 2).map((m) => ({
+    currency: PAY_CURRENCY[m[1].toLowerCase()],
+    value: Number(m[2].replace(/,/g, '')) * (m[3] ? 1000 : 1),
+    period: PAY_PERIOD[m[4].toLowerCase()],
+  }));
+  if (!ends.length || ends.some((e) => !e.currency || !(e.value > 0))) return null;
+  const [a, b] = ends;
+  if (b && (b.currency !== a.currency || b.period !== a.period)) return null;
+  return structuredSalary(a.value, b?.value ?? a.value, a.currency, a.period);
 }
 
 /** The salary stored on a jobs row, if any. */
