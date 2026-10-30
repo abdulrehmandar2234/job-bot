@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { PassThrough, Readable } from 'node:stream';
 import './helpers.ts';
-import { defaultAllow, defaultDeny, runSetup } from '../src/commands/setup.ts';
+import { claudePathHint, defaultAllow, defaultDeny, runSetup } from '../src/commands/setup.ts';
 import { validateApplicant, validateConfig } from '../src/settings.ts';
 
 const ROOT = join(import.meta.dirname, '..');
@@ -117,6 +117,15 @@ describe('setup wizard', () => {
     assert.match(printed, /Remote work from which country \(config\.json had Pakistan\) \[Portugal\]: /);
     assert.match(printed, /Its two-letter code \(config\.json had PK\) \[PT\]: /);
     assert.match(printed, /Saved\./);
+    // Next steps that differ from a plain clone: Chrome's headless shell for PDFs and the scheduler for this OS.
+    assert.match(printed, /npx playwright-core install chromium-headless-shell/);
+    assert.match(printed, /npm run bot -- schedule:print/);
+  });
+
+  it('tells how to find the Claude CLI on each OS', () => {
+    assert.equal(claudePathHint('darwin'), '`which claude`');
+    assert.equal(claudePathHint('linux'), '`which claude`');
+    assert.match(claudePathHint('win32'), /^`where claude`; use the claude\.exe .*not claude\.cmd$/);
   });
 
   it('the owner: pressing Enter everywhere keeps config.json and the profile as they are', async () => {

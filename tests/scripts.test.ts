@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { testCommand } from '../scripts/run-tests.mjs';
 
@@ -64,5 +64,17 @@ describe('git setup', () => {
     assert.match(hook, /^#!\/bin\/sh\n/);
     assert.doesNotMatch(hook, /\r/);
     assert.match(hook, /npx --no-install biome check --staged/);
+  });
+});
+
+describe('child processes', () => {
+  it('every module that starts one hides its console window on Windows (windowsHide)', () => {
+    const files = [
+      ...readdirSync(join(ROOT, 'src'), { recursive: true, encoding: 'utf8' }).map((f) => join('src', f)),
+      ...readdirSync(join(ROOT, 'web', 'lib'), { encoding: 'utf8' }).map((f) => join('web', 'lib', f)),
+    ].filter((f) => f.endsWith('.ts'));
+    const starters = files.filter((f) => /from 'node:child_process'/.test(readFileSync(join(ROOT, f), 'utf8')));
+    assert.ok(starters.length >= 6, starters.join(', '));
+    for (const f of starters) assert.match(readFileSync(join(ROOT, f), 'utf8'), /windowsHide: true/, f);
   });
 });

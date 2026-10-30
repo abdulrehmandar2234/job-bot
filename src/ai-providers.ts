@@ -144,7 +144,7 @@ export function askClaude<T>(prompt: string, schema: object, model: string, syst
         '',
         '--no-session-persistence',
       ],
-      { stdio: ['pipe', 'pipe', 'pipe'] },
+      { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true },
     );
     let out = '';
     let err = '';
