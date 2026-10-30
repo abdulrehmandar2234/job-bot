@@ -1,5 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { resolveChrome } from '../src/cv/chrome.ts';
 import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -14,7 +15,7 @@ import { legacyCvHtml } from './fixtures/cv-classic-legacy.ts';
 const read = (f: string) => JSON.parse(readFileSync(path('cv', f), 'utf8')) as Cv;
 const master = read('master.json');
 const example = read('master.example.json');
-const hasChrome = existsSync(process.env.JOB_BOT_CHROME || config.chromePath);
+const hasChrome = Boolean(resolveChrome(config.chromePath));
 const text = (html: string) =>
   html
     .replace(/<style>[\s\S]*<\/style>/, '')

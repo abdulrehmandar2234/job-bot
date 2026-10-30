@@ -2,6 +2,7 @@ import { chromium } from 'playwright-core';
 import { config } from '../config.ts';
 import { classicHtml } from './templates/classic.ts';
 import { DEFAULT_TEMPLATE, templateHtml, type TemplateId } from './templates/index.ts';
+import { resolveChrome } from './chrome.ts';
 
 export type Cv = {
   name: string;
@@ -57,9 +58,12 @@ export function letterHtml(cv: Pick<Cv, 'name' | 'title' | 'contact'>, letter: s
   </body></html>`;
 }
 
-/** Prints HTML to an A4 PDF with the local Chrome (config chromePath, or JOB_BOT_CHROME). */
+/** Prints HTML to an A4 PDF with the local Chrome (src/cv/chrome.ts: headless shell first, so no Dock icon). */
 export async function htmlToPdf(html: string, outFile: string) {
-  const browser = await chromium.launch({ executablePath: process.env.JOB_BOT_CHROME || config.chromePath, headless: true });
+  const executablePath = resolveChrome(config.chromePath);
+  if (!executablePath)
+    throw new Error('No Chrome found: run `npx playwright-core install chromium-headless-shell`, or set config.json chromePath');
+  const browser = await chromium.launch({ executablePath, headless: true });
   try {
     const page = await browser.newPage();
     await page.setContent(html, { waitUntil: 'load' });

@@ -1,5 +1,6 @@
 import { after, before, beforeEach, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { resolveChrome } from '../src/cv/chrome.ts';
 import { execFile } from 'node:child_process';
 import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -20,7 +21,7 @@ const MASTER = path('cv', 'master.example.json');
 const master = JSON.parse(readFileSync(MASTER, 'utf8')) as Cv;
 const tmp = mkdtempSync(join(tmpdir(), 'jobbot-cv-cli-'));
 const run = promisify(execFile);
-const noChrome = !existsSync(process.env.JOB_BOT_CHROME || config.chromePath) && 'Chrome not installed';
+const noChrome = !resolveChrome(config.chromePath) && 'Chrome not installed';
 
 async function bot(args: string[], env: Record<string, string> = {}) {
   const { stdout } = await run(process.execPath, ['--no-warnings', '--env-file-if-exists=.env', 'src/cli.ts', ...args], {

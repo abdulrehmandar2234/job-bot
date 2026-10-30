@@ -25,15 +25,15 @@ Contents:
 
 ## 1. Prerequisites
 
-| What                                     | Required?                           | Why                                                                                                                                      | Check                                  |
-| ---------------------------------------- | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
-| **macOS**                                | for the daily job and notifications | The daily fetch uses launchd, notifications use `osascript`. The CLI and dashboard also run on Linux, but this guide is for macOS.       |                                        |
-| **Node.js 24 or newer**                  | yes                                 | The bot runs its TypeScript directly with Node (no build step); `package.json` has `"engines": { "node": ">=24" }`.                      | `node --version`                       |
-| **PostgreSQL** (15 or newer; CI uses 18) | yes                                 | One local database, `job_bot`, shared by the bot and the dashboard.                                                                      | `psql --version`                       |
-| **Google Chrome**                        | yes, for CV and letter PDFs         | PDFs are rendered by your installed Chrome through `playwright-core` (no bundled browser is downloaded).                                 | `ls "/Applications/Google Chrome.app"` |
-| **Git**                                  | yes                                 | To clone and update.                                                                                                                     | `git --version`                        |
-| **Claude Code CLI**, signed in           | optional                            | The default AI provider. Without it, use one API key instead (section 8), or turn the AI off.                                            | `which claude`                         |
-| **terminal-notifier**                    | optional                            | Makes the "strong match" notification clickable (it opens the job on the dashboard). Without it, `osascript` shows a plain notification. | `which terminal-notifier`              |
+| What                                         | Required?                           | Why                                                                                                                                                                             | Check                                                 |
+| -------------------------------------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| **macOS**                                    | for the daily job and notifications | The daily fetch uses launchd, notifications use `osascript`. The CLI and dashboard also run on Linux, but this guide is for macOS.                                              |                                                       |
+| **Node.js 24 or newer**                      | yes                                 | The bot runs its TypeScript directly with Node (no build step); `package.json` has `"engines": { "node": ">=24" }`.                                                             | `node --version`                                      |
+| **PostgreSQL** (15 or newer; CI uses 18)     | yes                                 | One local database, `job_bot`, shared by the bot and the dashboard.                                                                                                             | `psql --version`                                      |
+| **Chrome headless shell** (or Google Chrome) | yes, for CV and letter PDFs         | Install once with `npx playwright-core install chromium-headless-shell`: a plain binary, so no window or Dock icon. Without it, an installed Google Chrome or Chromium is used. | `npx playwright-core install chromium-headless-shell` |
+| **Git**                                      | yes                                 | To clone and update.                                                                                                                                                            | `git --version`                                       |
+| **Claude Code CLI**, signed in               | optional                            | The default AI provider. Without it, use one API key instead (section 8), or turn the AI off.                                                                                   | `which claude`                                        |
+| **terminal-notifier**                        | optional                            | Makes the "strong match" notification clickable (it opens the job on the dashboard). Without it, `osascript` shows a plain notification.                                        | `which terminal-notifier`                             |
 
 Install what is missing:
 
@@ -375,11 +375,11 @@ Regex tips for `roleInclude` / `roleExclude` / `match` / `allow` / `deny`: they 
 
 ### CV output
 
-| Key              | Type    | Default                                                        | What it does                                                                                                        | Sensible value / when to change                                         |
-| ---------------- | ------- | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| `chromePath`     | text    | `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome` | Chrome executable for CV and letter PDFs. `JOB_BOT_CHROME` wins.                                                    | Change only if Chrome is elsewhere.                                     |
-| `cvFileName`     | text    | the author's name                                              | File name of every CV PDF (`cv/default/<cvFileName>`, `cv/versions/<id>/<cvFileName>`); recruiters see it.          | `jane_doe_resume.pdf`                                                   |
-| `autoCvVersions` | boolean | `false`                                                        | `true`: `prepare` picks the per-stack CV version a job fits. `false`: always the default CV unless you pass `--cv`. | Keep `false` until you have rewritten `src/cv/profiles.ts` for your CV. |
+| Key              | Type    | Default           | What it does                                                                                                                                                                                | Sensible value / when to change                                         |
+| ---------------- | ------- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `chromePath`     | text    | `"auto"`          | Which Chrome prints CV and letter PDFs. `"auto"` (or missing): the newest Playwright headless shell, else an installed Google Chrome or Chromium (src/cv/chrome.ts). `JOB_BOT_CHROME` wins. | Keep `"auto"`; set a path only for a Chrome elsewhere.                  |
+| `cvFileName`     | text    | the author's name | File name of every CV PDF (`cv/default/<cvFileName>`, `cv/versions/<id>/<cvFileName>`); recruiters see it.                                                                                  | `jane_doe_resume.pdf`                                                   |
+| `autoCvVersions` | boolean | `false`           | `true`: `prepare` picks the per-stack CV version a job fits. `false`: always the default CV unless you pass `--cv`.                                                                         | Keep `false` until you have rewritten `src/cv/profiles.ts` for your CV. |
 
 ## 8. Choosing an AI provider
 
@@ -527,7 +527,7 @@ If you replaced `config.json` or `cv/master.json` with your own, `git pull` may 
 
 **"AI review failed (is Claude signed in?)".** The Claude Code CLI is signed out or not at `ai.claudePath`. Run `claude` in a terminal and sign in (`/login`), check `which claude` against `config.json` `ai.claudePath`, then `npm run bot -- ai:score`. Fetching is not affected: the daily script only skips the review.
 
-**Chrome path wrong (`cv:default`, Prepare CV or Download PDF fails to launch a browser).** Set `config.json` `chromePath` (or `JOB_BOT_CHROME`) to the executable inside the app bundle, not the `.app` folder: `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`. Check it with `ls "/Applications/Google Chrome.app/Contents/MacOS/"`.
+**No Chrome found, or the wrong one (`cv:default`, Prepare CV or Download PDF fails to launch a browser).** Run `npx playwright-core install chromium-headless-shell` and keep `chromePath: "auto"`. A Chrome icon flashing in the Dock for every PDF means the full Chrome app is used: install the headless shell. To use a specific Chrome, set `chromePath` (or `JOB_BOT_CHROME`) to the executable itself, not the `.app` folder.
 
 **No jobs match.** Look at the reasons first: `npm run bot -- list --status filtered` or the **Filtered out** tab.
 

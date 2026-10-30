@@ -125,7 +125,10 @@ const ANSWERS_SCHEMA = {
         type: 'object',
         properties: {
           question: { type: 'string', description: 'The question as asked, cleaned up (no option lists).' },
-          answer: { type: 'string', description: 'Ready to paste. For choice questions, exactly one of the given options.' },
+          answer: {
+            type: 'string',
+            description: 'Ready to paste. Choice questions: the exact option first ("Yes."), then 1-2 sentences of CV evidence.',
+          },
           needs_input: { type: 'boolean', description: 'True when the answer contains a [FILL: ...] placeholder.' },
           note: { type: 'string', description: 'Short hint for the candidate, or empty.' },
         },
@@ -184,9 +187,13 @@ Rules:
 - Personal decisions (salary, notice period, start date, nationality, working hours, how they heard about the job, anything
   not in the facts or a fact that is null) are never guessed: write [FILL: what is needed] and set needs_input true.
   Salary questions use expectedSalary for ${remote ? '"remote"' : `"${job.country}"`}.
-- Yes/no and multiple-choice questions: answer with exactly one of the offered options when the facts decide it; if the
-  CV does not support "yes" (e.g. years with a technology it does not show), answer honestly and explain in note.
-- Years of experience: count from the CV dates; say "about N years" if unsure.
+- Yes/no and multiple-choice questions: start the answer with exactly one of the offered options when the facts decide
+  it ("Yes", "No", or the option's exact words), then a full stop and 1-2 sentences of concrete evidence from the CV,
+  first person, for a form that has a text box: e.g. "Yes. I mentored two junior developers on my last team and led its
+  code reviews." Never answer with the bare option alone. If the CV does not support "yes" (e.g. years with a technology
+  it does not show), answer honestly in the same way and explain in note.
+- Years of experience: count from the CV dates; say "about N years" if unsure. Give the number first, then one sentence
+  on where it comes from.
 - Free-text questions ("why this company", "describe a project"): 60-150 words, specific to this job and company, first
   person, plain text, no clichés. Link the job's requirements to concrete CV experience.
 - ${situationRule(job, 'answers')}`;
