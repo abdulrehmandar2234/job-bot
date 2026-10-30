@@ -1,5 +1,6 @@
 import { SKILLS } from './match.ts';
 import { PROFILES } from './cv/profiles.ts';
+import { profileFor } from './cv/profile-fit.ts';
 import { applyProfile } from './cv/versions.ts';
 import type { Cv } from './cv/render.ts';
 
@@ -18,9 +19,13 @@ export type AtsResult = {
 export type AtsSuggestion = { version: string; shows: number; gains: string[] };
 export type AtsReport = AtsResult & { total: number; suggestion: AtsSuggestion | null };
 
-/** The content of a version built from the master CV: 'default' is the master itself, a cluster re-frames it. */
+/**
+ * The content of a version built from the master CV: 'default' is the master itself, a cluster re-frames it (with
+ * the profile's text only when it fits this master, as versionFor builds it).
+ */
 export function versionCv(master: Cv, version: string): Cv {
-  return PROFILES[version] ? applyProfile(master, PROFILES[version]) : master;
+  const p = profileFor(version, master);
+  return p ? applyProfile(master, p) : master;
 }
 
 /** The part of a CV above the fold, as plain text. */

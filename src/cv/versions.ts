@@ -111,13 +111,23 @@ async function writeVersion(
 }
 
 /**
+ * The cluster's profile for the current master CV (src/cv/profile-fit.ts): its title and summary only when the master
+ * shows everything they name, else the master's own. Imported on use: profile-fit needs src/match.ts, which reads
+ * the master CV through this module while it loads, so a static import would be a cycle.
+ */
+async function fittedProfile(cluster: string): Promise<Profile | undefined> {
+  const { profileFor } = await import('./profile-fit.ts');
+  return profileFor(cluster, JSON.parse(masterRaw()) as Cv);
+}
+
+/**
  * Returns the CV version to send for a cluster in a template. Reuses an existing version built from the current
  * master CV; only renders a new one when none exists or master.json, the profiles or the template have changed.
  * The classic default CV is cv/default ("default"); in another template it is a `default-<template>-v<N>` version.
  */
 export async function versionFor(cluster: string, template: TemplateId = DEFAULT_TEMPLATE): Promise<{ id: string; created: boolean }> {
-  const profile = PROFILES[cluster];
-  if (!profile && template === DEFAULT_TEMPLATE) return { id: 'default', created: false };
+  if (!PROFILES[cluster] && template === DEFAULT_TEMPLATE) return { id: 'default', created: false };
+  const profile = await fittedProfile(cluster);
   const key = profile ? cluster : 'default';
   const hash = masterHash(template);
   const same = listVersions().filter((v) => v.cluster === key && !v.jobId && versionTemplate(v) === template);
@@ -156,7 +166,7 @@ export function claimCustomId(slug: string): string {
 
 /**
  * One-off variant for a single job, in a new folder every time (claimCustomId). `overrides` may only re-frame:
- * title, summary, and orderings. It is merged over the cluster profile (or the master CV).
+ * title, summary, and orderings. It is merged over the cluster profile (fittedProfile) or the master CV.
  */
 export async function customVersion(
   slug: string,
@@ -166,7 +176,7 @@ export async function customVersion(
   template: TemplateId = DEFAULT_TEMPLATE,
 ) {
   const master = JSON.parse(masterRaw()) as Cv;
-  const base = PROFILES[cluster] ?? {
+  const base = (await fittedProfile(cluster)) ?? {
     title: master.title,
     summary: master.summary,
     skillsFirst: [],
