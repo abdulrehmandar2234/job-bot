@@ -12,7 +12,7 @@ Job hunting across several countries means checking dozens of company career pag
 
 Design principles:
 
-- **Local first.** Everything runs on your machine: a local PostgreSQL database, a local dashboard and the Claude Code CLI you are already signed in to. No paid APIs and no cloud server.
+- **Local first.** Everything runs on your machine: a local PostgreSQL database, a local dashboard and, by default, the Claude Code CLI you are already signed in to. No cloud server. Without Claude, the AI can run on OpenAI or DeepSeek with your own API key instead (see [AI](#ai)).
 - **APIs over scraping.** Jobs come from public job-board APIs (Greenhouse, Lever, Ashby, ...) wherever possible. Requests are paced so no site blocks the bot.
 - **Truthful CVs.** CV versions only re-order and re-frame what is in your master CV. They never add skills or claims (enforced by tests).
 
@@ -49,7 +49,7 @@ Every posting is checked by `src/match.ts`. Jobs that fail a rule are kept with 
 - **Visa:** per target country, `needsVisa` says whether you need one (missing = yes; the country you live in never does). Where you do, `visa: "employer"` means the employer provides it, and `"ind-register"` (Netherlands) means the company must be on the IND recognised-sponsor register (`bot sponsors:update` refreshes it); "No sponsorship" and "must have right to work" postings are skipped. Where you do not, those rules are skipped.
 - **Age:** postings older than `maxAgeDays` (14) are skipped, and matching jobs expire automatically once they get older.
 - **Keyword score:** a weighted match of the job's skills against yours (a skill counts as yours when `cv/master.json` lists it), with a `minScore` threshold. It also suggests which CV version fits.
-- **AI review:** the local Claude CLI (model `haiku`) reads each matching job together with your CV and returns a 0–100 score, a verdict (strong / good / stretch / poor), reasons, gaps and red flags (part-time, language, visa, region lock).
+- **AI review:** the AI (by default the local Claude CLI with model `haiku`; see [AI](#ai) for OpenAI and DeepSeek) reads each matching job together with your CV and returns a 0–100 score, a verdict (strong / good / stretch / poor), reasons, gaps and red flags (part-time, language, visa, region lock).
 - **Location check from the whole description:** the same review decides whether you can take the job from where you live (`yes` / `no` / `unclear`), reading the full description rather than only the location field: "US only", "must reside in…", "authorized to work in X without sponsorship", required time zones, or a description that names another country ("work remotely from Slovenia" on a Saudi listing). A `no` moves a matching job to **Filtered out** with the quoted reason (`location (AI): …`), and it stays there when jobs are re-scored; jobs you already acted on keep their status. An `unclear` adds a "Location unclear" flag to check. Himalayas jobs limited to time zones far from GMT+5 are filtered by the keyword rules already.
 - **Instant alerts:** when the AI rates a job `strong`, `ai:score` (and so the daily fetch) shows a macOS notification right away: one per job, or one grouped notification for more than three. Each job alerts once (`alerted_at`). With `terminal-notifier` installed (Homebrew), clicking it opens the job in the dashboard. Turn it off with `config.json` → `ai.alertStrong: false`.
 - **Salary:** a salary range in the title or description (AED, SAR, EUR, USD, GBP, PKR; "20k–25k", "up to", per month / per year / per hour, Dutch "bruto per maand") is stored with the job. Funding rounds, budgets, bonuses and years of experience are ignored, and an unclear amount is left out rather than guessed. Adzuna, Himalayas, RemoteOK and Lever give salary data of their own, which wins over the text. `rescore` fills it in for jobs already stored.
@@ -58,11 +58,11 @@ Every posting is checked by `src/match.ts`. Jobs that fail a rule are kept with 
 ### Application preparation
 
 - **CV versions:** a default CV plus versions per stack cluster (`laravel`, `tall`, `laravel-vue`, `mern`, `pern`, `next-nest`, `backend-node`, `frontend-react`, `ai-fullstack`) and one-off custom CVs for a single job. Every PDF has the same filename (`config.json` → `cvFileName`), and the folder name identifies the version. Versions are reused and only rebuilt (`v2`, `v3`, ...) when the master CV, profiles or template change.
-- **Cover letters:** written by Claude (model `sonnet`) from the job description and your CV, using only true facts and making no promises about salary, notice period or start date. They are signed with the name and contact in your profile. If AI fails, a template letter is used instead, built from your profile: its `coverLetter` sentences (introduction, a pitch per CV cluster, how you work, remote experience), where you live and your visa need.
+- **Cover letters:** written by the AI (letter model) from the job description and your CV, using only true facts and making no promises about salary, notice period or start date. They are signed with the name and contact in your profile. If AI fails, a template letter is used instead, built from your profile: its `coverLetter` sentences (introduction, a pitch per CV cluster, how you work, remote experience), where you live and your visa need.
 - **CV keyword check** (`bot ats <id>`, and on the job page): the job's skill keywords split into those the CV version shows near the top, those you have (in `cv/master.json`) but this version keeps further down, and real gaps that are not on your CV at all. It names the CV version that shows the most of them. Gaps are only listed, never suggested for the CV.
-- **Form answers:** paste the questions from an application form and Claude drafts an answer for each one, using only your CV and `cv/applicant.json`. Personal decisions it cannot know (salary, notice period, start date) come back as `[FILL: ...]` and are highlighted. Each answer has a Copy button.
-- **Interview prep:** for applied and interview jobs, Claude (model `sonnet`) writes likely technical questions with what to emphasise from your CV, behavioural questions with STAR stories built only from your CV, a short company brief from the posting alone (no web research, so unsure points are marked "verify before interview"), questions to ask them, and the job's key requirements mapped to your CV or marked as gaps. Everything has Copy buttons and a Regenerate button.
-- **Follow-up reminders:** an `applied` job with no news for 7 days shows a "Follow up · N days" badge and appears in the **Needs follow-up** tab. On the job page, "Draft follow-up" has Claude write a short message (addressed to the job's recruiter or hiring manager contact if you added one, CV facts only), with a template fallback. You send it yourself and click "I sent a follow-up"; the reminder then waits another 7 days, and stops after 2 follow-ups. CLI: `follow-ups`, `follow-up <id>`, `followed-up <id>`.
+- **Form answers:** paste the questions from an application form and the AI drafts an answer for each one, using only your CV and `cv/applicant.json`. Personal decisions it cannot know (salary, notice period, start date) come back as `[FILL: ...]` and are highlighted. Each answer has a Copy button.
+- **Interview prep:** for applied and interview jobs, the AI (letter model) writes likely technical questions with what to emphasise from your CV, behavioural questions with STAR stories built only from your CV, a short company brief from the posting alone (no web research, so unsure points are marked "verify before interview"), questions to ask them, and the job's key requirements mapped to your CV or marked as gaps. Everything has Copy buttons and a Regenerate button.
+- **Follow-up reminders:** an `applied` job with no news for 7 days shows a "Follow up · N days" badge and appears in the **Needs follow-up** tab. On the job page, "Draft follow-up" has the AI write a short message (addressed to the job's recruiter or hiring manager contact if you added one, CV facts only), with a template fallback. You send it yourself and click "I sent a follow-up"; the reminder then waits another 7 days, and stops after 2 follow-ups. CLI: `follow-ups`, `follow-up <id>`, `followed-up <id>`.
 
 ### Tracking
 
@@ -107,7 +107,7 @@ flowchart LR
   end
 
   DB[("PostgreSQL job_bot<br/>jobs · job_events · fetch_runs")]
-  Claude["Claude Code CLI<br/>(claude -p, your login)"]
+  Claude["AI provider<br/>Claude Code CLI (default) · OpenAI · DeepSeek"]
   Chrome["System Chrome<br/>(playwright-core, PDF render)"]
 
   subgraph Web["Dashboard (web/, Next.js 16)"]
@@ -140,8 +140,8 @@ The project has two parts that share one PostgreSQL database:
 1. **Fetch.** `bot fetch` loads every source, four at a time. Each adapter in `src/sources/` turns the API response into a common `RawJob` (id, company, title, location, url, description, posted date). Requests use a shared paced `sleep` (`src/sources/http.ts`).
 2. **Score.** Every job goes through `scoreJob()` in `src/match.ts`. It detects the country, applies the filters, computes the keyword score and picks a CV cluster. The result is upserted into `jobs` with status `new` or `filtered` (+ reason).
 3. **Group.** `dedupe()` links copies of the same job (normalized company + title + country) to one primary row, preferring the company's own site or the copy you already worked on.
-4. **AI review.** `bot ai:score` sends each new match plus your CV to `claude -p` with a JSON schema and stores the score, verdict, reasons, gaps, flags and the location check (a `no` moves the job to `filtered`). `ai:score --all` reviews every matching job again.
-5. **Prepare.** `bot prepare <id>` picks the CV version (default, or `--cv <cluster>`), renders the PDF if that version does not exist yet, writes the cover letter with Claude, and sets the status to `prepared`.
+4. **AI review.** `bot ai:score` sends each new match plus your CV to the AI provider with a JSON schema and stores the score, verdict, reasons, gaps, flags and the location check (a `no` moves the job to `filtered`). `ai:score --all` reviews every matching job again.
+5. **Prepare.** `bot prepare <id>` picks the CV version (default, or `--cv <cluster>`), renders the PDF if that version does not exist yet, writes the cover letter with the AI, and sets the status to `prepared`.
 6. **Answer.** `bot answer <id>` drafts application-form answers and stores them on the job.
 7. **Apply (you).** You open the posting, upload the CV, paste the letter and answers, submit, then mark the job `applied`.
 
@@ -165,15 +165,32 @@ cv/versions/custom-<company-role>/<cvFileName>
 
 ### AI
 
-All AI features call the Claude Code CLI you are signed in to (`claude -p`) with a JSON output schema, so there is no API key and usage comes from your Claude plan. Settings live in `config.json` → `ai`.
+Every AI feature asks for JSON that matches an output schema. `config.json` → `ai.provider` picks who answers:
 
-| Feature        | Model    | Time per job | Used by                         |
-| -------------- | -------- | ------------ | ------------------------------- |
-| Fit review     | `haiku`  | ~10 s        | `ai:score`, daily fetch, button |
-| Cover letter   | `sonnet` | ~15–30 s     | `prepare`, "Rewrite letter"     |
-| Form answers   | `sonnet` | ~15 s        | `answer`, "Draft answers"       |
-| Interview prep | `sonnet` | ~30–60 s     | `prep`, "Prepare for interview" |
-| Follow-up      | `sonnet` | ~10–20 s     | `follow-up`, "Draft follow-up"  |
+| `ai.provider`          | How it runs                                                                 | Key                          | Cost                        |
+| ---------------------- | --------------------------------------------------------------------------- | ---------------------------- | --------------------------- |
+| `claude-cli` (default) | The Claude Code CLI you are signed in to (`claude -p`), `ai.claudePath`     | none                         | your Claude plan            |
+| `openai`               | OpenAI Chat Completions with a JSON schema response format                  | `OPENAI_API_KEY` in `.env`   | paid per token, by OpenAI   |
+| `deepseek`             | DeepSeek's OpenAI-compatible API in JSON mode (the schema is in the prompt) | `DEEPSEEK_API_KEY` in `.env` | paid per token, by DeepSeek |
+
+Each feature uses either the score model (fast) or the letter model (better writer):
+
+| Feature        | Model  | Claude CLI | OpenAI        | DeepSeek        | Used by                         |
+| -------------- | ------ | ---------- | ------------- | --------------- | ------------------------------- |
+| Fit review     | score  | `haiku`    | `gpt-4o-mini` | `deepseek-chat` | `ai:score`, daily fetch, button |
+| Cover letter   | letter | `sonnet`   | `gpt-4o`      | `deepseek-chat` | `prepare`, "Rewrite letter"     |
+| Form answers   | letter | `sonnet`   | `gpt-4o`      | `deepseek-chat` | `answer`, "Draft answers"       |
+| Interview prep | letter | `sonnet`   | `gpt-4o`      | `deepseek-chat` | `prep`, "Prepare for interview" |
+| Follow-up      | letter | `sonnet`   | `gpt-4o`      | `deepseek-chat` | `follow-up`, "Draft follow-up"  |
+
+- **Claude CLI models** are `ai.scoreModel` / `ai.letterModel`. **OpenAI and DeepSeek models** are `ai.openai` / `ai.deepseek` → `scoreModel`, `letterModel` and an optional `baseUrl` (for a proxy); anything missing uses the defaults above. A fit review takes about 10 s and a letter 15–60 s with any provider.
+- **API keys** live only in `.env` in the job-bot folder (see `.env.example`), never in `config.json`, and are never logged or shown. The key is only sent to that provider's base URL. A rejected key (401/403) stops at once with a message naming the variable; a reply that is not the JSON asked for is asked for once more.
+- Switch on the dashboard's Settings page ("AI provider", with a line saying whether the key is set) or in `npm run bot -- setup`. Neither asks for the key itself.
+
+```bash
+# .env, for "ai": { "provider": "openai", ... }
+OPENAI_API_KEY=sk-...
+```
 
 The prompts only allow facts from `cv/master.json` and `cv/applicant.json`, and describe you from your profile (where you live, UTC offset, languages, where you need a visa) as "the candidate". Fill in `cv/applicant.json` (`npm run bot -- setup`, the dashboard's Settings page, or a copy of `cv/applicant.example.json`) with your notice period, expected salary per country, etc., so form answers can use them.
 
@@ -195,7 +212,7 @@ Connection: `postgres://postgres@127.0.0.1:5432/job_bot`, set in `.env` and `web
 - Node.js 24 or newer (`node --version`).
 - PostgreSQL 15+ on `127.0.0.1:5432` with a `postgres` user, e.g. via [DBngin](https://dbngin.com) or Homebrew.
 - Google Chrome (CV PDFs are rendered with it).
-- The [Claude Code CLI](https://docs.claude.com/en/docs/claude-code), signed in (`claude` on your PATH). Without it, set `ai.enabled: false`; letters and follow-ups then use the templates.
+- For the AI features, one of: the [Claude Code CLI](https://docs.claude.com/en/docs/claude-code), signed in (`claude` on your PATH; the default, no API key), or an OpenAI or DeepSeek API key (paid per token; see [AI](#ai)). Without any, set `ai.enabled: false`; letters and follow-ups then use the templates.
 
 ### 1. Clone and install
 
@@ -232,7 +249,7 @@ Format: `name`, `title`, `contact` (`phone`, `email`, `location`, `linkedin`), `
 npm run bot -- setup
 ```
 
-It asks for your name, email, phone and LinkedIn (defaults from your CV), the city and country you live in with its two-letter code and UTC offset, the languages you speak, your work authorisation, visa and relocation wording, then the countries you target (two-letter codes, with whether you need a visa there), remote jobs and the country you work remotely from, the LinkedIn search locations, the path to `claude` and your CV's file name. Each question shows the current value in brackets: Enter keeps it, `-` clears it. Both files are validated before they are written: `cv/applicant.json` (your profile, kept out of git) and `config.json`. Run it again any time, or edit the same fields on the dashboard's Settings page.
+It asks for your name, email, phone and LinkedIn (defaults from your CV), the city and country you live in with its two-letter code and UTC offset, the languages you speak, your work authorisation, visa and relocation wording, then the countries you target (two-letter codes, with whether you need a visa there), remote jobs and the country you work remotely from, the LinkedIn search locations, the AI provider (with `claude-cli` the path to `claude`; with `openai` or `deepseek` it tells you which key to put in `.env`, and never asks for the key itself) and your CV's file name. Each question shows the current value in brackets: Enter keeps it, `-` clears it. Both files are validated before they are written: `cv/applicant.json` (your profile, kept out of git) and `config.json`. Run it again any time, or edit the same fields on the dashboard's Settings page.
 
 Also worth a look in `config.json`: `companies` (career boards to watch; `npm run bot -- discover <company> --add` finds more), `roleInclude` / `roleExclude` (job titles for your stack), and `linkedin.keywords` / `remote.himalayasQueries` (your skills).
 
@@ -325,16 +342,16 @@ launchctl bootout gui/$(id -u)/com.<you>.job-bot.fetch
 
 ## Configuration (`config.json`)
 
-| Key                                          | What it controls                                                |
-| -------------------------------------------- | --------------------------------------------------------------- |
-| `countries`                                  | Target countries: `name`, `match`, `visa`, `needsVisa`, `label` |
-| `companies`                                  | Company boards to fetch (`ats` + `token`)                       |
-| `roleInclude`/`roleExclude`                  | Title rules                                                     |
-| `minScore`, `maxAgeDays`                     | Keyword-score threshold (45) and maximum posting age (14 days)  |
-| `remote`                                     | Remote boards, region rules, `from` / `fromCode`                |
-| `linkedin`                                   | Keywords, locations, `remoteFrom`, pages per search             |
-| `ai`                                         | Claude path, models, `maxScorePerRun`, concurrency              |
-| `cvFileName`, `autoCvVersions`, `chromePath` | CV output settings                                              |
+| Key                                          | What it controls                                                                                |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `countries`                                  | Target countries: `name`, `match`, `visa`, `needsVisa`, `label`                                 |
+| `companies`                                  | Company boards to fetch (`ats` + `token`)                                                       |
+| `roleInclude`/`roleExclude`                  | Title rules                                                                                     |
+| `minScore`, `maxAgeDays`                     | Keyword-score threshold (45) and maximum posting age (14 days)                                  |
+| `remote`                                     | Remote boards, region rules, `from` / `fromCode`                                                |
+| `linkedin`                                   | Keywords, locations, `remoteFrom`, pages per search                                             |
+| `ai`                                         | `provider`, Claude path and models, `openai` / `deepseek` models, `maxScorePerRun`, concurrency |
+| `cvFileName`, `autoCvVersions`, `chromePath` | CV output settings                                                                              |
 
 `needsVisa` missing means a visa is needed; `label` is the short name on the dashboard. `remote.from` / `remote.fromCode` are the country you work remotely from and its ISO code (missing: `linkedin.remoteFrom`, then your profile).
 
@@ -372,7 +389,8 @@ src/
   db.ts             Postgres access, upsert, status changes, dedupe
   migrate.ts        migration runner (applied on start)
   migrations/       numbered schema files (001_baseline.sql, ...)
-  ai.ts             Claude CLI calls: review, letter, form answers
+  ai.ts             AI prompts and schemas: review, letter, form answers, interview prep, follow-up
+  ai-providers.ts   AI providers: Claude CLI, OpenAI, DeepSeek (askAi)
   cover.ts          template cover letter
   sponsors.ts       IND recognised-sponsor register
   discover.ts       find a company's ATS board
@@ -399,7 +417,7 @@ npm run lint         # Biome lint + format check; npm run format fixes it
 ```
 
 - Tests use separate databases: `job_bot_test_bot` (backend) and `job_bot_test` (dashboard). They never touch the real `job_bot`.
-- Job-site requests are mocked, and a fake script (`tests/fixtures/fake-claude.mjs`) stands in for Claude, so tests run offline and use none of your Claude plan.
+- Job-site requests are mocked, a fake script (`tests/fixtures/fake-claude.mjs`) stands in for Claude, and OpenAI and DeepSeek answer from mocked fetch with a dummy key, so tests run offline and use none of your Claude plan or API credit.
 - Every new feature or change ships with its tests (see `CLAUDE.md`).
 - `npm install` points git at `.githooks/`, so each commit runs Biome on the staged files. GitHub Actions runs lint, typecheck and both suites on every push.
 
@@ -409,7 +427,7 @@ npm run lint         # Biome lint + format check; npm run format fixes it
 - PostgreSQL via `pg`, shared by the bot and the dashboard
 - Next.js 16 + Tailwind (`web/`)
 - `playwright-core` with system Chrome for CV PDFs
-- Claude Code CLI for AI features
+- Claude Code CLI (default), OpenAI or DeepSeek for AI features
 - node:test and Vitest + Testing Library for tests
 
 ## Roadmap

@@ -12,7 +12,8 @@ Local job-search helper: Node CLI bot (`src/`, TypeScript run directly by Node 2
 - Every new feature or edit ships with tests in the same change:
   - Backend: `tests/*.test.ts` (node:test), run with `npm test` (database `job_bot_test_bot`).
   - Frontend: `web/tests/` (vitest), run with `npm run test:web` (database `job_bot_test`).
-  - Tests must never touch the real `job_bot` database. Network calls are mocked (`mockFetch` in tests/helpers.ts), and Claude is replaced by `tests/fixtures/fake-claude.mjs` via `JOB_BOT_CLAUDE`.
+  - Tests must never touch the real `job_bot` database. Network calls are mocked (`mockFetch` in tests/helpers.ts, `tests/fixtures/fake-fetch.mjs` for CLI subprocesses), and Claude is replaced by `tests/fixtures/fake-claude.mjs` via `JOB_BOT_CLAUDE`. OpenAI and DeepSeek are only ever reached through mocked fetch with a dummy key.
 - Run one test file at a time while working (`node --test tests/x.test.ts` with the test DATABASE_URL, or `npx vitest run <file>` in web/), and avoid overlapping full runs.
 - Everything in the project is written in English: code, comments, UI text, docs (README, ROADMAP), commit messages and PR descriptions.
+- The AI provider is `config.json` `ai.provider` (`claude-cli` by default, `openai`, `deepseek`; see `src/ai-providers.ts`). API keys come only from the environment (`.env`), never from config.json, and never appear in logs or error messages.
 - The CV may only be re-framed, never given skills or claims that are not in `cv/master.json` (tests/cv.test.ts checks this).
