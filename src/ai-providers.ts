@@ -1,4 +1,7 @@
 import { spawn } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { posix, win32 } from 'node:path';
 import { AI_BASE_URL_ENV, AI_KEY_ENV, LEGACY_KEY_ENV, PRESETS, detectPreset, type ApiPreset, type ResponseFormat } from './ai-presets.ts';
 import { config } from './config.ts';
 import type { AiSettings } from './settings.ts';
@@ -121,12 +124,33 @@ export function askAi<T>(prompt: string, schema: object, kind: AiKind, system: s
 
 // ---- Claude Code CLI ----
 
+/**
+ * The Claude CLI to run. A bare name ("claude", the default) is looked up on PATH, then in ~/.local/bin, where the
+ * Claude CLI installs itself: a dashboard or scheduler started without that folder on PATH still finds it.
+ * A path is used as given.
+ */
+export function resolveClaude(
+  claudePath = 'claude',
+  env: NodeJS.ProcessEnv = process.env,
+  platform: NodeJS.Platform = process.platform,
+  home = homedir(),
+  exists: (p: string) => boolean = existsSync,
+): string {
+  if (/[\\/]/.test(claudePath)) return claudePath;
+  // Paths for the target OS (not the one running the tests): win32 joins with "\\" and splits PATH on ";".
+  const p = platform === 'win32' ? win32 : posix;
+  const names = platform === 'win32' ? [`${claudePath}.exe`, claudePath] : [claudePath];
+  const dirs = [...(env.PATH ?? env.Path ?? '').split(p.delimiter).filter(Boolean), p.join(home, '.local', 'bin')];
+  for (const dir of dirs) for (const name of names) if (exists(p.join(dir, name))) return p.join(dir, name);
+  return claudePath;
+}
+
 // JOB_BOT_CLAUDE swaps in another executable (tests use a fake one). Calls are headless: no tools, no MCP servers,
 // no session saved.
 export function askClaude<T>(prompt: string, schema: object, model: string, system: string, claudePath = config.ai.claudePath): Promise<T> {
   return new Promise((resolve, reject) => {
     const child = spawn(
-      process.env.JOB_BOT_CLAUDE || claudePath,
+      process.env.JOB_BOT_CLAUDE || resolveClaude(claudePath),
       [
         '-p',
         '--model',

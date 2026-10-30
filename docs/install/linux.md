@@ -8,7 +8,7 @@ Paths below use `~/job-bot` (that is `/home/<you>/job-bot`) for the project fold
 
 ## Steps
 
-1. [Install Node.js and Git](#1-install-nodejs-and-git)
+1. [Install Node.js](#1-install-nodejs)
 2. [Install PostgreSQL and create the database](#2-install-postgresql-and-create-the-database)
 3. [Get the code and install its packages](#3-get-the-code-and-install-its-packages)
 4. [Create the env files](#4-create-the-env-files)
@@ -24,13 +24,13 @@ Paths below use `~/job-bot` (that is `/home/<you>/job-bot`) for the project fold
 14. [The Chrome extension](#14-the-chrome-extension)
 15. [Check that it works](#15-check-that-it-works)
 
-## 1. Install Node.js and Git
+## 1. Install Node.js
 
-job-bot needs **Node.js 24 or newer** (it runs its TypeScript directly, with no build step) and Git. The distribution's own `nodejs` package is usually older, so install Node 24 from NodeSource:
+job-bot needs **Node.js 24 or newer** (it runs its TypeScript directly, with no build step). This guide assumes Git is already installed (`git --version` works). The distribution's own `nodejs` package is usually older, so install Node 24 from NodeSource:
 
 ```bash
 sudo apt-get update
-sudo apt-get install -y curl ca-certificates git
+sudo apt-get install -y curl ca-certificates
 curl -fsSL https://deb.nodesource.com/setup_24.x | sudo -E bash -
 sudo apt-get install -y nodejs
 ```
@@ -41,7 +41,6 @@ nvm or fnm work too. The daily run (step 12) then needs Node's full path, which 
 
 ```bash
 node --version   # v24.0.0 or newer
-git --version
 ```
 
 ## 2. Install PostgreSQL and create the database
@@ -87,7 +86,7 @@ psql "postgres://jobbot:<password>@127.0.0.1:5432/job_bot" -c "SELECT version();
 ## 3. Get the code and install its packages
 
 ```bash
-git clone <repository URL> ~/job-bot
+git clone https://github.com/abdulrehmandar2234/job-bot.git ~/job-bot
 cd ~/job-bot
 npm install                 # the bot; also sets up the git pre-commit hook
 npm --prefix web install    # the dashboard (it has its own package.json)
@@ -344,7 +343,7 @@ Only steps 1, 2 and 13 differ; everything from step 3 on is the same.
 **Fedora:**
 
 ```bash
-sudo dnf install -y git libnotify
+sudo dnf install -y libnotify
 curl -fsSL https://rpm.nodesource.com/setup_24.x | sudo bash -
 sudo dnf install -y nodejs
 sudo dnf install -y postgresql-server
@@ -357,7 +356,7 @@ Fedora's PostgreSQL uses `ident` for TCP connections, which refuses passwords. I
 **Arch:**
 
 ```bash
-sudo pacman -S --needed nodejs npm git postgresql libnotify
+sudo pacman -S --needed nodejs npm postgresql libnotify
 sudo -iu postgres initdb -D /var/lib/postgres/data
 sudo systemctl enable --now postgresql
 ```

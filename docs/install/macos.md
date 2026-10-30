@@ -8,7 +8,7 @@ Paths below use `~/job-bot` for the project folder and `<you>` for your macOS us
 
 ## Steps
 
-1. [Install Homebrew, Node.js and Git](#1-install-homebrew-nodejs-and-git)
+1. [Install Homebrew and Node.js](#1-install-homebrew-and-nodejs)
 2. [Install PostgreSQL and create the database](#2-install-postgresql-and-create-the-database)
 3. [Get the code and install its packages](#3-get-the-code-and-install-its-packages)
 4. [Create the env files](#4-create-the-env-files)
@@ -24,9 +24,9 @@ Paths below use `~/job-bot` for the project folder and `<you>` for your macOS us
 14. [The Chrome extension](#14-the-chrome-extension)
 15. [Check that it works](#15-check-that-it-works)
 
-## 1. Install Homebrew, Node.js and Git
+## 1. Install Homebrew and Node.js
 
-job-bot needs **Node.js 24 or newer** (it runs its TypeScript directly, with no build step) and Git. If you do not have [Homebrew](https://brew.sh) yet, install it first and follow the "Next steps" it prints (they add `brew` to your PATH):
+job-bot needs **Node.js 24 or newer** (it runs its TypeScript directly, with no build step). This guide assumes Git is already installed (`git --version` works). If you do not have [Homebrew](https://brew.sh) yet, install it first and follow the "Next steps" it prints (they add `brew` to your PATH):
 
 ```bash
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
@@ -35,7 +35,7 @@ job-bot needs **Node.js 24 or newer** (it runs its TypeScript directly, with no 
 Then:
 
 ```bash
-brew install node git
+brew install node
 ```
 
 Use the plain `node` formula, not `node@24`: `node@24` is "keg-only" and is not put in `/opt/homebrew/bin`, where the daily run looks for Node (step 12). Node from nvm or fnm works for the commands in this guide, but the daily run will not find it unless you link it (step 12 says how).
@@ -44,7 +44,6 @@ Use the plain `node` formula, not `node@24`: `node@24` is "keg-only" and is not 
 
 ```bash
 node --version   # v24.0.0 or newer
-git --version
 ```
 
 ## 2. Install PostgreSQL and create the database
@@ -95,7 +94,7 @@ The daily backup finds `pg_dump` by itself in DBngin's, Postgres.app's and Homeb
 Keep the project **outside `~/Desktop`, `~/Documents` and `~/Downloads`**: macOS privacy protection does not let a background job (the daily run) read those folders.
 
 ```bash
-git clone <repository URL> ~/job-bot
+git clone https://github.com/abdulrehmandar2234/job-bot.git ~/job-bot
 cd ~/job-bot
 npm install                 # the bot; also sets up the git pre-commit hook
 npm --prefix web install    # the dashboard (it has its own package.json)
