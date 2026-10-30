@@ -63,7 +63,8 @@ if (!load) {
   letter:pdf <id>                 print the cover letter to cover-letter.pdf in the job's applications/ folder
   check:open [<id>...] [--status new,prepared] [--limit N]
                                   mark closed postings expired (default: new + prepared not checked for 3 days)
-  ai:score [--id x] [--limit n]   AI fit review of matching jobs (--all to redo)
+  ai:score [--id x] [--limit n]   AI fit review of matching jobs (--all to redo; --location-filtered re-checks
+                                  jobs an earlier review filtered for location, and brings back those that pass)
   answer <id> [--file q.txt]      AI drafts answers to pasted form questions (--clear to reset)
   prep <id>                       AI interview prep: likely questions, STAR stories, company brief, gaps
   follow-ups                      applied jobs with no news for 7+ days that are due a follow-up
