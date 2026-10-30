@@ -5,7 +5,7 @@ import { masterRaw } from './cv/versions.ts';
 import type { Cv } from './cv/render.ts';
 import { askAi } from './ai-providers.ts';
 
-// The AI features: prompts and output schemas. Which AI runs them (the local Claude CLI, OpenAI or DeepSeek) is
+// The AI features: prompts and output schemas. Which AI runs them (the local Claude CLI, or an OpenAI-compatible API with one key) is
 // config.json → ai.provider; see src/ai-providers.ts.
 
 /** The master CV as plain text: the only facts the AI may use about the candidate. */

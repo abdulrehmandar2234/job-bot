@@ -64,22 +64,24 @@ describe('config validation', () => {
     );
   });
 
-  it('accepts an optional AI provider with optional per-provider models, and checks them', () => {
+  it('accepts an optional AI provider with an optional api section, the older names too, and checks them', () => {
     const c = realConfig();
     assert.equal(c.ai.provider, undefined); // the owner's config.json uses the default, claude-cli
-    for (const provider of ['claude-cli', 'openai', 'deepseek'])
+    for (const provider of ['claude-cli', 'api', 'openai', 'deepseek']) {
       assert.ok(validateConfig({ ...c, ai: { ...c.ai, provider } }).ok, provider);
-    c.ai.provider = 'openai';
-    c.ai.openai = { scoreModel: 'gpt-4.1-mini' };
-    c.ai.deepseek = { scoreModel: 'deepseek-chat', letterModel: 'deepseek-reasoner', baseUrl: 'https://api.deepseek.com' };
+    }
+    c.ai.provider = 'api';
+    c.ai.api = { preset: 'ollama', baseUrl: 'http://localhost:11434/v1', scoreModel: 'llama3.1', responseFormat: 'json_object' };
+    c.ai.openai = { scoreModel: 'gpt-4.1-mini' }; // older section, still accepted
     assert.ok(validateConfig(c).ok);
+    assert.ok(validateConfig({ ...c, ai: { ...c.ai, api: {} } }).ok); // everything optional
     c.ai.provider = 'gemini';
-    c.ai.openai = { scoreModel: '', baseUrl: 'not a url' };
+    c.ai.api = { preset: 'bard', baseUrl: 'not a url', scoreModel: '', responseFormat: 'xml' };
     assert.deepEqual(
       errorsOf(validateConfig(c))
         .map((e) => e.path)
         .sort(),
-      ['ai.openai.baseUrl', 'ai.openai.scoreModel', 'ai.provider'],
+      ['ai.api.baseUrl', 'ai.api.preset', 'ai.api.responseFormat', 'ai.api.scoreModel', 'ai.provider'],
     );
   });
 });

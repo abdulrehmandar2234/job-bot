@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { z } from 'zod';
+import { API_PRESETS, RESPONSE_FORMATS } from './ai-presets.ts';
 
 // Schemas for the two hand-edited settings files, config.json and cv/applicant.json. Loading them (config.ts, ai.ts)
 // validates first, so a typo fails at startup with the file and field instead of deep inside a fetch.
@@ -38,29 +39,24 @@ const countrySchema = z.object({
   label: text.optional(), // short name for the dashboard, e.g. "Saudi"; missing = name
 });
 
-// An HTTP AI provider: models and an optional base URL (for a proxy or a compatible endpoint). The API key is never
-// here: it comes from the environment only (OPENAI_API_KEY / DEEPSEEK_API_KEY in .env), see src/ai-providers.ts.
-const apiProviderSchema = z
+// The API provider (`ai.provider: "api"`): any OpenAI-compatible chat API. The key is never here: it comes from the
+// environment only (AI_API_KEY in .env), see src/ai-providers.ts. Everything is optional; missing = the preset's.
+const apiSchema = z
   .object({
+    preset: z.enum(API_PRESETS), // missing = detected from the key's prefix (or "custom" with a base URL)
+    baseUrl: z.url(), // OpenAI-compatible base URL, e.g. "https://api.openai.com/v1"; AI_BASE_URL in .env wins
     scoreModel: text, // fast model for match scoring
     letterModel: text, // better writer for letters, answers, interview prep and follow-ups
-    baseUrl: z.url().optional(),
+    responseFormat: z.enum(RESPONSE_FORMATS), // how JSON is asked for; missing = the preset's
   })
   .partial();
 
-export const AI_PROVIDERS = ['claude-cli', 'openai', 'deepseek'] as const;
-type ApiProviderName = Exclude<(typeof AI_PROVIDERS)[number], 'claude-cli'>;
-export const PROVIDER_NAME: Record<(typeof AI_PROVIDERS)[number], string> = {
-  'claude-cli': 'Claude CLI',
-  openai: 'OpenAI',
-  deepseek: 'DeepSeek',
-};
-/** Where each API provider's key comes from: the environment (.env), never config.json. */
-export const KEY_ENV: Record<ApiProviderName, string> = { openai: 'OPENAI_API_KEY', deepseek: 'DEEPSEEK_API_KEY' };
-export const API_DEFAULTS: Record<ApiProviderName, { scoreModel: string; letterModel: string; baseUrl: string }> = {
-  openai: { scoreModel: 'gpt-4o-mini', letterModel: 'gpt-4o', baseUrl: 'https://api.openai.com' },
-  deepseek: { scoreModel: 'deepseek-chat', letterModel: 'deepseek-chat', baseUrl: 'https://api.deepseek.com' },
-};
+// Before "api" existed, "openai" / "deepseek" were providers of their own with these sections. Still read, as "api"
+// with that preset (baseUrl here was the host, without /v1 for OpenAI).
+const legacyApiSchema = z.object({ scoreModel: text, letterModel: text, baseUrl: z.url() }).partial();
+
+/** Who runs the AI features. "openai" and "deepseek" are older names for "api" with that preset. */
+export const AI_PROVIDERS = ['claude-cli', 'api', 'openai', 'deepseek'] as const;
 
 const companySchema = z.object({
   name: text,
@@ -85,8 +81,9 @@ export const configSchema = z.object({
     claudePath: text, // local Claude Code CLI (uses its signed-in account, no API key)
     scoreModel: text, // Claude CLI: fast model for match scoring
     letterModel: text, // Claude CLI: better writer for cover letters
-    openai: apiProviderSchema.optional(), // models when provider is "openai"; missing = defaults
-    deepseek: apiProviderSchema.optional(), // models when provider is "deepseek"; missing = defaults
+    api: apiSchema.optional(), // the API provider: preset, base URL, models
+    openai: legacyApiSchema.optional(), // older provider "openai"
+    deepseek: legacyApiSchema.optional(), // older provider "deepseek"
     maxScorePerRun: count, // cap per `ai:score` run
     concurrency: z.number().int().positive(),
     alertStrong: z.boolean().optional(), // macOS notification for each new `strong` verdict; missing = on

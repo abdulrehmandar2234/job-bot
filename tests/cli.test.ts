@@ -317,9 +317,8 @@ describe('CLI settings', () => {
 });
 
 describe('CLI with an API AI provider', () => {
-  // ai:score end to end with OpenAI or DeepSeek: a temp config.json picks the provider, the preloaded fake fetch
+  // ai:score end to end with the API provider: a temp config.json picks it, the preloaded fake fetch
   // (tests/fixtures/fake-fetch.mjs) answers the chat API, and a dummy key stands in. Nothing reaches the network.
-  const KEY = 'sk-test-cli-0123456789';
   const review = {
     score: 88,
     verdict: 'strong',
@@ -330,43 +329,68 @@ describe('CLI with an API AI provider', () => {
     location: { eligible: 'yes', reason: 'Dubai onsite' },
   };
   const chat = (content: object) => ({ body: JSON.stringify({ choices: [{ message: { content: JSON.stringify(content) } }] }) });
-  const withProvider = (provider: string) => {
+  const withAi = (ai: object) => {
     const cfg = JSON.parse(readFileSync(path('config.json'), 'utf8'));
     const f = join(mkdtempSync(join(tmp, 'provider-')), 'config.json');
-    writeFileSync(f, JSON.stringify({ ...cfg, ai: { ...cfg.ai, provider } }));
+    writeFileSync(f, JSON.stringify({ ...cfg, ai: { ...cfg.ai, ...ai } }));
     return f;
   };
+  // Empty values hide any key in the worktree's own env file (the environment wins over --env-file).
+  const noKeys = { AI_API_KEY: '', AI_BASE_URL: '', OPENAI_API_KEY: '', DEEPSEEK_API_KEY: '' };
 
-  for (const [provider, name, url, keyEnv, model] of [
-    ['openai', 'OpenAI', 'https://api.openai.com/v1/chat/completions', 'OPENAI_API_KEY', 'gpt-4o-mini'],
-    ['deepseek', 'DeepSeek', 'https://api.deepseek.com/chat/completions', 'DEEPSEEK_API_KEY', 'deepseek-chat'],
+  for (const [label, ai, env, url, name, model] of [
+    [
+      'an Anthropic AI_API_KEY (detected)',
+      { provider: 'api' },
+      { AI_API_KEY: 'sk-ant-test-cli-0123456789' },
+      'https://api.anthropic.com/v1/chat/completions',
+      'Anthropic',
+      'claude-haiku-5-5',
+    ],
+    [
+      'AI_API_KEY with preset deepseek',
+      { provider: 'api', api: { preset: 'deepseek' } },
+      { AI_API_KEY: 'sk-test-cli-0123456789' },
+      'https://api.deepseek.com/chat/completions',
+      'DeepSeek',
+      'deepseek-chat',
+    ],
+    [
+      'the older "openai" provider and OPENAI_API_KEY',
+      { provider: 'openai' },
+      { OPENAI_API_KEY: 'sk-test-cli-0123456789' },
+      'https://api.openai.com/v1/chat/completions',
+      'OpenAI',
+      'gpt-4o-mini',
+    ],
   ] as const) {
-    it(`ai:score --id stores the review from ${name}`, async () => {
+    it(`ai:score --id stores the review with ${label}`, async () => {
       const id = idOf(await bot(['add', '--file', addFile([posting()])]));
-      const log = join(tmp, `fetch-${provider}.log`);
+      const log = join(tmp, `fetch-${Math.random()}.log`);
       const out = await bot(['ai:score', '--id', id], {
-        JOB_BOT_CONFIG: withProvider(provider),
-        [keyEnv]: KEY,
+        ...noKeys,
+        ...env,
+        JOB_BOT_CONFIG: withAi(ai),
         FAKE_FETCH: JSON.stringify({ [url]: chat(review) }),
         FAKE_FETCH_LOG: log,
         FAKE_CLAUDE_FAIL: 'the Claude CLI must not be used',
       });
       assert.match(out, new RegExp(`AI scoring 1 jobs with ${name} ${model}`));
       assert.match(out, /88 strong/);
-      assert.ok(!out.includes(KEY));
+      assert.ok(!out.includes('sk-'));
       assert.deepEqual(readFileSync(log, 'utf8').trim().split('\n'), [url]);
       const j = (await getJob(id)) as unknown as Record<string, unknown>;
       assert.deepEqual([j.ai_score, j.ai_verdict, j.ai_location], [88, 'strong', 'yes']);
     });
-
-    it(`ai:score --id with ${name} but no key fails with the env var to set, before any request`, async () => {
-      const id = idOf(await bot(['add', '--file', addFile([posting()])]));
-      const log = join(tmp, `fetch-nokey-${provider}.log`);
-      const res = await botExit(['ai:score', '--id', id], { JOB_BOT_CONFIG: withProvider(provider), [keyEnv]: '', FAKE_FETCH_LOG: log });
-      assert.equal(res.code, 1);
-      assert.match(res.stderr, new RegExp(`${name} needs an API key: set ${keyEnv}`));
-      assert.equal(existsSync(log), false);
-      assert.equal(((await getJob(id)) as unknown as Record<string, unknown>).ai_score, null);
-    });
   }
+
+  it('ai:score --id with the API provider but no key fails naming AI_API_KEY, before any request', async () => {
+    const id = idOf(await bot(['add', '--file', addFile([posting()])]));
+    const log = join(tmp, 'fetch-nokey.log');
+    const res = await botExit(['ai:score', '--id', id], { ...noKeys, JOB_BOT_CONFIG: withAi({ provider: 'api' }), FAKE_FETCH_LOG: log });
+    assert.equal(res.code, 1);
+    assert.match(res.stderr, /No AI API key: set AI_API_KEY in \.env/);
+    assert.equal(existsSync(log), false);
+    assert.equal(((await getJob(id)) as unknown as Record<string, unknown>).ai_score, null);
+  });
 });
