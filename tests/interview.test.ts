@@ -228,8 +228,8 @@ describe('strong-match alerts (ai:score)', () => {
     assert.ok((await getJob(id))!.alerted_at);
   });
 
-  it('the daily fetch script runs ai:score, so it alerts with no extra step', () => {
-    assert.match(readFileSync(path('scripts', 'daily-fetch.sh'), 'utf8'), /src\/cli\.ts ai:score/);
+  it('the daily run (bot daily) runs ai:score, so it alerts with no extra step', () => {
+    assert.match(readFileSync(path('src', 'commands', 'daily.ts'), 'utf8'), /d\.run\(\['ai:score'\]\)/);
   });
 });
 
@@ -281,7 +281,7 @@ process.stdout.write(JSON.stringify({ is_error: false, structured_output: ${revi
     assert.match(r.stdout, /1 jobs scored, 1 failed\./);
   });
 
-  it('the daily fetch script reports a failed AI review instead of a score count', () => {
-    assert.match(readFileSync(path('scripts', 'daily-fetch.sh'), 'utf8'), /AI review failed/);
+  it('the daily run (bot daily) reports a failed AI review instead of a score count', () => {
+    assert.match(readFileSync(path('src', 'commands', 'daily.ts'), 'utf8'), /AI review failed/);
   });
 });
