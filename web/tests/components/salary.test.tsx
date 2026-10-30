@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import { SalaryFilter, salaryParams, SalaryTag } from '@/components/salary';
+import { SalaryFilter, SalaryOnlyToggle, salaryParams, SalaryTag } from '@/components/salary';
 
 const job = { salary_min: 18_000, salary_max: 22_000, salary_currency: 'AED' as const, salary_period: 'month' as const, country: 'AE' };
 const params = (q: Record<string, string>) => salaryParams((k) => q[k]);
@@ -48,6 +48,7 @@ describe('SalaryFilter', () => {
     render(
       <form>
         <SalaryFilter params={params({ sal: '5000', cur: 'EUR', per: 'month', salonly: '1' }).params} />
+        <SalaryOnlyToggle params={params({ salonly: '1' }).params} />
       </form>,
     );
     expect(screen.getByRole('spinbutton', { name: 'Min salary' })).toHaveValue(5000);

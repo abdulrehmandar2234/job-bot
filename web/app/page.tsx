@@ -20,7 +20,7 @@ import { BaytBookmarklet, SubmitButton } from '@/components/client';
 import { JobActions } from '@/components/job-actions';
 import { TaskBar } from '@/components/tasks';
 import { isActive, openTasks } from '@/lib/tasks';
-import { SalaryFilter, salaryParams, SalaryTag } from '@/components/salary';
+import { SalaryFilter, SalaryOnlyToggle, salaryParams, SalaryTag } from '@/components/salary';
 import { loadExpectations } from '@/lib/salary';
 import { ReferralBadge } from '@/components/contacts';
 import { allContacts } from '@/lib/contacts-db';
@@ -202,7 +202,8 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<'/'>['searc
         </p>
       )}
 
-      {/* Row 1: the text filters and Apply; row 2: the choices. Every control is h-9 so both rows line up.
+      {/* Row 1: the text filters and Apply; row 2: the selects, then the two "only jobs with ..." toggles, each group
+          wrapping as a unit. Every control is h-9 so the rows line up.
           The choices apply on change (AutoSelect / AutoCheckbox); typed text waits for Apply filters, which also
           sends everything without JS. */}
       <form aria-label="Job filters" className="mb-4 space-y-2 rounded-xl border border-zinc-200 p-3 text-sm dark:border-zinc-800">
@@ -222,44 +223,49 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<'/'>['searc
           </button>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <AutoSelect name="country" defaultValue={country ?? ''} aria-label="Country" className="input h-9">
-            <option value="">All countries</option>
-            {Object.entries(labels).map(([k, v]) => (
-              <option key={k} value={k}>
-                {v}
-              </option>
-            ))}
-          </AutoSelect>
-          <AutoSelect name="min" defaultValue={min ?? ''} aria-label="Minimum score" className="input h-9">
-            <option value="">Any score</option>
-            {[50, 60, 70, 80].map((n) => (
-              <option key={n} value={n}>
-                Score ≥ {n}
-              </option>
-            ))}
-          </AutoSelect>
-          <AutoSelect name="days" defaultValue={days ?? ''} aria-label="Posted within" className="input h-9">
-            <option value="">Posted: any time</option>
-            <option value="1">Last 24 hours</option>
-            <option value="3">Last 3 days</option>
-            <option value="7">Last 7 days</option>
-          </AutoSelect>
-          <AutoSelect name="sort" defaultValue={sort} aria-label="Sort" className="input h-9">
-            <option value="score">Best match first</option>
-            <option value="newest">Newest first</option>
-          </AutoSelect>
-          <AutoSelect name="size" defaultValue={size} aria-label="Jobs per page" className="input h-9">
-            {PAGE_SIZES.map((n) => (
-              <option key={n} value={n}>
-                {n} per page
-              </option>
-            ))}
-          </AutoSelect>
-          {/* biome-ignore lint/a11y/noLabelWithoutControl: AutoCheckbox renders the checkbox input */}
-          <label className="toggle">
-            <AutoCheckbox name="visa" value="1" defaultChecked={visaOnly} />
-            Visa/relocation offered (or not needed)
-          </label>
+          <div className="flex flex-wrap items-center gap-2">
+            <AutoSelect name="country" defaultValue={country ?? ''} aria-label="Country" className="input h-9">
+              <option value="">All countries</option>
+              {Object.entries(labels).map(([k, v]) => (
+                <option key={k} value={k}>
+                  {v}
+                </option>
+              ))}
+            </AutoSelect>
+            <AutoSelect name="min" defaultValue={min ?? ''} aria-label="Minimum score" className="input h-9">
+              <option value="">Any score</option>
+              {[50, 60, 70, 80].map((n) => (
+                <option key={n} value={n}>
+                  Score ≥ {n}
+                </option>
+              ))}
+            </AutoSelect>
+            <AutoSelect name="days" defaultValue={days ?? ''} aria-label="Posted within" className="input h-9">
+              <option value="">Posted: any time</option>
+              <option value="1">Last 24 hours</option>
+              <option value="3">Last 3 days</option>
+              <option value="7">Last 7 days</option>
+            </AutoSelect>
+            <AutoSelect name="sort" defaultValue={sort} aria-label="Sort" className="input h-9">
+              <option value="score">Best match first</option>
+              <option value="newest">Newest first</option>
+            </AutoSelect>
+            <AutoSelect name="size" defaultValue={size} aria-label="Jobs per page" className="input h-9">
+              {PAGE_SIZES.map((n) => (
+                <option key={n} value={n}>
+                  {n} per page
+                </option>
+              ))}
+            </AutoSelect>
+          </div>
+          <div data-testid="filter-toggles" className="flex flex-wrap items-center gap-2">
+            <SalaryOnlyToggle params={salary.params} />
+            {/* biome-ignore lint/a11y/noLabelWithoutControl: AutoCheckbox renders the checkbox input */}
+            <label className="toggle">
+              <AutoCheckbox name="visa" value="1" defaultChecked={visaOnly} />
+              Visa/relocation offered (or not needed)
+            </label>
+          </div>
         </div>
       </form>
 

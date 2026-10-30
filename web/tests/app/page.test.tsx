@@ -226,6 +226,13 @@ describe('job list page', () => {
     // Checkboxes are pill toggles; every other control is h-9.
     expect(visa.closest('label')).toHaveClass('toggle');
     expect(screen.getByRole('checkbox', { name: 'only with salary' }).closest('label')).toHaveClass('toggle');
+    // The two toggles sit together after the selects, so they wrap as one group.
+    expect(
+      within(screen.getByTestId('filter-toggles'))
+        .getAllByRole('checkbox')
+        .map((c) => c.getAttribute('name')),
+    ).toEqual(['salonly', 'visa']);
+    expect(choiceRow.lastElementChild).toBe(screen.getByTestId('filter-toggles'));
     for (const el of form.querySelectorAll('input:not([type="hidden"]):not([type="checkbox"]), select, button'))
       expect(el).toHaveClass('h-9');
   });
