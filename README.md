@@ -261,7 +261,7 @@ job-bot runs on **macOS, Linux and Windows**. Pick the install guide for your co
 | Linux (Ubuntu / Debian; notes for Fedora, Arch) | [docs/install/linux.md](docs/install/linux.md)     |
 | Windows 10 / 11 (PowerShell)                    | [docs/install/windows.md](docs/install/windows.md) |
 
-In short, you need Node.js 24+, PostgreSQL, Git and (optionally) a signed-in Claude Code CLI or one AI API key. Then: clone, `npm install` and `npm --prefix web install`, put `DATABASE_URL` in `.env` and `web/.env.local`, `npx playwright-core install chromium-headless-shell`, `npm run bot -- setup`, your CV in `cv/master.json`, `npm run bot -- fetch`, and `npm run web` (http://localhost:3100).
+In short, with Git already installed, you need Node.js 24+, PostgreSQL and (optionally) a signed-in Claude Code CLI or one AI API key. Then: `git clone https://github.com/abdulrehmandar2234/job-bot.git`, `npm install` and `npm --prefix web install`, put `DATABASE_URL` in `.env` and `web/.env.local`, `npx playwright-core install chromium-headless-shell`, `npm run bot -- setup`, your CV in `cv/master.json`, `npm run bot -- fetch`, and `npm run web` (http://localhost:3100).
 
 Everything else is in **[docs/README.md](docs/README.md)**: your CV and profile, every setting, the AI choice, daily use, troubleshooting and updating.
 
@@ -439,6 +439,10 @@ npm run lint         # Biome lint + format check; npm run format fixes it
 - `playwright-core` with Chrome's headless shell (or a system Chrome) for CV PDFs
 - Claude Code CLI (default) or any OpenAI-compatible API for AI features
 - node:test and Vitest + Testing Library for tests
+
+## Contributing
+
+Pull requests are welcome: fork the repository, change it on a branch and open a pull request; the maintainer reviews and merges. [CONTRIBUTING.md](CONTRIBUTING.md) has the ground rules (the bot never applies, CVs stay truthful, nothing personal in commits), the development setup and the checks to run.
 
 ## Roadmap
 

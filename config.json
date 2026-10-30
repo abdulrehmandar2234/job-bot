@@ -6,7 +6,7 @@
   "maxAgeDays": 14,
   "ai": {
     "enabled": true,
-    "claudePath": "/Users/abdulrehmandar/.local/bin/claude",
+    "claudePath": "claude",
     "scoreModel": "haiku",
     "letterModel": "sonnet",
     "maxScorePerRun": 80,

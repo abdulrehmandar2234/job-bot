@@ -14,7 +14,7 @@ Pick your operating system. Each guide is complete on its own, from a fresh mach
 | Linux (Ubuntu / Debian; notes for Fedora, Arch) | [install/linux.md](install/linux.md)     | any terminal (bash) |
 | Windows 10 or 11                                | [install/windows.md](install/windows.md) | PowerShell          |
 
-Every guide covers the same steps: Node.js 24+, PostgreSQL and Git; the database; the code and its env files; the PDF renderer; the AI; the setup wizard; your CV; the first fetch and the dashboard; the daily run; notifications; the Chrome extension; and a final checklist.
+Every guide assumes Git is installed and covers the same steps: Node.js 24+ and PostgreSQL; the database; the code and its env files; the PDF renderer; the AI; the setup wizard; your CV; the first fetch and the dashboard; the daily run; notifications; the Chrome extension; and a final checklist.
 
 ## 2. Make it yours
 
@@ -32,13 +32,13 @@ Every guide covers the same steps: Node.js 24+, PostgreSQL and Git; the database
 | [troubleshooting.md](troubleshooting.md) | Common problems, general and per OS                                                                                                                |
 | [updating.md](updating.md)               | Getting a newer version: pull, install, migrations, extension reload, dashboard restart                                                            |
 
-The project's [README](../README.md) has the full feature list, the architecture and the complete CLI reference. The Chrome extension has its own [README](../extension/README.md).
+Want to improve job-bot? See [CONTRIBUTING.md](../CONTRIBUTING.md). The project's [README](../README.md) has the full feature list, the architecture and the complete CLI reference. The Chrome extension has its own [README](../extension/README.md).
 
 ## About the repository's own data
 
 The repository is a working copy of one person's setup. These tracked files hold **the original owner's** data, and you replace them with your own:
 
-- `config.json`: the owner's target markets (the UAE, Saudi Arabia, the Netherlands, remote from Pakistan), about 50 company boards, job-title rules and search keywords for a Laravel / PHP / Node / React developer, and the owner's Claude CLI path. `npm run bot -- setup` rewrites the markets, AI and CV file name; the rest you review yourself (see [configuration.md](configuration.md)).
+- `config.json`: the owner's target markets (the UAE, Saudi Arabia, the Netherlands, remote from Pakistan), about 50 company boards, job-title rules and search keywords for a Laravel / PHP / Node / React developer. `npm run bot -- setup` rewrites the markets, AI and CV file name; the rest you review yourself (see [configuration.md](configuration.md)).
 - `cv/master.json`: the owner's CV. You replace it with yours, starting from `cv/master.example.json`.
 - `src/cv/profiles.ts`: per-stack CV headlines and summaries written for the owner's CV (see [your-cv-and-profile.md](your-cv-and-profile.md#cv-versions-and-the-per-stack-framings)).
 
