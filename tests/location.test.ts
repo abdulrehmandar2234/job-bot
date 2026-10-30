@@ -76,6 +76,8 @@ describe('AI location check', () => {
     assert.match(system, /authorized to work in X without sponsorship/);
     assert.match(system, /work remotely from Slovenia/);
     assert.match(system, /the description wins over the\s+LOCATION line/);
+    assert.match(system, /never assume sponsorship/);
+    assert.match(system, /"unclear" when it says nothing about visa or relocation/);
     // From the owner's profile and config, not hardcoded.
     assert.match(system, /far from Pakistan's time zone \(GMT\+5\)/);
     assert.match(system, /that is not Pakistan and not a target country/);

@@ -307,7 +307,8 @@ describe('job list page', () => {
       company: 'Globex',
       country: 'NL',
       location: 'Amsterdam',
-      visa: 'IND sponsor',
+      visa: 'Netherlands: company is an IND recognised sponsor, but the posting does not mention visa or relocation',
+      visa_evidence: 'can-sponsor',
       matched: ['laravel'],
       missing: ['go'],
       flags: ['Dutch required'],
@@ -322,7 +323,11 @@ describe('job list page', () => {
     });
     await renderPage();
     const card = cards()[0];
-    expect(card).toHaveTextContent('🇳🇱 Netherlands · Amsterdam · ✓ IND sponsor');
+    expect(card).toHaveTextContent('🇳🇱 Netherlands · Amsterdam · ? Company can sponsor, posting does not say');
+    expect(within(card).getByText('? Company can sponsor, posting does not say')).toHaveAttribute(
+      'title',
+      expect.stringMatching(/IND recognised sponsor/),
+    );
     expect(card).toHaveTextContent('AI · good fit: Strong PHP match');
     for (const text of ['laravel', 'go', 'Dutch required', '📝 Ask about relocation', '✓ PHP', '– Go'])
       expect(card).toHaveTextContent(text);

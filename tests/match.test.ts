@@ -1,3 +1,4 @@
+import { isIndSponsor } from '../src/sponsors.ts';
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { daysAgo, raw } from './helpers.ts';
@@ -89,8 +90,27 @@ describe('scoreJob: title, age and language', () => {
 });
 
 describe('scoreJob: visa', () => {
-  it('gives employer visa for UAE and Saudi', () => {
-    assert.equal(scoreJob(raw()).visa, 'UAE: employer issues work visa');
+  it('says plainly when a UAE or Saudi posting does not mention visa or relocation ("silent")', () => {
+    const s = scoreJob(raw());
+    assert.equal(s.visa, 'UAE: posting does not mention visa or relocation (employers there usually sponsor the work visa)');
+    assert.equal(s.visaEvidence, 'silent');
+    assert.equal(s.filterReason, null); // labelled, not hidden
+  });
+
+  it('"offered" only when the posting itself mentions visa or relocation support', () => {
+    const s = scoreJob(raw({ description: `${raw().description} We provide visa sponsorship and a relocation package.` }));
+    assert.equal(s.visa, 'UAE: posting offers visa/relocation support');
+    assert.equal(s.visaEvidence, 'offered');
+  });
+
+  it('"not-needed" for remote jobs', () => {
+    const s = scoreJob(raw({ location: 'Remote — Worldwide' }));
+    assert.equal(s.visaEvidence, 'not-needed');
+  });
+
+  it('no evidence on a filtered job', () => {
+    const s = scoreJob(raw({ description: `${raw().description} We are unable to offer visa sponsorship.` }));
+    assert.equal(s.visaEvidence, null);
   });
 
   it('filters onsite jobs that say no sponsorship', () => {
@@ -113,6 +133,15 @@ describe('scoreJob: visa', () => {
     );
     assert.equal(s.filterReason, null);
     assert.match(s.visa!, /visa\/relocation support/);
+    assert.equal(s.visaEvidence, 'offered');
+  });
+
+  it('an IND recognised sponsor whose posting is silent is "can-sponsor", not "offered"', (t) => {
+    if (isIndSponsor('Adyen') === null) return t.skip('IND register not downloaded');
+    const s = scoreJob(raw({ company: 'Adyen', location: 'Amsterdam, Netherlands' }));
+    assert.equal(s.filterReason, null);
+    assert.equal(s.visaEvidence, 'can-sponsor');
+    assert.equal(s.visa, 'Netherlands: company is an IND recognised sponsor, but the posting does not mention visa or relocation');
   });
 });
 

@@ -35,7 +35,7 @@ export type ScoredJob = Pick<
   | 'flags'
   | 'status'
   | 'filter_reason'
-> & { posted_at: string | null } & Partial<Pick<Job, 'salary_min' | 'salary_max' | 'salary_currency' | 'salary_period'>>;
+> & { posted_at: string | null } & Partial<Pick<Job, 'salary_min' | 'salary_max' | 'salary_currency' | 'salary_period' | 'visa_evidence'>>;
 
 if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL missing — add it to .env');
 export const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 4 });
@@ -172,13 +172,13 @@ export async function upsertJob(j: ScoredJob): Promise<'inserted' | 'updated'> {
     `
     INSERT INTO jobs (id, source, company, title, location, country, url, description, posted_at,
       score, cluster, matched, missing, visa, flags, status, filter_reason,
-      salary_min, salary_max, salary_currency, salary_period)
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
+      salary_min, salary_max, salary_currency, salary_period, visa_evidence)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
     ON CONFLICT (id) DO UPDATE SET
       title = EXCLUDED.title, location = EXCLUDED.location, country = EXCLUDED.country, url = EXCLUDED.url,
       description = EXCLUDED.description, posted_at = EXCLUDED.posted_at, fetched_at = now(),
       score = EXCLUDED.score, cluster = EXCLUDED.cluster, matched = EXCLUDED.matched, missing = EXCLUDED.missing,
-      visa = EXCLUDED.visa, flags = EXCLUDED.flags,
+      visa = EXCLUDED.visa, visa_evidence = EXCLUDED.visa_evidence, flags = EXCLUDED.flags,
       -- A job the AI review found closed to the candidate's location stays filtered, whatever the keyword rules say.
       filter_reason = CASE WHEN EXCLUDED.status = 'new' AND jobs.ai_location = 'no'
         THEN left('location (AI): ' || coalesce(jobs.ai_location_reason, 'not open to where you live'), 300)
@@ -212,6 +212,7 @@ export async function upsertJob(j: ScoredJob): Promise<'inserted' | 'updated'> {
       j.salary_max ?? null,
       j.salary_currency ?? null,
       j.salary_period ?? null,
+      j.visa_evidence ?? null,
     ],
   );
   return rows[0].inserted ? 'inserted' : 'updated';

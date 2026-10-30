@@ -95,7 +95,7 @@ describe('CLI', () => {
     assert.match(await bot(['list']), /Testco Cli — Senior Laravel Developer/);
     assert.match(await bot(['list', '--country', 'sa']), /No jobs with status=new/);
     const show = await bot(['show', id, '--full']);
-    assert.match(show, /Visa: UAE: employer issues work visa/);
+    assert.match(show, /Visa: UAE: posting does not mention visa or relocation/);
     assert.match(show, /Laravel, PHP, Vue\.js/);
     assert.match(await bot(['stats']), /new\s+AE\s+1/);
     assert.match(await bot(['show', 'nope']), /Not found/);
