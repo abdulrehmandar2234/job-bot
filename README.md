@@ -2,7 +2,7 @@
 
 A personal job-search assistant that runs on your own Mac. It finds software engineering jobs in the **countries you target** (onsite, with or without a visa) and **remote jobs open to the country you live in**. It filters and scores them against your CV, prepares the right CV version, cover letter and form answers for each one, and tracks where you applied.
 
-Everything personal lives in two files you fill in yourself, `cv/master.json` (your CV) and `cv/applicant.json` (your profile), plus the target markets in `config.json`. `npm run bot -- setup` asks for all of it: see [Getting started for a new user](#getting-started-for-a-new-user). The `config.json` in the repository is the original author's (UAE, Saudi Arabia and the Netherlands with visa sponsorship, remote from Pakistan); the examples below use it.
+Everything personal lives in two files you fill in yourself, `cv/master.json` (your CV) and `cv/applicant.json` (your profile), plus the target markets in `config.json`. `npm run bot -- setup` asks for most of it: see [Getting started](#getting-started) and the full guide in [docs/SETUP.md](docs/SETUP.md). The `config.json` in the repository is the original author's (UAE, Saudi Arabia and the Netherlands with visa sponsorship, remote from Pakistan); the examples below use it.
 
 ## Purpose
 
@@ -32,7 +32,7 @@ Design principles:
   ```
 
   Without them Adzuna is skipped with one log line. Adzuna only returns a snippet of each description, so its keyword scores see less text.
-- **LinkedIn** guest job search (no login, your account is never used). It covers onsite jobs in `linkedin.locations` and remote jobs searched from `linkedin.remoteFrom`. Requests are 1.2 s apart, and LinkedIn is skipped for the day on a 429.
+- **LinkedIn** guest job search (no login, your account is never used). It covers onsite jobs in `linkedin.locations` and remote jobs searched from `linkedin.remoteFrom`. Requests are 1.2 s apart, and a 429 stops LinkedIn for the rest of that fetch, with no retries (a later fetch tries again).
 - **Bayt** via a browser bookmarklet (`scripts/bayt-collect.js`), because Bayt blocks direct requests. You click it on bayt.com and it sends jobs to the dashboard's `/api/import`.
 - **Chrome extension** (`extension/`, see [extension/README.md](extension/README.md)): "Send to job-bot" from any job page (Bayt, GulfTalent, NaukriGulf, company sites), and an "Apply helper" side panel with the prepared CV, letter and answers to copy. **Fill this form** types your name and contact details, the cover letter, drafted answers and the CV PDF into the form's empty fields (outlined in orange). It never overwrites what you typed, never fills answers that need your input, and never clicks a button or submits: you check the form and submit it yourself.
 - **Manual add** of any job as JSON (`bot add`), e.g. from GulfTalent or a referral.
@@ -78,6 +78,9 @@ Every posting is checked by `src/match.ts`. Jobs that fail a rule are kept with 
 - Dead-link check: `bot check:open` asks each ATS API whether a posting still exists (Greenhouse, Lever, Recruitee, SmartRecruiters and Workday per posting; Ashby and Workable via the board list) and opens the page for other boards, where a 404/410, "no longer accepting applications" text or a redirect to a careers page means closed. Closed `new`/`prepared` jobs become `expired`; jobs you applied to keep their status and only show "Posting closed". Network errors, 5xx and rate limits never expire a job, and a LinkedIn 429 stops LinkedIn checks for that run. `prepare` checks first and stops on a closed posting (`--force` skips the check). The daily fetch checks up to 100 jobs not checked in 3 days.
 - Every status change is logged with an optional note (`job_events`), and every fetch is logged with counts and errors (`fetch_runs`).
 - Free-text notes per job (recruiter name, contacts, follow-ups).
+- **Contacts per job** (`bot contacts` / `contact:add`, and on the job page): recruiters, hiring managers and referrals, plus people you know at the same company, with a "ask for a referral before applying" reminder on jobs you have not applied to.
+- **Skip reasons:** skipping a job asks why (`mark <id> skipped --reason stack|seniority|salary|location|company|language|other`, or the Skip button), and `/analytics` shows the patterns.
+- **Database backup:** the daily fetch keeps a `pg_dump` of the last 14 days in `data/backups/` (`scripts/backup-db.sh`).
 
 ### Dashboard
 
@@ -92,7 +95,10 @@ npm run web          # http://localhost:3100
 - Per job: open the posting, **Prepare CV** (picks or builds the CV version), **Download CV**, AI review, and status buttons.
 - Job page: "Check if still open" button, full description, CV keyword check, cover letter, form-answer helper, notes and status history. The cover letter is never written automatically: **Write letter** writes it (AI from the description, else the template), **Rewrite letter** writes a new one, **Copy** copies it, and **Download PDF** downloads it as a one-page PDF in the CV's style, with your name and contact as the header (`bot letter:pdf <id>`, saved as `cover-letter.pdf` in the job's `applications/` folder). Under the letter, **What should change?** with **Rewrite with feedback** has the AI rewrite it (`letter <id> --feedback`), and **Edit** lets you change it yourself and **Save** it with no AI (the label then says "edited by you").
 - Job page, **CV summary for this job** (next to the cover letter): **Write summary** has the AI write a CV summary for the job, then **Rewrite summary**, **Copy** and **Use in my CV for this job**, which builds a one-off CV with it (`cv:tailor`) so **Download CV** serves that one. It has the same **What should change?** and **Edit** as the letter. While the AI writes or the CV is built, a "Writing summary…" / "Building CV with this summary…" note replaces the buttons.
-- "Fetch new jobs" button and a "Add jobs from Bayt" page with the bookmarklet.
+- "Fetch new jobs" button and an "Add jobs from Bayt" section with the bookmarklet.
+- **Settings** (`/settings`): your profile, the cover-letter sentences, form facts, the search and filter settings and the AI provider, validated with the same schemas as the CLI before they are saved.
+- **Analytics** (`/analytics`): the application funnel, response rates per source, country, CV version and AI verdict, weekly activity, time to a reply, skip patterns and fetch health (recent fetches and the sources that failed).
+- A first-run banner until your profile has a name, email, location, country code and languages.
 
 ## How it works
 
@@ -101,10 +107,10 @@ npm run web          # http://localhost:3100
 ```mermaid
 flowchart LR
   subgraph Sources
-    ATS["Company ATS APIs<br/>Greenhouse · Lever · Ashby<br/>Recruitee · Workable · SmartRecruiters"]
-    Boards["Remote boards<br/>Himalayas · Remotive · RemoteOK"]
+    ATS["Company ATS APIs<br/>Greenhouse · Lever · Ashby · Workday<br/>Recruitee · Workable · SmartRecruiters"]
+    Boards["Job boards<br/>Himalayas · Remotive · RemoteOK<br/>Arbeitnow · Adzuna"]
     LI["LinkedIn guest search"]
-    Bayt["Bayt bookmarklet<br/>(runs in your Chrome)"]
+    Bayt["Chrome extension · Bayt bookmarklet<br/>(run in your Chrome)"]
   end
 
   subgraph Bot["Bot CLI (src/, Node + TypeScript)"]
@@ -122,7 +128,7 @@ flowchart LR
   subgraph Web["Dashboard (web/, Next.js 16)"]
     Pages["Pages<br/>job list · job detail"]
     Actions["Server actions<br/>status · notes · prepare · answers"]
-    API["API routes<br/>/api/import · /api/cv · /api/bayt-script"]
+    API["API routes<br/>/api/import · /api/cv · /api/tasks · ..."]
   end
 
   Launchd["launchd 9:00<br/>scripts/daily-fetch.sh"]
@@ -212,6 +218,7 @@ Each feature uses either the score model (fast) or the letter model (better writ
 - **Claude CLI models** are `ai.scoreModel` / `ai.letterModel`. **API models** are `ai.api.scoreModel` / `ai.api.letterModel`; missing ones use the preset's defaults above. `ai.api.baseUrl` (or `AI_BASE_URL`) points at a proxy or another compatible endpoint, and `ai.api.responseFormat` (`json_schema`, `json_object`, `text`) overrides how JSON is asked for. A fit review takes about 10 s and a letter 15–60 s with any provider.
 - **The key** lives only in `.env` in the job-bot folder (see `.env.example`), never in `config.json`, and is never logged or shown; it is only sent to that provider's base URL. A missing key stops before any request, a rejected key (401/403) stops at once with a message naming `AI_API_KEY` and the provider, and a reply that is not the JSON asked for is asked for once more.
 - **Older settings still work:** `ai.provider` `"openai"` / `"deepseek"` (with their `ai.openai` / `ai.deepseek` sections) are read as `api` with that preset, and `OPENAI_API_KEY` / `DEEPSEEK_API_KEY` are read when `AI_API_KEY` is not set.
+- **Without any AI**, set `ai.enabled: false`: letters and follow-ups then use the templates, and the CV summary, letter feedback and interview prep are off. The fit review (`ai:score`, also run by the daily fetch) and form answers do not check `ai.enabled` and fail with an error instead.
 - Switch on the dashboard's Settings page ("AI provider": Claude CLI or API key, then the preset and models, with a line saying whether `AI_API_KEY` is set and whose key it looks like) or in `npm run bot -- setup`. Neither asks for the key itself.
 
 ```bash
@@ -223,102 +230,39 @@ The prompts only allow facts from `cv/master.json` and `cv/applicant.json`, and 
 
 ### Database
 
-Every CLI start applies the numbered SQL files in `src/migrations/` that the database has not run yet (recorded in `schema_migrations`), so there is no migration command. To change the schema, add the next `NNN_name.sql` file; never edit one that is already committed (see `src/migrate.ts`).
+Every CLI command that uses the database first applies the numbered SQL files in `src/migrations/` that the database has not run yet (recorded in `schema_migrations`), so there is no migration command. The dashboard does not run them: after pulling, run any bot command (e.g. `npm run bot -- stats`) before using it. To change the schema, add the next `NNN_name.sql` file; never edit one that is already committed (see `src/migrate.ts`).
 
 - `jobs`: one row per posting. It holds the score, matched/missing skills, visa note, flags, status, filter reason, CV version, cover letter, CV summary for the job, when you last edited either by hand, AI review, form answers, interview prep, follow-up count and draft, alert time, notes and `duplicate_of`.
 - `job_events`: every status change with a note.
 - `fetch_runs`: per fetch, how many postings were checked, how many were new and which sources failed.
+- `tasks`: the dashboard's background tasks (see [Architecture](#architecture)).
+- `contacts`: people per job and company.
 
-Connection: `postgres://postgres@127.0.0.1:5432/job_bot`, set in `.env` and `web/.env.local`. PostgreSQL runs through DBngin.
+Connection: `DATABASE_URL` in `.env` (the bot) and `web/.env.local` (the dashboard), e.g. `postgres://postgres@127.0.0.1:5432/job_bot`, on a local PostgreSQL 15 or newer (DBngin or Homebrew).
 
-## Getting started for a new user
+## Getting started
 
-### Prerequisites
-
-- macOS (the daily fetch and the notifications use launchd and `osascript`; the rest also runs elsewhere).
-- Node.js 24 or newer (`node --version`).
-- PostgreSQL 15+ on `127.0.0.1:5432` with a `postgres` user, e.g. via [DBngin](https://dbngin.com) or Homebrew.
-- Google Chrome (CV PDFs are rendered with it).
-- For the AI features, one of: the [Claude Code CLI](https://docs.claude.com/en/docs/claude-code), signed in (`claude` on your PATH; the default, no API key), or one API key from OpenAI, Anthropic, Gemini, Groq, DeepSeek or another OpenAI-compatible provider (paid per token; see [AI](#ai)). Without any, set `ai.enabled: false`; letters and follow-ups then use the templates.
-
-### 1. Clone and install
+The full step-by-step guide, with every setting explained, is **[docs/SETUP.md](docs/SETUP.md)**. In short, with Node 24+, PostgreSQL, Chrome and (optionally) a signed-in Claude Code CLI:
 
 ```bash
-git clone <this repository> ~/job-bot && cd ~/job-bot
-npm install && npm --prefix web install
+git clone <this repository> ~/job-bot && cd ~/job-bot && npm install && npm --prefix web install
+createdb -h 127.0.0.1 -U postgres job_bot   # then DATABASE_URL in .env and web/.env.local (see docs/SETUP.md)
+cp cv/master.example.json cv/master.json     # replace the example with your CV
+npm run bot -- setup && npm run bot -- cv:default   # your profile and target markets, then your CV PDF
+npm run bot -- fetch && npm run bot -- ai:score && npm run web   # http://localhost:3100
 ```
 
-Keep it outside `~/Desktop` and `~/Documents` if you want the daily fetch: macOS does not let background jobs read those folders.
-
-### 2. Create the database
-
-```bash
-createdb -h 127.0.0.1 -U postgres job_bot
-echo 'DATABASE_URL=postgres://postgres@127.0.0.1:5432/job_bot' > .env
-echo 'DATABASE_URL=postgres://postgres@127.0.0.1:5432/job_bot' > web/.env.local
-```
-
-The tables are created by the first bot command (see [Database](#database)). For the tests: `npm run test:db`.
-
-### 3. Your CV: `cv/master.json`
-
-The bot only ever uses what is in this file: it is the source of every CV version, the AI prompts and the skill match. Start from the fictional example and replace everything:
-
-```bash
-cp cv/master.example.json cv/master.json
-```
-
-Format: `name`, `title`, `contact` (`phone`, `email`, `location`, `linkedin`), `summary`, `skills` (groups of `items`; a job's skill counts as yours when it is listed here), `experience` (`role`, `company`, `location`, `dates`, `tags`, `bullets`), `projects` (`name`, `url`, `tags`, `text`) and `education` (`school`, `degree`, `dates`). `tags` (e.g. `laravel`, `mern`, `ai`) decide which projects a CV version lists first. Then render it: `npm run bot -- cv:default`.
-
-### 4. Your profile and target markets: `npm run bot -- setup`
-
-```bash
-npm run bot -- setup
-```
-
-It asks for your name, email, phone and LinkedIn (defaults from your CV), the city and country you live in with its two-letter code and UTC offset, the languages you speak, your work authorisation, visa and relocation wording, then the countries you target (two-letter codes, with whether you need a visa there), remote jobs and the country you work remotely from, the LinkedIn search locations, Claude CLI or API key (with `claude-cli` the path to `claude`; with `api` the preset, auto-detected from the key by default, and a reminder to put `AI_API_KEY=...` in `.env`; it never asks for the key itself) and your CV's file name. Each question shows the current value in brackets: Enter keeps it, `-` clears it. Both files are validated before they are written: `cv/applicant.json` (your profile, kept out of git) and `config.json`. Run it again any time, or edit the same fields on the dashboard's Settings page.
-
-Also worth a look in `config.json`: `companies` (career boards to watch; `npm run bot -- discover <company> --add` finds more), `roleInclude` / `roleExclude` (job titles for your stack), and `linkedin.keywords` / `remote.himalayasQueries` (your skills).
-
-### 5. Fetch and open the dashboard
-
-```bash
-npm run bot -- sponsors:update   # only if you target the Netherlands: IND sponsor register (monthly)
-npm run bot -- fetch
-npm run web                      # http://localhost:3100
-```
-
-The dashboard shows a banner until your profile has a name, email, location, country code and languages.
-
-### 6. Daily fetch (optional, macOS)
-
-`scripts/daily-fetch.sh` fetches, checks for closed postings, runs the AI review, shows a notification and backs up the database. To run it every morning at 9:00 (and on wake), save this as `~/Library/LaunchAgents/com.<you>.job-bot.fetch.plist`, with your user name and the path of your clone:
-
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>Label</key><string>com.<you>.job-bot.fetch</string>
-  <key>ProgramArguments</key><array><string>/Users/<you>/job-bot/scripts/daily-fetch.sh</string></array>
-  <key>StartCalendarInterval</key><dict><key>Hour</key><integer>9</integer><key>Minute</key><integer>0</integer></dict>
-</dict>
-</plist>
-```
-
-```bash
-launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.<you>.job-bot.fetch.plist
-```
+`setup` does not change `companies`, `roleInclude` / `roleExclude`, `linkedin.keywords` or `remote.himalayasQueries`: the repository's values are the original author's (Laravel / Node / React in the UAE, Saudi Arabia and the Netherlands), so review them in `config.json` (see the [configuration reference](docs/SETUP.md#7-configuration-reference-configjson)).
 
 ## CLI reference
 
 ```bash
 npm run bot -- setup                          # first run: your profile and target markets (asks, validates, saves)
-npm run bot -- fetch [--company <name>]       # fetch all sources (or one)
+npm run bot -- fetch [--company <name>]       # fetch all sources (or those whose name contains <name>, e.g. linkedin)
 npm run bot -- rescore                        # re-apply filters after editing config.json, no downloads
-npm run bot -- list [--status new] [--country NL] [--min 60]
+npm run bot -- list [--status new] [--country NL] [--min 60] [--limit 30]   # --status filtered shows the reasons
 npm run bot -- show <id> [--full]
-npm run bot -- ai:score [--id <id>]           # AI fit review
+npm run bot -- ai:score [--id <id>] [--limit N] [--all]   # AI fit review of new matches (--all: review them again)
 npm run bot -- prepare <id> [--cv laravel] [--force] [--letter]   # CV only; --letter also writes the letter
 npm run bot -- letter <id> [--template]       # write or rewrite the cover letter
 npm run bot -- letter <id> --feedback "shorter"   # AI rewrites the current letter with your feedback (prints a note on what it left out)
@@ -334,13 +278,15 @@ npm run bot -- followed-up <id>                # record a sent follow-up (remind
 npm run bot -- custom <id> --overrides o.json # one-off CV for a single job (new custom-…-v<N> folder each run)
 npm run bot -- mark <id> applied|interview|offer|rejected|skipped|expired ["note"] [--reason stack|seniority|salary|location|company|language|other]
 npm run bot -- contacts <id>                  # a job's contacts, plus people you know at the same company
-npm run bot -- contact:add <id> --name "Jane" [--role recruiter] [--email x] [--linkedin https://...] [--referral "to ask"]
+npm run bot -- contact:add <id> --name "Jane" [--role recruiter|"hiring manager"|referral|other] [--email x] [--phone x]
+                [--linkedin https://...] [--notes x] [--referral "to ask"]
 npm run bot -- add [--file job.json]          # add a job manually (JSON or stdin)
-npm run bot -- discover <company...> [--add]
+npm run bot -- discover <company...> [--add]   # find a company's board (6 ATS by name, or a myworkdayjobs URL)
 npm run bot -- cv:default | cv:build [cluster...] | versions
 npm run bot -- ats <id> [--cv next-nest] [--json] # CV keyword check: shown, hidden but true, missing
 npm run bot -- sponsors:update | stats | dedupe
-npm run bot -- settings:check|settings:save --kind config|applicant [--file x.json]  # validate (and save) settings, JSON result
+npm run bot -- settings:check|settings:save --kind config|applicant [--file x.json]  # validate (and save) settings, JSON result; no --file reads stdin
+npm run bot -- task:run <id>                  # run a queued background task (the dashboard starts these)
 ```
 
 `add` JSON format:
@@ -358,7 +304,7 @@ npm run bot -- settings:check|settings:save --kind config|applicant [--file x.js
 
 ### Daily fetch
 
-The launchd job (`~/Library/LaunchAgents/com.<you>.job-bot.fetch.plist`, see [step 6](#6-daily-fetch-optional-macos)) runs `scripts/daily-fetch.sh` at 9:00 (or on wake). It logs to `data/fetch.log`. The project lives in `~/job-bot`, not on the Desktop, because macOS does not let background jobs read the Desktop.
+The launchd job (`~/Library/LaunchAgents/com.<you>.job-bot.fetch.plist`, see [docs/SETUP.md](docs/SETUP.md#10-the-daily-fetch-launchd)) runs `scripts/daily-fetch.sh` at 9:00 (if the Mac is asleep then, when it wakes; a Mac that was shut down skips that day's run). It logs to `data/fetch.log`. The project lives in `~/job-bot`, not on the Desktop, because macOS does not let background jobs read the Desktop.
 
 Run it now:
 
@@ -374,22 +320,25 @@ launchctl bootout gui/$(id -u)/com.<you>.job-bot.fetch
 
 ## Configuration (`config.json`)
 
-| Key                                          | What it controls                                                                                    |
-| -------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| `countries`                                  | Target countries: `name`, `match`, `visa`, `needsVisa`, `label`                                     |
-| `companies`                                  | Company boards to fetch (`ats` + `token`)                                                           |
-| `roleInclude`/`roleExclude`                  | Title rules                                                                                         |
-| `minScore`, `maxAgeDays`                     | Keyword-score threshold (45) and maximum posting age (14 days)                                      |
-| `remote`                                     | Remote boards, region rules, `from` / `fromCode`                                                    |
-| `linkedin`                                   | Keywords, locations, `remoteFrom`, pages per search                                                 |
-| `ai`                                         | `provider`, Claude path and models, `api` (preset, base URL, models), `maxScorePerRun`, concurrency |
-| `cvFileName`, `autoCvVersions`, `chromePath` | CV output settings                                                                                  |
+An overview; [docs/SETUP.md](docs/SETUP.md#7-configuration-reference-configjson) has every key with its type, default, sensible values and how the filters use it.
+
+| Key                                          | What it controls                                                                                                                |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `countries`                                  | Target countries: `name`, `match`, `visa`, `needsVisa`, `label`                                                                 |
+| `companies`                                  | Company boards to fetch (`ats` + `token`)                                                                                       |
+| `roleInclude`/`roleExclude`                  | Title rules                                                                                                                     |
+| `minScore`, `maxAgeDays`                     | Keyword-score threshold (45) and maximum posting age (14 days)                                                                  |
+| `remote`                                     | Remote boards, region rules, `from` / `fromCode`                                                                                |
+| `linkedin`                                   | Keywords, locations, `remoteFrom`, pages per search                                                                             |
+| `adzuna`                                     | Optional: Adzuna country indexes, keywords, pages per search                                                                    |
+| `ai`                                         | `enabled`, `provider`, Claude path and models, `api` (preset, base URL, models), `maxScorePerRun`, `concurrency`, `alertStrong` |
+| `cvFileName`, `autoCvVersions`, `chromePath` | CV output settings                                                                                                              |
 
 `needsVisa` missing means a visa is needed; `label` is the short name on the dashboard. `remote.from` / `remote.fromCode` are the country you work remotely from and its ISO code (missing: `linkedin.remoteFrom`, then your profile).
 
 ## Your profile (`cv/applicant.json`)
 
-Gitignored. Created by `npm run bot -- setup` or the Settings page; `cv/applicant.example.json` shows a fictional person.
+Gitignored. Created by `npm run bot -- setup` or the Settings page; `cv/applicant.example.json` shows a fictional person. Every field is described in [docs/SETUP.md](docs/SETUP.md#6-your-profile-cvapplicantjson).
 
 | Key                                            | What it is for                                                           |
 | ---------------------------------------------- | ------------------------------------------------------------------------ |
@@ -402,7 +351,7 @@ Gitignored. Created by `npm run bot -- setup` or the Settings page; `cv/applican
 
 `coverLetter` holds `intro`, `pitch` (per CV cluster, plus `default`), `strengths` and `remote`.
 
-Both files are validated on load, so a typo stops the bot with the file and field name. Set `JOB_BOT_CONFIG` / `JOB_BOT_APPLICANT` (and `JOB_BOT_MASTER` for the CV) to use other files.
+Both files are validated on load, so a typo stops the bot with the file and field name. `JOB_BOT_CONFIG` / `JOB_BOT_APPLICANT` (and `JOB_BOT_MASTER` for the CV) point the bot at other files; the tests use them. `discover --add` and parts of the dashboard (CV file name, salary expectations, the extension's profile) still read the project's own files.
 
 After changing filters, run `npm run bot -- rescore`.
 
@@ -421,19 +370,25 @@ src/
   db.ts             Postgres access, upsert, status changes, dedupe
   migrate.ts        migration runner (applied on start)
   migrations/       numbered schema files (001_baseline.sql, ...)
-  ai.ts             AI prompts and schemas: review, letter, form answers, interview prep, follow-up
+  ai.ts             AI prompts and schemas: review, letter, CV summary, form answers, interview prep, follow-up
   ai-providers.ts   AI providers: Claude CLI or one API key (askAi)
   ai-presets.ts     API presets: URLs, default models, JSON mode, key detection
+  profile.ts        your profile from cv/applicant.json (+ cv/master.json fallbacks), visa and remote-from rules
+  tasks.ts          background task queue (claim, run, time out, clean up)
+  notify.ts         macOS notifications for strong matches
+  followup.ts       follow-up reminders and template
   cover.ts          template cover letter
   sponsors.ts       IND recognised-sponsor register
   discover.ts       find a company's ATS board
-  sources/          ATS adapters, remote boards, LinkedIn, paced HTTP
+  sources/          ATS adapters, job boards, LinkedIn, dead-link check, paced and cached HTTP
   cv/               profiles, versioning, PDF rendering
 web/
   app/              pages, server actions, API routes
   components/       UI and client components
-  lib/              DB queries and the CLI runner
-scripts/            daily fetch, Bayt bookmarklet
+  lib/              DB queries, the CLI runner, settings and profile mirrors of the bot's logic
+  proxy.ts          refuses requests whose Host is not localhost
+scripts/            daily fetch, database backup, test-database creation, Bayt bookmarklet
+docs/SETUP.md       setup guide for a new user: install, every setting, first run, troubleshooting
 extension/          Chrome extension: send a job, apply helper side panel with form auto-fill
 tests/              backend tests (node:test)
 web/tests/          dashboard tests (vitest)
@@ -449,7 +404,8 @@ npm run typecheck    # tsc for the bot (src/, tests/) and the dashboard (web/)
 npm run lint         # Biome lint + format check; npm run format fixes it
 ```
 
-- Tests use separate databases: `job_bot_test_bot` (backend) and `job_bot_test` (dashboard). They never touch the real `job_bot`.
+- Tests use separate databases: `job_bot_test_bot` (backend) and `job_bot_test` (dashboard). They never touch the real `job_bot`. Create them once with `npm run test:db -- job_bot_test_bot job_bot_test` (the script needs the names). `BOT_TEST_DB` / `WEB_TEST_DB` pick other test databases (e.g. `job_bot_test_bot_wt1`) so parallel worktrees do not collide.
+- Some tests pin the original author's letters and filter results against the repository's `config.json` and `cv/master.json` (`tests/fixtures/owner-golden.json`), so they fail once you replace those files with your own.
 - Job-site requests are mocked, a fake script (`tests/fixtures/fake-claude.mjs`) stands in for Claude, and the API providers answer from mocked fetch with a dummy key, so tests run offline and use none of your Claude plan or API credit.
 - Every new feature or change ships with its tests (see `CLAUDE.md`).
 - `npm install` points git at `.githooks/`, so each commit runs Biome on the staged files. GitHub Actions runs lint, typecheck and both suites on every push.
