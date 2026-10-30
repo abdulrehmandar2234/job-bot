@@ -199,6 +199,8 @@ describe('job page', () => {
       const again = screen.getByRole('heading', { name: /^Cover letter/ }).closest('section')!;
       expect(within(again).getByRole('button', { name: 'Rewrite letter' })).toBeInTheDocument();
       expect(again).toHaveTextContent('Dear Acme');
+      expect(within(again).getByRole('link', { name: 'Download PDF ↓' })).toHaveAttribute('href', `/api/letter/${encodeURIComponent(id)}`);
+      expect(within(section).queryByRole('link', { name: 'Download PDF ↓' })).toBeNull(); // none before a letter exists
     });
 
     it('shows "Writing letter…" while the first letter is written', async () => {

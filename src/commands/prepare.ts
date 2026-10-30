@@ -1,7 +1,8 @@
 import { existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs';
 import { config, path } from '../config.ts';
 import { getJob, pool, setStatus, type Job, type JobStatus } from '../db.ts';
-import { cvFile, versionFor } from '../cv/versions.ts';
+import { cvFile, masterRaw, versionFor } from '../cv/versions.ts';
+import { htmlToPdf, letterHtml, type Cv } from '../cv/render.ts';
 import { PROFILES } from '../cv/profiles.ts';
 import { coverLetter } from '../cover.ts';
 import { aiCoverLetter } from '../ai.ts';
@@ -57,6 +58,24 @@ export async function letter(args: string[], flags: Flags) {
   const { file, ai } = await writeLetter(j, flags);
   console.log(`${j.company} — ${j.title}`);
   console.log(`Cover      : ${file} ${ai ? '(written by AI from the job description)' : '(template)'}`);
+}
+
+/**
+ * letter:pdf <id>: prints the job's cover letter to `cover-letter.pdf` in its applications/ folder, with the CV's
+ * name, title and contact as the header. The dashboard's "Download PDF" runs this and serves the file.
+ */
+export async function letterPdf(args: string[]) {
+  const j = await getJob(args[0]);
+  if (!j) return console.log('Not found');
+  if (!j.cover_letter) {
+    console.log(`No cover letter yet: npm run bot -- letter ${j.id}`);
+    process.exitCode = 1;
+    return;
+  }
+  const cv = JSON.parse(masterRaw()) as Cv;
+  const file = `${applicationDir(j)}/cover-letter.pdf`;
+  await htmlToPdf(letterHtml(cv, j.cover_letter), file);
+  console.log(`PDF        : ${file}`);
 }
 
 /**

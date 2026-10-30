@@ -23,6 +23,7 @@ const commands: Record<string, () => Promise<Command>> = {
   stats: async () => (await import('./commands/list.ts')).stats,
   prepare: async () => (await import('./commands/prepare.ts')).prepare,
   letter: async () => (await import('./commands/prepare.ts')).letter,
+  'letter:pdf': async () => (await import('./commands/prepare.ts')).letterPdf,
   'check:open': async () => (await import('./commands/open.ts')).checkOpen,
   'ai:score': async () => (await import('./commands/ai.ts')).aiScore,
   answer: async () => (await import('./commands/ai.ts')).answer,
@@ -59,6 +60,7 @@ if (!load) {
   prepare <id> [--cv cluster]     default CV (or --cv version); checks the posting is still open first (--force
                                   skips that); --letter also writes the cover letter
   letter <id> [--template]        write or rewrite the cover letter (AI from the description, else the template)
+  letter:pdf <id>                 print the cover letter to cover-letter.pdf in the job's applications/ folder
   check:open [<id>...] [--status new,prepared] [--limit N]
                                   mark closed postings expired (default: new + prepared not checked for 3 days)
   ai:score [--id x] [--limit n]   AI fit review of matching jobs (--all to redo)
