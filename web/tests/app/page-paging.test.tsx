@@ -76,7 +76,7 @@ describe('job list paging', () => {
     // Tabs start again at page 1.
     expect(within(screen.getByRole('navigation', { name: 'Job status' })).getByRole('link', { name: /^Applied/ })).toHaveAttribute(
       'href',
-      '/?status=applied&q=pagerzz&sort=newest',
+      '/?status=applied&q=pagerzz&in=tab&sort=newest',
     );
   });
 
@@ -88,6 +88,48 @@ describe('job list paging', () => {
     expect(within(pager()[0]).getByText('1–25 of 26 jobs')).toBeInTheDocument();
     expect(within(pager()[0]).getByRole('link', { name: 'Next →' })).toHaveAttribute('href', '/?status=new&q=pagerzz&visa=1&page=2');
     expect(screen.getByRole('checkbox', { name: 'Visa/relocation offered (or not needed)' })).toBeChecked();
+  });
+
+  it('shows 10, 50 or 100 per page when chosen, and every link keeps the size', async () => {
+    for (let i = 0; i < 27; i++) await insertJob({ id: `ps-${String(i).padStart(2, '0')}`, title: `TG pagerzz ${i}`, score: 60 });
+    await renderList({ q: 'pagerzz', size: '10', page: '2' });
+    expect(cardTitles()).toHaveLength(10);
+    expect(within(pager()[0]).getByText('11–20 of 27 jobs')).toBeInTheDocument();
+    expect(within(pager()[0]).getByRole('link', { name: 'Next →' })).toHaveAttribute('href', '/?status=new&q=pagerzz&size=10&page=3');
+    expect(within(screen.getByRole('navigation', { name: 'Job status' })).getByRole('link', { name: /^Applied/ })).toHaveAttribute(
+      'href',
+      '/?status=applied&q=pagerzz&in=tab&size=10',
+    );
+    expect(screen.getByRole('combobox', { name: 'Jobs per page' })).toHaveValue('10');
+
+    document.body.innerHTML = '';
+    await renderList({ q: 'pagerzz', size: '50' });
+    expect(cardTitles()).toHaveLength(27);
+    expect(screen.queryByRole('navigation', { name: 'Pages' })).not.toBeInTheDocument();
+
+    document.body.innerHTML = '';
+    await renderList({ q: 'pagerzz', size: '7' }); // not offered: the default 25
+    expect(cardTitles()).toHaveLength(25);
+    expect(screen.getByRole('combobox', { name: 'Jobs per page' })).toHaveValue('25');
+  });
+
+  it('a search looks in every tab, tags each card with its tab, and can be narrowed to one tab', async () => {
+    await insertJob({ id: 'st-new', title: 'TG one', company: 'Searchco', status: 'new' });
+    await insertJob({ id: 'st-prep', title: 'TG two', company: 'Searchco', status: 'prepared', cv_version: 'default' });
+    await insertJob({ id: 'st-skip', title: 'TG three', company: 'Searchco', status: 'skipped' });
+    await renderList({ status: 'new', q: 'searchco' });
+    expect(screen.getByText(/in every tab/)).toBeInTheDocument();
+    expect(cardTitles().sort()).toEqual(['TG one · Searchco Matching', 'TG three · Searchco Skipped', 'TG two · Searchco Prepared']);
+    const nav = screen.getByRole('navigation', { name: 'Job status' });
+    expect(within(nav).queryByRole('link', { current: 'page' })).toBeNull(); // no tab is "the" tab
+    expect(within(nav).getByRole('link', { name: /^Skipped/ })).toHaveAttribute('href', '/?status=skipped&q=searchco&in=tab');
+    expect(screen.getByRole('link', { name: 'Search only in Matching' })).toHaveAttribute('href', '/?status=new&q=searchco&in=tab');
+
+    document.body.innerHTML = '';
+    await renderList({ status: 'skipped', q: 'searchco', in: 'tab' });
+    expect(cardTitles()).toEqual(['TG three · Searchco ']);
+    expect(screen.getByText(/in Skipped only/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Search every tab' })).toHaveAttribute('href', '/?status=skipped&q=searchco');
   });
 
   it('has no page links when the list fits on one page', async () => {

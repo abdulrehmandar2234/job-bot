@@ -192,8 +192,9 @@ describe('job list page', () => {
   });
 
   it('keeps the filters in the tab links and the filter form', async () => {
-    await renderPage({ status: 'applied', country: 'AE', min: '60', q: 'laravel', days: '7', sort: 'newest' });
-    expect(tab('Matching')).toHaveAttribute('href', '/?status=new&country=AE&min=60&q=laravel&days=7&sort=newest');
+    // in=tab: a search narrowed to this tab (without it, a search looks in every tab: tests/app/page-paging.test.tsx).
+    await renderPage({ status: 'applied', country: 'AE', min: '60', q: 'laravel', in: 'tab', days: '7', sort: 'newest' });
+    expect(tab('Matching')).toHaveAttribute('href', '/?status=new&country=AE&min=60&q=laravel&in=tab&days=7&sort=newest');
     expect(tab('Applied')).toHaveClass('font-medium');
 
     const form = screen.getByRole('button', { name: 'Apply filters' }).closest('form')!;

@@ -48,6 +48,8 @@ async function renderJob(id: string) {
 }
 
 const answersSection = () => screen.getByRole('heading', { name: /Application form answers/ }).closest('section')!;
+// History folds away in the sidebar behind "History · n changes".
+const history = () => screen.getByRole('heading', { name: /^History/ }).closest('details')!;
 
 const id = PREFIX + 'page';
 
@@ -82,8 +84,9 @@ describe('job page', () => {
     expect(screen.getByRole('link', { name: 'Company site ↗' })).toHaveAttribute('href', 'https://boards.greenhouse.io/acme/1');
     expect(screen.getByRole('link', { name: 'LinkedIn ↗' })).toHaveAttribute('href', 'https://linkedin.com/jobs/1');
     expect(screen.getByRole('button', { name: 'Got interview' })).toBeInTheDocument();
-    const history = screen.getByRole('heading', { name: 'History' }).closest('section')!;
-    expect(history).toHaveTextContent('new → applied (via site)');
+    expect(history()).toHaveTextContent('new → applied (via site)');
+    expect(screen.getByRole('heading', { name: /^History/ })).toHaveTextContent('History · 1 change');
+    expect(history()).not.toHaveAttribute('open');
   });
 
   it('shows the CV panel with the template select, previews, feedback and suggestions, and hides it while a CV task runs', async () => {
@@ -125,7 +128,7 @@ describe('job page', () => {
     expect(screen.getByText(/for a referral before applying/)).toHaveTextContent(
       'Ask Sam for a referral before applying (you added them on Frontend Engineer).',
     );
-    expect(screen.getByRole('heading', { name: 'History' }).closest('section')).toHaveTextContent('new → skipped · Stack');
+    expect(history()).toHaveTextContent('new → skipped · Stack');
   });
 
   it('shows only the draft form when there are no answers yet', async () => {
@@ -184,6 +187,160 @@ describe('job page', () => {
     await insertJob({ id: 'page:with/slash', title: 'Encoded' });
     await renderJob(PREFIX + 'page:with/slash');
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Encoded');
+  });
+
+  describe('layout', () => {
+    const aside = () => screen.getByRole('complementary', { name: 'Job summary and actions' });
+
+    it('puts the application work in <main> and the summary, actions, contacts and notes in the sidebar', async () => {
+      await insertJob({ id, status: 'new', cover_letter: 'Dear Acme', cover_letter_ai: true, cluster: 'laravel' });
+      await pool.query(`INSERT INTO job_events (job_id, from_status, to_status) VALUES ($1, NULL, 'new')`, [id]);
+      await renderJob(id);
+      const main = screen.getByRole('main');
+      for (const name of [/^Cover letter/, /^CV summary for this job/, /^Application form answers/, 'Job description'])
+        expect(within(main).getByRole('heading', { name })).toBeInTheDocument();
+
+      const side = aside();
+      expect(within(side).getByRole('link', { name: 'Open job ↗' })).toHaveAttribute('href', `https://example.com/${id}`);
+      for (const name of ['Prepare CV', 'Mark applied ✓', 'Skip', 'AI review', 'Check if still open', 'Save notes'])
+        expect(within(side).getByRole('button', { name })).toBeInTheDocument();
+      for (const name of [/^Contacts/, /^History/, /^CV ·/]) expect(within(side).getByRole('heading', { name })).toBeInTheDocument();
+      expect(within(side).getByRole('textbox', { name: 'Job notes' })).toBeInTheDocument();
+      expect(within(main).getByText(/CV keyword/)).toBeInTheDocument(); // the keyword check (or its loading line)
+      expect(within(main).queryByRole('button', { name: 'Prepare CV' })).toBeNull();
+      expect(within(side).queryByRole('heading', { name: /^Cover letter/ })).toBeNull();
+      // The page's own heading comes before both columns, and the status is shown once.
+      expect(screen.getByRole('heading', { level: 1 }).compareDocumentPosition(side) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(screen.getAllByText(/Status:/)).toHaveLength(1);
+      expect(within(side).getByText(/Status:/)).toHaveTextContent('Status: Matching');
+    });
+
+    it('keeps the CV download in its own named sidebar block, apart from the other actions', async () => {
+      await insertJob({ id, status: 'prepared', cv_version: 'laravel-v2', cluster: 'laravel' });
+      await renderJob(id);
+      const cv = within(aside()).getByRole('region', { name: /^CV/ });
+      expect(cv).toHaveAttribute('id', 'cv');
+      expect(cv).toHaveTextContent('suggested version: laravel');
+      expect(within(cv).getByRole('link', { name: 'Download CV (laravel-v2) ↓' })).toHaveAttribute('href', '/api/cv/laravel-v2?download');
+      expect(within(cv).queryByRole('button', { name: 'Mark applied ✓' })).toBeNull();
+    });
+
+    it('shows the job facts in the summary card: score, salary, visa label and posted date', async () => {
+      await insertJob({
+        id,
+        score: 64,
+        ai_score: 82,
+        ai_verdict: 'strong',
+        salary_min: 20_000,
+        salary_max: 25_000,
+        salary_currency: 'AED',
+        salary_period: 'month',
+        visa: 'Visa sponsorship mentioned',
+        visa_evidence: 'offered',
+        posted_at: new Date(),
+      });
+      await renderJob(id);
+      const card = within(aside()).getByRole('region', { name: 'Job summary' });
+      expect(card).toHaveTextContent('AI score 82 · keyword score 64');
+      expect(card).toHaveTextContent('💰 AED 20k–25k / month');
+      expect(card).toHaveTextContent('✓ Visa/relocation offered · Visa sponsorship mentioned');
+      expect(card).toHaveTextContent(/posted <24h ago/);
+    });
+
+    it('links to each section of the main column, and to interview prep only when it is shown', async () => {
+      await insertJob({ id, status: 'new' });
+      await renderJob(id);
+      const nav = screen.getByRole('navigation', { name: 'Sections on this page' });
+      const links = within(nav)
+        .getAllByRole('link')
+        .map((a) => [a.textContent, a.getAttribute('href')]);
+      expect(links).toEqual([
+        ['Cover letter', '#letter'],
+        ['CV summary', '#cv-summary'],
+        ['CV template', '#cv-panel'],
+        ['Form answers', '#answers'],
+        ['Job description', '#description'],
+      ]);
+      for (const [, href] of links) expect(document.getElementById(href!.slice(1))).not.toBeNull();
+
+      await cleanupDb();
+      document.body.innerHTML = '';
+      await insertJob({ id, status: 'interview' });
+      await renderJob(id);
+      const prep = within(screen.getByRole('navigation', { name: 'Sections on this page' })).getByRole('link', { name: 'Interview prep' });
+      expect(document.getElementById('prep')).toContainElement(screen.getByRole('heading', { name: /^Interview prep/ }));
+      expect(prep).toHaveAttribute('href', '#prep');
+    });
+  });
+
+  describe('folded sections', () => {
+    const long = `First line of the job.\n${'We build payroll software for the Gulf. '.repeat(30)}\nLast line of the job.`;
+
+    it('shows the first lines of a long description and folds the rest behind "Show full description"', async () => {
+      await insertJob({ id, description: long });
+      await renderJob(id);
+      const section = screen.getByRole('heading', { name: 'Job description' }).closest('section')!;
+      const toggle = within(section).getByText('Show full description');
+      const details = toggle.closest('details')!;
+      expect(details).not.toHaveAttribute('open');
+      expect(details).toHaveTextContent('Last line of the job.');
+      // The preview is the visible part while folded.
+      const preview = section.querySelector('p.line-clamp-4')!;
+      expect(preview).toHaveTextContent(/^First line of the job\./);
+      expect(details).not.toContainElement(preview as HTMLElement);
+    });
+
+    it('shows a short description in full with no toggle', async () => {
+      await insertJob({ id, description: 'Short and sweet.' });
+      await renderJob(id);
+      const section = screen.getByRole('heading', { name: 'Job description' }).closest('section')!;
+      expect(section).toHaveTextContent('Short and sweet.');
+      expect(within(section).queryByText(/Show full description/)).toBeNull();
+      expect(section.querySelector('details')).toBeNull();
+    });
+
+    it('keeps the AI verdict and summary visible and folds the reasons, gaps and flags', async () => {
+      await insertJob({
+        id,
+        ai_score: 80,
+        ai_verdict: 'strong',
+        ai_summary: 'Good Laravel fit.',
+        ai_reasons: ['Laravel'],
+        ai_gaps: ['Kafka'],
+        ai_flags: [],
+      });
+      await renderJob(id);
+      const heading = screen.getByRole('heading', { name: /^AI review/ });
+      expect(heading).toHaveTextContent('AI review · strong');
+      const summary = heading.closest('summary')!;
+      expect(summary).toHaveTextContent('Good Laravel fit.');
+      const details = summary.closest('details')!;
+      expect(details).not.toHaveAttribute('open');
+      expect(details).toHaveTextContent('✓ Laravel');
+      expect(summary).not.toHaveTextContent('✓ Laravel');
+    });
+
+    it('folds the skills match behind its counts, with a filter reason left visible', async () => {
+      await insertJob({ id, matched: ['Laravel', 'PHP'], missing: ['Go'], flags: [], filter_reason: 'needs Arabic' });
+      await renderJob(id);
+      const heading = screen.getByRole('heading', { name: /^Skills match/ });
+      expect(heading).toHaveTextContent('Skills match · 2 you have · 1 missing');
+      expect(heading.closest('summary')).toHaveTextContent('✗ Filtered: needs Arabic');
+      expect(heading.closest('details')).not.toHaveAttribute('open');
+    });
+
+    it('keeps the letter state, Copy and Download PDF visible, and folds the letter text with its editor', async () => {
+      await insertJob({ id, cover_letter: 'Dear Acme,\nI am writing to apply.', cover_letter_ai: true });
+      await renderJob(id);
+      const section = screen.getByRole('heading', { name: /^Cover letter/ }).closest('section')!;
+      const details = within(section).getByText('Show full letter').closest('details')!;
+      expect(details).not.toHaveAttribute('open');
+      for (const name of ['Edit', 'Rewrite with feedback']) expect(within(details).getByRole('button', { name })).toBeInTheDocument();
+      const download = within(section).getByRole('link', { name: 'Download PDF ↓' });
+      expect(details).not.toContainElement(download);
+      expect(details).not.toContainElement(within(section).getByRole('button', { name: 'Copy' }));
+      expect(within(section).getByRole('heading')).toHaveTextContent('· written by AI from this job description');
+    });
   });
 
   describe('background tasks', () => {
