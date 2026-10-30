@@ -66,7 +66,7 @@ describe('ConfigForm', () => {
     expect(screen.getByLabelText('Search LinkedIn')).not.toBeChecked();
     expect(screen.getByLabelText('Search remote boards')).toBeChecked();
     expect(screen.getByLabelText(/^UAE \(AE, visa: employer\)/)).toHaveValue('dubai|uae');
-    expect(screen.getByLabelText('Score model')).toHaveValue('haiku');
+    expect(screen.getByLabelText('Claude CLI score model')).toHaveValue('haiku');
     expect(screen.getAllByTestId('company-row')).toHaveLength(2);
     expect(screen.getByLabelText('Company 1 ATS')).toHaveValue('greenhouse');
     expect(
@@ -84,6 +84,53 @@ describe('ConfigForm', () => {
     unmount();
     render(<ConfigForm config={file({ ...CONFIG, ai: { ...CONFIG.ai, alertStrong: false } })} />);
     expect(screen.getByLabelText(/Alert me at once for strong matches/)).not.toBeChecked();
+  });
+
+  it('shows the AI provider select (Claude CLI by default) and per-provider model fields, with no key field', () => {
+    render(<ConfigForm config={file(CONFIG)} keys={{ openai: false, deepseek: false }} />);
+    const select = screen.getByLabelText(/^AI provider/);
+    expect(select).toHaveValue('claude-cli');
+    expect(
+      within(select)
+        .getAllByRole('option')
+        .map((o) => o.textContent),
+    ).toEqual(['Claude CLI', 'OpenAI', 'DeepSeek']);
+    expect(screen.getByText(/no API key, usage comes from your Claude plan/)).toBeInTheDocument();
+    expect(screen.queryByTestId('ai-key-status')).toBeNull(); // the Claude CLI needs no key
+    expect(screen.getByLabelText(/^OpenAI score model/)).toHaveValue('');
+    expect(screen.getByText('empty = gpt-4o-mini')).toBeInTheDocument();
+    expect(screen.getByLabelText(/^DeepSeek base URL/)).toHaveValue('');
+    expect(screen.getByText(/put OPENAI_API_KEY or DEEPSEEK_API_KEY in \.env/)).toBeInTheDocument();
+    expect(document.querySelector('input[name*="key" i]')).toBeNull();
+    expect(document.querySelector('input[type="password"]')).toBeNull();
+  });
+
+  it('says whether the chosen provider key is set, never its value', async () => {
+    const user = userEvent.setup();
+    const ai = { ...CONFIG.ai, provider: 'openai', openai: { scoreModel: 'gpt-4.1-mini' } };
+    render(<ConfigForm config={file({ ...CONFIG, ai })} keys={{ openai: true, deepseek: false }} />);
+    expect(screen.getByLabelText(/^AI provider/)).toHaveValue('openai');
+    expect(screen.getByLabelText(/^OpenAI score model/)).toHaveValue('gpt-4.1-mini');
+    expect(screen.getByTestId('ai-key-status')).toHaveTextContent('OPENAI_API_KEY is set.');
+    expect(screen.getByText(/paid per token/)).toBeInTheDocument();
+    await user.selectOptions(screen.getByLabelText(/^AI provider/), 'deepseek');
+    expect(screen.getByTestId('ai-key-status')).toHaveTextContent('DEEPSEEK_API_KEY is not set');
+    await user.selectOptions(screen.getByLabelText(/^AI provider/), 'claude-cli');
+    expect(screen.queryByTestId('ai-key-status')).toBeNull();
+  });
+
+  it('submits the chosen provider and model fields', async () => {
+    vi.mocked(saveConfig).mockResolvedValue(saved('Saved.'));
+    const user = userEvent.setup();
+    render(<ConfigForm config={file(CONFIG)} />);
+    await user.selectOptions(screen.getByLabelText(/^AI provider/), 'deepseek');
+    await user.type(screen.getByLabelText(/^DeepSeek letter model/), 'deepseek-reasoner');
+    await user.click(screen.getByRole('button', { name: 'Save search settings' }));
+    await waitFor(() => expect(saveConfig).toHaveBeenCalled());
+    const fd = lastForm(saveConfig);
+    expect(fd.get('ai.provider')).toBe('deepseek');
+    expect(fd.get('ai.deepseek.letterModel')).toBe('deepseek-reasoner');
+    expect(fd.get('ai.openai.scoreModel')).toBe('');
   });
 
   it('shows the Adzuna section, empty without one, and the boards note', () => {
@@ -310,5 +357,17 @@ describe('Settings page content', () => {
     expect(screen.getByLabelText('Minimum score')).toHaveValue(45);
     expect(screen.getByText(/does not exist yet/)).toBeInTheDocument(); // example applicant file
     await waitFor(() => expect(screen.getByLabelText('config JSON')).toHaveValue(JSON.stringify(CONFIG)));
+  });
+
+  it("passes the key status from the bot's env file to the form", async () => {
+    writeFileSync(join(dir, 'config.json'), JSON.stringify({ ...CONFIG, ai: { ...CONFIG.ai, provider: 'deepseek' } }));
+    writeFileSync(join(dir, 'env'), 'DEEPSEEK_API_KEY=ds-secret\n');
+    vi.stubEnv('JOB_BOT_CONFIG', join(dir, 'config.json'));
+    vi.stubEnv('JOB_BOT_APPLICANT', join(dir, 'missing.json'));
+    vi.stubEnv('JOB_BOT_ENV_FILE', join(dir, 'env'));
+    vi.stubEnv('DEEPSEEK_API_KEY', '');
+    render(await Settings());
+    expect(screen.getByTestId('ai-key-status')).toHaveTextContent('DEEPSEEK_API_KEY is set.');
+    expect(document.body.textContent).not.toContain('ds-secret');
   });
 });

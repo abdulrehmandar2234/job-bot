@@ -2,14 +2,20 @@
 
 import { startTransition, useActionState, useState, type FormEvent, type ReactNode } from 'react';
 import { saveApplicant, saveConfig, saveJson, type SaveState } from '@/app/settings/actions';
-import type { SettingsFile } from '@/lib/settings';
+import type { AiKeyStatus, SettingsFile } from '@/lib/settings';
 import {
+  AI_PROVIDERS,
+  API_DEFAULTS,
+  API_PROVIDERS,
   APPLICANT_FACTS,
   ATS,
+  KEY_ENV,
+  PROVIDER_NAME,
   errorsFor,
   get,
   LETTER_FIELDS,
   PROFILE_FIELDS,
+  type ApiProvider,
   type Json,
   type SettingsError,
   type SettingsKind,
@@ -179,7 +185,7 @@ function CompaniesEditor({ companies, errors }: { companies: unknown; errors: Se
   );
 }
 
-export function ConfigForm({ config }: { config: SettingsFile }) {
+export function ConfigForm({ config, keys }: { config: SettingsFile; keys?: AiKeyStatus }) {
   const { state, pending, onSubmit, errors } = useSave(saveConfig);
   const c = config.data;
   if (!c)
@@ -315,26 +321,7 @@ export function ConfigForm({ config }: { config: SettingsFile }) {
           </div>
         </Section>
 
-        <Section title="AI review">
-          <Check label="Use the AI (local Claude CLI)" name="ai.enabled" value={get(c, 'ai.enabled')} />
-          {/* Missing means on (src/settings.ts), so only an explicit false unchecks it. */}
-          <Check
-            label="Alert me at once for strong matches (macOS notification)"
-            name="ai.alertStrong"
-            value={get(c, 'ai.alertStrong') !== false}
-          />
-          <div className="grid gap-3 sm:grid-cols-3">
-            <Field label="Score model" {...f('ai.scoreModel')}>
-              <input name="ai.scoreModel" defaultValue={text(get(c, 'ai.scoreModel'))} className={input} />
-            </Field>
-            <Field label="Letter model" {...f('ai.letterModel')}>
-              <input name="ai.letterModel" defaultValue={text(get(c, 'ai.letterModel'))} className={input} />
-            </Field>
-            <Field label="Max AI scores per run" {...f('ai.maxScorePerRun')}>
-              <input type="number" min={0} name="ai.maxScorePerRun" defaultValue={text(get(c, 'ai.maxScorePerRun'))} className={input} />
-            </Field>
-          </div>
-        </Section>
+        <AiSection c={c} errors={errors} keys={keys} />
 
         <Section title="Companies (careers pages)">
           <CompaniesEditor companies={c.companies} errors={errors} />
@@ -342,6 +329,75 @@ export function ConfigForm({ config }: { config: SettingsFile }) {
       </div>
       <SaveBar label="Save search settings" state={state} pending={pending} />
     </form>
+  );
+}
+
+const PROVIDER_HINT: Record<string, string> = {
+  'claude-cli': 'your signed-in Claude Code CLI: no API key, usage comes from your Claude plan',
+  openai: 'OpenAI API: needs OPENAI_API_KEY, paid per token',
+  deepseek: 'DeepSeek API: needs DEEPSEEK_API_KEY, paid per token',
+};
+
+/** "AI review": the provider, its models, and whether its API key is set (never the key itself). */
+function AiSection({ c, errors, keys }: { c: Json; errors: SettingsError[]; keys?: AiKeyStatus }) {
+  const [provider, setProvider] = useState(text(get(c, 'ai.provider')) || 'claude-cli');
+  const f = (name: string) => ({ name, errors });
+  const api = API_PROVIDERS.includes(provider as ApiProvider) ? (provider as ApiProvider) : null;
+  return (
+    <Section title="AI review">
+      <Check label="Use the AI" name="ai.enabled" value={get(c, 'ai.enabled')} />
+      {/* Missing means on (src/settings.ts), so only an explicit false unchecks it. */}
+      <Check
+        label="Alert me at once for strong matches (macOS notification)"
+        name="ai.alertStrong"
+        value={get(c, 'ai.alertStrong') !== false}
+      />
+      <Field label="AI provider" hint={PROVIDER_HINT[provider]} {...f('ai.provider')}>
+        <select name="ai.provider" value={provider} onChange={(e) => setProvider(e.target.value)} className={input}>
+          {AI_PROVIDERS.map((p) => (
+            <option key={p} value={p}>
+              {PROVIDER_NAME[p]}
+            </option>
+          ))}
+        </select>
+      </Field>
+      {api && (
+        <p
+          data-testid="ai-key-status"
+          className={`text-sm ${keys?.[api] ? 'text-emerald-700 dark:text-emerald-400' : 'text-amber-700 dark:text-amber-400'}`}
+        >
+          {keys?.[api] ? `${KEY_ENV[api]} is set.` : `${KEY_ENV[api]} is not set: the AI features will fail until you add it.`}
+        </p>
+      )}
+      <p className="text-xs text-zinc-500">
+        API keys are never entered here or stored in config.json: put OPENAI_API_KEY or DEEPSEEK_API_KEY in .env in the job-bot folder (see
+        .env.example).
+      </p>
+      <div className="grid gap-3 sm:grid-cols-3">
+        <Field label="Claude CLI score model" {...f('ai.scoreModel')}>
+          <input name="ai.scoreModel" defaultValue={text(get(c, 'ai.scoreModel'))} className={input} />
+        </Field>
+        <Field label="Claude CLI letter model" {...f('ai.letterModel')}>
+          <input name="ai.letterModel" defaultValue={text(get(c, 'ai.letterModel'))} className={input} />
+        </Field>
+        <Field label="Max AI scores per run" {...f('ai.maxScorePerRun')}>
+          <input type="number" min={0} name="ai.maxScorePerRun" defaultValue={text(get(c, 'ai.maxScorePerRun'))} className={input} />
+        </Field>
+      </div>
+      {API_PROVIDERS.map((p) => (
+        <div key={p} className="grid gap-3 sm:grid-cols-3">
+          <Field label={`${PROVIDER_NAME[p]} score model`} hint={`empty = ${API_DEFAULTS[p].scoreModel}`} {...f(`ai.${p}.scoreModel`)}>
+            <input name={`ai.${p}.scoreModel`} defaultValue={text(get(c, `ai.${p}.scoreModel`))} className={input} />
+          </Field>
+          <Field label={`${PROVIDER_NAME[p]} letter model`} hint={`empty = ${API_DEFAULTS[p].letterModel}`} {...f(`ai.${p}.letterModel`)}>
+            <input name={`ai.${p}.letterModel`} defaultValue={text(get(c, `ai.${p}.letterModel`))} className={input} />
+          </Field>
+          <Field label={`${PROVIDER_NAME[p]} base URL`} hint={`empty = ${API_DEFAULTS[p].baseUrl}`} {...f(`ai.${p}.baseUrl`)}>
+            <input name={`ai.${p}.baseUrl`} defaultValue={text(get(c, `ai.${p}.baseUrl`))} className={input} />
+          </Field>
+        </div>
+      ))}
+    </Section>
   );
 }
 

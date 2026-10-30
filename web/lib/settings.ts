@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { BOT_ROOT } from './bot';
-import type { Json } from './settings-form';
+import { API_PROVIDERS, KEY_ENV, type ApiProvider, type Json } from './settings-form';
 
 // Reads config.json and cv/applicant.json for the settings page. Read-only: saving always goes through the
 // bot's `settings:save` command, which is the single writer and validator (see app/settings/actions.ts).
@@ -10,6 +10,8 @@ import type { Json } from './settings-form';
 export const configFile = () => process.env.JOB_BOT_CONFIG || join(BOT_ROOT, 'config.json');
 export const applicantFile = () => process.env.JOB_BOT_APPLICANT || join(BOT_ROOT, 'cv', 'applicant.json');
 export const applicantExampleFile = () => join(BOT_ROOT, 'cv', 'applicant.example.json');
+// The bot's own env file (job-bot/.env, loaded by `npm run bot` and by the bot runs the dashboard starts).
+export const botEnvFile = () => process.env.JOB_BOT_ENV_FILE || join(BOT_ROOT, '.env');
 
 export type SettingsFile = {
   file: string; // the file that was read
@@ -37,4 +39,29 @@ export const readConfig = () => read(configFile());
 export function readApplicant(): SettingsFile {
   const file = applicantFile();
   return existsSync(file) ? read(file) : read(applicantExampleFile(), true);
+}
+
+/** Whether each API provider's key is set, as the bot will see it. Only names are checked; values never leave here. */
+export type AiKeyStatus = Record<ApiProvider, boolean>;
+
+/**
+ * The bot reads its API keys from job-bot/.env, and also inherits the environment of whoever starts it (the bot
+ * runs the dashboard starts get the dashboard's). A key counts as set when either has a non-empty value.
+ */
+export function aiKeyStatus(): AiKeyStatus {
+  const names = new Set<string>();
+  const file = botEnvFile();
+  if (existsSync(file)) {
+    for (const line of readFileSync(file, 'utf8').split('\n')) {
+      const [, name, raw] = /^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/.exec(line) ?? [];
+      const value = raw
+        ?.replace(/\s+#.*$/, '')
+        .replace(/^(['"])(.*)\1$/, '$2')
+        .trim();
+      if (name && value) names.add(name);
+    }
+  }
+  const status = {} as AiKeyStatus;
+  for (const p of API_PROVIDERS) status[p] = names.has(KEY_ENV[p]) || !!process.env[KEY_ENV[p]]?.trim();
+  return status;
 }

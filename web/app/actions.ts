@@ -70,7 +70,7 @@ export async function prepare(formData: FormData) {
   refresh();
 }
 
-/** AI fit review of one job via the local Claude CLI (`bot ai:score --id`). */
+/** AI fit review of one job via the configured AI provider (`bot ai:score --id`). */
 export async function aiReview(formData: FormData) {
   const id = await assertJob(formData.get('id'));
   await enqueueTask('ai_review', id);

@@ -2,10 +2,27 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
-import { ATS as BOT_ATS } from '../../../src/settings';
+import {
+  AI_PROVIDERS as BOT_AI_PROVIDERS,
+  API_DEFAULTS as BOT_API_DEFAULTS,
+  ATS as BOT_ATS,
+  KEY_ENV as BOT_KEY_ENV,
+  PROVIDER_NAME as BOT_PROVIDER_NAME,
+} from '../../../src/settings';
 import { BOT_ROOT } from '@/lib/bot';
-import { applicantFile, configFile, readApplicant, readConfig } from '@/lib/settings';
-import { ATS, errorsFor, get, mergeApplicant, mergeConfig, salaryKeys } from '@/lib/settings-form';
+import { aiKeyStatus, applicantFile, configFile, readApplicant, readConfig } from '@/lib/settings';
+import {
+  AI_PROVIDERS,
+  API_DEFAULTS,
+  ATS,
+  errorsFor,
+  get,
+  KEY_ENV,
+  mergeApplicant,
+  mergeConfig,
+  PROVIDER_NAME,
+  salaryKeys,
+} from '@/lib/settings-form';
 
 const dir = mkdtempSync(join(tmpdir(), 'job-bot-web-settings-'));
 const tmp = (name: string, content: string) => {
@@ -56,6 +73,13 @@ describe('settings files', () => {
     expect(readConfig()).toMatchObject({ data: null, text: '{ nope', error: expect.stringContaining('invalid JSON') });
     vi.stubEnv('JOB_BOT_CONFIG', tmp('arr.json', '[1]'));
     expect(readConfig()).toMatchObject({ data: null, error: 'not a JSON object' });
+  });
+
+  it('has the same AI providers, names, key variables and defaults as the bot', () => {
+    expect([...AI_PROVIDERS]).toEqual([...BOT_AI_PROVIDERS]);
+    expect(PROVIDER_NAME).toEqual(BOT_PROVIDER_NAME);
+    expect(KEY_ENV).toEqual(BOT_KEY_ENV);
+    expect(API_DEFAULTS).toEqual(BOT_API_DEFAULTS);
   });
 
   it('has the same ATS list as the bot', () => {
@@ -183,6 +207,67 @@ describe('mergeConfig', () => {
   it('ignores country fields for countries that are not in the file', () => {
     const cfg = mergeConfig(CONFIG, configForm({ 'countries.XX.match': 'x', 'countries.__proto__.match': 'x' }));
     expect(Object.keys(cfg.countries as object)).toEqual(['AE']);
+  });
+});
+
+describe('mergeConfig: AI provider', () => {
+  it('keeps a missing provider missing when the default (claude-cli) is chosen, or when the form has no select', () => {
+    expect(get(mergeConfig(CONFIG, configForm()), 'ai.provider')).toBeUndefined();
+    expect(get(mergeConfig(CONFIG, configForm({ 'ai.provider': 'claude-cli' })), 'ai.provider')).toBeUndefined();
+  });
+
+  it('saves another provider, and a switch back when the file named one', () => {
+    const openai = mergeConfig(CONFIG, configForm({ 'ai.provider': 'openai' }));
+    expect(get(openai, 'ai.provider')).toBe('openai');
+    expect(get(mergeConfig(openai, configForm({ 'ai.provider': 'claude-cli' })), 'ai.provider')).toBe('claude-cli');
+    expect(get(mergeConfig(openai, configForm()), 'ai.provider')).toBe('openai'); // no select in the form: kept
+  });
+
+  it('saves per-provider models; cleared fields are removed without leaving an empty section', () => {
+    const cfg = mergeConfig(
+      CONFIG,
+      configForm({ 'ai.openai.scoreModel': ' gpt-4.1-mini ', 'ai.openai.letterModel': '', 'ai.deepseek.scoreModel': '' }),
+    );
+    expect(get(cfg, 'ai.openai')).toEqual({ scoreModel: 'gpt-4.1-mini' });
+    expect('deepseek' in (cfg.ai as object)).toBe(false);
+    const cleared = mergeConfig(cfg, configForm({ 'ai.openai.scoreModel': '', 'ai.openai.letterModel': '', 'ai.openai.baseUrl': '' }));
+    expect('openai' in (cleared.ai as object)).toBe(false);
+    expect(cleared.ai).toMatchObject({ claudePath: '/bin/claude', concurrency: 2 });
+  });
+
+  it('keeps per-provider keys the form does not show', () => {
+    const current = { ...CONFIG, ai: { ...(CONFIG.ai as object), deepseek: { scoreModel: 'x', future: 1 } } };
+    const cfg = mergeConfig(current, configForm({ 'ai.deepseek.scoreModel': '' }));
+    expect(get(cfg, 'ai.deepseek')).toEqual({ future: 1 });
+  });
+});
+
+describe('aiKeyStatus', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+  const keys = (envFile: string, env: Record<string, string> = {}) => {
+    vi.stubEnv('JOB_BOT_ENV_FILE', tmp('env-file', envFile));
+    vi.stubEnv('OPENAI_API_KEY', env.OPENAI_API_KEY ?? '');
+    vi.stubEnv('DEEPSEEK_API_KEY', env.DEEPSEEK_API_KEY ?? '');
+    return aiKeyStatus();
+  };
+
+  it("checks the bot's env file by name, ignoring empty values and comments", () => {
+    expect(keys('ADZUNA_APP_ID=1\nOPENAI_API_KEY=sk-secret\nDEEPSEEK_API_KEY=\n')).toEqual({ openai: true, deepseek: false });
+    expect(keys('# OPENAI_API_KEY=sk-secret\nDEEPSEEK_API_KEY=""\n')).toEqual({ openai: false, deepseek: false });
+    expect(keys('export DEEPSEEK_API_KEY="ds-secret"\n')).toEqual({ openai: false, deepseek: true });
+  });
+
+  it('also counts a key in the environment the bot inherits, and a missing env file', () => {
+    vi.stubEnv('JOB_BOT_ENV_FILE', join(dir, 'no-such-env'));
+    vi.stubEnv('OPENAI_API_KEY', '');
+    vi.stubEnv('DEEPSEEK_API_KEY', 'ds-secret');
+    expect(aiKeyStatus()).toEqual({ openai: false, deepseek: true });
+  });
+
+  it('returns booleans only, never a value', () => {
+    expect(JSON.stringify(keys('OPENAI_API_KEY=sk-secret\n'))).not.toContain('sk-secret');
   });
 });
 

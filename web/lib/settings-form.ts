@@ -1,10 +1,21 @@
 // Pure helpers for the settings forms, safe to import from client components (no node: modules).
 // Type-only imports from the bot: erased at build time, so no bot code is bundled into the dashboard.
-import type { Company, SettingsError, SettingsKind } from '../../src/settings';
+import type { AiProvider, Company, SettingsError, SettingsKind } from '../../src/settings';
 
 export type { SettingsError, SettingsKind };
 export type Json = Record<string, unknown>;
 const isObj = (v: unknown): v is Json => !!v && typeof v === 'object' && !Array.isArray(v);
+
+/** Same as the bot's AI_PROVIDERS, PROVIDER_NAME, KEY_ENV and API_DEFAULTS (src/settings.ts); tests/lib/settings.test.ts checks they match. */
+export const AI_PROVIDERS: readonly AiProvider[] = ['claude-cli', 'openai', 'deepseek'];
+export type ApiProvider = Exclude<AiProvider, 'claude-cli'>;
+export const API_PROVIDERS: readonly ApiProvider[] = ['openai', 'deepseek'];
+export const PROVIDER_NAME: Record<AiProvider, string> = { 'claude-cli': 'Claude CLI', openai: 'OpenAI', deepseek: 'DeepSeek' };
+export const KEY_ENV: Record<ApiProvider, string> = { openai: 'OPENAI_API_KEY', deepseek: 'DEEPSEEK_API_KEY' };
+export const API_DEFAULTS: Record<ApiProvider, { scoreModel: string; letterModel: string; baseUrl: string }> = {
+  openai: { scoreModel: 'gpt-4o-mini', letterModel: 'gpt-4o', baseUrl: 'https://api.openai.com' },
+  deepseek: { scoreModel: 'deepseek-chat', letterModel: 'deepseek-chat', baseUrl: 'https://api.deepseek.com' },
+};
 
 /** Same list as the bot's ATS (src/settings.ts); tests/lib/settings.test.ts checks they match. */
 export const ATS: readonly Company['ats'][] = ['greenhouse', 'lever', 'ashby', 'recruitee', 'workable', 'smartrecruiters', 'workday'];
@@ -39,6 +50,13 @@ export const CONFIG_FIELDS: Record<string, FieldType> = {
   'ai.scoreModel': 'text',
   'ai.letterModel': 'text',
   'ai.maxScorePerRun': 'number',
+  // Per-provider models: empty = the provider's default (API_DEFAULTS).
+  'ai.openai.scoreModel': 'optional',
+  'ai.openai.letterModel': 'optional',
+  'ai.openai.baseUrl': 'optional',
+  'ai.deepseek.scoreModel': 'optional',
+  'ai.deepseek.letterModel': 'optional',
+  'ai.deepseek.baseUrl': 'optional',
 };
 
 /** The profile part of cv/applicant.json (see src/profile.ts). */
@@ -80,16 +98,28 @@ export function get(obj: unknown, path: string): unknown {
   return path.split('.').reduce<unknown>((o, k) => (isObj(o) ? o[k] : undefined), obj);
 }
 
-/** Sets a dotted path; `undefined` removes the key instead. */
+/**
+ * Sets a dotted path; `undefined` removes the key instead, and an object it leaves empty (`ai.openai: {}`) too, so
+ * clearing an optional field never adds a section the file did not have.
+ */
 function set(obj: Json, path: string, value: unknown) {
   const keys = path.split('.');
+  const chain: Json[] = [obj];
   let o = obj;
   for (const k of keys.slice(0, -1)) {
-    if (!isObj(o[k])) o[k] = {};
+    if (!isObj(o[k])) {
+      if (value === undefined) return;
+      o[k] = {};
+    }
     o = o[k] as Json;
+    chain.push(o);
   }
-  if (value === undefined) delete o[keys.at(-1)!];
-  else o[keys.at(-1)!] = value;
+  if (value !== undefined) {
+    o[keys.at(-1)!] = value;
+    return;
+  }
+  delete o[keys.at(-1)!];
+  for (let i = chain.length - 1; i > 0 && !Object.keys(chain[i]).length; i--) delete chain[i - 1][keys[i - 1]];
 }
 
 const str = (fd: FormData, name: string) => {
@@ -130,6 +160,11 @@ export function mergeConfig(current: Json, fd: FormData): Json {
     set(cfg, name, type === 'bool' ? fd.get(name) === 'on' : parse(type, str(fd, name)));
   }
   mergeAdzuna(cfg, fd);
+  // The provider: missing means claude-cli, so choosing it only writes the key when the file already had one.
+  if (fd.has('ai.provider')) {
+    const v = str(fd, 'ai.provider').trim();
+    set(cfg, 'ai.provider', !v || (v === 'claude-cli' && get(current, 'ai.provider') === undefined) ? undefined : v);
+  }
   // For existing countries: the location pattern, the dashboard label and whether a visa is needed.
   if (isObj(cfg.countries)) {
     for (const [code, c] of Object.entries(cfg.countries)) {
