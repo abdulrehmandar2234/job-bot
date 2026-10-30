@@ -4,7 +4,7 @@ import { psQuote } from '../notify.ts';
 import { ROOT } from '../settings.ts';
 
 // schedule:print: the snippet that runs `bot daily` every morning at 9:00 with this OS's scheduler, filled in with the
-// paths of this clone and this Node. It only prints; you install it yourself (docs/SETUP.md, "The daily fetch").
+// paths of this clone and this Node. It only prints; you install it yourself (docs/install/<your OS>.md, "Schedule the daily run").
 
 export type ScheduleTarget = {
   platform: NodeJS.Platform;

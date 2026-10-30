@@ -20,7 +20,7 @@ Local job-search helper: Node CLI bot (`src/`, TypeScript run directly by Node 2
 
 ## Project overview for Claude
 
-A quick map for a new session. README.md has the features in full; docs/SETUP.md has every setting.
+A quick map for a new session. README.md has the features in full; docs/README.md is the doc index (install guides per OS, configuration, CV and profile, AI, daily use, troubleshooting, updating).
 
 ### What it does
 
@@ -55,7 +55,7 @@ Finds software jobs for the user's target countries (onsite, with or without a v
 
 - Logic the dashboard needs from the bot is copied into `web/lib/` (the dashboard only imports bot types), and each copy has a parity test that imports the bot's version: `web/tests/lib/market.test.ts` (profile), `settings.test.ts` (AI presets, ATS list), `followup.test.ts`, `skips.test.ts`. Change both sides together.
 - Migrations are append-only: add the next `NNN_name.sql`, idempotent where possible, never edit a committed one; update `src/types.ts` with new columns.
-- Every setting is in the zod schemas in `src/settings.ts`. A new key also needs `web/lib/settings-form.ts` (`CONFIG_FIELDS`) if the Settings page edits it, the setup wizard if a new user must answer it, and a row in docs/SETUP.md.
+- Every setting is in the zod schemas in `src/settings.ts`. A new key also needs `web/lib/settings-form.ts` (`CONFIG_FIELDS`) if the Settings page edits it, the setup wizard if a new user must answer it, and a row in docs/configuration.md.
 - `tests/fixtures/owner-golden.json` pins the owner's template letters, follow-ups and filter results against the real `config.json` and `cv/master.json`; update it only for a deliberate change.
 
 ### Machine limits
@@ -71,4 +71,4 @@ Finds software jobs for the user's target countries (onsite, with or without a v
 - Filter or scoring change: `src/match.ts` (users then run `rescore`); check owner-golden.
 - New AI feature: prompt and schema in `src/ai.ts`, called through `askAi(prompt, schema, 'score' | 'letter', system)`.
 - New dashboard background action: a `TaskKind` in `src/types.ts`, its timeout and CLI arguments in `src/tasks.ts` (`TASK_TIMEOUT_MS`, `cliArgs`), its label in `web/lib/tasks.ts` (`TASK_LABEL`), and a server action in `web/app/actions.ts` that calls `enqueueTask`.
-- Docs: README (features, CLI reference), docs/SETUP.md (settings, setup steps), ROADMAP.md (done / open).
+- Docs: README (features, CLI reference), docs/README.md (index), docs/install/{macos,linux,windows}.md (setup per OS), docs/configuration.md (every setting), docs/your-cv-and-profile.md, docs/ai.md, docs/daily-use.md, docs/troubleshooting.md, docs/updating.md, ROADMAP.md (done / open). Keep the three install guides in step with each other.

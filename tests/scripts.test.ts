@@ -79,30 +79,31 @@ describe('child processes', () => {
   });
 });
 
-describe('setup docs', () => {
-  const setup = readFileSync(join(ROOT, 'docs', 'SETUP.md'), 'utf8');
+describe('install guides (docs/install/*.md)', () => {
+  const guide = (os: string) => readFileSync(join(ROOT, 'docs', 'install', `${os}.md`), 'utf8');
+  const [macos, linux, windows] = ['macos', 'linux', 'windows'].map(guide);
 
-  it('cover macOS, Linux and Windows: install, scheduler and notifier', () => {
-    for (const heading of [
-      '### macOS',
-      '### Linux',
-      '### Windows',
-      '### macOS: launchd',
-      '### Linux: a systemd user timer',
-      '### Windows: Task Scheduler',
-    ])
-      assert.ok(setup.includes(`\n${heading}`), heading);
-    for (const text of ['Register-ScheduledTask', 'schtasks /Create', 'OnCalendar=', 'Persistent=true', 'notify-send', 'schedule:print'])
-      assert.ok(setup.includes(text), text);
+  it('each covers its own scheduler and notifier, and points to schedule:print', () => {
+    for (const text of ['launchd', 'schedule:print', 'terminal-notifier']) assert.ok(macos.includes(text), `macos: ${text}`);
+    for (const text of ['OnCalendar=', 'Persistent=true', 'notify-send', 'schedule:print'])
+      assert.ok(linux.includes(text), `linux: ${text}`);
+    for (const text of ['Register-ScheduledTask', 'schtasks /Create', 'schedule:print'])
+      assert.ok(windows.includes(text), `windows: ${text}`);
   });
 
-  it('say how to install the Chrome headless shell, like the setup wizard', () => {
-    assert.match(setup, /npx playwright-core install chromium-headless-shell/);
+  it('each says how to install the Chrome headless shell, like the setup wizard', () => {
+    for (const g of [macos, linux, windows]) assert.match(g, /npx playwright-core install chromium-headless-shell/);
   });
 
   it('use the same scheduler lines as `bot schedule:print`', () => {
-    assert.ok(setup.includes('ExecStart="/usr/bin/node" --no-warnings --env-file-if-exists=.env src/cli.ts daily'));
-    assert.ok(setup.includes("-Argument '--no-warnings --env-file-if-exists=.env src/cli.ts daily'"));
-    assert.ok(setup.includes('<string>/bin/zsh</string><string>/Users/<you>/job-bot/scripts/daily-fetch.sh</string>'));
+    assert.ok(linux.includes('ExecStart="/usr/bin/node" --no-warnings --env-file-if-exists=.env src/cli.ts daily'));
+    assert.ok(windows.includes("-Argument '--no-warnings --env-file-if-exists=.env src/cli.ts daily'"));
+    assert.ok(macos.includes('<string>/bin/zsh</string><string>/Users/<you>/job-bot/scripts/daily-fetch.sh</string>'));
+  });
+
+  it('the old docs/SETUP.md only points to the new pages', () => {
+    const old = readFileSync(join(ROOT, 'docs', 'SETUP.md'), 'utf8');
+    for (const page of ['install/macos.md', 'install/linux.md', 'install/windows.md', 'configuration.md', 'README.md'])
+      assert.ok(old.includes(page), page);
   });
 });
