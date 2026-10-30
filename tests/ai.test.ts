@@ -4,7 +4,7 @@ import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import './helpers.ts';
-import { aiAnswers, aiCoverLetter, aiScore, applicantFacts, cvText } from '../src/ai.ts';
+import { aiAnswers, aiCoverLetter, aiScore, aiSummary, applicantFacts, cvText } from '../src/ai.ts';
 import { askClaude } from '../src/ai-providers.ts';
 import type { Job } from '../src/db.ts';
 
@@ -94,13 +94,71 @@ describe('prompts', () => {
 
   it('aiCoverLetter tells the model about relocation for onsite and Pakistan for remote', async () => {
     process.env.FAKE_CLAUDE_OUT = JSON.stringify({ letter: '  Dear Acme Hiring Team,\nHi  ' });
-    assert.equal(await aiCoverLetter(job()), 'Dear Acme Hiring Team,\nHi\n');
+    assert.deepEqual(await aiCoverLetter(job()), { letter: 'Dear Acme Hiring Team,\nHi\n', note: '' });
     await aiCoverLetter(job({ country: 'RM' }));
     const [onsite, remote] = calls().map((c) => arg(c.argv, '--system-prompt'));
     assert.match(onsite, /ready to relocate[\s\S]*visa sponsorship/);
     assert.match(onsite, /Never make commitments/);
     assert.match(remote, /remote role[\s\S]*GMT\+5/);
     assert.match(onsite, /Dear Acme Hiring Team,/);
+  });
+
+  it('aiCoverLetter without feedback asks for the letter only, with no revision rules', async () => {
+    process.env.FAKE_CLAUDE_OUT = JSON.stringify({ letter: 'Dear Acme Hiring Team,' });
+    await aiCoverLetter(job({ cover_letter: 'Old letter' }));
+    const [{ argv, stdin }] = calls();
+    assert.deepEqual(JSON.parse(arg(argv, '--json-schema')).required, ['letter']);
+    assert.doesNotMatch(arg(argv, '--system-prompt'), /REVISION/);
+    assert.doesNotMatch(stdin, /CURRENT LETTER|FEEDBACK/);
+  });
+
+  it('aiCoverLetter with feedback sends the current letter and the feedback, keeps the rules and returns the note', async () => {
+    const note = 'The CV does not show Kubernetes, so the letter does not claim it.';
+    process.env.FAKE_CLAUDE_OUT = JSON.stringify({ letter: ' Dear Acme Hiring Team,\nShorter ', note: ` ${note} ` });
+    const res = await aiCoverLetter(
+      job({ cover_letter: 'Dear Acme Hiring Team,\nThe old long letter.\n' }),
+      '  shorter, and mention Kubernetes ',
+    );
+    assert.deepEqual(res, { letter: 'Dear Acme Hiring Team,\nShorter\n', note });
+    const [{ argv, stdin }] = calls();
+    assert.equal(arg(argv, '--model'), 'sonnet');
+    const system = arg(argv, '--system-prompt');
+    assert.match(system, /Use ONLY facts in the CV/);
+    assert.match(system, /Never make commitments/);
+    assert.match(system, /REVISION: the candidate gives you the CURRENT LETTER and FEEDBACK/);
+    assert.match(system, /do not add it, and say so in "note"/);
+    assert.doesNotMatch(system, /mention Kubernetes/, 'the feedback is user text: it goes in the user prompt, not the rules');
+    assert.match(
+      stdin,
+      /CV:[\s\S]*JOB:[\s\S]*CURRENT LETTER:\nDear Acme Hiring Team,\nThe old long letter\.\n\nFEEDBACK FROM THE CANDIDATE:\nshorter, and mention Kubernetes$/,
+    );
+    assert.deepEqual(JSON.parse(arg(argv, '--json-schema')).required, ['letter', 'note']);
+  });
+
+  it('aiSummary writes a summary for the job with the letter model and the truthfulness rules', async () => {
+    process.env.FAKE_CLAUDE_OUT = JSON.stringify({ summary: '  Senior engineer with\n7+ years of Laravel.  ' });
+    assert.deepEqual(await aiSummary(job()), { summary: 'Senior engineer with 7+ years of Laravel.', note: '' });
+    const [{ argv, stdin }] = calls();
+    assert.equal(arg(argv, '--model'), JSON.parse(readFileSync(join(import.meta.dirname, '..', 'config.json'), 'utf8')).ai.letterModel);
+    const system = arg(argv, '--system-prompt');
+    assert.match(system, /professional summary at the top of one candidate's CV, tailored to one job/);
+    assert.match(system, /Use ONLY facts in the CV\. Never invent employers, numbers, skills, certifications or years/);
+    assert.match(system, /Never make commitments/);
+    assert.match(system, /3-4 sentences, 50-90 words, plain text/);
+    assert.match(system, /Match the voice of the CV's current SUMMARY/);
+    assert.doesNotMatch(system, /REVISION/);
+    assert.match(stdin, /CV:\n[\s\S]*SUMMARY: Senior Full Stack Engineer[\s\S]*JOB:\nTITLE: Senior Laravel Developer/);
+    assert.deepEqual(JSON.parse(arg(argv, '--json-schema')).required, ['summary']);
+  });
+
+  it('aiSummary with feedback sends the current summary and the feedback, and returns the note', async () => {
+    process.env.FAKE_CLAUDE_OUT = JSON.stringify({ summary: 'Shorter.', note: 'No Go in the CV.' });
+    const res = await aiSummary(job({ cv_summary: 'The current summary.' }), 'mention Go');
+    assert.deepEqual(res, { summary: 'Shorter.', note: 'No Go in the CV.' });
+    const [{ argv, stdin }] = calls();
+    assert.match(arg(argv, '--system-prompt'), /REVISION: the candidate gives you the CURRENT SUMMARY and FEEDBACK/);
+    assert.match(stdin, /CURRENT SUMMARY:\nThe current summary\.\n\nFEEDBACK FROM THE CANDIDATE:\nmention Go$/);
+    assert.deepEqual(JSON.parse(arg(argv, '--json-schema')).required, ['summary', 'note']);
   });
 
   it('aiAnswers sends the questions and applicant facts, and forbids guessing personal decisions', async () => {

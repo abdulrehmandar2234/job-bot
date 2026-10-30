@@ -15,12 +15,16 @@ export const TASK_TIMEOUT_MS: Record<TaskKind, number> = {
   prep: 4 * 60_000,
   follow_up: 4 * 60_000,
   letter: 4 * 60_000,
+  summary: 4 * 60_000,
+  tailored_cv: 4 * 60_000,
 };
 /** Extra time before a running task counts as stale, so the worker can record its own timeout first. */
 export const DEADLINE_GRACE_MS = 60_000;
 export const OUTPUT_CAP = 8000;
 export const QUESTIONS_CAP = 8000;
 export const CV_VERSION = /^[a-z0-9][a-z0-9-]*$/;
+/** Longest feedback for rewriting a letter or summary ("What should change?" on the job page). */
+export const FEEDBACK_CAP = 1000;
 
 export const tail = (s: string, n = OUTPUT_CAP) => (s.length > n ? '…' + s.slice(-n) : s);
 
@@ -132,6 +136,19 @@ export async function fail(id: number, error: string, output = '') {
 }
 
 /**
+ * `--feedback=<text>` for a letter or summary task with feedback, else nothing. Throws when the feedback is not a
+ * string of at most FEEDBACK_CAP characters. One `--name=value` argument, so text starting with "--" stays the value.
+ */
+export function feedbackArgs(args: Record<string, unknown>): string[] {
+  const feedback = args.feedback;
+  if (feedback === undefined) return [];
+  if (typeof feedback !== 'string') throw new Error('Feedback must be text');
+  if (feedback.length > FEEDBACK_CAP) throw new Error(`Feedback is too long (at most ${FEEDBACK_CAP} characters)`);
+  const text = feedback.trim();
+  return text ? [`--feedback=${text}`] : [];
+}
+
+/**
  * The CLI arguments that run a task, re-validated here because the row is input from the dashboard.
  * `questionsFile` is where task:run wrote args.questions for an answers task.
  */
@@ -161,7 +178,11 @@ export function cliArgs(task: Pick<Task, 'kind' | 'job_id' | 'args'>, questionsF
     case 'follow_up':
       return ['follow-up', job()];
     case 'letter':
-      return ['letter', job()];
+      return ['letter', job(), ...feedbackArgs(task.args)];
+    case 'summary':
+      return ['summary', job(), ...feedbackArgs(task.args)];
+    case 'tailored_cv':
+      return ['cv:tailor', job()];
     case 'answers':
       if (!questionsFile) throw new Error('answers task without a questions file');
       return ['answer', job(), '--file', questionsFile];

@@ -5,7 +5,11 @@ const [cmd, ...rest] = process.argv.slice(2);
 const flags: Flags = {};
 const args: string[] = [];
 for (let i = 0; i < rest.length; i++) {
-  if (rest[i].startsWith('--')) flags[rest[i].slice(2)] = rest[i + 1]?.startsWith('--') || rest[i + 1] === undefined ? 'true' : rest[++i];
+  const eq = rest[i].indexOf('=');
+  // --name=value keeps any value, even one starting with "--" (task:run passes --feedback=<text> this way).
+  if (rest[i].startsWith('--') && eq > 2) flags[rest[i].slice(2, eq)] = rest[i].slice(eq + 1);
+  else if (rest[i].startsWith('--'))
+    flags[rest[i].slice(2)] = rest[i + 1]?.startsWith('--') || rest[i + 1] === undefined ? 'true' : rest[++i];
   else args.push(rest[i]);
 }
 
@@ -23,6 +27,8 @@ const commands: Record<string, () => Promise<Command>> = {
   stats: async () => (await import('./commands/list.ts')).stats,
   prepare: async () => (await import('./commands/prepare.ts')).prepare,
   letter: async () => (await import('./commands/prepare.ts')).letter,
+  summary: async () => (await import('./commands/prepare.ts')).summary,
+  'cv:tailor': async () => (await import('./commands/cv.ts')).cvTailor,
   'letter:pdf': async () => (await import('./commands/prepare.ts')).letterPdf,
   'check:open': async () => (await import('./commands/open.ts')).checkOpen,
   'ai:score': async () => (await import('./commands/ai.ts')).aiScore,
@@ -60,6 +66,10 @@ if (!load) {
   prepare <id> [--cv cluster]     default CV (or --cv version); checks the posting is still open first (--force
                                   skips that); --letter also writes the cover letter
   letter <id> [--template]        write or rewrite the cover letter (AI from the description, else the template)
+         [--feedback "shorter"]   AI rewrites the current letter with your feedback (prints a note if it left
+                                  something out because the CV does not support it)
+  summary <id> [--feedback "…"]   AI writes a CV summary for this job (or rewrites it with your feedback)
+  cv:tailor <id>                  one-off CV version with the job's CV summary (sets it as the job's CV)
   letter:pdf <id>                 print the cover letter to cover-letter.pdf in the job's applications/ folder
   check:open [<id>...] [--status new,prepared] [--limit N]
                                   mark closed postings expired (default: new + prepared not checked for 3 days)

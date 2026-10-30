@@ -5,7 +5,8 @@ import { cvFile, masterRaw, versionFor } from '../cv/versions.ts';
 import { htmlToPdf, letterHtml, type Cv } from '../cv/render.ts';
 import { PROFILES } from '../cv/profiles.ts';
 import { coverLetter } from '../cover.ts';
-import { aiCoverLetter } from '../ai.ts';
+import { aiCoverLetter, aiSummary } from '../ai.ts';
+import { FEEDBACK_CAP } from '../tasks.ts';
 import { isOpen } from '../sources/open.ts';
 import { record } from './open.ts';
 import { slug, today, type Flags } from './shared.ts';
@@ -31,15 +32,38 @@ export function applicationDir(j: Pick<Job, 'company' | 'title'>): string {
 }
 
 /**
- * Writes the cover letter: AI from the job description, else the template (AI off, --template, or the AI failing).
- * Stores it on the job and in the job's applications/ folder. Returns where it went and whether the AI wrote it.
+ * The --feedback flag as text: '' when absent. Sets the exit code and returns null when it is not usable (a bare
+ * --feedback, or longer than FEEDBACK_CAP; the dashboard and task:run check the same).
  */
-export async function writeLetter(j: Job, flags: Flags = {}) {
+function feedbackFlag(flags: Flags): string | null {
+  if (flags.feedback === undefined) return '';
+  const text = flags.feedback === 'true' ? '' : flags.feedback.trim();
+  if (!text || flags.feedback.length > FEEDBACK_CAP) {
+    console.error(`--feedback needs text of at most ${FEEDBACK_CAP} characters, e.g. --feedback "shorter"`);
+    process.exitCode = 1;
+    return null;
+  }
+  return text;
+}
+
+/**
+ * Writes the cover letter: AI from the job description, else the template (AI off, --template, or the AI failing).
+ * With `feedback`, the AI rewrites the current letter instead; that needs the AI, so it never falls back to the
+ * template (which would throw the current letter away) and throws instead.
+ * Stores it on the job and in the job's applications/ folder. Returns where it went, whether the AI wrote it and
+ * the AI's note on feedback it did not follow.
+ */
+export async function writeLetter(j: Job, flags: Flags = {}, feedback = '') {
   let letter = coverLetter(j);
   let ai = false;
-  if (config.ai.enabled && !flags.template) {
+  let note = '';
+  if (feedback) {
+    if (!config.ai.enabled) throw new Error('Rewriting with feedback needs the AI, and it is off (config.json ai.enabled).');
+    ({ letter, note } = await aiCoverLetter(j, feedback));
+    ai = true;
+  } else if (config.ai.enabled && !flags.template) {
     try {
-      letter = await aiCoverLetter(j);
+      letter = (await aiCoverLetter(j)).letter;
       ai = true;
     } catch (e) {
       console.log(`AI cover letter failed, using template: ${(e as Error).message}`);
@@ -47,17 +71,69 @@ export async function writeLetter(j: Job, flags: Flags = {}) {
   }
   const file = `${applicationDir(j)}/cover-letter.txt`;
   writeFileSync(file, letter);
-  await pool.query('UPDATE jobs SET cover_letter = $2, cover_letter_ai = $3 WHERE id = $1', [j.id, letter, ai]);
-  return { file, ai };
+  await pool.query('UPDATE jobs SET cover_letter = $2, cover_letter_ai = $3, cover_letter_edited_at = NULL WHERE id = $1', [
+    j.id,
+    letter,
+    ai,
+  ]);
+  return { file, ai, note };
 }
 
-/** letter <id> [--template]: writes (or rewrites) the cover letter on its own. Status and CV are left alone. */
+/**
+ * letter <id> [--template] [--feedback "shorter"]: writes (or rewrites) the cover letter on its own. With --feedback
+ * the AI rewrites the current letter to follow it. Status and CV are left alone.
+ */
 export async function letter(args: string[], flags: Flags) {
+  const feedback = feedbackFlag(flags);
+  if (feedback === null) return;
   const j = await getJob(args[0]);
   if (!j) return console.log('Not found');
-  const { file, ai } = await writeLetter(j, flags);
+  let res: Awaited<ReturnType<typeof writeLetter>>;
+  try {
+    res = await writeLetter(j, flags, feedback);
+  } catch (e) {
+    console.error(`Could not ${feedback ? 'rewrite' : 'write'} the letter, it is unchanged: ${(e as Error).message}`);
+    process.exitCode = 1;
+    return;
+  }
   console.log(`${j.company} — ${j.title}`);
-  console.log(`Cover      : ${file} ${ai ? '(written by AI from the job description)' : '(template)'}`);
+  const how = feedback ? '(rewritten by AI with your feedback)' : res.ai ? '(written by AI from the job description)' : '(template)';
+  console.log(`Cover      : ${res.file} ${how}`);
+  if (res.note) console.log(`Note       : ${res.note}`);
+}
+
+/**
+ * summary <id> [--feedback "…"]: the AI writes a CV summary for this job from the CV and the job description (or
+ * rewrites the current one to follow the feedback) and stores it on the job. `cv:tailor <id>` puts it in a CV.
+ * There is no template: when the AI is off or fails, nothing changes and it exits 1.
+ */
+export async function summary(args: string[], flags: Flags) {
+  const feedback = feedbackFlag(flags);
+  if (feedback === null) return;
+  const j = await getJob(args[0]);
+  if (!j) return console.log('Not found');
+  if (!config.ai.enabled) {
+    console.error('The CV summary is written by the AI, and it is off (config.json ai.enabled).');
+    process.exitCode = 1;
+    return;
+  }
+  let res: Awaited<ReturnType<typeof aiSummary>>;
+  try {
+    res = await aiSummary(j, feedback);
+  } catch (e) {
+    console.error(`AI summary failed${j.cv_summary ? ', the summary is unchanged' : ''}: ${(e as Error).message}`);
+    process.exitCode = 1;
+    return;
+  }
+  await pool.query('UPDATE jobs SET cv_summary = $2, cv_summary_at = now(), cv_summary_edited_at = NULL WHERE id = $1', [
+    j.id,
+    res.summary,
+  ]);
+  console.log(`${j.company} — ${j.title}`);
+  console.log(`CV summary : ${feedback ? '(rewritten by AI with your feedback)' : '(written by AI for this job)'}`);
+  console.log(res.summary);
+  if (res.note) console.log(`Note       : ${res.note}`);
+  console.log(`To put it in a CV for this job: npm run bot -- cv:tailor ${j.id}`);
 }
 
 /**

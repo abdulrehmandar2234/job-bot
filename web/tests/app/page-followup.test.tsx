@@ -14,6 +14,12 @@ vi.mock('next/server', async (importOriginal) => ({
 }));
 vi.mock('@/app/actions', () => ({
   writeLetter: vi.fn(),
+  rewriteLetter: vi.fn(),
+  saveLetter: vi.fn(),
+  writeSummary: vi.fn(),
+  rewriteSummary: vi.fn(),
+  saveSummary: vi.fn(),
+  tailorCv: vi.fn(),
   fetchNow: vi.fn(),
   setStatus: vi.fn(),
   prepare: vi.fn(),

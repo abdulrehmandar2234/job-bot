@@ -8,6 +8,12 @@ import { cleanupDb, closeDb, ensureSchema, insertJob, PREFIX } from '../../helpe
 
 vi.mock('@/app/actions', () => ({
   writeLetter: vi.fn(),
+  rewriteLetter: vi.fn(),
+  saveLetter: vi.fn(),
+  writeSummary: vi.fn(),
+  rewriteSummary: vi.fn(),
+  saveSummary: vi.fn(),
+  tailorCv: vi.fn(),
   setStatus: vi.fn(),
   prepare: vi.fn(),
   aiReview: vi.fn(),

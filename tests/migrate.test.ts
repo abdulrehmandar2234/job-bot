@@ -139,3 +139,29 @@ describe('migration 009 (url indexes)', () => {
     }
   });
 });
+
+describe('migration 013 (CV summary)', () => {
+  it('adds the summary and edit columns, and the summary and tailored_cv task kinds next to every older kind', async () => {
+    await runMigrations(db);
+    await db.query(`INSERT INTO jobs (id, source, company, title, url) VALUES ('a', 's', 'c', 't', 'u')`);
+    const { rows } = await db.query('SELECT cv_summary, cv_summary_at, cv_summary_edited_at, cover_letter_edited_at FROM jobs');
+    assert.deepEqual(rows, [{ cv_summary: null, cv_summary_at: null, cv_summary_edited_at: null, cover_letter_edited_at: null }]);
+    const kinds = ['fetch', 'prepare', 'ai_review', 'answers', 'rescore', 'prep', 'follow_up', 'letter', 'summary', 'tailored_cv'];
+    for (const kind of kinds) {
+      const jobId = ['fetch', 'rescore'].includes(kind) ? null : 'a';
+      await db.query(`INSERT INTO tasks (kind, job_id) VALUES ($1, $2)`, [kind, jobId]);
+    }
+    assert.equal((await db.query('SELECT count(*)::int n FROM tasks')).rows[0].n, kinds.length);
+    await assert.rejects(db.query(`INSERT INTO tasks (kind) VALUES ('bogus')`), /tasks_kind_check/);
+  });
+
+  it('upgrades a database that already has the letter kind (migration 011) without losing its tasks', async () => {
+    const d = dir({});
+    for (const f of migrationFiles().filter((f) => f < '013')) writeFileSync(join(d, f), readFileSync(join(MIGRATIONS_DIR, f), 'utf8'));
+    await runMigrations(db, d);
+    await db.query(`INSERT INTO jobs (id, source, company, title, url) VALUES ('a', 's', 'c', 't', 'u')`);
+    await db.query(`INSERT INTO tasks (kind, job_id) VALUES ('letter', 'a')`);
+    assert.deepEqual(await runMigrations(db), ['013_cv_summary']);
+    assert.deepEqual((await db.query('SELECT kind FROM tasks')).rows, [{ kind: 'letter' }]);
+  });
+});

@@ -65,7 +65,8 @@ Every posting is checked by `src/match.ts`. Jobs that fail a rule are kept with 
 ### Application preparation
 
 - **CV versions:** a default CV plus versions per stack cluster (`laravel`, `tall`, `laravel-vue`, `mern`, `pern`, `next-nest`, `backend-node`, `frontend-react`, `ai-fullstack`) and one-off custom CVs for a single job. Every PDF has the same filename (`config.json` → `cvFileName`), and the folder name identifies the version. Versions are reused and only rebuilt (`v2`, `v3`, ...) when the master CV, profiles or template change.
-- **Cover letters:** written by the AI (letter model) from the job description and your CV, using only true facts and making no promises about salary, notice period or start date. They are signed with the name and contact in your profile. If AI fails, a template letter is used instead, built from your profile: its `coverLetter` sentences (introduction, a pitch per CV cluster, how you work, remote experience), where you live and your visa need.
+- **Cover letters:** written by the AI (letter model) from the job description and your CV, using only true facts and making no promises about salary, notice period or start date. They are signed with the name and contact in your profile. If AI fails, a template letter is used instead, built from your profile: its `coverLetter` sentences (introduction, a pitch per CV cluster, how you work, remote experience), where you live and your visa need. To change a letter, tell the AI what should change (`letter <id> --feedback "shorter"`, e.g. "less formal" or "more about one project"): it rewrites the current letter with the same rules, and if the feedback asks for something your CV does not show, it leaves it out and says so in a short note. Or edit the letter by hand on the job page.
+- **CV summary for a job:** the AI (letter model) rewrites the summary at the top of your CV for one job, from your CV and the job description: 3–4 sentences, 50–90 words, in the voice of your current summary, with only facts from your CV (no new skills, years or numbers, no promises). `summary <id>` writes it, `summary <id> --feedback "…"` rewrites it like a letter, and `cv:tailor <id>` builds a one-off CV version with it (in a new `custom-<company-role>-v<N>` folder every time, so a CV you already sent is never overwritten) and makes it the job's CV.
 - **CV keyword check** (`bot ats <id>`, and on the job page): the job's skill keywords split into those the CV version shows near the top, those you have (in `cv/master.json`) but this version keeps further down, and real gaps that are not on your CV at all. It names the CV version that shows the most of them. Gaps are only listed, never suggested for the CV.
 - **Form answers:** paste the questions from an application form and the AI drafts an answer for each one, using only your CV and `cv/applicant.json`. Personal decisions it cannot know (salary, notice period, start date) come back as `[FILL: ...]` and are highlighted. Each answer has a Copy button.
 - **Interview prep:** for applied and interview jobs, the AI (letter model) writes likely technical questions with what to emphasise from your CV, behavioural questions with STAR stories built only from your CV, a short company brief from the posting alone (no web research, so unsure points are marked "verify before interview"), questions to ask them, and the job's key requirements mapped to your CV or marked as gaps. Everything has Copy buttons and a Regenerate button.
@@ -89,7 +90,8 @@ npm run web          # http://localhost:3100
 - Salary on each card ("AED 20k–25k / month") and a "Min salary" filter in any of the six currencies, per month or year. It compares in euros per year with fixed, approximate rates (`web/lib/salary.ts`). Jobs without a salary stay visible unless "only with salary" is ticked. When `cv/applicant.json` has `expectedSalary` for the job's country (`AE`, `SA`, `NL`, `remote`), a lower salary gets a "below your expectation" hint; it never hides the job. A plain number there is in the country's currency, per month for AE/SA and per year otherwise; text such as `"AED 25,000 per month"` says it itself.
 - The list shows 25 jobs per page (10, 50 or 100 with the "per page" filter), with page links above and below it. The page links keep the tab, filters and sort; changing the tab or filters goes back to page 1.
 - Per job: open the posting, **Prepare CV** (picks or builds the CV version), **Download CV**, AI review, and status buttons.
-- Job page: "Check if still open" button, full description, CV keyword check, cover letter, form-answer helper, notes and status history. The cover letter is never written automatically: **Write letter** writes it (AI from the description, else the template), **Rewrite letter** writes a new one, **Copy** copies it, and **Download PDF** downloads it as a one-page PDF in the CV's style, with your name and contact as the header (`bot letter:pdf <id>`, saved as `cover-letter.pdf` in the job's `applications/` folder).
+- Job page: "Check if still open" button, full description, CV keyword check, cover letter, form-answer helper, notes and status history. The cover letter is never written automatically: **Write letter** writes it (AI from the description, else the template), **Rewrite letter** writes a new one, **Copy** copies it, and **Download PDF** downloads it as a one-page PDF in the CV's style, with your name and contact as the header (`bot letter:pdf <id>`, saved as `cover-letter.pdf` in the job's `applications/` folder). Under the letter, **What should change?** with **Rewrite with feedback** has the AI rewrite it (`letter <id> --feedback`), and **Edit** lets you change it yourself and **Save** it with no AI (the label then says "edited by you").
+- Job page, **CV summary for this job** (next to the cover letter): **Write summary** has the AI write a CV summary for the job, then **Rewrite summary**, **Copy** and **Use in my CV for this job**, which builds a one-off CV with it (`cv:tailor`) so **Download CV** serves that one. It has the same **What should change?** and **Edit** as the letter. While the AI writes or the CV is built, a "Writing summary…" / "Building CV with this summary…" note replaces the buttons.
 - "Fetch new jobs" button and a "Add jobs from Bayt" page with the bookmarklet.
 
 ## How it works
@@ -163,7 +165,7 @@ src/cv/render.ts                     HTML template → PDF via system Chrome (pl
 cv/original/<your original CV>.pdf  optional, never changes
 cv/default/<cvFileName>
 cv/versions/<cluster>-v<N>/<cvFileName>
-cv/versions/custom-<company-role>/<cvFileName>
+cv/versions/custom-<company-role>-v<N>/<cvFileName>   one-off CV for one job (custom, cv:tailor), new N per run
 ```
 
 `cvFileName` is set in `config.json` (e.g. `jane_doe_resume.pdf`). The per-cluster framings in `src/cv/profiles.ts` (headline and summary per stack) are written for the original author's CV; with your own CV, keep `autoCvVersions: false` and send the default CV until you have rewritten them for yourself (`tests/cv.test.ts` checks a framing never claims more than `cv/master.json`).
@@ -198,13 +200,14 @@ With `api`, add one key and it is used: the provider comes from `ai.api.preset`,
 
 Each feature uses either the score model (fast) or the letter model (better writer):
 
-| Feature        | Model  | Claude CLI | API (preset default) | Used by                         |
-| -------------- | ------ | ---------- | -------------------- | ------------------------------- |
-| Fit review     | score  | `haiku`    | score model          | `ai:score`, daily fetch, button |
-| Cover letter   | letter | `sonnet`   | letter model         | `letter`, "Write letter"        |
-| Form answers   | letter | `sonnet`   | letter model         | `answer`, "Draft answers"       |
-| Interview prep | letter | `sonnet`   | letter model         | `prep`, "Prepare for interview" |
-| Follow-up      | letter | `sonnet`   | letter model         | `follow-up`, "Draft follow-up"  |
+| Feature        | Model  | Claude CLI | API (preset default) | Used by                                             |
+| -------------- | ------ | ---------- | -------------------- | --------------------------------------------------- |
+| Fit review     | score  | `haiku`    | score model          | `ai:score`, daily fetch, button                     |
+| Cover letter   | letter | `sonnet`   | letter model         | `letter`, "Write letter", "Rewrite with feedback"   |
+| CV summary     | letter | `sonnet`   | letter model         | `summary`, "Write summary", "Rewrite with feedback" |
+| Form answers   | letter | `sonnet`   | letter model         | `answer`, "Draft answers"                           |
+| Interview prep | letter | `sonnet`   | letter model         | `prep`, "Prepare for interview"                     |
+| Follow-up      | letter | `sonnet`   | letter model         | `follow-up`, "Draft follow-up"                      |
 
 - **Claude CLI models** are `ai.scoreModel` / `ai.letterModel`. **API models** are `ai.api.scoreModel` / `ai.api.letterModel`; missing ones use the preset's defaults above. `ai.api.baseUrl` (or `AI_BASE_URL`) points at a proxy or another compatible endpoint, and `ai.api.responseFormat` (`json_schema`, `json_object`, `text`) overrides how JSON is asked for. A fit review takes about 10 s and a letter 15–60 s with any provider.
 - **The key** lives only in `.env` in the job-bot folder (see `.env.example`), never in `config.json`, and is never logged or shown; it is only sent to that provider's base URL. A missing key stops before any request, a rejected key (401/403) stops at once with a message naming `AI_API_KEY` and the provider, and a reply that is not the JSON asked for is asked for once more.
@@ -222,7 +225,7 @@ The prompts only allow facts from `cv/master.json` and `cv/applicant.json`, and 
 
 Every CLI start applies the numbered SQL files in `src/migrations/` that the database has not run yet (recorded in `schema_migrations`), so there is no migration command. To change the schema, add the next `NNN_name.sql` file; never edit one that is already committed (see `src/migrate.ts`).
 
-- `jobs`: one row per posting. It holds the score, matched/missing skills, visa note, flags, status, filter reason, CV version, cover letter, AI review, form answers, interview prep, follow-up count and draft, alert time, notes and `duplicate_of`.
+- `jobs`: one row per posting. It holds the score, matched/missing skills, visa note, flags, status, filter reason, CV version, cover letter, CV summary for the job, when you last edited either by hand, AI review, form answers, interview prep, follow-up count and draft, alert time, notes and `duplicate_of`.
 - `job_events`: every status change with a note.
 - `fetch_runs`: per fetch, how many postings were checked, how many were new and which sources failed.
 
@@ -318,6 +321,9 @@ npm run bot -- show <id> [--full]
 npm run bot -- ai:score [--id <id>]           # AI fit review
 npm run bot -- prepare <id> [--cv laravel] [--force] [--letter]   # CV only; --letter also writes the letter
 npm run bot -- letter <id> [--template]       # write or rewrite the cover letter
+npm run bot -- letter <id> --feedback "shorter"   # AI rewrites the current letter with your feedback (prints a note on what it left out)
+npm run bot -- summary <id> [--feedback "…"]  # AI CV summary for this job (or rewrite it with feedback)
+npm run bot -- cv:tailor <id>                 # one-off CV with the job's CV summary, set as the job's CV
 npm run bot -- letter:pdf <id>                # cover letter as a PDF in the job's applications/ folder
 npm run bot -- check:open [<id>...] [--status new,prepared] [--limit N]  # mark closed postings expired
 npm run bot -- answer <id> [--file q.txt] [--clear]
@@ -325,7 +331,7 @@ npm run bot -- prep <id>                      # AI interview prep (questions, ST
 npm run bot -- follow-ups                      # applied jobs with no news for 7+ days
 npm run bot -- follow-up <id> [--template]     # draft a follow-up message (you send it yourself)
 npm run bot -- followed-up <id>                # record a sent follow-up (reminds again after 7 days, at most 2)
-npm run bot -- custom <id> --overrides o.json # one-off CV for a single job
+npm run bot -- custom <id> --overrides o.json # one-off CV for a single job (new custom-…-v<N> folder each run)
 npm run bot -- mark <id> applied|interview|offer|rejected|skipped|expired ["note"] [--reason stack|seniority|salary|location|company|language|other]
 npm run bot -- contacts <id>                  # a job's contacts, plus people you know at the same company
 npm run bot -- contact:add <id> --name "Jane" [--role recruiter] [--email x] [--linkedin https://...] [--referral "to ask"]

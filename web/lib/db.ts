@@ -28,6 +28,10 @@ export type Job = Omit<
   | 'alerted_at'
   | 'checked_open_at'
   | 'closed_at'
+  | 'cover_letter_edited_at'
+  | 'cv_summary'
+  | 'cv_summary_at'
+  | 'cv_summary_edited_at'
 > &
   Partial<
     Pick<
@@ -40,6 +44,10 @@ export type Job = Omit<
       | 'alerted_at'
       | 'checked_open_at'
       | 'closed_at'
+      | 'cover_letter_edited_at'
+      | 'cv_summary'
+      | 'cv_summary_at'
+      | 'cv_summary_edited_at'
     >
   >;
 

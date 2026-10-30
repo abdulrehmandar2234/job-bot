@@ -49,6 +49,10 @@ export type Job = {
   cv_version: string | null;
   cover_letter: string | null;
   cover_letter_ai: boolean;
+  cover_letter_edited_at: Date | null; // the user edited the letter by hand on the job page
+  cv_summary: string | null; // the CV summary the AI wrote for this job (`bot summary`)
+  cv_summary_at: Date | null;
+  cv_summary_edited_at: Date | null; // the user edited the summary by hand on the job page
   applied_at: Date | null;
   notes: string | null;
   duplicate_of: string | null;
@@ -129,10 +133,20 @@ export type Contact = {
 export type FetchRun = { started_at: Date; finished_at: Date | null; checked: number; inserted: number; new_matches: number };
 
 /** A background task kind: what `task:run` runs (src/tasks.ts). */
-export type TaskKind = 'fetch' | 'prepare' | 'ai_review' | 'answers' | 'rescore' | 'prep' | 'follow_up' | 'letter';
+export type TaskKind =
+  | 'fetch'
+  | 'prepare'
+  | 'ai_review'
+  | 'answers'
+  | 'rescore'
+  | 'prep'
+  | 'follow_up'
+  | 'letter'
+  | 'summary'
+  | 'tailored_cv';
 export type TaskStatus = 'queued' | 'running' | 'done' | 'failed';
 
-/** One row of `tasks`. `args` holds the command's options, e.g. { cv, force } for prepare or { questions } for answers. */
+/** One row of `tasks`. `args` holds the command's options, e.g. { cv, force } for prepare, { questions } for answers or { feedback } for letter and summary. */
 export type Task = {
   id: number;
   kind: TaskKind;

@@ -33,7 +33,9 @@ Object.assign(process.env, {
 });
 
 const { daysAgo, raw, mockFetch } = await import('./helpers.ts');
-const { aiAnswers, aiCoverLetter, aiFollowUp, aiScore, applicantFacts, candidateSituation, cvText } = await import('../src/ai.ts');
+const { aiAnswers, aiCoverLetter, aiFollowUp, aiScore, aiSummary, applicantFacts, candidateSituation, cvText } = await import(
+  '../src/ai.ts'
+);
 const { coverLetter } = await import('../src/cover.ts');
 const { templateFollowUp } = await import('../src/followup.ts');
 const { scoreJob, SKILLS } = await import('../src/match.ts');
@@ -182,6 +184,16 @@ describe('a new user: AI prompts', () => {
     for (const s of [onsite, remote]) {
       assert.doesNotMatch(s, OWNER);
       assert.doesNotMatch(s, GENDERED);
+    }
+  });
+
+  it('CV summary prompt, with and without feedback: her CV only, no he/his', async () => {
+    process.env.FAKE_CLAUDE_OUT = JSON.stringify({ summary: 'x', note: '' });
+    await aiSummary(job());
+    await aiSummary(job({ cv_summary: 'x' }), 'shorter');
+    for (const [i, c] of calls().entries()) {
+      assert.doesNotMatch(system(i) + c.stdin, OWNER);
+      assert.doesNotMatch(system(i), GENDERED);
     }
   });
 

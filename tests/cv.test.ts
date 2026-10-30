@@ -1,13 +1,13 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, mkdtempSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import './helpers.ts';
-import { config } from '../src/config.ts';
+import { config, path } from '../src/config.ts';
 import { PROFILES } from '../src/cv/profiles.ts';
 import { cvHtml, htmlToPdf, letterHtml, renderPdf, type Cv } from '../src/cv/render.ts';
-import { applyProfile, cvFile, masterHash, masterRaw } from '../src/cv/versions.ts';
+import { applyProfile, claimCustomId, cvFile, masterHash, masterRaw } from '../src/cv/versions.ts';
 import { coverLetter } from '../src/cover.ts';
 import type { Job } from '../src/db.ts';
 
@@ -134,5 +134,36 @@ describe('cover letter PDF', () => {
     const out = join(mkdtempSync(join(tmpdir(), 'jobbot-letter-')), 'cover-letter.pdf');
     await htmlToPdf(letterHtml(cv, letter), out);
     assert.equal(readFileSync(out).subarray(0, 5).toString(), '%PDF-');
+  });
+});
+
+describe('one-off CV versions for a job', () => {
+  it('get a new, never reused folder every time: custom-<slug>-v<N>', () => {
+    const slug = `unique-test-${process.pid}`;
+    const ours = () => readdirSync(path('cv', 'versions')).filter((d) => d.startsWith(`custom-${slug}`));
+    try {
+      assert.equal(claimCustomId(slug), `custom-${slug}-v1`);
+      assert.equal(claimCustomId(slug), `custom-${slug}-v2`);
+      assert.ok(existsSync(path('cv', 'versions', `custom-${slug}-v2`)), 'the folder is claimed at once');
+      // A gap or an old unnumbered folder never makes it reuse a number.
+      rmSync(path('cv', 'versions', `custom-${slug}-v1`), { recursive: true });
+      assert.equal(claimCustomId(slug), `custom-${slug}-v3`);
+      // Another slug that only starts the same is not counted.
+      mkdirSync(path('cv', 'versions', `custom-${slug}-vx-v9`));
+      assert.equal(claimCustomId(slug), `custom-${slug}-v4`);
+      assert.deepEqual(ours().sort(), [`custom-${slug}-v2`, `custom-${slug}-v3`, `custom-${slug}-v4`, `custom-${slug}-vx-v9`]);
+    } finally {
+      for (const d of ours()) rmSync(path('cv', 'versions', d), { recursive: true, force: true });
+    }
+  });
+
+  it('an old unnumbered custom-<slug> folder counts as v1', () => {
+    const slug = `legacy-test-${process.pid}`;
+    try {
+      mkdirSync(path('cv', 'versions', `custom-${slug}`), { recursive: true });
+      assert.equal(claimCustomId(slug), `custom-${slug}-v2`);
+    } finally {
+      for (const d of [`custom-${slug}`, `custom-${slug}-v2`]) rmSync(path('cv', 'versions', d), { recursive: true, force: true });
+    }
   });
 });
