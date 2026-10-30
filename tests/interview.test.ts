@@ -353,7 +353,8 @@ describe('notify', () => {
     const tn = '/opt/homebrew/bin/terminal-notifier';
     const run = async (cmd: string) => {
       calls.push(cmd);
-      if (cmd === tn) throw new Error('terminal-notifier: timed out after 15 s (SIGTERM)');
+      // Wherever it is installed (/opt/homebrew/bin on Apple silicon, /usr/local/bin elsewhere).
+      if (cmd.endsWith('/terminal-notifier')) throw new Error('terminal-notifier: timed out after 15 s (SIGTERM)');
     };
     // Only when terminal-notifier is installed here; notifyCommand picks it from disk.
     if (!existsSync(tn) && !existsSync('/usr/local/bin/terminal-notifier')) return t.skip('terminal-notifier not installed');
