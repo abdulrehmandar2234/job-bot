@@ -1,5 +1,5 @@
 // Target markets and profile completeness for the dashboard, from config.json and cv/applicant.json. Pure: the files
-// are read by lib/profile.ts. The profile rules mirror the bot's src/profile.ts (web/tests/lib/profile.test.ts checks
+// are read by lib/profile.ts. The profile rules mirror the bot's src/profile.ts (web/tests/lib/market.test.ts checks
 // they agree), because the dashboard only imports types from the bot.
 
 export type MarketCountry = { code: string; name: string; label: string; needsVisa: boolean };
