@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { BOT_ROOT, runBot, spawnBot } from '@/lib/bot';
 
 // The options lib/bot.ts gives node:child_process, with the module mocked: argument arrays (never a shell), and
 // windowsHide so no console window opens on Windows for a dashboard task.
@@ -8,9 +9,8 @@ const cp = vi.hoisted(() => ({
     cb(null, { stdout: 'ok' }),
   ),
 }));
+// vi.mock is hoisted above the imports, so lib/bot.ts gets the mocked module.
 vi.mock('node:child_process', async (orig) => ({ ...(await orig<typeof import('node:child_process')>()), ...cp }));
-
-const { BOT_ROOT, runBot, spawnBot } = await import('@/lib/bot');
 
 beforeEach(() => vi.clearAllMocks());
 
