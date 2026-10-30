@@ -58,7 +58,7 @@ export async function saveNotes(formData: FormData) {
 // The page shows the task while it runs and refreshes when it finishes (TaskWatcher).
 
 /**
- * Default CV + cover letter (same as `npm run bot -- prepare <id>`). `force=true` ("Prepare anyway" on an expired
+ * Picks or builds the CV (same as `npm run bot -- prepare <id>`); the cover letter is written only with writeLetter. `force=true` ("Prepare anyway" on an expired
  * job) skips the check that the posting is still open (`prepare --force`).
  */
 export async function prepare(formData: FormData) {
@@ -67,6 +67,13 @@ export async function prepare(formData: FormData) {
   const args: Record<string, string> = typeof cv === 'string' && /^[a-z0-9][a-z0-9-]*$/.test(cv) ? { cv } : {};
   if (formData.get('force') === 'true') args.force = 'true';
   await enqueueTask('prepare', id, args);
+  refresh();
+}
+
+/** Writes or rewrites the cover letter (`bot letter <id>`), only when the user asks for it. */
+export async function writeLetter(formData: FormData) {
+  const id = await assertJob(formData.get('id'));
+  await enqueueTask('letter', id);
   refresh();
 }
 

@@ -14,6 +14,7 @@ export const TASK_TIMEOUT_MS: Record<TaskKind, number> = {
   rescore: 5 * 60_000,
   prep: 4 * 60_000,
   follow_up: 4 * 60_000,
+  letter: 4 * 60_000,
 };
 /** Extra time before a running task counts as stale, so the worker can record its own timeout first. */
 export const DEADLINE_GRACE_MS = 60_000;
@@ -159,6 +160,8 @@ export function cliArgs(task: Pick<Task, 'kind' | 'job_id' | 'args'>, questionsF
       return ['prep', job()];
     case 'follow_up':
       return ['follow-up', job()];
+    case 'letter':
+      return ['letter', job()];
     case 'answers':
       if (!questionsFile) throw new Error('answers task without a questions file');
       return ['answer', job(), '--file', questionsFile];

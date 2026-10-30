@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { Suspense } from 'react';
-import { clearAnswers, draftAnswers, prepare, saveNotes } from '@/app/actions';
+import { clearAnswers, draftAnswers, saveNotes, writeLetter } from '@/app/actions';
 import { getJob, jobEvents, postingsFor } from '@/lib/db';
 import { isActive, openTasks } from '@/lib/tasks';
 import { CopyButton, SubmitButton } from '@/components/client';
@@ -92,31 +92,31 @@ async function JobDetail({ params }: { params: PageProps<'/jobs/[id]'>['params']
         )}
       </section>
 
-      {job.cover_letter && (
-        <section className="space-y-2">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="font-medium">
-              Cover letter{' '}
-              <span className="text-xs font-normal text-zinc-500">
-                {job.cover_letter_ai ? '· written by AI from this job description' : '· template'}
-              </span>
-            </h2>
-            <div className="flex gap-2">
-              {busy.includes('prepare') ? (
-                <Busy>Rewriting letter…</Busy>
-              ) : (
-                <form action={prepare}>
-                  <input type="hidden" name="id" value={job.id} />
-                  {job.cv_version && <input type="hidden" name="cv" value={job.cv_version} />}
-                  <SubmitButton pendingText="Starting…">Rewrite letter</SubmitButton>
-                </form>
-              )}
-              <CopyButton text={job.cover_letter} />
-            </div>
+      <section className="space-y-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="font-medium">
+            Cover letter{' '}
+            <span className="text-xs font-normal text-zinc-500">
+              {job.cover_letter ? (job.cover_letter_ai ? '· written by AI from this job description' : '· template') : '· not written yet'}
+            </span>
+          </h2>
+          <div className="flex gap-2">
+            {/* Written only on request, never by Prepare: many applications do not ask for a letter. */}
+            {busy.includes('letter') ? (
+              <Busy>{job.cover_letter ? 'Rewriting letter…' : 'Writing letter…'}</Busy>
+            ) : (
+              <form action={writeLetter}>
+                <input type="hidden" name="id" value={job.id} />
+                <SubmitButton pendingText="Starting…">{job.cover_letter ? 'Rewrite letter' : 'Write letter'}</SubmitButton>
+              </form>
+            )}
+            {job.cover_letter && <CopyButton text={job.cover_letter} />}
           </div>
+        </div>
+        {job.cover_letter && (
           <pre className="whitespace-pre-wrap rounded-xl bg-zinc-50 p-4 font-sans text-sm dark:bg-zinc-900">{job.cover_letter}</pre>
-        </section>
-      )}
+        )}
+      </section>
 
       <section className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">

@@ -5,7 +5,12 @@ import { JobActions } from '@/components/job-actions';
 import type { Job, Status } from '@/lib/db';
 
 // Server actions are only referenced as form actions here; they are tested in tests/app/actions.test.ts.
-vi.mock('@/app/actions', () => ({ setStatus: vi.fn(), prepare: vi.fn(), aiReview: vi.fn() }));
+vi.mock('@/app/actions', () => ({
+  writeLetter: vi.fn(),
+  setStatus: vi.fn(),
+  prepare: vi.fn(),
+  aiReview: vi.fn(),
+}));
 
 const job = (over: Partial<Job> = {}): Job => ({
   id: 'greenhouse:acme:1',
@@ -67,7 +72,7 @@ describe('JobActions', () => {
 
   it('offers prepare and AI review for an unprepared, unreviewed new job', () => {
     render(<JobActions job={job()} />);
-    expect(buttons()).toEqual(['Prepare CV + letter', 'AI review', 'Mark applied ✓', 'Skip']);
+    expect(buttons()).toEqual(['Prepare CV', 'AI review', 'Mark applied ✓', 'Skip']);
     expect(targetOf('Mark applied ✓')).toBe('applied');
     expect(targetOf('Skip')).toBe('skipped');
   });
@@ -79,10 +84,10 @@ describe('JobActions', () => {
     expect(new Set(ids)).toEqual(new Set(['greenhouse:acme:1']));
   });
 
-  it('links to the CV instead of preparing once a CV version exists', () => {
+  it('offers a CV download instead of preparing once a CV version exists', () => {
     render(<JobActions job={job({ status: 'prepared', cv_version: 'backend-lead' })} />);
-    const cv = screen.getByRole('link', { name: 'CV (backend-lead)' });
-    expect(cv).toHaveAttribute('href', '/api/cv/backend-lead');
+    const cv = screen.getByRole('link', { name: 'Download CV (backend-lead) ↓' });
+    expect(cv).toHaveAttribute('href', '/api/cv/backend-lead?download');
     expect(screen.queryByRole('button', { name: /Prepare/ })).not.toBeInTheDocument();
     expect(buttons()).toEqual(['AI review', 'Mark applied ✓', 'Skip']);
   });

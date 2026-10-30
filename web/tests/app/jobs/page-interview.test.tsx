@@ -7,6 +7,7 @@ import { pool } from '@/lib/db';
 import { cleanupDb, closeDb, ensureSchema, insertJob, PREFIX } from '../../helpers/db';
 
 vi.mock('@/app/actions', () => ({
+  writeLetter: vi.fn(),
   setStatus: vi.fn(),
   prepare: vi.fn(),
   aiReview: vi.fn(),

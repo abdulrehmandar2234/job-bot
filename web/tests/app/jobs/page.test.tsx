@@ -7,6 +7,7 @@ import { pool } from '@/lib/db';
 import { cleanupDb, closeDb, ensureSchema, insertJob, PREFIX } from '../../helpers/db';
 
 vi.mock('@/app/actions', () => ({
+  writeLetter: vi.fn(),
   setStatus: vi.fn(),
   prepare: vi.fn(),
   aiReview: vi.fn(),
@@ -164,23 +165,48 @@ describe('job page', () => {
       ]);
     const statuses = () => screen.queryAllByRole('status').map((s) => s.textContent);
 
-    it('shows "Preparing CV + letter…" and "Drafting answers…" in place of the buttons while they run', async () => {
+    it('shows "Preparing CV…" and "Drafting answers…" in place of the buttons while they run', async () => {
       await insertJob({ id });
       await addTask('prepare');
       await addTask('answers', 'queued');
       await renderJob(id);
-      expect(statuses()).toEqual(['Working… Preparing CV + letter · Drafting answers', 'Preparing CV + letter…', 'Drafting answers…']);
-      expect(screen.queryByRole('button', { name: 'Prepare CV + letter' })).not.toBeInTheDocument();
+      expect(statuses()).toEqual(['Working… Preparing CV · Drafting answers', 'Preparing CV…', 'Drafting answers…']);
+      expect(screen.queryByRole('button', { name: 'Prepare CV' })).not.toBeInTheDocument();
       expect(within(answersSection()).queryByRole('button', { name: 'Draft answers' })).not.toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'AI review' })).toBeInTheDocument();
     });
 
-    it('shows "Rewriting letter…" for a prepared job', async () => {
+    it('shows "Rewriting letter…" while a letter task runs for a job that has one', async () => {
       await insertJob({ id, cv_version: 'default', cover_letter: 'Dear Acme' });
-      await addTask('prepare');
+      await addTask('letter');
       await renderJob(id);
       expect(screen.queryByRole('button', { name: 'Rewrite letter' })).not.toBeInTheDocument();
       expect(statuses()).toContain('Rewriting letter…');
+    });
+
+    it('offers "Write letter" before any letter exists, and "Rewrite letter" after; the letter is only shown once written', async () => {
+      await insertJob({ id, cv_version: 'default' });
+      await renderJob(id);
+      const section = screen.getByRole('heading', { name: /^Cover letter/ }).closest('section')!;
+      expect(section).toHaveTextContent('not written yet');
+      expect(within(section).getByRole('button', { name: 'Write letter' })).toBeInTheDocument();
+      expect(within(section).queryByRole('button', { name: 'Copy' })).not.toBeInTheDocument();
+
+      await cleanupDb();
+      document.body.innerHTML = '';
+      await insertJob({ id, cv_version: 'default', cover_letter: 'Dear Acme', cover_letter_ai: true });
+      await renderJob(id);
+      const again = screen.getByRole('heading', { name: /^Cover letter/ }).closest('section')!;
+      expect(within(again).getByRole('button', { name: 'Rewrite letter' })).toBeInTheDocument();
+      expect(again).toHaveTextContent('Dear Acme');
+    });
+
+    it('shows "Writing letter…" while the first letter is written', async () => {
+      await insertJob({ id, cv_version: 'default' });
+      await addTask('letter');
+      await renderJob(id);
+      expect(statuses()).toContain('Writing letter…');
+      expect(screen.queryByRole('button', { name: 'Write letter' })).not.toBeInTheDocument();
     });
 
     it("shows the buttons again once the task is done, and only this job's tasks", async () => {
@@ -190,7 +216,7 @@ describe('job page', () => {
       await pool.query(`INSERT INTO tasks (kind, job_id) VALUES ('answers', $1), ('fetch', NULL)`, [PREFIX + 'page-other']);
       await renderJob(id);
       expect(statuses()).toEqual([]);
-      expect(screen.getByRole('button', { name: 'Prepare CV + letter' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Prepare CV' })).toBeInTheDocument();
       expect(within(answersSection()).getByRole('button', { name: 'Draft answers' })).toBeInTheDocument();
     });
 

@@ -469,7 +469,11 @@ describe('CLI', () => {
   it('prepare --force skips the check and prepares an expired job', async () => {
     const id = await insert('greenhouse:acme:9', { company: 'Testco Open', status: 'expired' });
     const log = join(cacheDir, 'fetch.log');
-    const out = await bot(['prepare', id, '--force', '--template'], { 'boards/acme/jobs/9': { status: 404 } }, { FAKE_FETCH_LOG: log });
+    const out = await bot(
+      ['prepare', id, '--force', '--letter', '--template'],
+      { 'boards/acme/jobs/9': { status: 404 } },
+      { FAKE_FETCH_LOG: log },
+    );
     const dir = out.match(/Cover {6}: (\S+)\/cover-letter\.txt/)![1];
     rmSync(dir, { recursive: true, force: true });
     assert.equal(existsSync(log), false); // no request at all
@@ -488,7 +492,7 @@ describe('CLI', () => {
     });
     const log = mock.method(console, 'log', () => {});
     try {
-      await prepare([id], { template: 'true' });
+      await prepare([id], { letter: 'true', template: 'true' });
     } finally {
       log.mock.restore();
     }

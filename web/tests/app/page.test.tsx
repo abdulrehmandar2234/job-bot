@@ -15,7 +15,14 @@ vi.mock('next/server', async (importOriginal) => ({
   ...(await importOriginal<typeof import('next/server')>()),
   connection: async () => {},
 }));
-vi.mock('@/app/actions', () => ({ fetchNow: vi.fn(), setStatus: vi.fn(), prepare: vi.fn(), aiReview: vi.fn(), dismissTask: vi.fn() }));
+vi.mock('@/app/actions', () => ({
+  writeLetter: vi.fn(),
+  fetchNow: vi.fn(),
+  setStatus: vi.fn(),
+  prepare: vi.fn(),
+  aiReview: vi.fn(),
+  dismissTask: vi.fn(),
+}));
 // TaskWatcher (a client component) needs the app router; the page tests render outside Next.
 vi.mock('next/navigation', async (importOriginal) => ({
   ...(await importOriginal<typeof import('next/navigation')>()),
@@ -346,11 +353,11 @@ describe('job list page', () => {
 
     await renderPage();
     const working = screen.getAllByRole('status').find((s) => s.textContent!.startsWith('Working…'))!;
-    expect(working).toHaveTextContent('Fetching new jobs · Preparing CV + letter (Busyco — TG busy)');
+    expect(working).toHaveTextContent('Fetching new jobs · Preparing CV (Busyco — TG busy)');
     expect(screen.getByRole('alert')).toHaveTextContent(/AI reviewing \(Busyco — TG busy\) failed\s*Claude is offline/);
     const card = cards().find((li) => li.textContent!.includes('TG busy'))!;
-    expect(within(card).getByRole('status')).toHaveTextContent('Preparing CV + letter…');
-    expect(within(card).queryByRole('button', { name: 'Prepare CV + letter' })).not.toBeInTheDocument();
+    expect(within(card).getByRole('status')).toHaveTextContent('Preparing CV…');
+    expect(within(card).queryByRole('button', { name: 'Prepare CV' })).not.toBeInTheDocument();
     expect(within(card).getByRole('button', { name: 'AI review' })).toBeInTheDocument();
   });
 });
