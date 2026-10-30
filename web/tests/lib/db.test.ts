@@ -1,5 +1,18 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { countJobs, getJob, jobEvents, lastRun, listJobs, PAGE_SIZE, pool, postingsFor, statusCounts, weekStats } from '@/lib/db';
+import {
+  countJobs,
+  pageSize,
+  PAGE_SIZES,
+  getJob,
+  jobEvents,
+  lastRun,
+  listJobs,
+  PAGE_SIZE,
+  pool,
+  postingsFor,
+  statusCounts,
+  weekStats,
+} from '@/lib/db';
 import { cleanupDb, closeDb, daysAgo, ensureSchema, insertFetchRun, insertJob, ours, PREFIX } from '../helpers/db';
 
 beforeAll(ensureSchema);
@@ -7,6 +20,31 @@ beforeEach(cleanupDb);
 afterAll(closeDb);
 
 const id = (s: string) => PREFIX + s;
+
+describe('listJobs everyTab (search across every status)', () => {
+  it('finds a company in every tab, but never a filtered job outside the target countries', async () => {
+    const q = 'everytabco';
+    await insertJob({ id: 'et-new', company: `Acme ${q}`, status: 'new' });
+    await insertJob({ id: 'et-prep', company: `Acme ${q}`, status: 'prepared' });
+    await insertJob({ id: 'et-skip', company: `Acme ${q}`, status: 'skipped' });
+    await insertJob({ id: 'et-filt', company: `Acme ${q}`, status: 'filtered', country: 'AE' });
+    await insertJob({ id: 'et-nowhere', company: `Acme ${q}`, status: 'filtered', country: null });
+    await insertJob({ id: 'et-dup', company: `Acme ${q}`, status: 'new' });
+    await pool.query(`UPDATE jobs SET duplicate_of = $1 WHERE id = $2`, [id('et-new'), id('et-dup')]);
+    const all = await listJobs({ status: 'new', q, everyTab: true });
+    expect(ours(all).sort()).toEqual([id('et-filt'), id('et-new'), id('et-prep'), id('et-skip')]);
+    expect(await countJobs({ status: 'new', q, everyTab: true })).toBe(4);
+    expect(ours(await listJobs({ status: 'new', q }))).toEqual([id('et-new')]); // one tab only
+  });
+});
+
+describe('pageSize', () => {
+  it('accepts only the offered sizes, else the default 25', () => {
+    expect(PAGE_SIZES).toEqual([10, 25, 50, 100]);
+    expect([10, '50', '100', 25].map(pageSize)).toEqual([10, 50, 100, 25]);
+    expect([undefined, '', '7', '1000', 'abc', '-10', '25.5'].map(pageSize)).toEqual([25, 25, 25, 25, 25, 25, 25]);
+  });
+});
 
 describe('listJobs visa filter', () => {
   it('keeps only jobs whose posting offers visa/relocation, or that need no visa', async () => {
