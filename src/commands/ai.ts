@@ -14,6 +14,8 @@ export async function aiScore(_args: string[], flags: Flags) {
     where = 'id = $1';
     params.push(flags.id);
   } else if (flags.all) where = `status = 'new' AND duplicate_of IS NULL`;
+  // Jobs an earlier AI review filtered for their location: checked again, and back in Matching if they now pass.
+  else if (flags['location-filtered']) where = `status = 'filtered' AND filter_reason LIKE 'location (AI):%' AND duplicate_of IS NULL`;
   params.push(Number(flags.limit ?? config.ai.maxScorePerRun));
   const { rows: queue } = await pool.query<Job>(
     `SELECT * FROM jobs WHERE ${where} ORDER BY score DESC, posted_at DESC NULLS LAST LIMIT $${params.length}`,
@@ -42,11 +44,14 @@ export async function aiScore(_args: string[], flags: Flags) {
           [j.id, r.score, r.verdict, r.summary, r.reasons, r.gaps, flags, where, why],
         );
         const ruledOut = where === 'no' && (await excludeForLocation(j.id, why));
+        const restored = where !== 'no' && where !== null && (await restoreLocationFiltered(j, why));
         console.log(
-          `${String(r.score).padStart(3)} ${r.verdict.padEnd(7)} ${j.company} — ${j.title}${ruledOut ? `  → filtered: location (${why})` : ''}`,
+          `${String(r.score).padStart(3)} ${r.verdict.padEnd(7)} ${j.company} — ${j.title}${
+            ruledOut ? `  → filtered: location (${why})` : restored ? '  → back in Matching: location check passed' : ''
+          }`,
         );
         done++;
-        if (r.verdict === 'strong' && where !== 'no') strong.push(j.id);
+        if (r.verdict === 'strong' && where !== 'no' && (j.status === 'new' || restored)) strong.push(j.id);
       } catch (e) {
         failed++;
         firstError ||= (e as Error).message;
@@ -73,8 +78,24 @@ export const locationReason = (why: string | null) => `location (AI): ${why || '
  * `new`: a job the user already acted on keeps its status (the reason is still shown with the AI review).
  */
 async function excludeForLocation(id: string, why: string | null) {
+  // Already filtered by an earlier location check: keep it there, with the newest reason.
+  await pool.query(`UPDATE jobs SET filter_reason = $2 WHERE id = $1 AND status = 'filtered' AND filter_reason LIKE 'location (AI):%'`, [
+    id,
+    locationReason(why),
+  ]);
   if (!(await setStatus(id, 'filtered', locationReason(why), undefined, { expectFrom: ['new'] }))) return false;
   await pool.query('UPDATE jobs SET filter_reason = $2 WHERE id = $1', [id, locationReason(why)]);
+  return true;
+}
+
+/**
+ * Moves a job that an earlier AI review filtered for its location back to `new` when a new review no longer rules
+ * it out ("yes" or "unclear"). Only that kind of filtered job: the keyword rules' own filters stay.
+ */
+async function restoreLocationFiltered(j: Job, why: string | null) {
+  if (j.status !== 'filtered' || !j.filter_reason?.startsWith('location (AI):')) return false;
+  if (!(await setStatus(j.id, 'new', `location (AI) passed: ${why ?? ''}`.trim(), undefined, { expectFrom: ['filtered'] }))) return false;
+  await pool.query(`UPDATE jobs SET filter_reason = NULL WHERE id = $1 AND filter_reason LIKE 'location (AI):%'`, [j.id]);
   return true;
 }
 
