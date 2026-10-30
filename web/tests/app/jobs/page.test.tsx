@@ -8,6 +8,12 @@ import { cleanupDb, closeDb, ensureSchema, insertJob, PREFIX } from '../../helpe
 
 vi.mock('@/app/actions', () => ({
   writeLetter: vi.fn(),
+  rewriteLetter: vi.fn(),
+  saveLetter: vi.fn(),
+  writeSummary: vi.fn(),
+  rewriteSummary: vi.fn(),
+  saveSummary: vi.fn(),
+  tailorCv: vi.fn(),
   setStatus: vi.fn(),
   prepare: vi.fn(),
   aiReview: vi.fn(),
@@ -209,6 +215,82 @@ describe('job page', () => {
       await renderJob(id);
       expect(statuses()).toContain('Writing letter…');
       expect(screen.queryByRole('button', { name: 'Write letter' })).not.toBeInTheDocument();
+    });
+
+    const letterSection = () => screen.getByRole('heading', { name: /^Cover letter/ }).closest('section')!;
+    const summarySection = () => screen.getByRole('heading', { name: /^CV summary for this job/ }).closest('section')!;
+
+    it('labels a letter the user edited "edited by you", and offers Edit and feedback once a letter exists', async () => {
+      await insertJob({ id, cover_letter: 'Dear Acme, mine', cover_letter_ai: false, cover_letter_edited_at: new Date() });
+      await renderJob(id);
+      const s = letterSection();
+      expect(within(s).getByRole('heading')).toHaveTextContent('· edited by you');
+      for (const name of ['Rewrite letter', 'Copy', 'Edit', 'Rewrite with feedback'])
+        expect(within(s).getByRole('button', { name })).toBeInTheDocument();
+      expect(within(s).getByRole('link', { name: 'Download PDF ↓' })).toBeInTheDocument();
+      expect(within(s).getByLabelText(/What should change\?/)).toHaveAttribute('maxlength', '1000');
+    });
+
+    it('labels a template letter "template", and offers no Edit or feedback before a letter exists', async () => {
+      await insertJob({ id, cover_letter: 'Dear Acme', cover_letter_ai: false });
+      await renderJob(id);
+      expect(within(letterSection()).getByRole('heading')).toHaveTextContent('· template');
+      await cleanupDb();
+      document.body.innerHTML = '';
+      await insertJob({ id });
+      await renderJob(id);
+      expect(within(letterSection()).queryByRole('button', { name: 'Edit' })).toBeNull();
+      expect(within(letterSection()).queryByRole('button', { name: 'Rewrite with feedback' })).toBeNull();
+    });
+
+    it('hides Edit and feedback while the letter is rewritten', async () => {
+      await insertJob({ id, cover_letter: 'Dear Acme', cover_letter_ai: true });
+      await addTask('letter');
+      await renderJob(id);
+      const s = letterSection();
+      expect(within(s).getByRole('status')).toHaveTextContent('Rewriting letter…');
+      expect(s).toHaveTextContent('Dear Acme');
+      for (const name of ['Rewrite letter', 'Edit', 'Rewrite with feedback']) expect(within(s).queryByRole('button', { name })).toBeNull();
+    });
+
+    it('CV summary: "not written yet" and Write summary before one exists', async () => {
+      await insertJob({ id });
+      await renderJob(id);
+      const s = summarySection();
+      expect(within(s).getByRole('heading')).toHaveTextContent('· not written yet');
+      expect(within(s).getByRole('button', { name: 'Write summary' })).toBeInTheDocument();
+      for (const name of ['Copy', 'Use in my CV for this job', 'Edit', 'Rewrite with feedback'])
+        expect(within(s).queryByRole('button', { name })).toBeNull();
+    });
+
+    it('CV summary: Rewrite, Copy, Use in my CV, Edit and feedback once one exists', async () => {
+      await insertJob({ id, cv_summary: 'Senior engineer with Laravel.' });
+      await renderJob(id);
+      const s = summarySection();
+      expect(within(s).getByRole('heading')).toHaveTextContent('· written by AI for this job');
+      expect(s).toHaveTextContent('Senior engineer with Laravel.');
+      for (const name of ['Rewrite summary', 'Copy', 'Use in my CV for this job', 'Edit', 'Rewrite with feedback'])
+        expect(within(s).getByRole('button', { name })).toBeInTheDocument();
+    });
+
+    it('CV summary: "edited by you" after a hand edit', async () => {
+      await insertJob({ id, cv_summary: 'Mine.', cv_summary_edited_at: new Date() });
+      await renderJob(id);
+      expect(within(summarySection()).getByRole('heading')).toHaveTextContent('· edited by you');
+    });
+
+    it.each([
+      ['summary', null, 'Writing summary…', ['Write summary']],
+      ['summary', 'Old.', 'Rewriting summary…', ['Rewrite summary', 'Use in my CV for this job', 'Edit', 'Rewrite with feedback']],
+      ['tailored_cv', 'Old.', 'Building CV with this summary…', ['Use in my CV for this job', 'Edit', 'Rewrite with feedback']],
+    ] as const)('CV summary: a running %s task (summary %j) shows %j in place of the buttons', async (kind, cv_summary, busy, hidden) => {
+      await insertJob({ id, cv_summary });
+      await addTask(kind);
+      await renderJob(id);
+      const s = summarySection();
+      expect(within(s).getByRole('status')).toHaveTextContent(busy);
+      for (const name of hidden) expect(within(s).queryByRole('button', { name })).toBeNull();
+      expect(statuses()[0]).toMatch(kind === 'summary' ? /Writing CV summary/ : /Building CV with summary/);
     });
 
     it("shows the buttons again once the task is done, and only this job's tasks", async () => {

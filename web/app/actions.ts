@@ -2,7 +2,8 @@
 
 import { refresh } from 'next/cache';
 import { pool, STATUSES, type Status } from '@/lib/db';
-import { dismissTask as dismissFailedTask, enqueueTask } from '@/lib/tasks';
+import { dismissTask as dismissFailedTask, enqueueTask, type TaskKind } from '@/lib/tasks';
+import { checkFeedback, checkText, type TextFormState, type WrittenKind } from '@/lib/written-text';
 import { skipReason } from '@/lib/skips';
 
 // Server actions are reachable by POST, so every input is validated here.
@@ -75,6 +76,70 @@ export async function writeLetter(formData: FormData) {
   const id = await assertJob(formData.get('id'));
   await enqueueTask('letter', id);
   refresh();
+}
+
+/** Writes or rewrites the CV summary for this job (`bot summary <id>`). */
+export async function writeSummary(formData: FormData) {
+  const id = await assertJob(formData.get('id'));
+  await enqueueTask('summary', id);
+  refresh();
+}
+
+/** Builds a one-off CV with the job's CV summary and makes it the job's CV (`bot cv:tailor <id>`). */
+export async function tailorCv(formData: FormData) {
+  const id = await assertJob(formData.get('id'));
+  const { rows } = await pool.query<{ cv_summary: string | null }>('SELECT cv_summary FROM jobs WHERE id = $1', [id]);
+  if (!rows[0].cv_summary) throw new Error('Write the CV summary for this job first');
+  await enqueueTask('tailored_cv', id);
+  refresh();
+}
+
+const TASK_FOR: Record<WrittenKind, TaskKind> = { letter: 'letter', summary: 'summary' };
+
+/** Queues the AI rewrite of the letter or summary with the user's feedback (`bot letter|summary <id> --feedback`). */
+async function rewrite(kind: WrittenKind, formData: FormData): Promise<TextFormState> {
+  const id = await assertJob(formData.get('id'));
+  const checked = checkFeedback(formData.get('feedback'));
+  if ('error' in checked) return { ok: false, message: checked.error };
+  await enqueueTask(TASK_FOR[kind], id, { feedback: checked.feedback });
+  refresh();
+  return { ok: true, message: 'Rewriting with your feedback…' };
+}
+
+export async function rewriteLetter(_prev: TextFormState, formData: FormData) {
+  return rewrite('letter', formData);
+}
+
+export async function rewriteSummary(_prev: TextFormState, formData: FormData) {
+  return rewrite('summary', formData);
+}
+
+const SAVE_SQL: Record<WrittenKind, string> = {
+  letter: 'UPDATE jobs SET cover_letter = $2, cover_letter_ai = false, cover_letter_edited_at = now() WHERE id = $1',
+  summary: 'UPDATE jobs SET cv_summary = $2, cv_summary_at = now(), cv_summary_edited_at = now() WHERE id = $1',
+};
+
+/** Stores the text the user edited by hand, with no AI. Refused while the bot is rewriting it (it would overwrite). */
+async function saveText(kind: WrittenKind, formData: FormData): Promise<TextFormState> {
+  const id = await assertJob(formData.get('id'));
+  const checked = checkText(kind, formData.get('text'));
+  if ('error' in checked) return { ok: false, message: checked.error };
+  const { rowCount } = await pool.query(`SELECT 1 FROM tasks WHERE job_id = $1 AND kind = $2 AND status IN ('queued', 'running')`, [
+    id,
+    TASK_FOR[kind],
+  ]);
+  if (rowCount) return { ok: false, message: `The ${kind} is being rewritten right now. Save again when it is done.` };
+  await pool.query(SAVE_SQL[kind], [id, checked.text]);
+  refresh();
+  return { ok: true, message: 'Saved.' };
+}
+
+export async function saveLetter(_prev: TextFormState, formData: FormData) {
+  return saveText('letter', formData);
+}
+
+export async function saveSummary(_prev: TextFormState, formData: FormData) {
+  return saveText('summary', formData);
 }
 
 /** AI fit review of one job via the configured AI provider (`bot ai:score --id`). */

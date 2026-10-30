@@ -1,7 +1,18 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { Suspense } from 'react';
-import { clearAnswers, draftAnswers, saveNotes, writeLetter } from '@/app/actions';
+import {
+  clearAnswers,
+  draftAnswers,
+  rewriteLetter,
+  rewriteSummary,
+  saveLetter,
+  saveNotes,
+  saveSummary,
+  tailorCv,
+  writeLetter,
+  writeSummary,
+} from '@/app/actions';
 import { getJob, jobEvents, postingsFor } from '@/lib/db';
 import { isActive, openTasks } from '@/lib/tasks';
 import { CopyButton, SubmitButton } from '@/components/client';
@@ -9,6 +20,7 @@ import { JobActions } from '@/components/job-actions';
 import { InterviewPrep } from '@/components/interview-prep';
 import { FollowUp } from '@/components/follow-up';
 import { Busy, TaskBar } from '@/components/tasks';
+import { WrittenText } from '@/components/written-text';
 import { SalaryTag } from '@/components/salary';
 import { AtsCheck } from '@/components/ats-check';
 import { loadExpectations } from '@/lib/salary';
@@ -97,7 +109,13 @@ async function JobDetail({ params }: { params: PageProps<'/jobs/[id]'>['params']
           <h2 className="font-medium">
             Cover letter{' '}
             <span className="text-xs font-normal text-zinc-500">
-              {job.cover_letter ? (job.cover_letter_ai ? '· written by AI from this job description' : '· template') : '· not written yet'}
+              {!job.cover_letter
+                ? '· not written yet'
+                : job.cover_letter_edited_at
+                  ? '· edited by you'
+                  : job.cover_letter_ai
+                    ? '· written by AI from this job description'
+                    : '· template'}
             </span>
           </h2>
           <div className="flex gap-2">
@@ -119,7 +137,61 @@ async function JobDetail({ params }: { params: PageProps<'/jobs/[id]'>['params']
           </div>
         </div>
         {job.cover_letter && (
-          <pre className="whitespace-pre-wrap rounded-xl bg-zinc-50 p-4 font-sans text-sm dark:bg-zinc-900">{job.cover_letter}</pre>
+          <WrittenText
+            id={job.id}
+            kind="letter"
+            text={job.cover_letter}
+            busy={busy.includes('letter')}
+            save={saveLetter}
+            rewrite={rewriteLetter}
+          />
+        )}
+      </section>
+
+      <section className="space-y-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="font-medium">
+            CV summary for this job{' '}
+            <span className="text-xs font-normal text-zinc-500">
+              {!job.cv_summary ? '· not written yet' : job.cv_summary_edited_at ? '· edited by you' : '· written by AI for this job'}
+            </span>
+          </h2>
+          <div className="flex flex-wrap gap-2">
+            {busy.includes('summary') ? (
+              <Busy>{job.cv_summary ? 'Rewriting summary…' : 'Writing summary…'}</Busy>
+            ) : (
+              <form action={writeSummary}>
+                <input type="hidden" name="id" value={job.id} />
+                <SubmitButton pendingText="Starting…">{job.cv_summary ? 'Rewrite summary' : 'Write summary'}</SubmitButton>
+              </form>
+            )}
+            {job.cv_summary && <CopyButton text={job.cv_summary} />}
+            {job.cv_summary &&
+              (busy.includes('tailored_cv') ? (
+                <Busy>Building CV with this summary…</Busy>
+              ) : (
+                !busy.includes('summary') && (
+                  <form action={tailorCv}>
+                    <input type="hidden" name="id" value={job.id} />
+                    <SubmitButton pendingText="Starting…">Use in my CV for this job</SubmitButton>
+                  </form>
+                )
+              ))}
+          </div>
+        </div>
+        {job.cv_summary ? (
+          <WrittenText
+            id={job.id}
+            kind="summary"
+            text={job.cv_summary}
+            busy={busy.includes('summary') || busy.includes('tailored_cv')}
+            save={saveSummary}
+            rewrite={rewriteSummary}
+          />
+        ) : (
+          <p className="text-sm text-zinc-500">
+            The summary at the top of your CV, rewritten for this job from your CV and the job description. Only facts from your CV.
+          </p>
         )}
       </section>
 
