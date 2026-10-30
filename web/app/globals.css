@@ -38,4 +38,11 @@ body {
   .input {
     @apply rounded-lg border border-zinc-300 bg-transparent px-3 py-1.5 dark:border-zinc-700;
   }
+  /* A checkbox shown as a pill the height of an h-9 input: <label class="toggle"><input type="checkbox"> Text</label>. */
+  .toggle {
+    @apply inline-flex h-9 cursor-pointer items-center gap-2 rounded-lg border border-zinc-300 px-3 text-sm whitespace-nowrap text-zinc-700 select-none hover:bg-zinc-100 has-checked:border-emerald-600 has-checked:bg-emerald-50 has-checked:text-emerald-800 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:has-checked:border-emerald-500 dark:has-checked:bg-emerald-950 dark:has-checked:text-emerald-300;
+  }
+  .toggle input {
+    @apply accent-emerald-600;
+  }
 }

@@ -1,4 +1,5 @@
 import type { SalaryCurrency, SalaryPeriod } from '../../src/types';
+import { AutoCheckbox } from '@/components/auto-submit';
 import { belowExpectation, CURRENCIES, formatSalary, yearlyEur, type Expectation, type JobSalary } from '@/lib/salary';
 
 /** The salary of a job, e.g. "💰 AED 20k–25k / month", with a hint when it is below what you expect for that country. */
@@ -37,10 +38,13 @@ export function salaryParams(one: (k: string) => string | undefined) {
   };
 }
 
-/** "Min salary" inputs for the list page's filter form. Compared in euros per year with approximate rates. */
+/**
+ * "Min salary" for the list page's filter form: amount, currency and period joined into one control. Compared in euros
+ * per year with approximate rates. Currency and period belong to the typed amount, so they apply with it (Apply filters).
+ */
 export function SalaryFilter({ params }: { params: SalaryParams }) {
   return (
-    <span className="flex flex-wrap items-center gap-2" title="Compared in euros per year with approximate exchange rates">
+    <span className="flex h-9" title="Compared in euros per year with approximate exchange rates">
       <input
         name="sal"
         type="number"
@@ -49,22 +53,29 @@ export function SalaryFilter({ params }: { params: SalaryParams }) {
         defaultValue={params.sal ?? ''}
         placeholder="Min salary"
         aria-label="Min salary"
-        className="input w-28"
+        className="input h-9 w-28 rounded-r-none"
       />
-      <select name="cur" defaultValue={params.cur} aria-label="Salary currency" className="input">
+      <select name="cur" defaultValue={params.cur} aria-label="Salary currency" className="input -ml-px h-9 rounded-none">
         {CURRENCIES.map((c) => (
           <option key={c} value={c}>
             {c}
           </option>
         ))}
       </select>
-      <select name="per" defaultValue={params.per} aria-label="Salary period" className="input">
+      <select name="per" defaultValue={params.per} aria-label="Salary period" className="input -ml-px h-9 rounded-l-none">
         <option value="year">/ year</option>
         <option value="month">/ month</option>
       </select>
-      <label className="flex items-center gap-1 text-zinc-600 dark:text-zinc-400">
-        <input type="checkbox" name="salonly" value="1" defaultChecked={params.only} /> only with salary
-      </label>
     </span>
+  );
+}
+
+/** The "only with salary" pill toggle of the filter form; it applies on change. */
+export function SalaryOnlyToggle({ params }: { params: SalaryParams }) {
+  return (
+    // biome-ignore lint/a11y/noLabelWithoutControl: AutoCheckbox renders the checkbox input
+    <label className="toggle">
+      <AutoCheckbox name="salonly" value="1" defaultChecked={params.only} /> only with salary
+    </label>
   );
 }

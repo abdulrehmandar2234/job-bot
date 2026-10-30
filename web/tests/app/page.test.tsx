@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { cloneElement, Fragment, isValidElement, type ReactElement, type ReactNode } from 'react';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mkdtempSync, writeFileSync } from 'node:fs';
@@ -204,6 +204,69 @@ describe('job list page', () => {
     expect(within(form).getByRole('combobox', { name: 'Minimum score' })).toHaveValue('60');
     expect(within(form).getByRole('combobox', { name: 'Posted within' })).toHaveValue('7');
     expect(within(form).getByRole('combobox', { name: 'Sort' })).toHaveValue('newest');
+  });
+
+  it('lays the filters out in two rows of equal-height, labelled controls', async () => {
+    await renderPage({ visa: '1', salonly: '1' });
+    const form = screen.getByRole('form', { name: 'Job filters' });
+    const [textRow, choiceRow] = [...form.children].filter((el): el is HTMLElement => el.tagName === 'DIV');
+    // Row 1: the text filters (search, min salary with its units) and Apply at the end.
+    expect(within(textRow).getByRole('searchbox', { name: 'Search company or title' })).toBeInTheDocument();
+    expect(within(textRow).getByRole('spinbutton', { name: 'Min salary' })).toBeInTheDocument();
+    expect(within(textRow).getByRole('combobox', { name: 'Salary currency' })).toBeInTheDocument();
+    expect(within(textRow).getByRole('combobox', { name: 'Salary period' })).toBeInTheDocument();
+    const apply = within(textRow).getByRole('button', { name: 'Apply filters' });
+    expect(textRow.lastElementChild).toBe(apply);
+    expect(apply).toHaveClass('ml-auto');
+    // Row 2: the choices.
+    for (const name of ['Country', 'Minimum score', 'Posted within', 'Sort', 'Jobs per page'])
+      expect(within(choiceRow).getByRole('combobox', { name })).toBeInTheDocument();
+    const visa = within(choiceRow).getByRole('checkbox', { name: 'Visa/relocation offered (or not needed)' });
+    expect(visa).toBeChecked();
+    // Checkboxes are pill toggles; every other control is h-9.
+    expect(visa.closest('label')).toHaveClass('toggle');
+    expect(screen.getByRole('checkbox', { name: 'only with salary' }).closest('label')).toHaveClass('toggle');
+    // The two toggles sit together after the selects, so they wrap as one group.
+    expect(
+      within(screen.getByTestId('filter-toggles'))
+        .getAllByRole('checkbox')
+        .map((c) => c.getAttribute('name')),
+    ).toEqual(['salonly', 'visa']);
+    expect(choiceRow.lastElementChild).toBe(screen.getByTestId('filter-toggles'));
+    for (const el of form.querySelectorAll('input:not([type="hidden"]):not([type="checkbox"]), select, button'))
+      expect(el).toHaveClass('h-9');
+  });
+
+  it('applies the page size, sort and other choices on change, back on page 1; typed text waits for Apply', async () => {
+    const sent: Record<string, string>[] = [];
+    const submit = vi.spyOn(HTMLFormElement.prototype, 'requestSubmit').mockImplementation(function (this: HTMLFormElement) {
+      sent.push(Object.fromEntries(new FormData(this)) as Record<string, string>);
+    });
+    try {
+      await renderPage({ status: 'applied', q: 'laravel', sort: 'newest', page: '3' });
+      const form = screen.getByRole('form', { name: 'Job filters' });
+      fireEvent.change(within(form).getByRole('combobox', { name: 'Jobs per page' }), { target: { value: '50' } });
+      expect(submit).toHaveBeenCalledTimes(1);
+      // The other filters are kept; the page is not in the form, so the new size starts on page 1.
+      expect(sent[0]).toMatchObject({ status: 'applied', q: 'laravel', sort: 'newest', size: '50' });
+      expect(sent[0]).not.toHaveProperty('page');
+      for (const name of ['Country', 'Minimum score', 'Posted within', 'Sort']) {
+        const select = within(form).getByRole('combobox', { name }) as HTMLSelectElement;
+        fireEvent.change(select, { target: { value: select.options[1].value } });
+      }
+      fireEvent.click(within(form).getByRole('checkbox', { name: 'Visa/relocation offered (or not needed)' }));
+      fireEvent.click(within(form).getByRole('checkbox', { name: 'only with salary' }));
+      expect(submit).toHaveBeenCalledTimes(7);
+      // Text and the salary units wait for Apply filters.
+      fireEvent.change(within(form).getByRole('searchbox', { name: 'Search company or title' }), { target: { value: 'php' } });
+      fireEvent.change(within(form).getByRole('spinbutton', { name: 'Min salary' }), { target: { value: '5000' } });
+      fireEvent.change(within(form).getByRole('combobox', { name: 'Salary currency' }), { target: { value: 'USD' } });
+      fireEvent.change(within(form).getByRole('combobox', { name: 'Salary period' }), { target: { value: 'month' } });
+      expect(submit).toHaveBeenCalledTimes(7);
+      expect(within(form).getByRole('button', { name: 'Apply filters' })).toHaveAttribute('type', 'submit');
+    } finally {
+      submit.mockRestore();
+    }
   });
 
   it('marks only the active status tab as the current page', async () => {
