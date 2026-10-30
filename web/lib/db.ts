@@ -82,6 +82,7 @@ export type JobFilter = {
   minSalary?: number;
   salaryOnly?: boolean;
   followUp?: boolean; // only applied jobs due a follow-up (web/lib/followup.ts)
+  visaOnly?: boolean; // only jobs whose posting offers visa/relocation support, or that need no visa
 }; // minSalary: euros per year
 
 /** Jobs per page on the dashboard list. */
@@ -116,6 +117,7 @@ function jobWhere(f: JobFilter) {
     where.push(`(${SQL_YEARLY_EUR} >= $${params.length}${f.salaryOnly ? '' : ' OR salary_currency IS NULL'})`);
   }
   if (f.salaryOnly) where.push('salary_currency IS NOT NULL');
+  if (f.visaOnly) where.push(`visa_evidence IN ('offered', 'not-needed')`);
   // Filtered jobs are only useful when they were at least in a target country.
   if (f.status === 'filtered') where.push('country IS NOT NULL');
   if (f.followUp) where.push(FOLLOW_UP_DUE_SQL);
@@ -139,7 +141,7 @@ export async function listJobs(f: JobFilter, page = 1, pageSize = PAGE_SIZE) {
     `SELECT id, source, company, title, location, country, url, '' AS description, posted_at, first_seen_at, score, cluster,
       matched, missing, visa, flags, status, filter_reason, cv_version, NULL AS cover_letter, applied_at, notes,
       ai_score, ai_verdict, ai_summary, ai_reasons, ai_gaps, ai_flags, salary_min, salary_max, salary_currency, salary_period,
-      closed_at, follow_ups, followed_up_at
+      closed_at, follow_ups, followed_up_at, visa_evidence
      FROM jobs WHERE ${where} ORDER BY ${order}, id LIMIT $${params.length - 1} OFFSET $${params.length}`,
     params,
   );

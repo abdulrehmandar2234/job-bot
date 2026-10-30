@@ -3,6 +3,7 @@ import { masterRaw } from './cv/versions.ts';
 import { loadProfile, needsVisa, remoteFrom } from './profile.ts';
 import { isIndSponsor } from './sponsors.ts';
 import type { RawJob } from './sources/index.ts';
+import type { VisaEvidence } from './types.ts';
 
 type Skill = { name: string; re: RegExp; have: boolean; weight?: number; cv?: RegExp };
 
@@ -97,6 +98,7 @@ export type Scored = {
   matched: string[];
   missing: string[];
   visa: string | null;
+  visaEvidence: VisaEvidence | null;
   flags: string[];
   filterReason: string | null;
 };
@@ -179,6 +181,7 @@ export function scoreJob(job: RawJob): Scored {
     matched: [],
     missing: [],
     visa: null,
+    visaEvidence: null,
     flags,
     filterReason,
     ...extra,
@@ -207,37 +210,42 @@ export function scoreJob(job: RawJob): Scored {
   if (country === 'RM') {
     const from = remoteFrom(config, loadProfile());
     visa = from ? `Remote: work from ${from}, no visa needed` : 'Remote: no visa needed';
-    return skillScore(job, text, { country, visa, flags }, out);
+    return skillScore(job, text, { country, visa, visaEvidence: 'not-needed', flags }, out);
   }
 
   // A country the candidate may already work in (or lives in): no sponsorship needed.
   const c = config.countries[country];
   if (!needsVisa(config, country, loadProfile())) {
     visa = `${c.name}: no visa needed`;
-    return skillScore(job, text, { country, visa, flags }, out);
+    return skillScore(job, text, { country, visa, visaEvidence: 'not-needed', flags }, out);
   }
 
   const noSponsor = text.match(NO_SPONSOR);
   if (noSponsor) return out(`no visa sponsorship: "${noSponsor[0].slice(0, 80)}"`);
 
-  // Visa reasoning per country.
-  if (c.visa === 'employer') visa = `${c.name}: employer issues work visa`;
+  // Visa reasoning per country. Only the posting itself counts as "offered": a country's usual practice (employer
+  // visas in the Gulf) or a sponsor register says the company could sponsor, not that it will for this job.
+  const offered = SPONSOR.test(text);
+  let onRegister: boolean | null = null;
   if (c.visa === 'ind-register') {
-    const onRegister = isIndSponsor(job.company);
-    if (onRegister) visa = 'NL: company is an IND recognised sponsor';
-    else if (onRegister === null) flags.push('IND register not downloaded (run sponsors:update)');
-    else flags.push('company name not found on IND register — verify manually');
+    onRegister = isIndSponsor(job.company);
+    if (onRegister === null) flags.push('IND register not downloaded (run sponsors:update)');
+    else if (!onRegister) flags.push('company name not found on IND register — verify manually');
   }
-  if (SPONSOR.test(text)) visa = [visa, 'posting mentions visa/relocation support'].filter(Boolean).join('; ');
-  if (c.visa === 'ind-register' && !visa) return out('NL job but company not on IND sponsor register', { visa });
+  if (offered) visa = `${c.name}: posting offers visa/relocation support${onRegister ? ' (IND recognised sponsor)' : ''}`;
+  else if (onRegister) visa = `${c.name}: company is an IND recognised sponsor, but the posting does not mention visa or relocation`;
+  else if (c.visa === 'employer')
+    visa = `${c.name}: posting does not mention visa or relocation (employers there usually sponsor the work visa)`;
+  if (c.visa === 'ind-register' && !offered && !onRegister) return out('NL job but company not on IND sponsor register', { visa });
+  const visaEvidence: VisaEvidence = offered ? 'offered' : onRegister ? 'can-sponsor' : 'silent';
 
-  return skillScore(job, text, { country, visa, flags }, out);
+  return skillScore(job, text, { country, visa, visaEvidence, flags }, out);
 }
 
 function skillScore(
   job: RawJob,
   text: string,
-  { country, visa, flags }: { country: string; visa: string | null; flags: string[] },
+  { country, visa, visaEvidence, flags }: { country: string; visa: string | null; visaEvidence: VisaEvidence; flags: string[] },
   out: (reason: string, extra?: Partial<Scored>) => Scored,
 ): Scored {
   const matched: string[] = [];
@@ -253,7 +261,7 @@ function skillScore(
       matched.push(s.name);
     } else missing.push(s.name);
   }
-  if (total === 0) return out('no recognisable tech stack in posting', { visa });
+  if (total === 0) return out('no recognisable tech stack in posting', { visa, visaEvidence });
 
   let score = Math.round((got / total) * 100);
   // Postings that only mention 1-2 generic skills shouldn't score 100.
@@ -271,9 +279,10 @@ function skillScore(
   }
   score = Math.max(0, Math.min(100, score));
 
-  if (score < config.minScore) return out(`score ${score} below minScore ${config.minScore}`, { score, matched, missing, visa });
+  if (score < config.minScore)
+    return out(`score ${score} below minScore ${config.minScore}`, { score, matched, missing, visa, visaEvidence });
 
-  return { country, score, cluster: pickCluster(text), matched, missing, visa, flags, filterReason: null };
+  return { country, score, cluster: pickCluster(text), matched, missing, visa, visaEvidence, flags, filterReason: null };
 }
 
 /** The most specific CV variant for a posting. Falls back to the untouched default CV. */

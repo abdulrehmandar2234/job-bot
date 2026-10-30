@@ -80,6 +80,16 @@ describe('job list paging', () => {
     );
   });
 
+  it('the visa filter shows only offered or not-needed jobs, and page links keep it', async () => {
+    for (let i = 0; i < 26; i++)
+      await insertJob({ id: `pv-${String(i).padStart(2, '0')}`, title: `TG pagerzz ${i}`, score: 60, visa_evidence: 'offered' });
+    await insertJob({ id: 'pv-silent', title: 'TG pagerzz silent', score: 60, visa_evidence: 'silent' });
+    await renderList({ q: 'pagerzz', visa: '1' });
+    expect(within(pager()[0]).getByText('1–25 of 26 jobs')).toBeInTheDocument();
+    expect(within(pager()[0]).getByRole('link', { name: 'Next →' })).toHaveAttribute('href', '/?status=new&q=pagerzz&visa=1&page=2');
+    expect(screen.getByRole('checkbox', { name: 'Visa/relocation offered (or not needed)' })).toBeChecked();
+  });
+
   it('has no page links when the list fits on one page', async () => {
     await insertJob({ id: 'pg-one', title: 'TG pagerzz one' });
     await renderList({ q: 'pagerzz' });

@@ -5,6 +5,7 @@ import { BOARDS } from '../sources/boards.ts';
 import { linkedin } from '../sources/linkedin.ts';
 import { parseSalary, rowSalary, SALARY_SOURCES } from '../salary.ts';
 import { save, type Flags } from './shared.ts';
+import { scoreJob } from '../match.ts';
 
 const waitingCount = async () => (await pool.query<{ n: number }>(`SELECT count(*)::int n FROM jobs WHERE status = 'new'`)).rows[0].n;
 
@@ -89,17 +90,16 @@ export async function rescore() {
       salary: keptSalary(j),
     });
   }
-  // Jobs the user acted on are not re-scored, but their salary is filled in (or corrected) too.
+  // Jobs the user acted on are not re-scored, but their salary and visa note are filled in (or corrected) too.
   const { rows: acted } = await pool.query<Job>(`SELECT * FROM jobs WHERE status NOT IN ('new', 'filtered')`);
   for (const j of acted) {
     const s = keptSalary(j) ?? parseSalary(`${j.title}\n${j.description}`);
-    await pool.query('UPDATE jobs SET salary_min = $2, salary_max = $3, salary_currency = $4, salary_period = $5 WHERE id = $1', [
-      j.id,
-      s?.min ?? null,
-      s?.max ?? null,
-      s?.currency ?? null,
-      s?.period ?? null,
-    ]);
+    const scored = scoreJob({ ...j, posted_at: null });
+    await pool.query(
+      `UPDATE jobs SET salary_min = $2, salary_max = $3, salary_currency = $4, salary_period = $5,
+        visa = coalesce($6, visa), visa_evidence = coalesce($7, visa_evidence) WHERE id = $1`,
+      [j.id, s?.min ?? null, s?.max ?? null, s?.currency ?? null, s?.period ?? null, scored.visa, scored.visaEvidence],
+    );
   }
   console.log(`${rows.length} jobs re-scored. ${await waitingCount()} matching jobs waiting (status=new).`);
 }

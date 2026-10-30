@@ -28,6 +28,7 @@ import { Contacts, ReferralReminder } from '@/components/contacts';
 import { allContacts } from '@/lib/contacts-db';
 import { SKIP_LABEL } from '@/lib/skips';
 import { ExpiredBadge, OpenCheck } from '@/components/open-check';
+import { VisaBadge } from '@/components/visa';
 import { AiReview, Chips, fmtDate, Posted, PostedOn, Score, STATUS_LABEL } from '@/components/ui';
 import { readCountryLabels } from '@/lib/profile';
 
@@ -87,7 +88,11 @@ async function JobDetail({ params }: { params: PageProps<'/jobs/[id]'>['params']
       <AtsCheck jobId={job.id} />
 
       <section className="space-y-2 rounded-xl border border-zinc-200 p-4 text-sm dark:border-zinc-800">
-        {job.visa && <p className="text-emerald-700 dark:text-emerald-400">✓ Visa: {job.visa}</p>}
+        {job.visa && (
+          <p>
+            <VisaBadge job={job} /> <span className="text-zinc-500">· {job.visa}</span>
+          </p>
+        )}
         {job.filter_reason && <p className="text-rose-700 dark:text-rose-400">✗ Filtered: {job.filter_reason}</p>}
         <div>
           <span className="text-zinc-500">You have:</span> <Chips items={job.matched} tone="good" />

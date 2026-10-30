@@ -36,6 +36,7 @@ const job = (over: Partial<Job> = {}): Job => ({
   matched: [],
   missing: [],
   visa: null,
+  visa_evidence: null,
   flags: [],
   status: 'interview',
   filter_reason: null,

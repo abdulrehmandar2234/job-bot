@@ -8,6 +8,19 @@ afterAll(closeDb);
 
 const id = (s: string) => PREFIX + s;
 
+describe('listJobs visa filter', () => {
+  it('keeps only jobs whose posting offers visa/relocation, or that need no visa', async () => {
+    const q = 'visafiltertest';
+    for (const e of ['offered', 'not-needed', 'can-sponsor', 'silent'] as const)
+      await insertJob({ id: `visa-${e}`, title: `TG ${q} ${e}`, status: 'new', visa_evidence: e });
+    await insertJob({ id: 'visa-none', title: `TG ${q} none`, status: 'new' });
+    expect(ours(await listJobs({ status: 'new', q, visaOnly: true })).sort()).toEqual([id('visa-not-needed'), id('visa-offered')]);
+    expect(await countJobs({ status: 'new', q, visaOnly: true })).toBe(2);
+    expect(await countJobs({ status: 'new', q })).toBe(5);
+    expect((await listJobs({ status: 'new', q })).find((r) => r.id === id('visa-silent'))!.visa_evidence).toBe('silent');
+  });
+});
+
 describe('listJobs paging and countJobs', () => {
   it('returns one page at a time in a stable order, and counts every match', async () => {
     const q = 'pagingtest';
