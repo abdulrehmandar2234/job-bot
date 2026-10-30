@@ -35,6 +35,15 @@ function read(file: string, example = false): SettingsFile {
 
 export const readConfig = () => read(configFile());
 
+/**
+ * config.json `ai.enabled`, read on every call. Only an explicit `false` turns the AI-only buttons off: a missing or
+ * broken config.json leaves them on, and the bot then reports the real problem.
+ */
+export function aiEnabled(): boolean {
+  const ai = readConfig().data?.ai;
+  return !(ai && typeof ai === 'object' && !Array.isArray(ai) && (ai as Record<string, unknown>).enabled === false);
+}
+
 /** cv/applicant.json, or the example file while the user has not created one. */
 export function readApplicant(): SettingsFile {
   const file = applicantFile();

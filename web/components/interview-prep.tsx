@@ -2,6 +2,7 @@ import { prepareInterview } from '@/app/jobs/[id]/interview-actions';
 import type { InterviewPrep as Prep, Job } from '@/lib/db';
 import type { TaskKind } from '@/lib/tasks';
 import { CopyButton, SubmitButton } from './client';
+import { AiOffNote } from './ai-off';
 import { Busy } from './tasks';
 import { fmtDate } from './ui';
 
@@ -41,9 +42,10 @@ const card = 'space-y-1 rounded-xl border border-zinc-200 p-3 text-sm dark:borde
 
 /**
  * Interview prep for jobs in `applied` or `interview` (and any job that already has one).
- * `busy`: the job's running background tasks; a running `prep` replaces the button.
+ * `busy`: the job's running background tasks; a running `prep` replaces the button. With the AI off (`ai`), a note
+ * linking to Settings replaces it.
  */
-export function InterviewPrep({ job, busy = [] }: { job: Job; busy?: readonly TaskKind[] }) {
+export function InterviewPrep({ job, busy = [], ai = true }: { job: Job; busy?: readonly TaskKind[]; ai?: boolean }) {
   const p = job.interview_prep;
   if (!p && job.status !== 'applied' && job.status !== 'interview') return null;
 
@@ -59,8 +61,10 @@ export function InterviewPrep({ job, busy = [] }: { job: Job; busy?: readonly Ta
         <div className="flex gap-2">
           {busy.includes('prep') ? (
             <Busy>Preparing interview notes…</Busy>
-          ) : (
+          ) : ai ? (
             <PrepButton id={job.id} label={p ? 'Regenerate' : 'Prepare for interview'} />
+          ) : (
+            <AiOffNote what="interview prep" />
           )}
           {p && <CopyButton text={prepText(p)} label="Copy all" />}
         </div>

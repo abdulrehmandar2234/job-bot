@@ -4,6 +4,7 @@ import type { Job } from '@/lib/db';
 import type { TaskKind } from '@/lib/tasks';
 import { SubmitButton } from './client';
 import { CvFeedback } from './cv-feedback';
+import { AiOffNote } from './ai-off';
 import { Busy } from './tasks';
 
 /** Tasks that change the job's CV version; while one runs, the others are hidden so they never race. */
@@ -12,9 +13,10 @@ export const CV_TASKS: readonly TaskKind[] = ['prepare', 'tailored_cv', 'cv_temp
 /**
  * The job's CV on the job page: its version and template, a template select with Apply template (`bot cv:template`,
  * a new version, never overwriting one that may have been sent), previews of each template, Download CV, feedback
- * for the AI (`bot cv:feedback`) and "Suggest improvements" (`bot cv:review`).
+ * for the AI (`bot cv:feedback`) and "Suggest improvements" (`bot cv:review`). The last two need the AI: with it off
+ * (`ai`), a note linking to Settings replaces them.
  */
-export function CvPanel({ job, busy = [] }: { job: Job; busy?: readonly TaskKind[] }) {
+export function CvPanel({ job, busy = [], ai = true }: { job: Job; busy?: readonly TaskKind[]; ai?: boolean }) {
   const fallback = defaultTemplate();
   const chosen = job.cv_template && TEMPLATES.some((t) => t.id === job.cv_template) ? (job.cv_template as typeof fallback) : fallback;
   const info = job.cv_version ? versionInfo(job.cv_version) : null;
@@ -78,18 +80,23 @@ export function CvPanel({ job, busy = [] }: { job: Job; busy?: readonly TaskKind
         <p className="text-sm text-zinc-500">The CV is being built; these options come back when it is done.</p>
       )}
       {info && info.feedbackNote.length > 0 && <FeedbackNote lines={info.feedbackNote} />}
-      <CvFeedback id={job.id} review={job.cv_review ?? null} busy={!!changing || busy.includes('cv_review')} improve={improveCv} />
-
-      {busy.includes('cv_review') ? (
-        <Busy>Reviewing CV…</Busy>
+      {ai ? (
+        <>
+          <CvFeedback id={job.id} review={job.cv_review ?? null} busy={!!changing || busy.includes('cv_review')} improve={improveCv} />
+          {busy.includes('cv_review') ? (
+            <Busy>Reviewing CV…</Busy>
+          ) : (
+            <form action={reviewCv} className="flex flex-wrap items-center gap-2">
+              <input type="hidden" name="id" value={job.id} />
+              <SubmitButton pendingText="Starting…">{job.cv_review ? 'Suggest again' : 'Suggest improvements'}</SubmitButton>
+              <span className="text-xs text-zinc-500">
+                The AI reviews this CV against the job: what is weak or missing, and what to put first.
+              </span>
+            </form>
+          )}
+        </>
       ) : (
-        <form action={reviewCv} className="flex flex-wrap items-center gap-2">
-          <input type="hidden" name="id" value={job.id} />
-          <SubmitButton pendingText="Starting…">{job.cv_review ? 'Suggest again' : 'Suggest improvements'}</SubmitButton>
-          <span className="text-xs text-zinc-500">
-            The AI reviews this CV against the job: what is weak or missing, and what to put first.
-          </span>
-        </form>
+        <AiOffNote what="CV feedback (improving the CV and suggestions)" />
       )}
     </section>
   );

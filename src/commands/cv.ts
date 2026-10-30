@@ -19,7 +19,7 @@ import { keepToMaster } from '../cv/feedback.ts';
 import { isTemplate, TEMPLATE_IDS } from '../cv/templates/index.ts';
 import { aiCvFeedback, aiCvReview } from '../ai.ts';
 import { feedbackFlag } from './prepare.ts';
-import { slug, type Flags } from './shared.ts';
+import { AI_OFF, slug, type Flags } from './shared.ts';
 
 /** The slug of a job's one-off CV folders: custom-<slug>-v<N>. */
 const jobSlug = (j: Pick<Job, 'company' | 'title'>) => slug(`${j.company}-${j.title}`).slice(0, 40);
@@ -139,11 +139,7 @@ export async function cvFeedback(args: string[], flags: Flags) {
   }
   const j = await getJob(args[0]);
   if (!j) return console.log('Not found');
-  if (!config.ai.enabled) {
-    console.error('Improving the CV with feedback needs the AI, and it is off (config.json ai.enabled).');
-    process.exitCode = 1;
-    return;
-  }
+  if (!config.ai.enabled) return console.log(`${AI_OFF}: improving the CV with feedback needs it, so the CV is unchanged.`);
   const master = JSON.parse(masterRaw()) as Cv;
   const current = versionCv(j.cv_version);
   let res: Awaited<ReturnType<typeof aiCvFeedback>>;
@@ -176,11 +172,7 @@ export async function cvFeedback(args: string[], flags: Flags) {
 export async function cvReview(args: string[]) {
   const j = await getJob(args[0]);
   if (!j) return console.log('Not found');
-  if (!config.ai.enabled) {
-    console.error('The CV review is written by the AI, and it is off (config.json ai.enabled).');
-    process.exitCode = 1;
-    return;
-  }
+  if (!config.ai.enabled) return console.log(`${AI_OFF}: the CV review is written by the AI, so there is none.`);
   let review: string;
   try {
     review = await aiCvReview(j, JSON.parse(masterRaw()) as Cv, versionCv(j.cv_version));
