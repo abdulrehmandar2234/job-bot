@@ -208,7 +208,8 @@ export type Revised<K extends string> = Record<K, string> & { note: string };
 function feedbackRules(what: string): string {
   return `
 - REVISION: the candidate gives you the CURRENT ${what.toUpperCase()} and FEEDBACK on it (e.g. "shorter", "less formal",
-  "more about one project"). Rewrite the ${what} to follow the feedback, keeping every rule above.
+  "more about one project"). Rewrite the ${what} to follow the feedback, keeping every rule above, except that a
+  length or tone the feedback asks for replaces the default length and tone above.
 - If the feedback asks for something the rules forbid (a skill, employer, number, year or certification the CV does not
   show, or a commitment), do not add it, and say so in "note" in one short sentence. Otherwise "note" is "".`;
 }
