@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import './helpers.ts';
 import { config } from '../src/config.ts';
 import { PROFILES } from '../src/cv/profiles.ts';
-import { cvHtml, renderPdf, type Cv } from '../src/cv/render.ts';
+import { cvHtml, htmlToPdf, letterHtml, renderPdf, type Cv } from '../src/cv/render.ts';
 import { applyProfile, cvFile, masterHash, masterRaw } from '../src/cv/versions.ts';
 import { coverLetter } from '../src/cover.ts';
 import type { Job } from '../src/db.ts';
@@ -96,5 +96,43 @@ describe('template cover letter', () => {
 
   it('falls back to the default pitch for unknown clusters', () => {
     assert.match(coverLetter(job({ cluster: 'nope' })), /both the JavaScript stack/);
+  });
+});
+
+describe('cover letter PDF', () => {
+  const cv = {
+    name: 'Jane <Doe>',
+    title: 'Senior Engineer',
+    contact: { phone: '+1 555', email: 'jane@example.com', location: 'Lisbon, Portugal', linkedin: 'https://linkedin.com/in/jane' },
+  };
+  const letter = 'Dear Acme Hiring Team,\n\nI build <APIs> & ship.\nSecond line.\n\nBest regards,\nJane Doe\n';
+
+  it('has the CV header, the date and one paragraph per block, escaped', () => {
+    const html = letterHtml(cv, letter, new Date('2026-10-30T12:00:00Z'));
+    assert.match(html, /<h1>Jane &lt;Doe&gt;<\/h1>/);
+    assert.match(html, /<div class="title">Senior Engineer<\/div>/);
+    assert.match(
+      html,
+      /\+1 555 \| <a href="mailto:jane@example.com">jane@example.com<\/a> \| Lisbon, Portugal \| <a href="https:\/\/linkedin.com\/in\/jane">LinkedIn<\/a>/,
+    );
+    assert.match(html, /<div class="date">30 October 2026<\/div>/);
+    assert.match(
+      html,
+      /<p>Dear Acme Hiring Team,<\/p>\n<p>I build &lt;APIs&gt; &amp; ship\.<br>Second line\.<\/p>\n<p>Best regards,<br>Jane Doe<\/p>/,
+    );
+  });
+
+  it('leaves out empty contact fields', () => {
+    const html = letterHtml({ ...cv, contact: { phone: '', email: 'jane@example.com', location: '', linkedin: '' } }, letter);
+    assert.match(html, /<div class="contact"><a href="mailto:jane@example.com">jane@example.com<\/a><\/div>/);
+  });
+
+  it('prints a PDF with Chrome', {
+    skip: !existsSync(process.env.JOB_BOT_CHROME || config.chromePath) && 'Chrome not installed',
+    timeout: 60_000,
+  }, async () => {
+    const out = join(mkdtempSync(join(tmpdir(), 'jobbot-letter-')), 'cover-letter.pdf');
+    await htmlToPdf(letterHtml(cv, letter), out);
+    assert.equal(readFileSync(out).subarray(0, 5).toString(), '%PDF-');
   });
 });

@@ -82,7 +82,7 @@ npm run web          # http://localhost:3100
 - Salary on each card ("AED 20k–25k / month") and a "Min salary" filter in any of the six currencies, per month or year. It compares in euros per year with fixed, approximate rates (`web/lib/salary.ts`). Jobs without a salary stay visible unless "only with salary" is ticked. When `cv/applicant.json` has `expectedSalary` for the job's country (`AE`, `SA`, `NL`, `remote`), a lower salary gets a "below your expectation" hint; it never hides the job. A plain number there is in the country's currency, per month for AE/SA and per year otherwise; text such as `"AED 25,000 per month"` says it itself.
 - The list shows 25 jobs per page, with page links above and below it. The page links keep the tab, filters and sort; changing the tab or filters goes back to page 1.
 - Per job: open the posting, **Prepare CV** (picks or builds the CV version), **Download CV**, AI review, and status buttons.
-- Job page: "Check if still open" button, full description, CV keyword check, cover letter, form-answer helper, notes and status history. The cover letter is never written automatically: **Write letter** writes it (AI from the description, else the template), **Rewrite letter** writes a new one, and **Copy** copies it.
+- Job page: "Check if still open" button, full description, CV keyword check, cover letter, form-answer helper, notes and status history. The cover letter is never written automatically: **Write letter** writes it (AI from the description, else the template), **Rewrite letter** writes a new one, **Copy** copies it, and **Download PDF** downloads it as a one-page PDF in the CV's style, with your name and contact as the header (`bot letter:pdf <id>`, saved as `cover-letter.pdf` in the job's `applications/` folder).
 - "Fetch new jobs" button and a "Add jobs from Bayt" page with the bookmarklet.
 
 ## How it works
@@ -311,6 +311,7 @@ npm run bot -- show <id> [--full]
 npm run bot -- ai:score [--id <id>]           # AI fit review
 npm run bot -- prepare <id> [--cv laravel] [--force] [--letter]   # CV only; --letter also writes the letter
 npm run bot -- letter <id> [--template]       # write or rewrite the cover letter
+npm run bot -- letter:pdf <id>                # cover letter as a PDF in the job's applications/ folder
 npm run bot -- check:open [<id>...] [--status new,prepared] [--limit N]  # mark closed postings expired
 npm run bot -- answer <id> [--file q.txt] [--clear]
 npm run bot -- prep <id>                      # AI interview prep (questions, STAR stories, brief, gaps)

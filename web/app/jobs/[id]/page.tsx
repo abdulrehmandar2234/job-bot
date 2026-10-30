@@ -111,6 +111,11 @@ async function JobDetail({ params }: { params: PageProps<'/jobs/[id]'>['params']
               </form>
             )}
             {job.cover_letter && <CopyButton text={job.cover_letter} />}
+            {job.cover_letter && !busy.includes('letter') && (
+              <a href={`/api/letter/${encodeURIComponent(job.id)}`} className="btn">
+                Download PDF ↓
+              </a>
+            )}
           </div>
         </div>
         {job.cover_letter && (

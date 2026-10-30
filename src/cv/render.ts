@@ -80,13 +80,54 @@ export function cvHtml(cv: Cv): string {
   </body></html>`;
 }
 
-export async function renderPdf(cv: Cv, outFile: string) {
+/**
+ * A cover letter as a one-page A4 document in the CV's style: the CV's name, title and contact line as the header,
+ * then the letter's paragraphs. `letter` is the plain text stored on the job (it already has greeting and signature).
+ */
+export function letterHtml(cv: Pick<Cv, 'name' | 'title' | 'contact'>, letter: string, date = new Date()): string {
+  const c = cv.contact;
+  const paragraphs = letter
+    .trim()
+    .split(/\n\s*\n/)
+    .map((p) => `<p>${esc(p).replace(/\n/g, '<br>')}</p>`)
+    .join('\n');
+  const day = date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+  return `<!doctype html><html><head><meta charset="utf-8"><style>
+  @page { size: A4; margin: 18mm 20mm; }
+  body { font-family: Helvetica, Arial, sans-serif; font-size: 10.5pt; line-height: 1.5; color: #1a1a1a; margin: 0; }
+  h1 { font-size: 19pt; margin: 0; letter-spacing: .3px; }
+  .title { font-size: 11pt; color: #2b4c7e; font-weight: 600; margin: 2px 0 4px; }
+  .contact { font-size: 9.3pt; color: #444; padding-bottom: 8px; border-bottom: 1.2px solid #2b4c7e; }
+  .contact a { color: #2b4c7e; text-decoration: none; }
+  .date { margin: 16px 0 14px; color: #444; }
+  p { margin: 0 0 10px; }
+  </style></head><body>
+  <h1>${esc(cv.name)}</h1>
+  <div class="title">${esc(cv.title)}</div>
+  <div class="contact">${[
+    c.phone,
+    c.email && `<a href="mailto:${esc(c.email)}">${esc(c.email)}</a>`,
+    c.location,
+    c.linkedin && `<a href="${esc(c.linkedin)}">LinkedIn</a>`,
+  ]
+    .filter(Boolean)
+    .map((x) => (x!.startsWith('<a') ? x : esc(x!)))
+    .join(' | ')}</div>
+  <div class="date">${esc(day)}</div>
+  ${paragraphs}
+  </body></html>`;
+}
+
+/** Prints HTML to an A4 PDF with the local Chrome (config chromePath, or JOB_BOT_CHROME). */
+export async function htmlToPdf(html: string, outFile: string) {
   const browser = await chromium.launch({ executablePath: process.env.JOB_BOT_CHROME || config.chromePath, headless: true });
   try {
     const page = await browser.newPage();
-    await page.setContent(cvHtml(cv), { waitUntil: 'load' });
+    await page.setContent(html, { waitUntil: 'load' });
     await page.pdf({ path: outFile, format: 'A4', printBackground: true, preferCSSPageSize: true });
   } finally {
     await browser.close();
   }
 }
+
+export const renderPdf = (cv: Cv, outFile: string) => htmlToPdf(cvHtml(cv), outFile);

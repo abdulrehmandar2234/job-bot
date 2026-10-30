@@ -146,6 +146,25 @@ describe('CLI', () => {
     }
   });
 
+  it('letter:pdf prints the letter next to the CV notes; it refuses a job without a letter', async () => {
+    const id = idOf(await bot(['add', '--file', addFile([posting()])]));
+    await assert.rejects(bot(['letter:pdf', id]), (e: { stdout: string; code: number }) => {
+      assert.match(e.stdout, /No cover letter yet: npm run bot -- letter/);
+      assert.equal(e.code, 1);
+      return true;
+    });
+    if (!existsSync(process.env.JOB_BOT_CHROME || JSON.parse(readFileSync(path('config.json'), 'utf8')).chromePath)) return;
+    const out = await bot(['letter', id, '--template']);
+    const dir = out.match(/Cover {6}: (\S+)\/cover-letter\.txt/)![1];
+    try {
+      const pdf = (await bot(['letter:pdf', id])).match(/PDF {8}: (\S+)/)![1];
+      assert.equal(pdf, join(dir, 'cover-letter.pdf'));
+      assert.equal(readFileSync(pdf).subarray(0, 5).toString(), '%PDF-');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it('letter falls back to the template when AI fails; prepare --letter writes both at once', async () => {
     const id = idOf(await bot(['add', '--file', addFile([posting()])]));
     const out = await bot(['letter', id], { FAKE_CLAUDE_FAIL: 'offline' });
