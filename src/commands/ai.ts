@@ -4,10 +4,12 @@ import { getJob, pool, setStatus, type Job } from '../db.ts';
 import { aiAnswers, aiScore as review } from '../ai.ts';
 import { aiLabel } from '../ai-providers.ts';
 import { notify, strongAlerts, type AlertJob } from '../notify.ts';
-import type { Flags } from './shared.ts';
+import { AI_OFF, type Flags } from './shared.ts';
 
 /** AI review of matching jobs via the configured AI provider (config.json ai.provider): ai:score [--id <job>] [--limit 80] [--all] */
 export async function aiScore(_args: string[], flags: Flags) {
+  // Not an error: `bot daily` runs this every morning, and with the AI off there is simply nothing to do.
+  if (!config.ai.enabled) return console.log(`${AI_OFF}, so no jobs were AI-reviewed.`);
   const params: (string | number)[] = [];
   let where = `status = 'new' AND duplicate_of IS NULL AND ai_scored_at IS NULL`;
   if (flags.id) {
@@ -124,6 +126,7 @@ export async function answer(args: string[], flags: Flags) {
     await pool.query(`UPDATE jobs SET form_answers = '[]' WHERE id = $1`, [j.id]);
     return console.log('Answers cleared.');
   }
+  if (!config.ai.enabled) return console.log(`${AI_OFF}, so no answers were drafted.`);
   const questions = (flags.file ? readFileSync(flags.file, 'utf8') : readFileSync(0, 'utf8')).trim();
   if (!questions) return console.log('No questions given.');
   const fresh = await aiAnswers(j, questions);

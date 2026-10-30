@@ -14,6 +14,9 @@ export const slug = (s: string) =>
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '')
     .slice(0, 50);
+/** The start of the line a command prints when it needs the AI and config.json turns it off (it then exits 0). */
+export const AI_OFF = 'AI is off (config.json ai.enabled)';
+
 export const today = () => new Date().toLocaleDateString('en-CA'); // local YYYY-MM-DD
 
 /** Scores a posting and upserts it as new or filtered. A source's own salary data wins over parsing the text. */

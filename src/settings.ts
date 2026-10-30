@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { z } from 'zod';
@@ -12,9 +12,14 @@ import { TEMPLATE_IDS } from './cv/templates/index.ts';
 export const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 export const path = (...p: string[]) => join(ROOT, ...p);
 
-// JOB_BOT_CONFIG / JOB_BOT_APPLICANT point the bot at other files (tests use temp copies).
-export const CONFIG_FILE = process.env.JOB_BOT_CONFIG || path('config.json');
-export const APPLICANT_FILE = process.env.JOB_BOT_APPLICANT || path('cv', 'applicant.json');
+// JOB_BOT_CONFIG / JOB_BOT_APPLICANT / JOB_BOT_MASTER point the bot at other files (tests use temp copies). The
+// functions read the environment on every call; every read or write of these files goes through them (the dashboard
+// has the same helpers in web/lib/settings.ts). CONFIG_FILE and APPLICANT_FILE are their values at startup.
+export const configFile = () => process.env.JOB_BOT_CONFIG || path('config.json');
+export const applicantFile = () => process.env.JOB_BOT_APPLICANT || path('cv', 'applicant.json');
+export const masterFile = () => process.env.JOB_BOT_MASTER || path('cv', 'master.json');
+export const CONFIG_FILE = configFile();
+export const APPLICANT_FILE = applicantFile();
 export const APPLICANT_EXAMPLE_FILE = path('cv', 'applicant.example.json');
 
 // workday: token is "<tenant>/<wdN>/<site>", e.g. "acme/wd3/AcmeCareers".
@@ -217,6 +222,16 @@ export class InvalidSettingsError extends Error {
     this.file = file;
     this.errors = errors;
   }
+}
+
+/**
+ * Writes a settings object as pretty JSON: to a temp file next to the target, then renamed over it, so a crash never
+ * leaves a half-written file.
+ */
+export function writeSettingsFile(file: string, obj: unknown) {
+  const tmp = `${file}.${process.pid}.tmp`;
+  writeFileSync(tmp, JSON.stringify(obj, null, 2) + '\n');
+  renameSync(tmp, file);
 }
 
 /** Reads and validates a settings file, or throws InvalidSettingsError. */

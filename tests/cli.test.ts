@@ -102,6 +102,10 @@ describe('CLI', () => {
     assert.match(await bot(['show', 'nope']), /Not found/);
   });
 
+  it('migrate applies pending migrations and says when there are none (the dashboard runs it at startup)', async () => {
+    assert.match(await bot(['migrate']), /^Database is up to date\.$/m);
+  });
+
   it('mark changes status with history and rejects bad input', async () => {
     const id = idOf(await bot(['add', '--file', addFile([posting()])]));
     assert.match(await bot(['mark', id, 'applied', 'via', 'Bayt']), /→ applied/);

@@ -1,6 +1,7 @@
 'use client';
 
 import { startTransition, useActionState, useEffect, useState, type FormEvent } from 'react';
+import { AiOffNote } from './ai-off';
 import { FEEDBACK_CAP, TEXT_CAP, type TextFormState, type WrittenKind } from '@/lib/written-text';
 
 type Action = (prev: TextFormState, fd: FormData) => Promise<TextFormState>;
@@ -82,7 +83,8 @@ function FeedbackForm({ id, rewrite }: { id: string; rewrite: Action }) {
 
 /**
  * The cover letter or CV summary on the job page: the text, an Edit toggle that saves the user's own text with no
- * AI, and "What should change?" to have the AI rewrite it with feedback. Both are hidden while the bot rewrites it.
+ * AI, and "What should change?" to have the AI rewrite it with feedback (only while the AI is on: `ai`). Both are
+ * hidden while the bot rewrites it.
  */
 export function WrittenText({
   id,
@@ -91,6 +93,7 @@ export function WrittenText({
   busy,
   save,
   rewrite,
+  ai = true,
 }: {
   id: string;
   kind: WrittenKind;
@@ -98,6 +101,7 @@ export function WrittenText({
   busy: boolean;
   save: Action;
   rewrite: Action;
+  ai?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   if (editing) return <EditForm id={id} kind={kind} text={text} save={save} onDone={() => setEditing(false)} />;
@@ -109,7 +113,7 @@ export function WrittenText({
           <button type="button" className="btn" onClick={() => setEditing(true)}>
             Edit
           </button>
-          <FeedbackForm id={id} rewrite={rewrite} />
+          {ai ? <FeedbackForm id={id} rewrite={rewrite} /> : <AiOffNote what="rewriting with feedback" />}
         </>
       )}
     </div>

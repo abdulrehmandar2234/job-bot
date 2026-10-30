@@ -1,5 +1,5 @@
 import { execFile, spawn } from 'node:child_process';
-import { closeSync, mkdirSync, openSync, readFileSync } from 'node:fs';
+import { closeSync, mkdirSync, openSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 
@@ -40,12 +40,4 @@ export function spawnBot(args: string[]) {
   } finally {
     closeSync(log);
   }
-}
-
-export function cvFileName(): string {
-  return JSON.parse(readFileSync(join(BOT_ROOT, 'config.json'), 'utf8')).cvFileName;
-}
-
-export function cvPath(version: string) {
-  return version === 'default' ? join(BOT_ROOT, 'cv', 'default', cvFileName()) : join(BOT_ROOT, 'cv', 'versions', version, cvFileName());
 }

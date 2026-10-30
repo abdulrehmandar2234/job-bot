@@ -113,14 +113,13 @@ Each feature uses either the score model (fast) or the letter model (better writ
 
 Set `config.json` → `ai.enabled` to `false` (or untick it on the Settings page). What happens today:
 
-| Feature                                                             | With `ai.enabled: false`                                                          |
-| ------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| Cover letters, follow-up drafts                                     | Use the templates built from your profile's `coverLetter` sentences.              |
-| CV summary, letter feedback, CV feedback, CV review, interview prep | Off: the command or button says the AI is off.                                    |
-| Fit review (`ai:score`, also run by the daily run)                  | **Not covered by the switch:** it still calls the provider and fails without one. |
-| Form answers (`answer`)                                             | **Not covered by the switch:** it still calls the provider and fails without one. |
+| Feature                                                                                                                                    | With `ai.enabled: false`                                                                                                         |
+| ------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| Cover letters, follow-up drafts                                                                                                            | Use the templates built from your profile's `coverLetter` sentences.                                                             |
+| Fit review (`ai:score`, also run by the daily run), form answers (`answer`), CV summary, letter and CV feedback, CV review, interview prep | Off: the command prints "AI is off (config.json ai.enabled)" and exits normally, without calling any provider.                   |
+| Dashboard                                                                                                                                  | The AI-only buttons are hidden, with a note linking to Settings. Write letter and Draft follow-up stay (they use the templates). |
 
-So without any AI, do not run `ai:score`, and expect the daily run's notification to say "AI review failed": fetching, filtering, the keyword score, CV PDFs and tracking work as before. Jobs are then sorted by their keyword score.
+Fetching, filtering, the keyword score, CV PDFs and tracking work as before. Jobs are then sorted by their keyword score.
 
 ## What the AI sees
 

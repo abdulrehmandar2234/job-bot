@@ -1,7 +1,6 @@
 import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import type { Job, SalaryCurrency, SalaryPeriod } from '../../src/types';
-import { BOT_ROOT } from './bot';
+import { applicantFile } from './settings';
 import { EUR_RATE, PER_YEAR } from './db';
 
 // The approximate rate tables live in db.ts, whose list filter turns them into SQL (db.ts imports no local modules:
@@ -70,8 +69,11 @@ export function parseExpectation(value: unknown, country: string): Expectation |
   return { amount: Math.min(...amounts), currency, period };
 }
 
-/** Expectations per country key from cv/applicant.json; empty when the file is missing or unreadable. */
-export function loadExpectations(file = join(BOT_ROOT, 'cv', 'applicant.json')): Record<string, Expectation> {
+/**
+ * Expectations per country key from cv/applicant.json (JOB_BOT_APPLICANT when set); empty when the file is missing or
+ * unreadable.
+ */
+export function loadExpectations(file = applicantFile()): Record<string, Expectation> {
   try {
     const expected = JSON.parse(readFileSync(file, 'utf8')).expectedSalary ?? {};
     return Object.fromEntries(

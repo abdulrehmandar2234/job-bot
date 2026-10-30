@@ -1,5 +1,5 @@
 import { existsSync, readFileSync } from 'node:fs';
-import { APPLICANT_EXAMPLE_FILE, loadSettings, path, type Applicant, type Config } from './settings.ts';
+import { APPLICANT_EXAMPLE_FILE, applicantFile, loadSettings, masterFile, type Applicant, type Config } from './settings.ts';
 
 // The candidate's profile: the personal facts that letters, prompts and filters need (name, contact, where they live,
 // languages, relocation). It comes from cv/applicant.json; name and contact fall back to cv/master.json, so a CV alone
@@ -134,9 +134,7 @@ export function onsiteSituation(cfg: Pick<Config, 'countries'>, p: Profile, code
 
 // ---- Loading ----
 
-// Read on every call, not at import, so tests can point JOB_BOT_APPLICANT at a fixture.
-export const applicantFile = () => process.env.JOB_BOT_APPLICANT || path('cv', 'applicant.json');
-const masterFile = () => process.env.JOB_BOT_MASTER || path('cv', 'master.json');
+// applicantFile() / masterFile() read the environment on every call, so tests can point JOB_BOT_APPLICANT at a fixture.
 
 /** cv/applicant.json, validated. Missing = all unknown (the example file's keys, every value null). */
 export function readApplicant(): Applicant {

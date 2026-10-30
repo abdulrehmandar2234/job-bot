@@ -42,7 +42,7 @@ npx playwright-core install chromium-headless-shell
 
 ## 4. Apply the database migrations
 
-New versions may add database columns (numbered SQL files in `src/migrations/`). The **bot** applies the ones the database has not run yet before any command that uses the database, and records them in `schema_migrations`. The dashboard does not apply them itself, so run one bot command before using it:
+New versions may add database columns (numbered SQL files in `src/migrations/`). The bot applies the ones the database has not run yet before any command that uses the database, and the **dashboard applies them when it starts** (`npm run bot -- migrate` in the background), recording them in `schema_migrations`. To apply them yourself:
 
 ```bash
 npm run bot -- stats

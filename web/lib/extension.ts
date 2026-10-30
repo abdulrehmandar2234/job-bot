@@ -1,7 +1,6 @@
 import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { BOT_ROOT } from '@/lib/bot';
 import { type Job, pool } from '@/lib/db';
+import { applicantFile, masterFile } from '@/lib/settings';
 
 // The job-bot Chrome extension (extension/ in the repo). Web pages cannot forge the Origin header, and the
 // manifest's public "key" pins the extension id, so only this extension (not any other one the user installed)
@@ -60,13 +59,14 @@ const readJson = (file: string): Record<string, unknown> => {
 const str = (v: unknown) => (typeof v === 'string' ? v.trim() : '');
 
 /**
- * Name and contact from cv/master.json; cv/applicant.json currentLocation wins for the location.
+ * Name and contact from cv/master.json; cv/applicant.json currentLocation wins for the location (or the files
+ * JOB_BOT_MASTER / JOB_BOT_APPLICANT name, see lib/settings.ts).
  * Missing files or fields give empty strings, which the extension leaves unfilled.
  */
-export function fillProfile(root = BOT_ROOT): FillProfile {
-  const cv = readJson(join(root, 'cv', 'master.json'));
+export function fillProfile(files = { master: masterFile(), applicant: applicantFile() }): FillProfile {
+  const cv = readJson(files.master);
   const contact = (cv.contact ?? {}) as Record<string, unknown>;
-  const facts = readJson(join(root, 'cv', 'applicant.json'));
+  const facts = readJson(files.applicant);
   return {
     name: str(cv.name),
     email: str(contact.email),

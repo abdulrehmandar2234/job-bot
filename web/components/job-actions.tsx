@@ -37,8 +37,11 @@ export function CvAction({ job, busy = [] }: { job: Job; busy?: Running }) {
   );
 }
 
-/** AI review (until the job has one) and the buttons that move a job along the pipeline, including Skip. */
-export function StatusActions({ job, busy = [] }: { job: Job; busy?: Running }) {
+/**
+ * AI review (until the job has one, and only while config.json `ai.enabled` is on: `ai`) and the buttons that move a
+ * job along the pipeline, including Skip.
+ */
+export function StatusActions({ job, busy = [], ai = true }: { job: Job; busy?: Running; ai?: boolean }) {
   const status = (to: string, label: string, extra = '') => (
     <form action={setStatus}>
       <input type="hidden" name="id" value={job.id} />
@@ -52,6 +55,7 @@ export function StatusActions({ job, busy = [] }: { job: Job; busy?: Running }) 
       {busy.includes('ai_review') ? (
         <Busy>AI reviewing…</Busy>
       ) : (
+        ai &&
         job.ai_score == null && (
           <form action={aiReview}>
             <input type="hidden" name="id" value={job.id} />
@@ -87,12 +91,12 @@ export function StatusActions({ job, busy = [] }: { job: Job; busy?: Running }) 
  * Buttons shown for a job, depending on where it is in the pipeline. `busy`: the job's running background tasks.
  * The job page places the three parts apart (summary card, CV block, actions); the list cards show them in one row.
  */
-export function JobActions({ job, busy = [] }: { job: Job; busy?: Running }) {
+export function JobActions({ job, busy = [], ai = true }: { job: Job; busy?: Running; ai?: boolean }) {
   return (
     <div className="flex flex-wrap items-center gap-2">
       <OpenJobLink job={job} />
       <CvAction job={job} busy={busy} />
-      <StatusActions job={job} busy={busy} />
+      <StatusActions job={job} busy={busy} ai={ai} />
     </div>
   );
 }

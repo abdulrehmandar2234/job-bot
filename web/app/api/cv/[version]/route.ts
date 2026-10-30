@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import type { NextRequest } from 'next/server';
-import { cvFileName, cvPath } from '@/lib/bot';
+import { cvFileName, cvPath } from '@/lib/cv-templates';
 import { isExtensionOrigin } from '@/lib/extension';
 
 /**

@@ -1,5 +1,5 @@
 import type { NextRequest } from 'next/server';
-import { cvFileName } from '@/lib/bot';
+import { cvFileName } from '@/lib/cv-templates';
 import { fillProfile, findJobByUrl, isExtensionOrigin, isHttpUrl } from '@/lib/extension';
 
 // The Chrome extension's "Apply helper" side panel asks here which job the open tab is, and what was prepared for it.
