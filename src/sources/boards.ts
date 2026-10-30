@@ -15,6 +15,27 @@ const strip = (html: string) =>
     .replace(/\n\s*\n+/g, '\n')
     .trim();
 
+/** Pakistan's UTC offset, and how far a required time zone may be from it. */
+const PK_UTC = 5;
+
+/**
+ * The region a Himalayas job is open to, for the location field. Its time zones count too: a job "Worldwide" but
+ * limited to UTC-10…-5 (the Americas) is not open to Pakistan, so it reads "time zones UTC-10, UTC-9, …" and the
+ * remote-region filter drops it.
+ */
+export function himalayasRegion(countries?: string[] | null, zones?: number[] | null): string {
+  const places = countries?.length ? countries.join(', ') : '';
+  if (zones?.length && !zones.some((z) => Math.abs(z - PK_UTC) <= 1)) {
+    const fmt = (z: number) => `UTC${z >= 0 ? '+' : ''}${z}`;
+    const span = `time zones ${[...new Set(zones)]
+      .sort((a, b) => a - b)
+      .map(fmt)
+      .join(', ')}`;
+    return places ? `${places} (${span})` : span;
+  }
+  return places || 'Worldwide';
+}
+
 /** Himalayas search with country=PK only returns remote jobs open to candidates in Pakistan. */
 async function himalayas(): Promise<Fetched> {
   const out = new Map<string, RawJob>();
@@ -32,7 +53,7 @@ async function himalayas(): Promise<Fetched> {
       for (const j of data.jobs) {
         const posted = j.pubDate * 1000;
         if (posted < cutoff) continue;
-        const where = j.locationRestrictions?.length ? j.locationRestrictions.join(', ') : 'Worldwide';
+        const where = himalayasRegion(j.locationRestrictions, j.timezoneRestrictions);
         out.set(j.guid, {
           id: `himalayas:${j.guid.replace(/^https:\/\/himalayas\.app\/companies\//, '')}`,
           source: 'himalayas',

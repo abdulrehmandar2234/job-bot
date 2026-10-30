@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { config } from './config.ts';
 import { APPLICANT_EXAMPLE_FILE, APPLICANT_FILE, loadSettings } from './settings.ts';
-import type { FormAnswer, InterviewPrep, Job } from './types.ts';
+import type { AiLocation, FormAnswer, InterviewPrep, Job } from './types.ts';
 import { masterRaw } from './cv/versions.ts';
 import type { Cv } from './cv/render.ts';
 
@@ -89,6 +89,8 @@ export type AiScore = {
   reasons: string[];
   gaps: string[];
   red_flags: string[];
+  /** Missing from reviews made before the location check existed, and from tests' fake replies. */
+  location?: { eligible: AiLocation; reason: string };
 };
 
 const SCORE_SCHEMA = {
@@ -100,8 +102,17 @@ const SCORE_SCHEMA = {
     reasons: { type: 'array', items: { type: 'string' }, maxItems: 4 },
     gaps: { type: 'array', items: { type: 'string' }, maxItems: 4 },
     red_flags: { type: 'array', items: { type: 'string' }, maxItems: 4 },
+    location: {
+      type: 'object',
+      description: 'Can the candidate take this job from where they live, judged from the whole description?',
+      properties: {
+        eligible: { type: 'string', enum: ['yes', 'no', 'unclear'] },
+        reason: { type: 'string', description: 'The phrase from the posting that decides it, quoted, or why it is unclear.' },
+      },
+      required: ['eligible', 'reason'],
+    },
   },
-  required: ['score', 'verdict', 'summary', 'reasons', 'gaps', 'red_flags'],
+  required: ['score', 'verdict', 'summary', 'reasons', 'gaps', 'red_flags', 'location'],
 };
 
 export function aiScore(job: Job): Promise<AiScore> {
@@ -110,7 +121,15 @@ seniority, core stack, domain, years required, and practical blockers. The candi
 English and Urdu only, and needs employer visa sponsorship for onsite roles (UAE, Saudi Arabia, Netherlands); remote
 roles must be open to someone working from Pakistan. Put blockers in red_flags: language other than English/Urdu required,
 citizens/residents only, no sponsorship, region-locked remote, clearly junior or far more senior than the candidate.
-Score: 85+ strong fit, 70-84 good, 50-69 stretch, below 50 poor. Keep every string short.`;
+Score: 85+ strong fit, 70-84 good, 50-69 stretch, below 50 poor. Keep every string short.
+location: read the WHOLE description, not only the LOCATION line, for where the person must live or be allowed to
+work: "must be based in / reside in X", "US/EU/UK only", "authorized to work in X without sponsorship", required time
+zones or working hours far from Pakistan's (GMT+5), or a description that names another country than the LOCATION
+line (for example "work remotely from Slovenia" on a Saudi Arabia listing). eligible "no" when it clearly rules the
+candidate out, and also when the description says the work is done from, or the person must live in, a specific
+country or region that is not Pakistan and not a target country with visa sponsorship: the description wins over the
+LOCATION line. An onsite role in a target country with visa sponsorship is fine. "unclear" only when a remote job never
+says where the person may live; "yes" when it is open to the candidate. Quote the deciding phrase in reason.`;
   return askClaude<AiScore>(`CANDIDATE CV:\n${cvText()}\n\nJOB:\n${jobText(job)}`, SCORE_SCHEMA, config.ai.scoreModel, system);
 }
 

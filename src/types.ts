@@ -3,6 +3,9 @@
 
 export type JobStatus = 'new' | 'prepared' | 'applied' | 'interview' | 'offer' | 'rejected' | 'skipped' | 'expired' | 'filtered';
 
+/** The AI review's location check: 'no' means the description rules the candidate out (region, residency, work permit). */
+export type AiLocation = 'yes' | 'no' | 'unclear';
+
 /** A drafted answer to one application-form question (`bot answer`). */
 export type FormAnswer = { question: string; answer: string; needs_input: boolean; note: string };
 
@@ -49,6 +52,8 @@ export type Job = {
   ai_gaps: string[] | null;
   ai_flags: string[] | null;
   ai_scored_at: Date | null;
+  ai_location: AiLocation | null; // AI review: can the candidate take the job from where they live?
+  ai_location_reason: string | null; // the phrase that decided it
   form_answers: FormAnswer[];
   interview_prep: InterviewPrep | null;
   interview_prep_at: Date | null;
