@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { mockFetch } from './helpers.ts';
 import { API_PRESETS, PRESETS, detectPreset } from '../src/ai-presets.ts';
-import { aiLabel, aiModel, askAi, chatBody, parseReply, providerMode, resolveApi } from '../src/ai-providers.ts';
+import { aiLabel, aiModel, askAi, chatBody, parseReply, providerMode, resolveApi, resolveClaude } from '../src/ai-providers.ts';
 import type { AiSettings } from '../src/settings.ts';
 import { timing } from '../src/sources/http.ts';
 
@@ -56,6 +56,38 @@ afterEach(() => {
   mock = null;
   timing.scale = 1;
   for (const k of ENV) delete process.env[k];
+});
+
+describe('resolveClaude', () => {
+  const at =
+    (...files: string[]) =>
+    (p: string) =>
+      files.includes(p);
+
+  it('a bare name is found on PATH first, then in ~/.local/bin; a path is used as given', () => {
+    assert.equal(
+      resolveClaude('claude', { PATH: '/usr/bin:/opt/x' }, 'darwin', '/Users/a', at('/opt/x/claude', '/Users/a/.local/bin/claude')),
+      '/opt/x/claude',
+    );
+    assert.equal(
+      resolveClaude('claude', { PATH: '/usr/bin' }, 'darwin', '/Users/a', at('/Users/a/.local/bin/claude')),
+      '/Users/a/.local/bin/claude',
+    );
+    assert.equal(resolveClaude('claude', { PATH: '/usr/bin' }, 'linux', '/home/a', at()), 'claude'); // left to the OS, which reports it
+    assert.equal(resolveClaude('/my/claude', {}, 'darwin', '/Users/a', at()), '/my/claude');
+  });
+
+  it('on Windows it looks for claude.exe, with Windows paths', () => {
+    const exists = (p: string) => p === 'C:\\Users\\a\\.local\\bin\\claude.exe';
+    assert.equal(
+      resolveClaude('claude', { Path: 'C:\\Windows;C:\\Tools' }, 'win32', 'C:\\Users\\a', exists),
+      'C:\\Users\\a\\.local\\bin\\claude.exe',
+    );
+    assert.equal(
+      resolveClaude('claude', { Path: 'C:\\Tools' }, 'win32', 'C:\\Users\\a', (p) => p === 'C:\\Tools\\claude.exe'),
+      'C:\\Tools\\claude.exe',
+    );
+  });
 });
 
 describe('presets', () => {

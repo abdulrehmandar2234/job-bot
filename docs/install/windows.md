@@ -8,7 +8,7 @@ Paths below use `$HOME\job-bot` (that is `C:\Users\<you>\job-bot`) for the proje
 
 ## Steps
 
-1. [Install Node.js, Git and PostgreSQL](#1-install-nodejs-git-and-postgresql)
+1. [Install Node.js and PostgreSQL](#1-install-nodejs-and-postgresql)
 2. [Create the database](#2-create-the-database)
 3. [Get the code and install its packages](#3-get-the-code-and-install-its-packages)
 4. [Create the env files](#4-create-the-env-files)
@@ -24,17 +24,16 @@ Paths below use `$HOME\job-bot` (that is `C:\Users\<you>\job-bot`) for the proje
 14. [The Chrome extension](#14-the-chrome-extension)
 15. [Check that it works](#15-check-that-it-works)
 
-## 1. Install Node.js, Git and PostgreSQL
+## 1. Install Node.js and PostgreSQL
 
-job-bot needs **Node.js 24 or newer** (it runs its TypeScript directly, with no build step), Git and **PostgreSQL 15 or newer**. With winget (built into Windows 10 and 11):
+job-bot needs **Node.js 24 or newer** (it runs its TypeScript directly, with no build step) and **PostgreSQL 15 or newer**. This guide assumes Git is already installed (`git --version` works). With winget (built into Windows 10 and 11):
 
 ```powershell
 winget install OpenJS.NodeJS.LTS
-winget install Git.Git
 winget install --interactive PostgreSQL.PostgreSQL.17
 ```
 
-`--interactive` shows the PostgreSQL installer, so you can **choose the password of the `postgres` user**: write it down, you need it in step 2 and 4. Keep the port `5432`. Stack Builder at the end is not needed. Without winget, use the installers from [nodejs.org](https://nodejs.org), [git-scm.com](https://git-scm.com/download/win) and [postgresql.org](https://www.postgresql.org/download/windows/).
+`--interactive` shows the PostgreSQL installer, so you can **choose the password of the `postgres` user**: write it down, you need it in step 2 and 4. Keep the port `5432`. Stack Builder at the end is not needed. Without winget, use the installers from [nodejs.org](https://nodejs.org) and [postgresql.org](https://www.postgresql.org/download/windows/).
 
 **Close PowerShell and open a new window**, so it sees the new PATH.
 
@@ -51,7 +50,6 @@ or type `npm.cmd` wherever this guide says `npm`.
 ```powershell
 node --version   # v24.0.0 or newer
 npm --version
-git --version
 ```
 
 ## 2. Create the database
@@ -82,7 +80,7 @@ The daily backup finds `pg_dump.exe` in `C:\Program Files\PostgreSQL\<version>\b
 ## 3. Get the code and install its packages
 
 ```powershell
-git clone <repository URL> $HOME\job-bot
+git clone https://github.com/abdulrehmandar2234/job-bot.git $HOME\job-bot
 cd $HOME\job-bot
 npm install                 # the bot; also sets up the git pre-commit hook
 npm --prefix web install    # the dashboard (it has its own package.json)
