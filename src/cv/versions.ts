@@ -7,7 +7,7 @@ import { renderPdf, type Cv } from './render.ts';
 // Layout on disk (the PDF file name is identical in every folder, only the folder name differs):
 //   cv/default/<cvFileName>                  untouched original PDF
 //   cv/versions/<cluster>-v<N>/<cvFileName>  generated variant + cv.json + meta.json
-//   cv/versions/custom-<slug>/...            one-off variant made for a single job
+//   cv/versions/custom-<slug>-v<N>/...       one-off variant made for a single job (a new N every time)
 
 export type VersionMeta = { id: string; cluster: string; masterHash: string; createdAt: string; jobId?: string };
 
@@ -90,8 +90,32 @@ export async function versionFor(cluster: string): Promise<{ id: string; created
 }
 
 /**
- * One-off variant for a single job. `overrides` may only re-frame: title, summary,
- * and orderings. It is merged over the cluster profile (or the master CV).
+ * Claims a new folder `custom-<slug>-v<N>` under cv/versions and returns its id. N is one above every version of
+ * that slug on disk (an old unnumbered `custom-<slug>` counts as v1), and the folder is created exclusively, so a
+ * folder is never reused: a CV that may already have been sent is never overwritten.
+ */
+export function claimCustomId(slug: string): string {
+  mkdirSync(VERSIONS, { recursive: true });
+  const base = `custom-${slug}`;
+  const taken = readdirSync(VERSIONS).map((d) => {
+    if (d === base) return 1;
+    const n = d.startsWith(`${base}-v`) ? d.slice(base.length + 2) : '';
+    return /^\d+$/.test(n) ? Number(n) : 0;
+  });
+  for (let n = Math.max(0, ...taken) + 1; ; n++) {
+    const id = `${base}-v${n}`;
+    try {
+      mkdirSync(path('cv', 'versions', id));
+      return id;
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code !== 'EEXIST') throw e; // taken by a concurrent run: try the next N
+    }
+  }
+}
+
+/**
+ * One-off variant for a single job, in a new folder every time (claimCustomId). `overrides` may only re-frame:
+ * title, summary, and orderings. It is merged over the cluster profile (or the master CV).
  */
 export async function customVersion(slug: string, cluster: string, jobId: string, overrides: Partial<Profile>) {
   const master = JSON.parse(masterRaw()) as Cv;
@@ -108,5 +132,5 @@ export async function customVersion(slug: string, cluster: string, jobId: string
     ...overrides,
     bulletKeywords: overrides.bulletKeywords ? new RegExp(overrides.bulletKeywords, 'i') : base.bulletKeywords,
   };
-  return writeVersion(`custom-${slug}`, cluster, applyProfile(master, p), jobId);
+  return writeVersion(claimCustomId(slug), cluster, applyProfile(master, p), jobId);
 }
