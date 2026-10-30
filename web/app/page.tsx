@@ -25,7 +25,9 @@ import { allContacts } from '@/lib/contacts-db';
 import { ExpiredBadge } from '@/components/open-check';
 import { FollowUpBadge } from '@/components/follow-up';
 import { Pager } from '@/components/pager';
-import { ago, AiReview, Chips, COUNTRIES, fmtDate, Posted, PostedOn, Score, STATUS_LABEL } from '@/components/ui';
+import { ago, AiReview, Chips, fmtDate, Posted, PostedOn, Score, STATUS_LABEL } from '@/components/ui';
+import { FirstRunBanner, MarketHeader } from '@/components/profile-banner';
+import { readCountryLabels } from '@/lib/profile';
 
 export default function Page(props: PageProps<'/'>) {
   return (
@@ -33,9 +35,9 @@ export default function Page(props: PageProps<'/'>) {
       <header className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Job Bot</h1>
-          <p className="text-sm text-zinc-500">
-            UAE · Saudi Arabia · Netherlands with visa sponsorship, plus remote roles open to Pakistan
-          </p>
+          <Suspense fallback={<p className="text-sm text-zinc-500">&nbsp;</p>}>
+            <MarketHeader />
+          </Suspense>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Suspense fallback={null}>
@@ -54,6 +56,9 @@ export default function Page(props: PageProps<'/'>) {
           </form>
         </div>
       </header>
+      <Suspense fallback={null}>
+        <FirstRunBanner />
+      </Suspense>
       <details className="mb-5 rounded-xl border border-zinc-200 px-4 py-3 text-sm dark:border-zinc-800">
         <summary className="cursor-pointer font-medium">Add jobs from Bayt</summary>
         <div className="mt-3 space-y-3 text-zinc-600 dark:text-zinc-400">
@@ -88,7 +93,8 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<'/'>['searc
   // "Needs follow-up" is a view of applied jobs (web/lib/followup.ts), not a status of its own.
   const followUp = one('view') === 'followup';
   const status = followUp ? 'applied' : ((STATUSES.includes(one('status') as Status) ? one('status') : 'new') as Status);
-  const country = one('country') && COUNTRIES[one('country')!] ? one('country') : undefined;
+  const labels = readCountryLabels(); // config.json target countries, plus RM for remote
+  const country = one('country') && labels[one('country')!] ? one('country') : undefined;
   const min = Number(one('min')) || undefined;
   const q = one('q');
   const days = Number(one('days')) || undefined;
@@ -169,7 +175,7 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<'/'>['searc
         />
         <select name="country" defaultValue={country ?? ''} aria-label="Country" className="input">
           <option value="">All countries</option>
-          {Object.entries(COUNTRIES).map(([k, v]) => (
+          {Object.entries(labels).map(([k, v]) => (
             <option key={k} value={k}>
               {v}
             </option>
@@ -224,7 +230,7 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<'/'>['searc
                   </span>
                 </div>
                 <p className="text-sm text-zinc-600 dark:text-zinc-400">
-                  {j.country ? COUNTRIES[j.country] : ''} · {j.location}
+                  {j.country ? (labels[j.country] ?? j.country) : ''} · {j.location}
                   {j.visa && <span className="text-emerald-700 dark:text-emerald-400"> · ✓ {j.visa}</span>}
                 </p>
                 <SalaryTag job={j} expected={expected} />

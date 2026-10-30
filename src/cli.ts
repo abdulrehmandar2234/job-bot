@@ -40,13 +40,15 @@ const commands: Record<string, () => Promise<Command>> = {
   'settings:check': async () => (await import('./commands/settings.ts')).settingsCheck,
   'settings:save': async () => (await import('./commands/settings.ts')).settingsSave,
   'task:run': async () => (await import('./commands/task.ts')).taskRun,
+  setup: async () => (await import('./commands/setup.ts')).setup,
 };
 // Commands that only touch files: no database connection or migrations.
-const NO_DB = ['settings:check', 'settings:save'];
+const NO_DB = ['settings:check', 'settings:save', 'setup'];
 
 const load = commands[cmd ?? ''];
 if (!load) {
   console.log(`Commands:
+  setup                           first run: questions for your profile and target countries (cv/applicant.json, config.json)
   sponsors:update                 download Dutch IND recognised-sponsor register
   fetch [--company name]          pull jobs from company boards, filter + score
   rescore                         re-apply filters/scoring to stored jobs (after config changes)

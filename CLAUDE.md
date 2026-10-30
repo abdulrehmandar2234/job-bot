@@ -4,7 +4,9 @@ Local job-search helper: Node CLI bot (`src/`, TypeScript run directly by Node 2
 
 ## Rules
 
-- The bot never applies to a job. It finds, scores and prepares (CV, cover letter, form answers). The user applies himself.
+- The bot never applies to a job. It finds, scores and prepares (CV, cover letter, form answers). The user applies themselves.
+- Nothing personal is hardcoded. Name, contact, location, languages and letter sentences come from the profile (`cv/applicant.json`, `src/profile.ts`, falling back to `cv/master.json`); target countries, visa needs and the remote-from country from `config.json`. Prompts say "the candidate", never he/his. The dashboard mirrors the profile rules in `web/lib/market.ts` (parity test in `web/tests/lib/market.test.ts`).
+- `config.json` and `cv/master.json` in git are the owner's. `tests/fixtures/owner-golden.json` pins the owner's letters and filter results; a change that alters them must be deliberate.
 - The Chrome extension may type prepared values into empty form fields when the user clicks "Fill this form". It never overwrites a filled field, never clicks a button and never submits a form.
 - Prefer public APIs over scraping, and pace requests (`src/sources/http.ts` `sleep`) so no site blocks the bot. Never automate logins, account creation or CAPTCHAs.
 - Every new feature or edit ships with tests in the same change:

@@ -1,6 +1,8 @@
 # job-bot
 
-A personal job-search assistant that runs on your own Mac. It finds software engineering jobs in the **UAE, Saudi Arabia and the Netherlands** (onsite, with visa) and **remote jobs open to Pakistan**. It filters and scores them against your CV, prepares the right CV version, cover letter and form answers for each one, and tracks where you applied.
+A personal job-search assistant that runs on your own Mac. It finds software engineering jobs in the **countries you target** (onsite, with or without a visa) and **remote jobs open to the country you live in**. It filters and scores them against your CV, prepares the right CV version, cover letter and form answers for each one, and tracks where you applied.
+
+Everything personal lives in two files you fill in yourself, `cv/master.json` (your CV) and `cv/applicant.json` (your profile), plus the target markets in `config.json`. `npm run bot -- setup` asks for all of it: see [Getting started for a new user](#getting-started-for-a-new-user). The `config.json` in the repository is the original author's (UAE, Saudi Arabia and the Netherlands with visa sponsorship, remote from Pakistan); the examples below use it.
 
 ## Purpose
 
@@ -19,7 +21,7 @@ Design principles:
 ### Job discovery
 
 - **Company career boards** (about 50 companies in `config.json` → `companies`) via the public APIs of Greenhouse, Lever, Ashby, Recruitee, Workable, SmartRecruiters and Workday.
-- **Remote job boards:** Himalayas (only jobs open to Pakistan), Remotive and RemoteOK.
+- **Remote job boards:** Himalayas (only jobs open to your remote-from country, `remote.fromCode`), Remotive and RemoteOK.
 - **Workday career sites** (`*.myworkdayjobs.com`, used by many large UAE/Saudi employers): add a company with `"ats": "workday"` and `"token": "<tenant>/<wdN>/<site>"`, e.g. `acme/wd3/AcmeCareers` for `https://acme.wd3.myworkdayjobs.com/en-US/AcmeCareers`. Or pass that full URL to `bot discover`. Listings come from Workday's public JSON search (at most 500 per company); descriptions are only loaded for postings whose title, location (target country, remote or "N Locations") and age could pass the filters, at most 40 per company.
 - **Arbeitnow** (free public API, mostly Germany): only Netherlands and remote postings are kept. On by default (`remote.boards`).
 - **Adzuna** (official API, Netherlands index; Adzuna has no UAE or Saudi index): searches the LinkedIn keywords (or `adzuna.keywords`) in `adzuna.countries`, `adzuna.pagesPerSearch` pages of 50 each. It needs a free key you register yourself at developer.adzuna.com; put it in `.env` (see `.env.example`):
@@ -30,7 +32,7 @@ Design principles:
   ```
 
   Without them Adzuna is skipped with one log line. Adzuna only returns a snippet of each description, so its keyword scores see less text.
-- **LinkedIn** guest job search (no login, your account is never used). It covers onsite jobs in AE/SA/NL and remote jobs open to Pakistan. Requests are 1.2 s apart, and LinkedIn is skipped for the day on a 429.
+- **LinkedIn** guest job search (no login, your account is never used). It covers onsite jobs in `linkedin.locations` and remote jobs searched from `linkedin.remoteFrom`. Requests are 1.2 s apart, and LinkedIn is skipped for the day on a 429.
 - **Bayt** via a browser bookmarklet (`scripts/bayt-collect.js`), because Bayt blocks direct requests. You click it on bayt.com and it sends jobs to the dashboard's `/api/import`.
 - **Chrome extension** (`extension/`, see [extension/README.md](extension/README.md)): "Send to job-bot" from any job page (Bayt, GulfTalent, NaukriGulf, company sites), and an "Apply helper" side panel with the prepared CV, letter and answers to copy. **Fill this form** types your name and contact details, the cover letter, drafted answers and the CV PDF into the form's empty fields (outlined in orange). It never overwrites what you typed, never fills answers that need your input, and never clicks a button or submits: you check the form and submit it yourself.
 - **Manual add** of any job as JSON (`bot add`), e.g. from GulfTalent or a referral.
@@ -41,12 +43,12 @@ Design principles:
 
 Every posting is checked by `src/match.ts`. Jobs that fail a rule are kept with status `filtered` and a reason, so you can see why.
 
-- **Location:** AE, SA and NL onsite, plus remote jobs that can be done from Pakistan. Remote jobs locked to the US, Canada, LATAM etc. are skipped. "EMEA" or no region gets a warning flag.
+- **Location:** onsite jobs in the `config.json` → `countries`, plus remote jobs that can be done from your country (`remote.from`; `remote.allow` / `remote.deny` list the regions that include or exclude it). Remote jobs locked to other regions are skipped. "EMEA" or no region gets a warning flag.
 - **Role:** engineering titles only. Other stacks (Java, Go, Python, ...), mobile, QA and management roles are excluded.
-- **Language:** postings that require fluent Dutch, Arabic or German are skipped. "Arabic is a plus" only adds a warning.
-- **Visa:** UAE/Saudi employers provide visas. NL companies must be on the IND recognised-sponsor register (`bot sponsors:update` refreshes it). "No sponsorship" and "must have right to work" postings are skipped.
+- **Language:** postings that require fluent Dutch, Arabic, German or French are skipped, unless your profile lists that language. "Arabic is a plus" only adds a warning.
+- **Visa:** per target country, `needsVisa` says whether you need one (missing = yes; the country you live in never does). Where you do, `visa: "employer"` means the employer provides it, and `"ind-register"` (Netherlands) means the company must be on the IND recognised-sponsor register (`bot sponsors:update` refreshes it); "No sponsorship" and "must have right to work" postings are skipped. Where you do not, those rules are skipped.
 - **Age:** postings older than `maxAgeDays` (14) are skipped, and matching jobs expire automatically once they get older.
-- **Keyword score:** a weighted match of the job's skills against yours, with a `minScore` threshold. It also suggests which CV version fits.
+- **Keyword score:** a weighted match of the job's skills against yours (a skill counts as yours when `cv/master.json` lists it), with a `minScore` threshold. It also suggests which CV version fits.
 - **AI review:** the local Claude CLI (model `haiku`) reads each matching job together with your CV and returns a 0–100 score, a verdict (strong / good / stretch / poor), reasons, gaps and red flags (part-time, language, visa, region lock).
 - **Location check from the whole description:** the same review decides whether you can take the job from where you live (`yes` / `no` / `unclear`), reading the full description rather than only the location field: "US only", "must reside in…", "authorized to work in X without sponsorship", required time zones, or a description that names another country ("work remotely from Slovenia" on a Saudi listing). A `no` moves a matching job to **Filtered out** with the quoted reason (`location (AI): …`), and it stays there when jobs are re-scored; jobs you already acted on keep their status. An `unclear` adds a "Location unclear" flag to check. Himalayas jobs limited to time zones far from GMT+5 are filtered by the keyword rules already.
 - **Instant alerts:** when the AI rates a job `strong`, `ai:score` (and so the daily fetch) shows a macOS notification right away: one per job, or one grouped notification for more than three. Each job alerts once (`alerted_at`). With `terminal-notifier` installed (Homebrew), clicking it opens the job in the dashboard. Turn it off with `config.json` → `ai.alertStrong: false`.
@@ -55,8 +57,8 @@ Every posting is checked by `src/match.ts`. Jobs that fail a rule are kept with 
 
 ### Application preparation
 
-- **CV versions:** a default CV plus versions per stack cluster (`laravel`, `tall`, `laravel-vue`, `mern`, `pern`, `next-nest`, `backend-node`, `frontend-react`, `ai-fullstack`) and one-off custom CVs for a single job. Every PDF has the same filename (`abdulrehman_dar_resume.pdf`), and the folder name identifies the version. Versions are reused and only rebuilt (`v2`, `v3`, ...) when the master CV, profiles or template change.
-- **Cover letters:** written by Claude (model `sonnet`) from the job description and your CV, using only true facts and making no promises about salary, notice period or start date. If AI fails, a template letter is used instead.
+- **CV versions:** a default CV plus versions per stack cluster (`laravel`, `tall`, `laravel-vue`, `mern`, `pern`, `next-nest`, `backend-node`, `frontend-react`, `ai-fullstack`) and one-off custom CVs for a single job. Every PDF has the same filename (`config.json` → `cvFileName`), and the folder name identifies the version. Versions are reused and only rebuilt (`v2`, `v3`, ...) when the master CV, profiles or template change.
+- **Cover letters:** written by Claude (model `sonnet`) from the job description and your CV, using only true facts and making no promises about salary, notice period or start date. They are signed with the name and contact in your profile. If AI fails, a template letter is used instead, built from your profile: its `coverLetter` sentences (introduction, a pitch per CV cluster, how you work, remote experience), where you live and your visa need.
 - **CV keyword check** (`bot ats <id>`, and on the job page): the job's skill keywords split into those the CV version shows near the top, those you have (in `cv/master.json`) but this version keeps further down, and real gaps that are not on your CV at all. It names the CV version that shows the most of them. Gaps are only listed, never suggested for the CV.
 - **Form answers:** paste the questions from an application form and Claude drafts an answer for each one, using only your CV and `cv/applicant.json`. Personal decisions it cannot know (salary, notice period, start date) come back as `[FILL: ...]` and are highlighted. Each answer has a Copy button.
 - **Interview prep:** for applied and interview jobs, Claude (model `sonnet`) writes likely technical questions with what to emphasise from your CV, behavioural questions with STAR stories built only from your CV, a short company brief from the posting alone (no web research, so unsure points are marked "verify before interview"), questions to ask them, and the job's key requirements mapped to your CV or marked as gaps. Everything has Copy buttons and a Regenerate button.
@@ -151,11 +153,13 @@ src/cv/profiles.ts                   per-cluster framing: headline, summary, ski
 src/cv/versions.ts                   builds and reuses versions, bumps v2/v3 on change
 src/cv/render.ts                     HTML template → PDF via system Chrome (playwright-core)
 
-cv/original/AbdulRehmanDarResume.pdf original, never changes
-cv/default/abdulrehman_dar_resume.pdf
-cv/versions/<cluster>-v<N>/abdulrehman_dar_resume.pdf
-cv/versions/custom-<company-role>/abdulrehman_dar_resume.pdf
+cv/original/<your original CV>.pdf  optional, never changes
+cv/default/<cvFileName>
+cv/versions/<cluster>-v<N>/<cvFileName>
+cv/versions/custom-<company-role>/<cvFileName>
 ```
+
+`cvFileName` is set in `config.json` (e.g. `jane_doe_resume.pdf`). The per-cluster framings in `src/cv/profiles.ts` (headline and summary per stack) are written for the original author's CV; with your own CV, keep `autoCvVersions: false` and send the default CV until you have rewritten them for yourself (`tests/cv.test.ts` checks a framing never claims more than `cv/master.json`).
 
 `config.json` → `"autoCvVersions": false` means every job gets the default CV unless you pick a version. Edit `cv/master.json`, then run `bot cv:default` (default CV) or `bot cv:build` (all versions).
 
@@ -171,7 +175,7 @@ All AI features call the Claude Code CLI you are signed in to (`claude -p`) with
 | Interview prep | `sonnet` | ~30–60 s     | `prep`, "Prepare for interview" |
 | Follow-up      | `sonnet` | ~10–20 s     | `follow-up`, "Draft follow-up"  |
 
-The prompts only allow facts from `cv/master.json` and `cv/applicant.json`. Fill in `cv/applicant.json` (copy it from `cv/applicant.example.json`) with your notice period, expected salary per country, etc., so form answers can use them.
+The prompts only allow facts from `cv/master.json` and `cv/applicant.json`, and describe you from your profile (where you live, UTC offset, languages, where you need a visa) as "the candidate". Fill in `cv/applicant.json` (`npm run bot -- setup`, the dashboard's Settings page, or a copy of `cv/applicant.example.json`) with your notice period, expected salary per country, etc., so form answers can use them.
 
 ### Database
 
@@ -183,21 +187,89 @@ Every CLI start applies the numbered SQL files in `src/migrations/` that the dat
 
 Connection: `postgres://postgres@127.0.0.1:5432/job_bot`, set in `.env` and `web/.env.local`. PostgreSQL runs through DBngin.
 
-## Setup
+## Getting started for a new user
 
-Requirements: macOS, Node 24+, PostgreSQL (DBngin), Google Chrome and the Claude Code CLI (signed in).
+### Prerequisites
+
+- macOS (the daily fetch and the notifications use launchd and `osascript`; the rest also runs elsewhere).
+- Node.js 24 or newer (`node --version`).
+- PostgreSQL 15+ on `127.0.0.1:5432` with a `postgres` user, e.g. via [DBngin](https://dbngin.com) or Homebrew.
+- Google Chrome (CV PDFs are rendered with it).
+- The [Claude Code CLI](https://docs.claude.com/en/docs/claude-code), signed in (`claude` on your PATH). Without it, set `ai.enabled: false`; letters and follow-ups then use the templates.
+
+### 1. Clone and install
 
 ```bash
+git clone <this repository> ~/job-bot && cd ~/job-bot
 npm install && npm --prefix web install
-cp cv/applicant.example.json cv/applicant.json   # then fill it in
-npm run bot -- sponsors:update                  # IND sponsor register (monthly)
+```
+
+Keep it outside `~/Desktop` and `~/Documents` if you want the daily fetch: macOS does not let background jobs read those folders.
+
+### 2. Create the database
+
+```bash
+createdb -h 127.0.0.1 -U postgres job_bot
+echo 'DATABASE_URL=postgres://postgres@127.0.0.1:5432/job_bot' > .env
+echo 'DATABASE_URL=postgres://postgres@127.0.0.1:5432/job_bot' > web/.env.local
+```
+
+The tables are created by the first bot command (see [Database](#database)). For the tests: `npm run test:db`.
+
+### 3. Your CV: `cv/master.json`
+
+The bot only ever uses what is in this file: it is the source of every CV version, the AI prompts and the skill match. Start from the fictional example and replace everything:
+
+```bash
+cp cv/master.example.json cv/master.json
+```
+
+Format: `name`, `title`, `contact` (`phone`, `email`, `location`, `linkedin`), `summary`, `skills` (groups of `items`; a job's skill counts as yours when it is listed here), `experience` (`role`, `company`, `location`, `dates`, `tags`, `bullets`), `projects` (`name`, `url`, `tags`, `text`) and `education` (`school`, `degree`, `dates`). `tags` (e.g. `laravel`, `mern`, `ai`) decide which projects a CV version lists first. Then render it: `npm run bot -- cv:default`.
+
+### 4. Your profile and target markets: `npm run bot -- setup`
+
+```bash
+npm run bot -- setup
+```
+
+It asks for your name, email, phone and LinkedIn (defaults from your CV), the city and country you live in with its two-letter code and UTC offset, the languages you speak, your work authorisation, visa and relocation wording, then the countries you target (two-letter codes, with whether you need a visa there), remote jobs and the country you work remotely from, the LinkedIn search locations, the path to `claude` and your CV's file name. Each question shows the current value in brackets: Enter keeps it, `-` clears it. Both files are validated before they are written: `cv/applicant.json` (your profile, kept out of git) and `config.json`. Run it again any time, or edit the same fields on the dashboard's Settings page.
+
+Also worth a look in `config.json`: `companies` (career boards to watch; `npm run bot -- discover <company> --add` finds more), `roleInclude` / `roleExclude` (job titles for your stack), and `linkedin.keywords` / `remote.himalayasQueries` (your skills).
+
+### 5. Fetch and open the dashboard
+
+```bash
+npm run bot -- sponsors:update   # only if you target the Netherlands: IND sponsor register (monthly)
 npm run bot -- fetch
-npm run web
+npm run web                      # http://localhost:3100
+```
+
+The dashboard shows a banner until your profile has a name, email, location, country code and languages.
+
+### 6. Daily fetch (optional, macOS)
+
+`scripts/daily-fetch.sh` fetches, checks for closed postings, runs the AI review, shows a notification and backs up the database. To run it every morning at 9:00 (and on wake), save this as `~/Library/LaunchAgents/com.<you>.job-bot.fetch.plist`, with your user name and the path of your clone:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.<you>.job-bot.fetch</string>
+  <key>ProgramArguments</key><array><string>/Users/<you>/job-bot/scripts/daily-fetch.sh</string></array>
+  <key>StartCalendarInterval</key><dict><key>Hour</key><integer>9</integer><key>Minute</key><integer>0</integer></dict>
+</dict>
+</plist>
+```
+
+```bash
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.<you>.job-bot.fetch.plist
 ```
 
 ## CLI reference
 
 ```bash
+npm run bot -- setup                          # first run: your profile and target markets (asks, validates, saves)
 npm run bot -- fetch [--company <name>]       # fetch all sources (or one)
 npm run bot -- rescore                        # re-apply filters after editing config.json, no downloads
 npm run bot -- list [--status new] [--country NL] [--min 60]
@@ -237,34 +309,51 @@ npm run bot -- settings:check|settings:save --kind config|applicant [--file x.js
 
 ### Daily fetch
 
-The launchd job `~/Library/LaunchAgents/com.abdulrehman.job-bot.fetch.plist` runs `scripts/daily-fetch.sh` at 9:00 (or on wake). It logs to `data/fetch.log`. The project lives in `~/job-bot`, not on the Desktop, because macOS does not let background jobs read the Desktop.
+The launchd job (`~/Library/LaunchAgents/com.<you>.job-bot.fetch.plist`, see [step 6](#6-daily-fetch-optional-macos)) runs `scripts/daily-fetch.sh` at 9:00 (or on wake). It logs to `data/fetch.log`. The project lives in `~/job-bot`, not on the Desktop, because macOS does not let background jobs read the Desktop.
 
 Run it now:
 
 ```bash
-launchctl kickstart gui/$(id -u)/com.abdulrehman.job-bot.fetch
+launchctl kickstart gui/$(id -u)/com.<you>.job-bot.fetch
 ```
 
 Turn it off:
 
 ```bash
-launchctl bootout gui/$(id -u)/com.abdulrehman.job-bot.fetch
+launchctl bootout gui/$(id -u)/com.<you>.job-bot.fetch
 ```
 
 ## Configuration (`config.json`)
 
-| Key                                          | What it controls                                               |
-| -------------------------------------------- | -------------------------------------------------------------- |
-| `countries`                                  | Target countries: location regex and visa rule per country     |
-| `companies`                                  | Company boards to fetch (`ats` + `token`)                      |
-| `roleInclude`/`roleExclude`                  | Title rules                                                    |
-| `minScore`, `maxAgeDays`                     | Keyword-score threshold (45) and maximum posting age (14 days) |
-| `remote`                                     | Remote boards and the allow/deny/flag region rules             |
-| `linkedin`                                   | Keywords, locations, `remoteFrom`, pages per search            |
-| `ai`                                         | Claude path, models, `maxScorePerRun`, concurrency             |
-| `cvFileName`, `autoCvVersions`, `chromePath` | CV output settings                                             |
+| Key                                          | What it controls                                                |
+| -------------------------------------------- | --------------------------------------------------------------- |
+| `countries`                                  | Target countries: `name`, `match`, `visa`, `needsVisa`, `label` |
+| `companies`                                  | Company boards to fetch (`ats` + `token`)                       |
+| `roleInclude`/`roleExclude`                  | Title rules                                                     |
+| `minScore`, `maxAgeDays`                     | Keyword-score threshold (45) and maximum posting age (14 days)  |
+| `remote`                                     | Remote boards, region rules, `from` / `fromCode`                |
+| `linkedin`                                   | Keywords, locations, `remoteFrom`, pages per search             |
+| `ai`                                         | Claude path, models, `maxScorePerRun`, concurrency              |
+| `cvFileName`, `autoCvVersions`, `chromePath` | CV output settings                                              |
 
-Both files are validated on load, so a typo stops the bot with the file and field name. Set `JOB_BOT_CONFIG` / `JOB_BOT_APPLICANT` to use other files.
+`needsVisa` missing means a visa is needed; `label` is the short name on the dashboard. `remote.from` / `remote.fromCode` are the country you work remotely from and its ISO code (missing: `linkedin.remoteFrom`, then your profile).
+
+## Your profile (`cv/applicant.json`)
+
+Gitignored. Created by `npm run bot -- setup` or the Settings page; `cv/applicant.example.json` shows a fictional person.
+
+| Key                                            | What it is for                                                           |
+| ---------------------------------------------- | ------------------------------------------------------------------------ |
+| `fullName`, `email`, `phone`, `linkedin`       | Letter and follow-up signatures; missing ones come from `cv/master.json` |
+| `city`, `country`, `countryCode`, `utcOffset`  | Where you live: letters, AI prompts, remote-from defaults, Himalayas     |
+| `languages`                                    | AI screening; a required language you speak is not a blocker             |
+| `workAuthorization`, `willingToRelocate`, ...  | Form answers; "Yes" relocation goes into letters                         |
+| `coverLetter`                                  | Template-letter sentences (see below)                                    |
+| `noticePeriod`, `expectedSalary`, ..., `other` | Form answers; null = unknown, so the AI writes `[FILL: ...]`             |
+
+`coverLetter` holds `intro`, `pitch` (per CV cluster, plus `default`), `strengths` and `remote`.
+
+Both files are validated on load, so a typo stops the bot with the file and field name. Set `JOB_BOT_CONFIG` / `JOB_BOT_APPLICANT` (and `JOB_BOT_MASTER` for the CV) to use other files.
 
 After changing filters, run `npm run bot -- rescore`.
 

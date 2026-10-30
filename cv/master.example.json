@@ -1,0 +1,49 @@
+{
+  "name": "Jane Doe",
+  "title": "Full Stack Engineer",
+  "contact": {
+    "phone": "+351 900 000 000",
+    "email": "jane.doe@example.com",
+    "location": "Lisbon, Portugal",
+    "linkedin": "https://www.linkedin.com/in/jane-doe-example/"
+  },
+  "summary": "Full Stack Engineer with 5 years of experience building web applications with React, Node.js and PostgreSQL. Built the booking platform of a travel start-up from the first commit to 50,000 monthly users. Comfortable across REST APIs, database design, testing and CI/CD.",
+  "skills": [
+    { "group": "Languages & Runtimes", "items": ["JavaScript", "TypeScript", "Node.js"] },
+    { "group": "Frameworks & Libraries", "items": ["React.js", "Next.js", "Express.js", "Tailwind CSS"] },
+    { "group": "Databases & ORMs", "items": ["PostgreSQL", "Prisma"] },
+    { "group": "APIs & Web", "items": ["REST APIs", "GraphQL"] },
+    { "group": "DevOps & Tools", "items": ["Docker", "AWS", "Git"] },
+    { "group": "Testing & Practices", "items": ["Jest", "CI/CD", "Code Review"] }
+  ],
+  "experience": [
+    {
+      "role": "Full Stack Engineer",
+      "company": "Example Travel",
+      "location": "Lisbon, Portugal",
+      "dates": "Jan 2023 — Present",
+      "tags": ["next", "mern"],
+      "bullets": [
+        "Built the booking platform with Next.js, Node.js and PostgreSQL, from the first commit to 50,000 monthly users.",
+        "Designed the REST API and the database schema, and added Jest tests and a CI/CD pipeline."
+      ]
+    },
+    {
+      "role": "Front-end Developer",
+      "company": "Sample Agency",
+      "location": "Porto, Portugal",
+      "dates": "Jun 2020 — Dec 2022",
+      "tags": ["react"],
+      "bullets": ["Built React front ends for e-commerce and media clients.", "Reviewed code and mentored two junior developers."]
+    }
+  ],
+  "projects": [
+    {
+      "name": "Trip Planner",
+      "url": "https://example.com/trip-planner",
+      "tags": ["next"],
+      "text": "An open-source trip planner built with Next.js and Prisma."
+    }
+  ],
+  "education": [{ "school": "University of Example", "degree": "BSc, Computer Science", "dates": "2016 — 2020" }]
+}

@@ -1,5 +1,5 @@
 #!/bin/zsh
-# Run by launchd every morning (~/Library/LaunchAgents/com.abdulrehman.job-bot.fetch.plist).
+# Run by launchd every morning (~/Library/LaunchAgents/com.<you>.job-bot.fetch.plist, see README "Daily fetch").
 # Fetches jobs into Postgres, marks closed postings expired, lets the local Claude CLI review new matches, logs to data/fetch.log
 # and shows a macOS notification.
 

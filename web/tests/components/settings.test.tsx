@@ -164,6 +164,31 @@ describe('ConfigForm', () => {
     expect(screen.getByLabelText('Company 2 token')).toHaveValue(''); // not reset to the old value
   });
 
+  it('edits the visa need and label of each country and the remote-from country', async () => {
+    vi.mocked(saveConfig).mockResolvedValue(saved('Saved.'));
+    const user = userEvent.setup();
+    const config = {
+      ...CONFIG,
+      countries: { ...CONFIG.countries, NL: { name: 'Netherlands', visa: 'ind-register', match: 'nl', needsVisa: false, label: 'NL' } },
+      remote: { ...CONFIG.remote, from: 'Portugal', fromCode: 'PT' },
+    };
+    render(<ConfigForm config={file(config)} />);
+    expect(screen.getByLabelText('I need a work visa for UAE')).toBeChecked(); // missing = needed
+    expect(screen.getByLabelText('I need a work visa for Netherlands')).not.toBeChecked();
+    expect(screen.getByLabelText(/^NL label/)).toHaveValue('NL');
+    expect(screen.getByLabelText(/^Remote work from \(country\)/)).toHaveValue('Portugal');
+    expect(screen.getByLabelText(/^Its country code/)).toHaveValue('PT');
+    await user.click(screen.getByLabelText('I need a work visa for UAE'));
+    await user.clear(screen.getByLabelText(/^Remote work from \(country\)/));
+    await user.type(screen.getByLabelText(/^Remote work from \(country\)/), 'Spain');
+    await user.click(screen.getByRole('button', { name: 'Save search settings' }));
+    await screen.findByRole('status');
+    const fd = lastForm(saveConfig);
+    expect(fd.has('countries.AE.needsVisa')).toBe(false); // unchecked
+    expect(fd.get('countries.AE.match')).toBe('dubai|uae');
+    expect(fd.get('remote.from')).toBe('Spain');
+  });
+
   it('points to the JSON editor when config.json cannot be parsed', () => {
     render(<ConfigForm config={file(null, { text: '{', error: 'invalid JSON: x' })} />);
     expect(screen.getByRole('alert')).toHaveTextContent(
@@ -174,7 +199,7 @@ describe('ConfigForm', () => {
 
 describe('ApplicantForm', () => {
   it('shows the facts, with unknown ones empty', () => {
-    render(<ApplicantForm applicant={file(APPLICANT)} />);
+    render(<ApplicantForm applicant={file(APPLICANT)} salaryKeys={['AE', 'SA', 'remote']} />);
     expect(screen.getByLabelText('Current location')).toHaveValue('Lahore');
     expect(screen.getByLabelText('Nationality')).toHaveValue('');
     expect(screen.getByLabelText('AE')).toHaveValue('20k');
@@ -185,9 +210,40 @@ describe('ApplicantForm', () => {
     expect(screen.queryByText(/does not exist yet/)).not.toBeInTheDocument();
   });
 
-  it('says when the example file is shown', () => {
-    render(<ApplicantForm applicant={file(APPLICANT, { example: true })} />);
+  it('says when the example file is shown, with the example person only as placeholders', () => {
+    render(<ApplicantForm applicant={file({ ...APPLICANT, fullName: 'Jane Doe' }, { example: true })} />);
     expect(screen.getByText(/cv\/applicant.json does not exist yet/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^Full name/)).toHaveValue('');
+    expect(screen.getByLabelText(/^Full name/)).toHaveAttribute('placeholder', 'Jane Doe');
+    expect(screen.getByLabelText('Current location')).toHaveValue('');
+  });
+
+  it('shows and submits the profile and the template-letter sentences', async () => {
+    vi.mocked(saveApplicant).mockResolvedValue(saved('Saved.'));
+    const user = userEvent.setup();
+    const app = {
+      ...APPLICANT,
+      fullName: 'Jane Doe',
+      countryCode: 'PT',
+      utcOffset: 'GMT+0',
+      coverLetter: { intro: 'I am Jane.', pitch: { default: 'I build.' } },
+    };
+    render(<ApplicantForm applicant={file(app)} salaryKeys={['NL', 'remote']} />);
+    expect(screen.getByLabelText(/^Full name/)).toHaveValue('Jane Doe');
+    expect(screen.getByLabelText(/^Country code/)).toHaveValue('PT');
+    expect(screen.getByLabelText(/^UTC offset/)).toHaveValue('GMT+0');
+    expect(screen.getByLabelText(/^Introduction/)).toHaveValue('I am Jane.');
+    expect(screen.getByLabelText(/^Pitch/)).toHaveValue('I build.');
+    expect(screen.getByLabelText('NL')).toHaveValue('');
+    expect(screen.queryByLabelText('AE')).not.toBeInTheDocument(); // salary keys follow the target countries
+    await user.type(screen.getByLabelText(/^Email/), 'jane@example.org');
+    await user.type(screen.getByLabelText(/^Remote experience/), 'have worked remotely');
+    await user.click(screen.getByRole('button', { name: 'Save applicant facts' }));
+    await screen.findByRole('status');
+    const fd = lastForm(saveApplicant);
+    expect(fd.get('email')).toBe('jane@example.org');
+    expect(fd.get('coverLetter.remote')).toBe('have worked remotely');
+    expect(fd.get('expectedSalary.NL')).toBe('');
   });
 
   it('submits other facts as rows and shows errors for them', async () => {

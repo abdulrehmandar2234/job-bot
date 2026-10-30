@@ -1,9 +1,18 @@
 {
-  "_help": "Facts for application-form answers that are not in the CV. Leave a value null and the AI writes [FILL: ...] instead of guessing.",
-  "currentLocation": "Lahore, Pakistan",
-  "languages": "English, Urdu",
-  "needsVisaSponsorship": "Yes, for onsite roles in UAE, Saudi Arabia and the Netherlands. No sponsorship needed for remote roles.",
-  "willingToRelocate": "Yes, to UAE, Saudi Arabia or the Netherlands",
+  "_help": "Your profile and the facts for application-form answers that are not in the CV. Copy this file to cv/applicant.json (or run `npm run bot -- setup`) and replace the example person. Leave a value null and the AI writes [FILL: ...] instead of guessing. fullName, email, phone and linkedin default to cv/master.json.",
+  "fullName": "Jane Doe",
+  "email": "jane.doe@example.com",
+  "phone": "+351 900 000 000",
+  "linkedin": "https://www.linkedin.com/in/jane-doe-example/",
+  "city": "Lisbon",
+  "country": "Portugal",
+  "countryCode": "PT",
+  "utcOffset": "GMT+0",
+  "currentLocation": "Lisbon, Portugal",
+  "languages": "English, Portuguese",
+  "workAuthorization": "Portuguese citizen: may work anywhere in the EU without a visa.",
+  "needsVisaSponsorship": "Only for onsite roles outside the EU. No sponsorship needed for remote roles.",
+  "willingToRelocate": "Yes",
   "nationality": null,
   "noticePeriod": null,
   "earliestStartDate": null,
@@ -16,5 +25,13 @@
   },
   "workingHoursForRemote": null,
   "howDidYouHear": null,
+  "coverLetter": {
+    "intro": "I am a Full Stack Engineer with 5 years of experience building web applications.",
+    "pitch": {
+      "default": "Most recently I built the booking platform of a travel start-up with React and Node.js."
+    },
+    "strengths": "I take features from design to release and enjoy working closely with product teams.",
+    "remote": "have worked remotely with distributed teams across Europe"
+  },
   "other": {}
 }

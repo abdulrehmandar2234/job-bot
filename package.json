@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Local job hunting bot: fetch jobs (UAE, Saudi, Netherlands), filter, score, pick CV version, track applications",
+  "description": "Local job hunting bot: fetch jobs for your target countries and remote, filter, score, pick CV version, track applications",
   "scripts": {
     "bot": "node --no-warnings --env-file-if-exists=.env src/cli.ts",
     "web": "npm --prefix web run dev",

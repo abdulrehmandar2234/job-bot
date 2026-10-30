@@ -1,46 +1,52 @@
 import type { Job } from './db.ts';
 import { config } from './config.ts';
+import { loadProfile, onsiteSituation, readMaster, signature, whereText } from './profile.ts';
 
-const PITCH: Record<string, string> = {
-  default:
-    'I work across both the JavaScript stack (NestJS, Next.js, React, Node.js, MongoDB) and PHP/Laravel, and I currently own the AI Screening and AI Interview modules at Qureos end to end.',
-  laravel:
-    'Most of my career has been in PHP/Laravel, most recently delivering KYC onboarding, portfolio management and regulatory features for a regulated robo-advisory platform at Abyan Capital.',
-  tall: 'Most of my career has been in Laravel, including Livewire, Alpine.js, Filament and Inertia.js, most recently on a regulated robo-advisory fintech platform at Abyan Capital.',
-  'laravel-vue':
-    'I have built Laravel back ends with JavaScript front ends (Vue.js, Inertia.js, React) for fintech, marketplace and auction products.',
-  mern: 'I have built MERN applications for international clients and now own the AI Screening and AI Interview modules at Qureos on NestJS, Next.js and MongoDB.',
-  pern: 'I build TypeScript/Node.js services and React front ends on PostgreSQL and MongoDB, currently at Qureos on NestJS and Next.js.',
-  'next-nest':
-    'I currently own the AI Screening and AI Interview modules at Qureos, built on NestJS and Next.js, from technical design through release.',
-  'backend-node':
-    'At Qureos I build NestJS services, including LLM screening pipelines that process 5,000–10,000 candidates per request with quota-based cost controls.',
-  'frontend-react':
-    'I build product front ends in React, Next.js and Redux, and I am comfortable down the stack in Node.js/NestJS and Laravel.',
-  'ai-fullstack':
-    'At Qureos I own AI Screening and AI Interview: LLM-powered screening on OpenAI GPT APIs that ranks candidates, running 5,000–10,000 candidates per request with predictable per-candidate cost.',
-};
+// The template cover letter, used when the AI is off or fails (`prepare --template`). Everything personal comes from
+// the profile (cv/applicant.json, name and contact from cv/master.json); sentences the profile lacks are left out.
+
+const article = (s: string) => (/^[aeiou]/i.test(s) ? 'an' : 'a');
+
+/** "Senior Full Stack Engineer" -> "full stack engineer". */
+const roleNoun = (title: string) => title.replace(/^((senior|junior|lead|staff|principal|sr\.?)\s+)+/i, '').toLowerCase();
+
+const sentences = (...s: (string | null | undefined | false)[]) => s.filter(Boolean).join(' ');
 
 export function coverLetter(job: Job): string {
+  const p = loadProfile();
+  const title = readMaster().title?.trim() || 'software engineer';
   const country = job.country ? config.countries[job.country]?.name : null;
   const skills = job.matched.slice(0, 5).join(', ');
+  const intro = p.letter.intro ?? `I am ${article(title)} ${title}.`;
+  const pitch = p.letter.pitch[job.cluster ?? 'default'] ?? p.letter.pitch.default;
   return `Dear ${job.company} Hiring Team,
 
-I am applying for the ${job.title} role. I am a Senior Full Stack Engineer with 7+ years of experience building and shipping production web applications. ${PITCH[job.cluster ?? 'default'] ?? PITCH.default}
+${sentences(`I am applying for the ${job.title} role.`, intro, pitch)}
 
-Your posting asks for ${skills || 'a strong full stack engineer'}, which is the core of my day-to-day work. I own features end to end, from technical design and estimation to tests, code review and release, and I have mentored engineers in agile teams.
+${sentences(`Your posting asks for ${skills || `a strong ${roleNoun(title)}`}, which is the core of my day-to-day work.`, p.letter.strengths)}
 
-${
-  job.country === 'RM'
-    ? 'I am based in Lahore, Pakistan (GMT+5), have worked remotely with international clients and distributed teams, and am comfortable overlapping with European and Middle East working hours.'
-    : `I am based in Lahore, Pakistan, and ready to relocate${country ? ` to ${country}` : ''}. I would need employer visa sponsorship and can start the process immediately.`
-}
+${situation(job, country)}
 
 Thank you for your time. I would welcome a conversation.
 
-Best regards,
-Abdul Rehman Dar
-+92 321 4979646 | abdulrehmandar2234@gmail.com
-https://www.linkedin.com/in/abdulrehman-dar/
-`;
+${signature(p)}
+`.replace(/\n{3,}/g, '\n\n');
+}
+
+/** Where the candidate is based, and relocation and visa for onsite jobs. */
+function situation(job: Job, country: string | null | undefined): string {
+  const p = loadProfile();
+  const where = whereText(p);
+  if (job.country === 'RM') {
+    if (!where) return p.letter.remote ? `I ${p.letter.remote}.` : '';
+    return `I am based in ${where}${p.letter.remote ? `, ${p.letter.remote}` : ''}.`;
+  }
+  const s = onsiteSituation(config, p, job.country);
+  const to = country ? ` to ${country}` : '';
+  const based = p.location ? `I am based in ${p.location}` : null;
+  const first = s.relocate ? (based ? `${based}, and ready to relocate${to}.` : `I am ready to relocate${to}.`) : based && `${based}.`;
+  const visa = s.visa
+    ? 'I would need employer visa sponsorship and can start the process immediately.'
+    : !s.home && country && `I can already work in ${country} without visa sponsorship.`;
+  return sentences(first, visa);
 }

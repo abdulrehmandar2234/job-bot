@@ -8,7 +8,7 @@ import { promisify } from 'node:util';
 import { TEST_DB } from './helpers.ts';
 import { getJob, migrate, pool } from '../src/db.ts';
 import { path } from '../src/config.ts';
-import { himalayasRegion } from '../src/sources/boards.ts';
+import { himalayasRegion, utcHours } from '../src/sources/boards.ts';
 import { scoreJob } from '../src/match.ts';
 
 // The AI review's location check: the whole description decides whether the candidate can take a job.
@@ -76,6 +76,9 @@ describe('AI location check', () => {
     assert.match(system, /authorized to work in X without sponsorship/);
     assert.match(system, /work remotely from Slovenia/);
     assert.match(system, /the description wins over the\s+LOCATION line/);
+    // From the owner's profile and config, not hardcoded.
+    assert.match(system, /far from Pakistan's time zone \(GMT\+5\)/);
+    assert.match(system, /that is not Pakistan and not a target country/);
     const schema = JSON.parse(arg(argv, '--json-schema'));
     assert.ok(schema.required.includes('location'));
     assert.deepEqual(schema.properties.location.properties.eligible.enum, ['yes', 'no', 'unclear']);
@@ -138,11 +141,17 @@ describe('AI location check', () => {
 
 describe('Himalayas time zones', () => {
   it('a job limited to time zones far from Pakistan is not "Worldwide"', () => {
-    assert.equal(himalayasRegion([], [-10, -9, -8, -7, -6, -5, 14]), 'time zones UTC-10, UTC-9, UTC-8, UTC-7, UTC-6, UTC-5, UTC+14');
-    assert.equal(himalayasRegion(['United States'], [-8, -5]), 'United States (time zones UTC-8, UTC-5)');
-    assert.equal(himalayasRegion(null, [3, 4, 5]), 'Worldwide'); // includes Pakistan's GMT+5
-    assert.equal(himalayasRegion(['Pakistan', 'India'], [5, 6]), 'Pakistan, India');
-    assert.equal(himalayasRegion(undefined, undefined), 'Worldwide');
+    assert.equal(himalayasRegion([], [-10, -9, -8, -7, -6, -5, 14], 5), 'time zones UTC-10, UTC-9, UTC-8, UTC-7, UTC-6, UTC-5, UTC+14');
+    assert.equal(himalayasRegion(['United States'], [-8, -5], 5), 'United States (time zones UTC-8, UTC-5)');
+    assert.equal(himalayasRegion(null, [3, 4, 5], 5), 'Worldwide'); // includes Pakistan's GMT+5
+    assert.equal(himalayasRegion(['Pakistan', 'India'], [5, 6], 5), 'Pakistan, India');
+    assert.equal(himalayasRegion(undefined, undefined, 5), 'Worldwide');
+    assert.equal(himalayasRegion([], [-8, -5], null), 'Worldwide'); // no utcOffset in the profile: time zones are not checked
+    assert.equal(himalayasRegion([], [5.5], 5.5), 'Worldwide');
+  });
+
+  it("reads the profile's UTC offset", () => {
+    assert.deepEqual(['GMT+5', 'UTC-3', 'GMT+5:30', 'GMT −4', '', null].map(utcHours), [5, -3, 5.5, -4, null, null]);
   });
 
   it('the remote filter drops such a job', () => {
@@ -151,7 +160,7 @@ describe('Himalayas time zones', () => {
       source: 'himalayas',
       company: 'Velocity',
       title: 'Frontend Engineer',
-      location: `Remote — ${himalayasRegion([], [-8, -5])}`,
+      location: `Remote — ${himalayasRegion([], [-8, -5], 5)}`,
       url: 'https://himalayas.app/x',
       description: 'React, Next.js, TypeScript',
       posted_at: null,

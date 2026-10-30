@@ -1,4 +1,5 @@
 import { pool } from './db.ts';
+import { loadProfile } from './profile.ts';
 import type { Contact, Job } from './types.ts';
 
 // Follow-up reminders: an `applied` job with no news for FOLLOW_UP_DAYS needs a short follow-up message, which the
@@ -46,7 +47,7 @@ export function templateFollowUp(job: Pick<Job, 'company' | 'title' | 'applied_a
     'Please let me know if you need anything else from me.',
     '',
     'Best regards,',
-    'Abdul Rehman Dar',
+    ...[loadProfile().fullName].filter(Boolean),
     '',
   ].join('\n');
 }

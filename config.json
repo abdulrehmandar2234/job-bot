@@ -26,7 +26,9 @@
     "himalayasQueries": ["laravel", "php", "node", "nestjs", "react", "next.js", "full stack", "mern", "typescript", "vue"],
     "allow": "worldwide|anywhere|global|pakistan|south asia|\\basia\\b|apac|asia[- ]pacific|\\bmena\\b|middle east|gmt ?\\+ ?5|\\bpkt\\b|emea|international",
     "deny": "\\b(us|usa|u\\.s\\.?)\\b|united states|north america|americas|canada|\\buk\\b|united kingdom|\\beu\\b|europe|latam|latin america|south america|mexico|brazil|argentina|colombia|india|philippines|australia|germany|poland|spain|portugal|ireland|france|romania|ukraine",
-    "flag": "emea|international|not stated"
+    "flag": "emea|international|not stated",
+    "from": "Pakistan",
+    "fromCode": "PK"
   },
   "adzuna": {
     "countries": ["nl"],
@@ -36,16 +38,20 @@
     "AE": {
       "name": "UAE",
       "visa": "employer",
+      "needsVisa": true,
       "match": "dubai|abu dhabi|sharjah|\\buae\\b|united arab emirates|emirates"
     },
     "SA": {
       "name": "Saudi Arabia",
+      "label": "Saudi",
       "visa": "employer",
+      "needsVisa": true,
       "match": "riyadh|jeddah|jedda|dammam|khobar|saudi|\\bksa\\b"
     },
     "NL": {
       "name": "Netherlands",
       "visa": "ind-register",
+      "needsVisa": true,
       "match": "amsterdam|rotterdam|utrecht|eindhoven|the hague|den haag|netherlands|nederland|\\bnl\\b"
     }
   },

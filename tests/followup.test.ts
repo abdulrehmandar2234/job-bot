@@ -137,7 +137,7 @@ describe('drafting', () => {
     const system = arg(argv, '--system-prompt');
     assert.match(system, /Start with "Dear Rita Recruiter,"/);
     assert.match(system, /Use ONLY facts in the CV/);
-    assert.match(system, /This is his first follow-up/);
+    assert.match(system, /This is their first follow-up/);
   });
 
   it('falls back to the template when Claude fails, or with --template (no AI call)', async () => {

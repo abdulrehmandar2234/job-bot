@@ -5,7 +5,7 @@ import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
 import { ATS as BOT_ATS } from '../../../src/settings';
 import { BOT_ROOT } from '@/lib/bot';
 import { applicantFile, configFile, readApplicant, readConfig } from '@/lib/settings';
-import { ATS, errorsFor, get, mergeApplicant, mergeConfig } from '@/lib/settings-form';
+import { ATS, errorsFor, get, mergeApplicant, mergeConfig, salaryKeys } from '@/lib/settings-form';
 
 const dir = mkdtempSync(join(tmpdir(), 'job-bot-web-settings-'));
 const tmp = (name: string, content: string) => {
@@ -183,6 +183,75 @@ describe('mergeConfig', () => {
   it('ignores country fields for countries that are not in the file', () => {
     const cfg = mergeConfig(CONFIG, configForm({ 'countries.XX.match': 'x', 'countries.__proto__.match': 'x' }));
     expect(Object.keys(cfg.countries as object)).toEqual(['AE']);
+  });
+});
+
+describe('mergeConfig: target markets', () => {
+  it('sets the visa need and label per country, and the remote-from country', () => {
+    const cfg = mergeConfig(
+      { ...CONFIG, remote: { ...CONFIG.remote, from: 'Pakistan', fromCode: 'PK' } },
+      configForm({
+        'countries.AE.needsVisa': 'on',
+        'countries.AE.label': ' Emirates ',
+        'remote.from': ' Portugal ',
+        'remote.fromCode': 'pt',
+      }),
+    );
+    expect(cfg.countries).toEqual({ AE: { name: 'UAE', visa: 'employer', match: 'dubai|abu dhabi', needsVisa: true, label: 'Emirates' } });
+    expect(cfg.remote).toMatchObject({ from: 'Portugal', fromCode: 'PT' });
+  });
+
+  it('an unchecked visa box means no visa; empty optional fields remove their key', () => {
+    const cfg = mergeConfig(
+      {
+        ...CONFIG,
+        countries: { AE: { ...CONFIG.countries.AE, label: 'x' } },
+        remote: { ...CONFIG.remote, from: 'Pakistan', fromCode: 'PK' },
+      },
+      configForm({ 'countries.AE.label': '', 'remote.from': '', 'remote.fromCode': ' ' }),
+    );
+    expect(cfg.countries).toEqual({ AE: { name: 'UAE', visa: 'employer', match: 'dubai|abu dhabi', needsVisa: false } });
+    expect(cfg.remote).not.toHaveProperty('from');
+    expect(cfg.remote).not.toHaveProperty('fromCode');
+  });
+
+  it('keeps remote.from when the form does not show it', () => {
+    const cfg = mergeConfig({ ...CONFIG, remote: { ...CONFIG.remote, from: 'Pakistan' } }, configForm());
+    expect(cfg.remote).toMatchObject({ from: 'Pakistan' });
+  });
+
+  it('salary keys follow the target countries', () => {
+    expect(salaryKeys(CONFIG)).toEqual(['AE', 'remote']);
+    expect(salaryKeys(null)).toEqual(['remote']);
+  });
+});
+
+describe('mergeApplicant: profile', () => {
+  it('saves the profile fields and the letter sentences; empty is null, an empty pitch is removed', () => {
+    const a = mergeApplicant(
+      { _help: 'h', coverLetter: { pitch: { default: 'old', laravel: 'kept' } } },
+      form({
+        fullName: ' Jane Doe ',
+        email: 'jane@example.org',
+        phone: '',
+        countryCode: 'pt',
+        utcOffset: 'GMT+0',
+        'coverLetter.intro': 'I am Jane.',
+        'coverLetter.pitch.default': '',
+        'coverLetter.strengths': '',
+        'coverLetter.remote': 'have worked remotely',
+        'expectedSalary.PT': '40k EUR',
+      }),
+    );
+    expect(a).toMatchObject({ fullName: 'Jane Doe', email: 'jane@example.org', phone: null, countryCode: 'PT', utcOffset: 'GMT+0' });
+    expect(a.coverLetter).toEqual({ intro: 'I am Jane.', strengths: null, remote: 'have worked remotely', pitch: { laravel: 'kept' } });
+    expect(a.expectedSalary).toEqual({ PT: '40k EUR' });
+  });
+
+  it('leaves profile fields alone when the form does not show them', () => {
+    const a = mergeApplicant({ fullName: 'Jane', coverLetter: { intro: 'x' } }, form({}));
+    expect(a.fullName).toBe('Jane');
+    expect(a.coverLetter).toEqual({ intro: 'x' });
   });
 });
 

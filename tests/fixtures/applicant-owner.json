@@ -1,0 +1,41 @@
+{
+  "_help": "Facts for application-form answers that are not in the CV. Leave a value null and the AI writes [FILL: ...] instead of guessing.",
+  "city": "Lahore",
+  "country": "Pakistan",
+  "countryCode": "PK",
+  "utcOffset": "GMT+5",
+  "currentLocation": "Lahore, Pakistan",
+  "languages": "English, Urdu",
+  "needsVisaSponsorship": "Yes, for onsite roles in UAE, Saudi Arabia and the Netherlands. No sponsorship needed for remote roles.",
+  "willingToRelocate": "Yes, to UAE, Saudi Arabia or the Netherlands",
+  "nationality": null,
+  "noticePeriod": null,
+  "earliestStartDate": null,
+  "currentSalary": null,
+  "expectedSalary": {
+    "AE": null,
+    "SA": null,
+    "NL": null,
+    "remote": null
+  },
+  "workingHoursForRemote": null,
+  "howDidYouHear": null,
+  "other": {},
+  "coverLetter": {
+    "intro": "I am a Senior Full Stack Engineer with 7+ years of experience building and shipping production web applications.",
+    "pitch": {
+      "default": "I work across both the JavaScript stack (NestJS, Next.js, React, Node.js, MongoDB) and PHP/Laravel, and I currently own the AI Screening and AI Interview modules at Qureos end to end.",
+      "laravel": "Most of my career has been in PHP/Laravel, most recently delivering KYC onboarding, portfolio management and regulatory features for a regulated robo-advisory platform at Abyan Capital.",
+      "tall": "Most of my career has been in Laravel, including Livewire, Alpine.js, Filament and Inertia.js, most recently on a regulated robo-advisory fintech platform at Abyan Capital.",
+      "laravel-vue": "I have built Laravel back ends with JavaScript front ends (Vue.js, Inertia.js, React) for fintech, marketplace and auction products.",
+      "mern": "I have built MERN applications for international clients and now own the AI Screening and AI Interview modules at Qureos on NestJS, Next.js and MongoDB.",
+      "pern": "I build TypeScript/Node.js services and React front ends on PostgreSQL and MongoDB, currently at Qureos on NestJS and Next.js.",
+      "next-nest": "I currently own the AI Screening and AI Interview modules at Qureos, built on NestJS and Next.js, from technical design through release.",
+      "backend-node": "At Qureos I build NestJS services, including LLM screening pipelines that process 5,000–10,000 candidates per request with quota-based cost controls.",
+      "frontend-react": "I build product front ends in React, Next.js and Redux, and I am comfortable down the stack in Node.js/NestJS and Laravel.",
+      "ai-fullstack": "At Qureos I own AI Screening and AI Interview: LLM-powered screening on OpenAI GPT APIs that ranks candidates, running 5,000–10,000 candidates per request with predictable per-candidate cost."
+    },
+    "strengths": "I own features end to end, from technical design and estimation to tests, code review and release, and I have mentored engineers in agile teams.",
+    "remote": "have worked remotely with international clients and distributed teams, and am comfortable overlapping with European and Middle East working hours"
+  }
+}

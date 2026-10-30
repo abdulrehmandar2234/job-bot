@@ -12,7 +12,8 @@ import { renderPdf, type Cv } from './render.ts';
 export type VersionMeta = { id: string; cluster: string; masterHash: string; createdAt: string; jobId?: string };
 
 const VERSIONS = path('cv', 'versions');
-export const masterRaw = () => readFileSync(path('cv', 'master.json'), 'utf8');
+// JOB_BOT_MASTER points at another CV (tests use cv/master.example.json).
+export const masterRaw = () => readFileSync(process.env.JOB_BOT_MASTER || path('cv', 'master.json'), 'utf8');
 // Covers everything that shapes a version's content, so editing the CV, a profile or the template yields v(N+1)
 // while older versions stay on disk for the jobs they were sent to.
 export const masterHash = () =>

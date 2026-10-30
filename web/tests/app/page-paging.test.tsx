@@ -20,6 +20,11 @@ vi.mock('next/navigation', async (importOriginal) => ({
   ...(await importOriginal<typeof import('next/navigation')>()),
   useRouter: () => ({ refresh: vi.fn() }),
 }));
+// The header and first-run banner read config.json per request (connection()); these tests render outside Next.
+vi.mock('next/server', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('next/server')>()),
+  connection: async () => {},
+}));
 vi.mock('@/lib/bot', async (orig) => ({ ...(await orig<object>()), runBot: vi.fn() }));
 vi.mock('@/app/jobs/[id]/open-actions', () => ({ checkStillOpen: vi.fn() }));
 vi.mock('@/app/jobs/[id]/followup-actions', () => ({ draftFollowUp: vi.fn(), markFollowedUp: vi.fn() }));

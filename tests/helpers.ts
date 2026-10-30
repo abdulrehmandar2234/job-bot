@@ -15,6 +15,11 @@ if (!/^postgres:\/\/postgres@127\.0\.0\.1:5432\/job_bot_test_bot(_[a-z0-9]+)?$/.
 // CLI subprocesses inherit this. Tests of the alerts point JOB_BOT_NOTIFY at tests/fixtures/fake-notify.mjs.
 process.env.JOB_BOT_NOTIFY ||= 'off';
 
+// The profile (cv/applicant.json) is personal and gitignored: tests use a fixed copy of the owner's profile, so the
+// letters, prompts and filters they check do not depend on whoever runs them. Suites that test other profiles set
+// JOB_BOT_APPLICANT themselves (src/profile.ts reads it on every call).
+process.env.JOB_BOT_APPLICANT ||= join(import.meta.dirname, 'fixtures', 'applicant-owner.json');
+
 // Never write the real HTTP cache (data/http-cache) from a test. Suites that test the cache set their own dir.
 process.env.JOB_BOT_HTTP_CACHE ||= mkdtempSync(join(tmpdir(), 'job-bot-http-cache-'));
 

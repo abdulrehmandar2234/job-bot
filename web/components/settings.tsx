@@ -3,7 +3,17 @@
 import { startTransition, useActionState, useState, type FormEvent, type ReactNode } from 'react';
 import { saveApplicant, saveConfig, saveJson, type SaveState } from '@/app/settings/actions';
 import type { SettingsFile } from '@/lib/settings';
-import { APPLICANT_FACTS, ATS, errorsFor, get, SALARY_KEYS, type Json, type SettingsError, type SettingsKind } from '@/lib/settings-form';
+import {
+  APPLICANT_FACTS,
+  ATS,
+  errorsFor,
+  get,
+  LETTER_FIELDS,
+  PROFILE_FIELDS,
+  type Json,
+  type SettingsError,
+  type SettingsKind,
+} from '@/lib/settings-form';
 
 type Action = (prev: SaveState, fd: FormData) => Promise<SaveState>;
 
@@ -204,15 +214,30 @@ export function ConfigForm({ config }: { config: SettingsFile }) {
 
         <Section title="Target countries">
           {countries.map(([code, country]) => (
-            <Field
-              key={code}
-              label={`${text(country?.name) || code} (${code}, visa: ${text(country?.visa)})`}
-              hint="location pattern"
-              {...f(`countries.${code}.match`)}
-            >
-              <input name={`countries.${code}.match`} defaultValue={text(country?.match)} className={`${input} font-mono text-xs`} />
-            </Field>
+            <div key={code} className="space-y-2 border-b border-zinc-100 pb-3 last:border-0 dark:border-zinc-900">
+              <Field
+                label={`${text(country?.name) || code} (${code}, visa: ${text(country?.visa)})`}
+                hint="location pattern"
+                {...f(`countries.${code}.match`)}
+              >
+                <input name={`countries.${code}.match`} defaultValue={text(country?.match)} className={`${input} font-mono text-xs`} />
+              </Field>
+              <div className="grid items-end gap-3 sm:grid-cols-2">
+                <Field label={`${code} label`} hint="short name on the dashboard, optional" {...f(`countries.${code}.label`)}>
+                  <input name={`countries.${code}.label`} defaultValue={text(country?.label)} className={input} />
+                </Field>
+                {/* Missing means a visa is needed (src/settings.ts), so only an explicit false unchecks it. */}
+                <Check
+                  label={`I need a work visa for ${text(country?.name) || code}`}
+                  name={`countries.${code}.needsVisa`}
+                  value={country?.needsVisa !== false}
+                />
+              </div>
+            </div>
           ))}
+          <p className="text-xs text-zinc-500">
+            Add or remove countries with `npm run bot -- setup` or under &quot;Advanced: edit JSON&quot;.
+          </p>
         </Section>
 
         <Section title="LinkedIn">
@@ -247,6 +272,14 @@ export function ConfigForm({ config }: { config: SettingsFile }) {
             </Field>
             <Field label="Himalayas queries" hint="one per line" {...f('remote.himalayasQueries')}>
               <textarea name="remote.himalayasQueries" rows={3} defaultValue={lines(get(c, 'remote.himalayasQueries'))} className={input} />
+            </Field>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Remote work from (country)" hint="empty = LinkedIn remote search, then your profile" {...f('remote.from')}>
+              <input name="remote.from" defaultValue={text(get(c, 'remote.from'))} className={input} />
+            </Field>
+            <Field label="Its country code" hint="two letters, e.g. PT; empty = your profile's" {...f('remote.fromCode')}>
+              <input name="remote.fromCode" maxLength={2} defaultValue={text(get(c, 'remote.fromCode'))} className={input} />
             </Field>
           </div>
           <p className="text-xs text-zinc-500">
@@ -314,6 +347,25 @@ export function ConfigForm({ config }: { config: SettingsFile }) {
 
 // ---- cv/applicant.json ----
 
+const PROFILE_LABEL: Record<(typeof PROFILE_FIELDS)[number], [string, string?]> = {
+  fullName: ['Full name', 'empty = name on your CV'],
+  email: ['Email', 'empty = email on your CV'],
+  phone: ['Phone', 'empty = phone on your CV'],
+  linkedin: ['LinkedIn URL', 'empty = LinkedIn on your CV'],
+  city: ['City you live in'],
+  country: ['Country you live in'],
+  countryCode: ['Country code', 'two letters, e.g. PT'],
+  utcOffset: ['UTC offset', 'e.g. GMT+1'],
+  workAuthorization: ['Work authorisation', 'citizenship, permits'],
+};
+
+const LETTER_LABEL: Record<(typeof LETTER_FIELDS)[number], [string, string]> = {
+  intro: ['Introduction', 'e.g. "I am a Full Stack Engineer with 5 years of experience ..."'],
+  'pitch.default': ['Pitch', 'one sentence on your strongest recent work'],
+  strengths: ['How you work', 'after "Your posting asks for X, which is the core of my day-to-day work."'],
+  remote: ['Remote experience', 'after "I am based in <city> (<UTC offset>)," e.g. "have worked remotely with ..."'],
+};
+
 const FACT_LABEL: Record<(typeof APPLICANT_FACTS)[number], string> = {
   currentLocation: 'Current location',
   languages: 'Languages',
@@ -367,7 +419,7 @@ function OtherEditor({ other, errors }: { other: unknown; errors: SettingsError[
   );
 }
 
-export function ApplicantForm({ applicant }: { applicant: SettingsFile }) {
+export function ApplicantForm({ applicant, salaryKeys = ['remote'] }: { applicant: SettingsFile; salaryKeys?: string[] }) {
   const { state, pending, onSubmit, errors } = useSave(saveApplicant);
   const a = applicant.data;
   if (!a)
@@ -376,29 +428,49 @@ export function ApplicantForm({ applicant }: { applicant: SettingsFile }) {
         applicant.json cannot be read ({applicant.error}). Fix it under &quot;Advanced: edit JSON&quot;.
       </p>
     );
+  // Without cv/applicant.json the example person's values are only shown as placeholders, never saved as yours.
+  const value = (path: string) =>
+    applicant.example ? { defaultValue: '', placeholder: text(get(a, path)) } : { defaultValue: text(get(a, path)) };
   return (
     <form onSubmit={onSubmit} aria-label="Applicant facts" className="space-y-4">
       {applicant.example && (
         <p className="rounded-lg bg-amber-50 p-2 text-sm text-amber-800 dark:bg-amber-950 dark:text-amber-300">
-          cv/applicant.json does not exist yet, so these are the example values. Saving creates it.
+          cv/applicant.json does not exist yet: the grey text shows an example person. Saving creates your file.
         </p>
       )}
       <p className="text-sm text-zinc-500">Leave a field empty when unknown: the AI then writes [FILL: …] instead of guessing.</p>
       <div key={applicant.text} className="space-y-4">
-        <Section title="Facts">
+        <Section title="Profile">
           <div className="grid gap-3 sm:grid-cols-2">
-            {APPLICANT_FACTS.map((k) => (
-              <Field key={k} label={FACT_LABEL[k]} name={k} errors={errors}>
-                <input name={k} defaultValue={text(a[k])} className={input} />
+            {PROFILE_FIELDS.map((k) => (
+              <Field key={k} label={PROFILE_LABEL[k][0]} hint={PROFILE_LABEL[k][1]} name={k} errors={errors}>
+                <input name={k} {...value(k)} className={input} />
               </Field>
             ))}
           </div>
         </Section>
+        <Section title="Facts">
+          <div className="grid gap-3 sm:grid-cols-2">
+            {APPLICANT_FACTS.map((k) => (
+              <Field key={k} label={FACT_LABEL[k]} name={k} errors={errors}>
+                <input name={k} {...value(k)} className={input} />
+              </Field>
+            ))}
+          </div>
+        </Section>
+        <Section title="Template cover letter">
+          <p className="text-xs text-zinc-500">Used when the AI is off or fails. Empty sentences are left out.</p>
+          {LETTER_FIELDS.map((k) => (
+            <Field key={k} label={LETTER_LABEL[k][0]} hint={LETTER_LABEL[k][1]} name={`coverLetter.${k}`} errors={errors}>
+              <textarea name={`coverLetter.${k}`} rows={2} {...value(`coverLetter.${k}`)} className={input} />
+            </Field>
+          ))}
+        </Section>
         <Section title="Expected salary">
           <div className="grid gap-3 sm:grid-cols-4">
-            {SALARY_KEYS.map((k) => (
+            {salaryKeys.map((k) => (
               <Field key={k} label={k === 'remote' ? 'Remote' : k} name={`expectedSalary.${k}`} errors={errors}>
-                <input name={`expectedSalary.${k}`} defaultValue={text(get(a, `expectedSalary.${k}`))} className={input} />
+                <input name={`expectedSalary.${k}`} {...value(`expectedSalary.${k}`)} className={input} />
               </Field>
             ))}
           </div>

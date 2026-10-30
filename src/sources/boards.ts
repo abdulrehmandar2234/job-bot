@@ -2,6 +2,7 @@ import { getJson, sleep } from './http.ts';
 import { config } from '../config.ts';
 import { partial, stripHtml, type Fetched, type RawJob } from './index.ts';
 import { structuredSalary } from '../salary.ts';
+import { loadProfile, remoteFromCode } from '../profile.ts';
 
 // Remote job boards. Unlike company ATS boards these list many companies, and the location
 // field says where a remote hire may live, e.g. "Remote — Worldwide" or "Remote — USA, Canada".
@@ -15,17 +16,22 @@ const strip = (html: string) =>
     .replace(/\n\s*\n+/g, '\n')
     .trim();
 
-/** Pakistan's UTC offset, and how far a required time zone may be from it. */
-const PK_UTC = 5;
+/** A UTC offset such as "GMT+5", "UTC-3" or "GMT+5:30" as hours, or null. */
+export function utcHours(offset: string | null | undefined): number | null {
+  const m = /([+−-])\s*(\d{1,2})(?::(\d{2}))?/.exec(offset ?? '');
+  if (!m) return null;
+  return (m[1] === '+' ? 1 : -1) * (Number(m[2]) + Number(m[3] ?? 0) / 60);
+}
 
 /**
  * The region a Himalayas job is open to, for the location field. Its time zones count too: a job "Worldwide" but
- * limited to UTC-10…-5 (the Americas) is not open to Pakistan, so it reads "time zones UTC-10, UTC-9, …" and the
- * remote-region filter drops it.
+ * limited to UTC-10…-5 (the Americas) is not open to someone at GMT+5, so it reads "time zones UTC-10, UTC-9, …"
+ * and the remote-region filter drops it. `home`: the candidate's UTC offset in hours (profile utcOffset); without
+ * one, time zones are not checked.
  */
-export function himalayasRegion(countries?: string[] | null, zones?: number[] | null): string {
+export function himalayasRegion(countries?: string[] | null, zones?: number[] | null, home: number | null = null): string {
   const places = countries?.length ? countries.join(', ') : '';
-  if (zones?.length && !zones.some((z) => Math.abs(z - PK_UTC) <= 1)) {
+  if (home !== null && zones?.length && !zones.some((z) => Math.abs(z - home) <= 1)) {
     const fmt = (z: number) => `UTC${z >= 0 ? '+' : ''}${z}`;
     const span = `time zones ${[...new Set(zones)]
       .sort((a, b) => a - b)
@@ -36,15 +42,22 @@ export function himalayasRegion(countries?: string[] | null, zones?: number[] | 
   return places || 'Worldwide';
 }
 
-/** Himalayas search with country=PK only returns remote jobs open to candidates in Pakistan. */
+/**
+ * Himalayas search with country=<ISO code> only returns remote jobs open to candidates in that country: the
+ * remote-from country (config remote.fromCode, else the profile's countryCode). Without one, all remote jobs.
+ */
 async function himalayas(): Promise<Fetched> {
   const out = new Map<string, RawJob>();
   const cutoff = Date.now() - config.maxAgeDays * 86_400_000;
+  const profile = loadProfile();
+  const code = remoteFromCode(config, profile);
+  const country = code ? `country=${code}&` : '';
+  const home = utcHours(profile.utcOffset);
   for (const q of config.remote.himalayasQueries) {
     for (let page = 1; page <= 10; page++) {
       let data: any;
       try {
-        data = await getJson(`https://himalayas.app/jobs/api/search?country=PK&q=${encodeURIComponent(q)}&page=${page}`);
+        data = await getJson(`https://himalayas.app/jobs/api/search?${country}q=${encodeURIComponent(q)}&page=${page}`);
       } catch (e) {
         // Usually a 429 on a later page: stop asking, but keep the earlier pages and queries.
         return partial([...out.values()], e);
@@ -53,7 +66,7 @@ async function himalayas(): Promise<Fetched> {
       for (const j of data.jobs) {
         const posted = j.pubDate * 1000;
         if (posted < cutoff) continue;
-        const where = himalayasRegion(j.locationRestrictions, j.timezoneRestrictions);
+        const where = himalayasRegion(j.locationRestrictions, j.timezoneRestrictions, home);
         out.set(j.guid, {
           id: `himalayas:${j.guid.replace(/^https:\/\/himalayas\.app\/companies\//, '')}`,
           source: 'himalayas',
@@ -145,7 +158,7 @@ async function arbeitnow(): Promise<Fetched> {
   return out;
 }
 
-// Adzuna: official API with a free app_id/app_key that the user registers for himself (ADZUNA_APP_ID and
+// Adzuna: official API with a free app_id/app_key that the user registers for themselves (ADZUNA_APP_ID and
 // ADZUNA_APP_KEY in .env). Without them the board is skipped. Adzuna has no UAE or Saudi index (its country
 // list is gb, us, at, au, be, br, ca, ch, de, es, fr, in, it, mx, nl, nz, pl, sg, za), so only 'nl' is useful here.
 // Note: the search API only returns a short snippet of each description, not the full text, so keyword scores

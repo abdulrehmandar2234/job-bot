@@ -28,11 +28,14 @@ const regex = z.string().refine((s) => {
   }
 }, 'not a valid regular expression');
 const count = z.number().int().nonnegative();
+const isoCode = z.string().regex(/^[A-Z]{2}$/, 'two capital letters (ISO 3166-1 alpha-2), e.g. "PT"');
 
 const countrySchema = z.object({
   name: text,
-  visa: z.enum(['employer', 'ind-register']),
+  visa: z.enum(['employer', 'ind-register']), // who sorts out the work permit: the employer, or a Dutch IND-registered sponsor
   match: regex, // location text that means this country
+  needsVisa: z.boolean().optional(), // false = the candidate may already work here (no sponsorship filters); missing = true
+  label: text.optional(), // short name for the dashboard, e.g. "Saudi"; missing = name
 });
 
 const companySchema = z.object({
@@ -65,7 +68,7 @@ export const configSchema = z.object({
     enabled: z.boolean(),
     keywords: z.array(text),
     locations: z.array(text), // onsite searches, as typed in LinkedIn's location box
-    remoteFrom: z.string(), // remote (f_WT=2) search located here, e.g. "Pakistan"
+    remoteFrom: z.string(), // remote (f_WT=2) search located here, e.g. "Portugal"; empty = no remote search
     pagesPerSearch: count, // 10 results per page
   }),
   remote: z.object({
@@ -75,6 +78,10 @@ export const configSchema = z.object({
     allow: regex, // remote regions that include the candidate's country
     deny: regex, // remote regions / phrases that exclude it
     flag: regex, // allowed, but worth double-checking
+    // The country remote work is done from (where the candidate lives). Missing = linkedin.remoteFrom, then the
+    // profile's country (cv/applicant.json) for `from`, and the profile's countryCode for `fromCode`.
+    from: text.optional(), // e.g. "Portugal", used in filter reasons, the visa note and the AI prompts
+    fromCode: isoCode.optional(), // ISO 3166-1 alpha-2, e.g. "PT": Himalayas only lists jobs open to this country
   }),
   // Optional, so older config.json files still load. Adzuna has no 'ae' or 'sa' index.
   adzuna: z
@@ -88,10 +95,39 @@ export const configSchema = z.object({
 
 // A fact for application forms; null = unknown, so the AI writes [FILL: ...] instead of guessing.
 const fact = z.union([z.string(), z.number(), z.boolean(), z.null()]);
+const optText = z.union([z.string(), z.null()]);
+
+// "GMT+5", "UTC-3:30", "GMT+0".
+export const UTC_OFFSET = /^(GMT|UTC)[+-]\d{1,2}(:[0-5]\d)?$/;
+
+/**
+ * Sentences of the template cover letter (src/cover.ts, used when the AI is off or fails) that only the candidate can
+ * write. Missing ones are left out. `pitch` is per CV cluster (see src/cv/profiles.ts), plus "default".
+ */
+const coverLetterSchema = z
+  .object({
+    intro: optText, // "I am a Senior Full Stack Engineer with 7+ years of experience ..."
+    pitch: z.record(z.string(), z.string()),
+    strengths: optText, // after "Your posting asks for X, which is the core of my day-to-day work."
+    remote: optText, // after "I am based in <location> (<UTC offset>)," for remote roles
+  })
+  .partial();
 
 export const applicantSchema = z
   .object({
     _help: z.string(),
+    // The profile: who the candidate is. Name and contact default to cv/master.json when missing.
+    fullName: optText,
+    email: z.union([z.email(), z.literal(''), z.null()]),
+    phone: optText,
+    linkedin: z.union([z.url(), z.literal(''), z.null()]),
+    city: optText,
+    country: optText,
+    countryCode: z.union([isoCode, z.null()]), // where the candidate lives, ISO 3166-1 alpha-2
+    utcOffset: z.union([z.string().regex(UTC_OFFSET, 'like "GMT+5" or "UTC-3:30"'), z.null()]),
+    workAuthorization: fact, // free text, e.g. "Portuguese citizen, may work anywhere in the EU"
+    coverLetter: coverLetterSchema,
+    // Facts for application forms.
     currentLocation: fact,
     languages: fact,
     needsVisaSponsorship: fact,

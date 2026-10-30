@@ -16,7 +16,8 @@ import { Contacts, ReferralReminder } from '@/components/contacts';
 import { allContacts } from '@/lib/contacts-db';
 import { SKIP_LABEL } from '@/lib/skips';
 import { ExpiredBadge, OpenCheck } from '@/components/open-check';
-import { AiReview, Chips, COUNTRIES, fmtDate, Posted, PostedOn, Score, STATUS_LABEL } from '@/components/ui';
+import { AiReview, Chips, fmtDate, Posted, PostedOn, Score, STATUS_LABEL } from '@/components/ui';
+import { readCountryLabels } from '@/lib/profile';
 
 export default function Page(props: PageProps<'/jobs/[id]'>) {
   return (
@@ -49,7 +50,7 @@ async function JobDetail({ params }: { params: PageProps<'/jobs/[id]'>['params']
             {job.title} <ExpiredBadge job={job} />
           </h1>
           <p className="text-zinc-600 dark:text-zinc-400">
-            {job.company} · {job.country ? COUNTRIES[job.country] : ''} · {job.location}
+            {job.company} · {job.country ? (readCountryLabels()[job.country] ?? job.country) : ''} · {job.location}
           </p>
           <p className="text-sm text-zinc-500">
             Status: <b>{STATUS_LABEL[job.status]}</b> · <Posted date={job.posted_at} /> · first seen {fmtDate(job.first_seen_at)}

@@ -3,6 +3,7 @@ import { Suspense } from 'react';
 import { DIMENSIONS, funnel, median, MIN_N, recentFetchRuns, responseDays, responseRates, weeklyActivity } from '@/lib/analytics';
 import { FetchRuns, FunnelChart, RateTable, Section, WeeklyBars } from '@/components/analytics';
 import { SkipPatterns } from '@/components/skip-patterns';
+import { readCountryLabels } from '@/lib/profile';
 import { readConfig } from '@/lib/settings';
 import { skipInsights } from '@/lib/skip-insights';
 
@@ -22,6 +23,7 @@ export default function Page() {
 
 async function Analytics() {
   const roleExclude = readConfig().data?.roleExclude;
+  const countries = readCountryLabels();
   const [f, rates, weeks, days, runs, skips] = await Promise.all([
     funnel(),
     Promise.all(DIMENSIONS.map(responseRates)),
@@ -64,7 +66,7 @@ async function Analytics() {
           >
             <div className="grid gap-5 sm:grid-cols-2">
               {DIMENSIONS.map((d, i) => (
-                <RateTable key={d} dim={d} rows={rates[i]} />
+                <RateTable key={d} dim={d} rows={rates[i]} countries={countries} />
               ))}
             </div>
           </Section>
