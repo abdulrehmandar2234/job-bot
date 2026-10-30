@@ -444,6 +444,12 @@ npm run lint         # Biome lint + format check; npm run format fixes it
 
 Pull requests are welcome: fork the repository, change it on a branch and open a pull request; the maintainer reviews and merges. [CONTRIBUTING.md](CONTRIBUTING.md) has the ground rules (the bot never applies, CVs stay truthful, nothing personal in commits), the development setup and the checks to run.
 
+## License
+
+[MIT](LICENSE): you may use, copy, change and share the code, also commercially, as long as the copyright notice stays with it. It comes with no warranty.
+
+The code is MIT; the author's own CV data in the repository (`cv/master.json`, `cv/default/`, `cv/original/`) is there as an example of the format. Use your own CV, not the author's.
+
 ## Roadmap
 
 See [ROADMAP.md](ROADMAP.md) for what is done and what is still open.
