@@ -161,6 +161,7 @@ async function JobDetail({ params }: { params: PageProps<'/jobs/[id]'>['params']
           <input type="hidden" name="id" value={job.id} />
           <textarea
             name="questions"
+            aria-label="Application form questions"
             rows={4}
             required
             className="input w-full"
@@ -180,6 +181,7 @@ async function JobDetail({ params }: { params: PageProps<'/jobs/[id]'>['params']
           <input type="hidden" name="id" value={job.id} />
           <textarea
             name="notes"
+            aria-label="Job notes"
             defaultValue={job.notes ?? ''}
             rows={3}
             className="input w-full"

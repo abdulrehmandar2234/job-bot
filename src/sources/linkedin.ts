@@ -1,6 +1,6 @@
 import { HttpError, getText, sleep } from './http.ts';
 import { config } from '../config.ts';
-import type { RawJob } from './index.ts';
+import { partial, type Fetched, type RawJob } from './index.ts';
 
 // LinkedIn public ("guest") job search — the same endpoints linkedin.com/jobs uses when logged out.
 // No account is involved. Requests are paced so a daily run stays small.
@@ -23,11 +23,13 @@ const strip = (html: string) =>
 
 // A 429 from LinkedIn means the guest endpoints are throttling this IP: stop LinkedIn for today
 // (no retries, which would only prolong the block). Network errors and 5xx are still retried.
+class RateLimited extends Error {}
+
 async function get(url: string) {
   try {
     return await getText(url, { headers: { 'user-agent': UA, 'accept-language': 'en' }, retryOn: (s) => s >= 500 });
   } catch (e) {
-    if (e instanceof HttpError && e.status === 429) throw new Error(`429 LinkedIn rate limit: stopping LinkedIn for today (${url})`);
+    if (e instanceof HttpError && e.status === 429) throw new RateLimited(`429 LinkedIn rate limit: stopping LinkedIn for today (${url})`);
     throw e;
   }
 }
@@ -54,7 +56,7 @@ function parseCards(html: string): Card[] {
     });
 }
 
-export async function linkedin(): Promise<RawJob[]> {
+export async function linkedin(): Promise<Fetched> {
   const li = config.linkedin;
   const days = config.maxAgeDays;
   const include = new RegExp(config.roleInclude, 'i');
@@ -80,10 +82,19 @@ export async function linkedin(): Promise<RawJob[]> {
   }
 
   const out: RawJob[] = [];
+  const failed: string[] = [];
   for (const c of cards.values()) {
     // Same title rules as scoring, applied before the (slower) detail request.
     if (!include.test(c.title) || exclude.test(c.title)) continue;
-    const html = await get(`${BASE}/jobPosting/${c.id}`);
+    let html: string;
+    try {
+      html = await get(`${BASE}/jobPosting/${c.id}`);
+    } catch (e) {
+      // A 429 still stops LinkedIn for today, but the details fetched so far are kept.
+      if (e instanceof RateLimited) return partial(out, e);
+      failed.push(`${c.id}: ${(e as Error).message}`);
+      continue;
+    }
     const markup =
       html.match(/show-more-less-html__markup[^>]*>([\s\S]*?)<\/div>\s*<button/)?.[1] ??
       html.match(/description__text[^>]*>([\s\S]*?)<\/section>/)?.[1] ??
@@ -100,5 +111,6 @@ export async function linkedin(): Promise<RawJob[]> {
     });
     await sleep(1200);
   }
+  if (failed.length) return partial(out, new Error(`${failed.length} details failed (first: ${failed[0]})`));
   return out;
 }

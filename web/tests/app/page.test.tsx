@@ -191,11 +191,21 @@ describe('job list page', () => {
 
     const form = screen.getByRole('button', { name: 'Apply filters' }).closest('form')!;
     expect(form.querySelector('input[name="status"]')).toHaveValue('applied');
-    expect(within(form).getByPlaceholderText('Search company or title')).toHaveValue('laravel');
-    expect(form.querySelector('select[name="country"]')).toHaveValue('AE');
-    expect(form.querySelector('select[name="min"]')).toHaveValue('60');
-    expect(form.querySelector('select[name="days"]')).toHaveValue('7');
-    expect(form.querySelector('select[name="sort"]')).toHaveValue('newest');
+    expect(within(form).getByRole('searchbox', { name: 'Search company or title' })).toHaveValue('laravel');
+    expect(within(form).getByRole('combobox', { name: 'Country' })).toHaveValue('AE');
+    expect(within(form).getByRole('combobox', { name: 'Minimum score' })).toHaveValue('60');
+    expect(within(form).getByRole('combobox', { name: 'Posted within' })).toHaveValue('7');
+    expect(within(form).getByRole('combobox', { name: 'Sort' })).toHaveValue('newest');
+  });
+
+  it('marks only the active status tab as the current page', async () => {
+    await renderPage({ status: 'applied' });
+    expect(tab('Applied')).toHaveAttribute('aria-current', 'page');
+    const current = within(screen.getByRole('navigation', { name: 'Job status' }))
+      .getAllByRole('link')
+      .filter((a) => a.hasAttribute('aria-current'));
+    expect(current).toEqual([tab('Applied')]);
+    expect(tab('Matching')).not.toHaveAttribute('aria-current');
   });
 
   it('falls back to the Matching tab and drops unknown filter values', async () => {
@@ -204,9 +214,9 @@ describe('job list page', () => {
     expect(tab('Matching')).toHaveClass('font-medium');
     expect(tab('Matching')).toHaveAttribute('href', '/?status=new');
     expect(titles()).toContain('TG matching');
-    const form = screen.getByRole('button', { name: 'Apply filters' }).closest('form')!;
-    expect(form.querySelector('select[name="country"]')).toHaveValue('');
-    expect(form.querySelector('select[name="sort"]')).toHaveValue('score');
+    expect(tab('Matching')).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('combobox', { name: 'Country' })).toHaveValue('');
+    expect(screen.getByRole('combobox', { name: 'Sort' })).toHaveValue('score');
   });
 
   it('badges a card when you know someone at the company to ask for a referral', async () => {

@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { refresh } from 'next/cache';
 import { BOT_ROOT, runBot } from '@/lib/bot';
 import { readApplicant, readConfig } from '@/lib/settings';
+import { enqueueTask } from '@/lib/tasks';
 import { skipInsights } from '@/lib/skip-insights';
 import { mergeApplicant, mergeConfig, type SettingsError, type SettingsKind } from '@/lib/settings-form';
 
@@ -49,12 +50,13 @@ async function save(kind: SettingsKind, json: string): Promise<SaveState> {
 
   let message = 'Saved.';
   if (kind === 'config') {
-    // Filters and patterns changed, so stored jobs are matched again.
+    // Filters and patterns changed, so stored jobs are matched again: a background task (TaskBar), since
+    // re-scoring every job can take minutes and must not block the form or be killed by a request timeout.
     try {
-      const n = /(\d+) jobs re-scored/.exec(await runBot(['rescore'], 120_000))?.[1];
-      message += ` Re-scored ${n ?? 'the stored'} jobs.`;
+      await enqueueTask('rescore', null);
+      message += ' Re-scoring jobs in the background.';
     } catch (e) {
-      message += ` Re-scoring failed: ${(e as Error).message}`;
+      message += ` Re-scoring could not start: ${(e as Error).message}`;
     }
   }
   refresh();

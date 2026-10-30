@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { config } from '../config.ts';
-import { getJob, pool, type Job } from '../db.ts';
+import { getJob, pool, setStatus, type Job } from '../db.ts';
 import { aiAnswers, aiScore as review } from '../ai.ts';
 import { notify, strongAlerts, type AlertJob } from '../notify.ts';
 import type { Flags } from './shared.ts';
@@ -19,29 +19,62 @@ export async function aiScore(_args: string[], flags: Flags) {
     params,
   );
   if (!queue.length) return console.log('Nothing to score.');
-  console.log(`AI scoring ${queue.length} jobs with ${config.ai.scoreModel}...`);
+  const total = queue.length;
+  console.log(`AI scoring ${total} jobs with ${config.ai.scoreModel}...`);
   let done = 0;
+  let failed = 0;
+  let firstError = '';
   const strong: string[] = [];
   const worker = async () => {
     for (let j = queue.shift(); j; j = queue.shift()) {
       try {
         const r = await review(j);
+        const where = r.location?.eligible ?? null;
+        const why = r.location?.reason?.trim() || null;
+        const flags =
+          where === 'unclear'
+            ? [`Location unclear: confirm you can work from where you live${why ? ` (${why})` : ''}`, ...r.red_flags]
+            : r.red_flags;
         await pool.query(
           `UPDATE jobs SET ai_score = $2, ai_verdict = $3, ai_summary = $4, ai_reasons = $5, ai_gaps = $6,
-          ai_flags = $7, ai_scored_at = now() WHERE id = $1`,
-          [j.id, r.score, r.verdict, r.summary, r.reasons, r.gaps, r.red_flags],
+          ai_flags = $7, ai_location = $8, ai_location_reason = $9, ai_scored_at = now() WHERE id = $1`,
+          [j.id, r.score, r.verdict, r.summary, r.reasons, r.gaps, flags, where, why],
         );
-        console.log(`${String(r.score).padStart(3)} ${r.verdict.padEnd(7)} ${j.company} — ${j.title}`);
+        const ruledOut = where === 'no' && (await excludeForLocation(j.id, why));
+        console.log(
+          `${String(r.score).padStart(3)} ${r.verdict.padEnd(7)} ${j.company} — ${j.title}${ruledOut ? `  → filtered: location (${why})` : ''}`,
+        );
         done++;
-        if (r.verdict === 'strong') strong.push(j.id);
+        if (r.verdict === 'strong' && where !== 'no') strong.push(j.id);
       } catch (e) {
+        failed++;
+        firstError ||= (e as Error).message;
         console.log(`  ✗ ${j.company} — ${j.title}: ${(e as Error).message.slice(0, 120)}`);
       }
     }
   };
   await Promise.all(Array.from({ length: config.ai.concurrency }, worker));
-  console.log(`${done} jobs scored.`);
+  console.log(`${done} jobs scored${failed ? `, ${failed} failed` : ''}.`);
   await alertStrong(strong);
+  // A failed review must not look like success: the job asked for with --id, or the whole queue, failing exits 1,
+  // so a dashboard task ends as failed and the scheduled run reports the error.
+  if (failed && (flags.id || failed === total)) {
+    console.error(`AI review failed for ${failed} of ${total} job${total === 1 ? '' : 's'}: ${firstError.slice(0, 500)}`);
+    process.exitCode = 1;
+  }
+}
+
+/** The filter reason for a job the AI found closed to the candidate's location. Kept across re-scores (see upsertJob). */
+export const locationReason = (why: string | null) => `location (AI): ${why || 'not open to where you live'}`.slice(0, 300);
+
+/**
+ * Moves a matching job the AI found closed to the candidate's location to `filtered`, with the reason. Only from
+ * `new`: a job the user already acted on keeps its status (the reason is still shown with the AI review).
+ */
+async function excludeForLocation(id: string, why: string | null) {
+  if (!(await setStatus(id, 'filtered', locationReason(why), undefined, { expectFrom: ['new'] }))) return false;
+  await pool.query('UPDATE jobs SET filter_reason = $2 WHERE id = $1', [id, locationReason(why)]);
+  return true;
 }
 
 const countryName = (c: string | null) => (c === 'RM' ? 'Remote' : c && config.countries[c]?.name) || c || 'unknown country';

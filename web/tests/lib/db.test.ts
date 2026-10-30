@@ -81,6 +81,22 @@ describe('listJobs', () => {
     expect(ours(await listJobs({ status: 'new', q: "' OR 1=1 --" }))).toEqual([]);
   });
 
+  it('matches %, _ and \\ in the search text literally, not as wildcards', async () => {
+    await insertJob({ id: 'us', company: 'Acme', title: 'Zq_dev Engineer' });
+    await insertJob({ id: 'pct', company: 'Zq 100% Remote', title: 'Engineer' });
+    await insertJob({ id: 'bs', company: 'Acme', title: 'Zq\\path Engineer' });
+    await insertJob({ id: 'plain', company: 'Acme', title: 'Zqxdev 100x Engineer' });
+    const search = async (q: string) => ours(await listJobs({ status: 'new', q })).sort();
+    expect(await search('_')).toEqual([id('us')]);
+    expect(await search('%')).toEqual([id('pct')]);
+    expect(await search('\\')).toEqual([id('bs')]);
+    expect(await search('zq_dev')).toEqual([id('us')]);
+    expect(await search('100%')).toEqual([id('pct')]);
+    expect(await countJobs({ status: 'new', q: 'zq_' })).toBe(1);
+    // Ordinary text still matches as a substring.
+    expect(await search('zq')).toEqual([id('bs'), id('pct'), id('plain'), id('us')].sort());
+  });
+
   it('days keeps jobs posted (or, without a post date, first seen) within that many days', async () => {
     await insertJob({ id: 'fresh', posted_at: daysAgo(2), first_seen_at: daysAgo(30) });
     await insertJob({ id: 'old-post', posted_at: daysAgo(10), first_seen_at: daysAgo(1) });
@@ -226,13 +242,15 @@ describe('jobEvents', () => {
 });
 
 describe('weekStats', () => {
-  it('counts applications in the last 7 days and non-filtered jobs first seen today', async () => {
+  it('counts applications in the last 7 days and non-filtered, non-duplicate jobs first seen today', async () => {
     const before = await weekStats();
     await insertJob({ id: 'ap-recent', status: 'applied', applied_at: daysAgo(2), first_seen_at: daysAgo(20) });
     await insertJob({ id: 'ap-old', status: 'applied', applied_at: daysAgo(8), first_seen_at: daysAgo(20) });
     await insertJob({ id: 'today' });
     await insertJob({ id: 'today-filtered', status: 'filtered' });
     await insertJob({ id: 'yesterday', first_seen_at: daysAgo(2) });
+    // A copy of a job found on another site today is the same job, shown under "Posted on".
+    await insertJob({ id: 'today-copy', source: 'linkedin', duplicate_of: id('today') });
     const after = await weekStats();
     expect(after.applied_week - before.applied_week).toBe(1);
     expect(after.new_today - before.new_today).toBe(1);

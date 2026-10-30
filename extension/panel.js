@@ -5,8 +5,8 @@
 import { copyButton, h, link } from './dom.js';
 import { fetchCv, lookupJob } from './lib/api.js';
 import { planFill } from './lib/fill.js';
-import { applyFill, describeFields } from './lib/page-fill.js';
-import { isHttpUrl } from './lib/url.js';
+import { applyFill, describeFields, listFrameUrls } from './lib/page-fill.js';
+import { frameOrigins, isHttpUrl, sameTab } from './lib/url.js';
 import { readTab, renderSendForm } from './send.js';
 
 const main = document.getElementById('main');
@@ -16,6 +16,8 @@ let seq = 0; // drops answers that arrive after the user switched tabs
 async function refresh() {
   const n = ++seq;
   [current] = await chrome.tabs.query({ active: true, currentWindow: true });
+  // Drop the previous job at once, so its Fill button cannot be used on the new tab while the lookup runs.
+  main.replaceChildren(h('p', { className: 'hint' }, 'Loading…'));
   if (!isHttpUrl(current?.url)) {
     main.replaceChildren(h('p', {}, 'Open a job page to see what job-bot prepared for it.'));
     return;
@@ -23,11 +25,11 @@ async function refresh() {
   const r = await lookupJob(current.url);
   if (n !== seq) return;
   if (!r.ok) main.replaceChildren(h('p', { className: 'box' }, r.error), h('button', { type: 'button', onclick: refresh }, 'Try again'));
-  else if (r.job) main.replaceChildren(...renderJob(r.job).flat().filter(Boolean));
+  else if (r.job) main.replaceChildren(...renderJob(r.job, { id: current.id, url: current.url }).flat().filter(Boolean));
   else renderUnknown();
 }
 
-function renderJob(j) {
+function renderJob(j, tab) {
   const verdict =
     j.ai_score != null ? `AI ${j.ai_score}${j.ai_verdict ? ` (${j.ai_verdict})` : ''} · keyword ${j.score}` : `score ${j.score}`;
   const answers = j.form_answers ?? [];
@@ -42,7 +44,7 @@ function renderJob(j) {
       // Applying is recorded on the dashboard, where the user also confirms it.
       j.status !== 'applied' && link(j.dashboard_url, 'Mark applied (in dashboard)'),
     ),
-    fillSection(j),
+    fillSection(j, tab),
     h('h2', {}, 'CV'),
     j.cv_url
       ? h('p', {}, `Version: ${j.cv_version} · `, link(j.cv_url, 'Download PDF'))
@@ -74,20 +76,21 @@ function renderJob(j) {
 /** Asks once per site (from the user's click) to let the panel work in the page. */
 const askForSite = (url) => chrome.permissions.request({ origins: [`${new URL(url).origin}/*`] }).catch(() => false);
 
-function fillSection(j) {
+function fillSection(j, tab) {
   const status = h('div', { className: 'status' });
   const button = h('button', { type: 'button' }, 'Fill this form');
-  button.addEventListener('click', async () => {
+  const run = async () => {
     button.disabled = true;
     status.replaceChildren(h('p', {}, 'Filling…'));
     try {
-      status.replaceChildren(...(await fillForm(j)));
+      status.replaceChildren(...(await fillForm(j, tab, run)));
     } catch (e) {
       status.replaceChildren(h('p', { className: 'needs' }, `Could not fill this page: ${e.message}`));
     } finally {
       button.disabled = false;
     }
-  });
+  };
+  button.addEventListener('click', run);
   return h(
     'div',
     { className: 'box' },
@@ -102,29 +105,52 @@ function fillSection(j) {
 }
 
 /** Fills the form in the active tab, frame by frame. Returns the result lines for the panel. */
-async function fillForm(j) {
-  if (!(await askForSite(current.url))) return [h('p', {}, 'Without access to this site the panel cannot fill the form.')];
-  const cv = j.cv_url ? await fetchCv(j.cv_url, j.cv_file_name) : null;
-  const data = { profile: j.profile, cover_letter: j.cover_letter, answers: j.form_answers, cv };
-  // Forms are often in an iframe (Greenhouse, Workday embeds). Frames on other sites need their own permission,
-  // so fall back to the top frame when Chrome refuses some of them.
+/**
+ * Fills the form in the job's tab, frame by frame. Returns the result lines for the panel. `retry` runs the fill
+ * again, from the "Allow" button shown when the form sits in an iframe from another site.
+ */
+async function fillForm(j, tab, retry) {
+  const [active] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!sameTab(tab, active)) return [h('p', { className: 'needs' }, 'The tab changed since this job was shown. Press Refresh, then fill.')];
+  if (!(await askForSite(tab.url))) return [h('p', {}, 'Without access to this site the panel cannot fill the form.')];
+  // A form embedded from another site needs access to that site too. Chrome only asks from a click, so a missing
+  // one gets its own "Allow" button (a fresh click) instead of failing silently.
+  const [top] = await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: listFrameUrls });
+  const missing = [];
+  for (const origin of frameOrigins(tab.url, top?.result)) {
+    if (!(await chrome.permissions.contains({ origins: [origin] }))) missing.push(origin);
+  }
+  if (missing.length) {
+    const sites = missing.map((o) => o.replace(/\/\*$/, '')).join(', ');
+    const allow = h('button', { type: 'button' }, `Allow ${sites} and fill`);
+    allow.addEventListener('click', async () => {
+      if (await chrome.permissions.request({ origins: missing }).catch(() => false)) retry();
+    });
+    return [h('p', {}, `Part of this form comes from ${sites}. Allow job-bot there too, so it can fill the whole form.`), allow];
+  }
+  // The CV PDF is downloaded only when a form has a CV field; planning needs just its name.
+  const data = {
+    profile: j.profile,
+    cover_letter: j.cover_letter,
+    answers: j.form_answers,
+    cv: j.cv_url ? { name: j.cv_file_name } : null,
+  };
+  let cv = null;
+  // Forms are often in an iframe (Greenhouse, Workday embeds). If Chrome still refuses a frame, fill the top one.
   const frames = await chrome.scripting
-    .executeScript({ target: { tabId: current.id, allFrames: true }, func: describeFields })
-    .catch(() => chrome.scripting.executeScript({ target: { tabId: current.id }, func: describeFields }));
+    .executeScript({ target: { tabId: tab.id, allFrames: true }, func: describeFields })
+    .catch(() => chrome.scripting.executeScript({ target: { tabId: tab.id }, func: describeFields }));
   const filled = [];
   const skipped = [];
   for (const { frameId, result } of frames) {
     if (!result?.length) continue;
     const plan = planFill(result, data);
     skipped.push(...plan.skipped);
-    if (!plan.fills.length) continue;
-    const needsCv = plan.fills.some((f) => f.kind === 'file');
-    await chrome.scripting.executeScript({
-      target: { tabId: current.id, frameIds: [frameId] },
-      func: applyFill,
-      args: [plan.fills, needsCv ? cv : null],
-    });
-    filled.push(...plan.fills);
+    if (plan.fills.some((f) => f.kind === 'file')) cv ??= await fetchCv(j.cv_url, j.cv_file_name);
+    const fills = cv ? plan.fills : plan.fills.filter((f) => f.kind !== 'file');
+    if (!fills.length) continue;
+    await chrome.scripting.executeScript({ target: { tabId: tab.id, frameIds: [frameId] }, func: applyFill, args: [fills, cv] });
+    filled.push(...fills);
   }
   if (!filled.length) return [h('p', {}, 'No empty fields here that job-bot knows how to fill.')];
   const needInput = (j.form_answers ?? []).filter((a) => a.needs_input).length;

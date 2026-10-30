@@ -16,7 +16,7 @@ Sends the job you are looking at to your local job-bot, and shows what job-bot p
   - drafted form answers, into the field whose label matches the question (selects pick the matching option);
   - the prepared CV PDF, into a "Resume" / "CV" file input.
 
-  Filled fields get an orange outline. The panel lists what it filled and what it left for you. Chrome asks once per site to let the panel work there.
+  Filled fields get an orange outline. The panel lists what it filled and what it left for you. Chrome asks once per site to let the panel work there; when the form is an iframe from another site (a careers page embedding Greenhouse), the panel shows an **Allow <site> and fill** button for that site too.
 
 ## What it does not do
 

@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { applyFill, describeFields } from '../../../extension/lib/page-fill.js';
+import { applyFill, describeFields, listFrameUrls } from '../../../extension/lib/page-fill.js';
 import { planFill } from '../../../extension/lib/fill.js';
 import { fillProfile } from '@/lib/extension';
 
@@ -146,5 +146,55 @@ describe('fillProfile', () => {
 
   it('gives empty strings when the files are missing', () => {
     expect(fillProfile(join(root, 'nope'))).toEqual({ name: '', email: '', phone: '', linkedin: '', location: '' });
+  });
+});
+
+describe('never overwriting', () => {
+  const profile = { name: 'Sara Khan', email: 'sara@example.com', phone: '+971', linkedin: '', location: '' };
+
+  it('a second run on the next step of a multi-step form fills that step, not the hidden first one', () => {
+    document.body.innerHTML = `
+      <div id="step1"><label for="a">First name</label><input id="a"></div>
+      <div id="step2" style="display:none"><label for="b">Email</label><input id="b" type="email"></div>`;
+    applyFill(planFill(describeFields(), { profile, answers: [] }).fills, null);
+    expect((document.getElementById('a') as HTMLInputElement).value).toBe('Sara');
+
+    // Step 1 is now hidden (jsdom has no layout, so hide it for getClientRects too) and step 2 shows.
+    (document.getElementById('step1') as HTMLElement).style.display = 'none';
+    (document.getElementById('a') as HTMLElement).style.display = 'none';
+    (document.getElementById('step2') as HTMLElement).style.display = '';
+    const rects = vi.mocked(Element.prototype.getClientRects);
+    rects.mockImplementation(function (this: Element) {
+      return ((this as HTMLElement).style.display === 'none' ? [] : [{}]) as unknown as DOMRectList;
+    });
+    const fields = describeFields();
+    expect(fields.map((f: { id: string }) => f.id)).toEqual(['b']);
+    expect(document.getElementById('a')!.hasAttribute('data-jobbot-field')).toBe(false); // old tag removed
+    applyFill(planFill(fields, { profile, answers: [] }).fills, null);
+    expect((document.getElementById('b') as HTMLInputElement).value).toBe('sara@example.com');
+    expect((document.getElementById('a') as HTMLInputElement).value).toBe('Sara');
+  });
+
+  it('skips a field the user filled after the plan was made', () => {
+    document.body.innerHTML = '<label for="a">First name</label><input id="a">';
+    const plan = planFill(describeFields(), { profile, answers: [] });
+    (document.getElementById('a') as HTMLInputElement).value = 'Typed by me';
+    expect(applyFill(plan.fills, null)).toBe(0);
+    expect((document.getElementById('a') as HTMLInputElement).value).toBe('Typed by me');
+  });
+
+  it('a select whose first option is a real choice the user picked is not empty; a "Select…" placeholder is', () => {
+    document.body.innerHTML = `
+      <label for="s1">Years of Laravel</label><select id="s1"><option value="7">7</option><option value="3">3</option></select>
+      <label for="s2">Years of PHP</label><select id="s2"><option value="" disabled selected>Select…</option><option value="7">7</option></select>`;
+    const fields = describeFields();
+    expect(fields.map((f: { empty: boolean }) => f.empty)).toEqual([false, true]);
+  });
+});
+
+describe('listFrameUrls', () => {
+  it('returns the src of every iframe that has one', () => {
+    document.body.innerHTML = '<iframe src="https://job-boards.greenhouse.io/embed/job_app?for=acme"></iframe><iframe></iframe>';
+    expect(listFrameUrls()).toEqual(['https://job-boards.greenhouse.io/embed/job_app?for=acme']);
   });
 });

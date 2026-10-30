@@ -147,11 +147,15 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<'/'>['searc
       >
         {STATUSES.map((s) => (
           <Fragment key={s}>
-            <Link href={tabHref(s)} className={tabClass(!followUp && s === status)}>
+            <Link
+              href={tabHref(s)}
+              aria-current={!followUp && s === status ? 'page' : undefined}
+              className={tabClass(!followUp && s === status)}
+            >
               {STATUS_LABEL[s]} <span className="text-zinc-400">{counts[s] ?? 0}</span>
             </Link>
             {s === 'applied' && (
-              <Link href={tabHref(s, 'followup')} className={tabClass(followUp)}>
+              <Link href={tabHref(s, 'followup')} aria-current={followUp ? 'page' : undefined} className={tabClass(followUp)}>
                 Needs follow-up <span className={dueCount ? 'text-amber-600' : 'text-zinc-400'}>{dueCount}</span>
               </Link>
             )}
@@ -161,8 +165,15 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<'/'>['searc
 
       <form className="mb-4 flex flex-wrap items-end gap-2 text-sm">
         {followUp ? <input type="hidden" name="view" value="followup" /> : <input type="hidden" name="status" value={status} />}
-        <input name="q" defaultValue={q} placeholder="Search company or title" className="input w-56" />
-        <select name="country" defaultValue={country ?? ''} className="input">
+        <input
+          type="search"
+          name="q"
+          defaultValue={q}
+          placeholder="Search company or title"
+          aria-label="Search company or title"
+          className="input w-56"
+        />
+        <select name="country" defaultValue={country ?? ''} aria-label="Country" className="input">
           <option value="">All countries</option>
           {Object.entries(labels).map(([k, v]) => (
             <option key={k} value={k}>
@@ -170,7 +181,7 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<'/'>['searc
             </option>
           ))}
         </select>
-        <select name="min" defaultValue={min ?? ''} className="input">
+        <select name="min" defaultValue={min ?? ''} aria-label="Minimum score" className="input">
           <option value="">Any score</option>
           {[50, 60, 70, 80].map((n) => (
             <option key={n} value={n}>
@@ -178,13 +189,13 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<'/'>['searc
             </option>
           ))}
         </select>
-        <select name="days" defaultValue={days ?? ''} className="input">
+        <select name="days" defaultValue={days ?? ''} aria-label="Posted within" className="input">
           <option value="">Posted: any time</option>
           <option value="1">Last 24 hours</option>
           <option value="3">Last 3 days</option>
           <option value="7">Last 7 days</option>
         </select>
-        <select name="sort" defaultValue={sort} className="input">
+        <select name="sort" defaultValue={sort} aria-label="Sort" className="input">
           <option value="score">Best match first</option>
           <option value="newest">Newest first</option>
         </select>

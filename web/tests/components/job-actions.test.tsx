@@ -41,6 +41,8 @@ const job = (over: Partial<Job> = {}): Job => ({
   salary_currency: null,
   salary_period: null,
   follow_ups: 0,
+  ai_location: null,
+  ai_location_reason: null,
   followed_up_at: null,
   follow_up_draft: null,
   follow_up_draft_at: null,

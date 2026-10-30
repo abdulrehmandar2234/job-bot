@@ -43,6 +43,31 @@ export const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, ma
 /** Brings the database schema up to date (src/migrations, see src/migrate.ts). Returns the versions applied. */
 export const migrate = () => runMigrations(pool);
 
+/**
+ * Runs `fn` while holding a Postgres session advisory lock named `job_bot:<name>`, on a client of its own, so two
+ * processes (the dashboard's task and the launchd script, say) never run the same command at once. Returns false
+ * without running `fn` when another session holds the lock. The lock is released when `fn` ends, or with the session.
+ */
+export async function withLock(name: string, fn: () => Promise<unknown>): Promise<boolean> {
+  const client = await pool.connect();
+  let broken: Error | undefined;
+  try {
+    const { rows } = await client.query<{ locked: boolean }>(`SELECT pg_try_advisory_lock(hashtext('job_bot:' || $1)) AS locked`, [name]);
+    if (!rows[0].locked) return false;
+    try {
+      await fn();
+    } finally {
+      await client.query(`SELECT pg_advisory_unlock(hashtext('job_bot:' || $1))`, [name]).catch((e: Error) => {
+        broken = e;
+      });
+    }
+    return true;
+  } finally {
+    // A client whose unlock failed is closed rather than reused, which drops the lock with the session.
+    client.release(broken);
+  }
+}
+
 // Company career pages first (most direct), then big boards, then aggregators.
 const SOURCE_RANK = [
   'greenhouse',
@@ -153,11 +178,17 @@ export async function upsertJob(j: ScoredJob): Promise<'inserted' | 'updated'> {
       title = EXCLUDED.title, location = EXCLUDED.location, country = EXCLUDED.country, url = EXCLUDED.url,
       description = EXCLUDED.description, posted_at = EXCLUDED.posted_at, fetched_at = now(),
       score = EXCLUDED.score, cluster = EXCLUDED.cluster, matched = EXCLUDED.matched, missing = EXCLUDED.missing,
-      visa = EXCLUDED.visa, flags = EXCLUDED.flags, filter_reason = EXCLUDED.filter_reason,
+      visa = EXCLUDED.visa, flags = EXCLUDED.flags,
+      -- A job the AI review found closed to the candidate's location stays filtered, whatever the keyword rules say.
+      filter_reason = CASE WHEN EXCLUDED.status = 'new' AND jobs.ai_location = 'no'
+        THEN left('location (AI): ' || coalesce(jobs.ai_location_reason, 'not open to where you live'), 300)
+        ELSE EXCLUDED.filter_reason END,
       salary_min = EXCLUDED.salary_min, salary_max = EXCLUDED.salary_max,
       salary_currency = EXCLUDED.salary_currency, salary_period = EXCLUDED.salary_period,
       -- Re-scoring may move a job between new <-> filtered, but only while the user hasn't acted on it.
-      status = CASE WHEN jobs.status IN ('new', 'filtered') THEN EXCLUDED.status ELSE jobs.status END
+      status = CASE WHEN jobs.status NOT IN ('new', 'filtered') THEN jobs.status
+        WHEN EXCLUDED.status = 'new' AND jobs.ai_location = 'no' THEN 'filtered'
+        ELSE EXCLUDED.status END
     RETURNING (xmax = 0) AS inserted`,
     [
       j.id,
@@ -202,12 +233,26 @@ export const SKIP_REASONS = [
   'other',
 ] as const satisfies readonly SkipReason[];
 
-/** Changes a job's status and logs it in job_events, in one transaction. `reason` is kept only for skips. */
-export async function setStatus(id: string, status: JobStatus, note?: string, reason?: SkipReason) {
+/**
+ * Changes a job's status and logs it in job_events, in one transaction. `reason` is kept only for skips. With `expectFrom`, the change only applies when the current
+ * status (read under a row lock) is one of those statuses: bot steps pass the statuses they decided from, so a status
+ * the user set in the meantime is never overwritten. Returns whether the status was changed.
+ */
+export async function setStatus(
+  id: string,
+  status: JobStatus,
+  note?: string,
+  reason?: SkipReason,
+  { expectFrom }: { expectFrom?: readonly JobStatus[] } = {},
+): Promise<boolean> {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    const { rows } = await client.query<{ status: string }>('SELECT status FROM jobs WHERE id = $1 FOR UPDATE', [id]);
+    const { rows } = await client.query<{ status: JobStatus }>('SELECT status FROM jobs WHERE id = $1 FOR UPDATE', [id]);
+    if (expectFrom && !(rows[0] && expectFrom.includes(rows[0].status))) {
+      await client.query('ROLLBACK');
+      return false;
+    }
     // The note belongs to the history entry; jobs.notes is the user's own free-text field (edited in the dashboard).
     await client.query(
       `UPDATE jobs SET status = $2,
@@ -223,6 +268,7 @@ export async function setStatus(id: string, status: JobStatus, note?: string, re
       status === 'skipped' ? (reason ?? null) : null,
     ]);
     await client.query('COMMIT');
+    return true;
   } catch (e) {
     await client.query('ROLLBACK');
     throw e;

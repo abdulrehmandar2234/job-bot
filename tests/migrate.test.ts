@@ -108,3 +108,34 @@ describe('runMigrations', () => {
     assert.throws(() => migrationFiles(dir({ '001_ok.sql': '', 'fix.sql': '' })), /Bad migration file name fix\.sql/);
   });
 });
+
+describe('migration 009 (url indexes)', () => {
+  // The extension's lookup, with the same expression as web/lib/extension.ts, so a change there that drifts from
+  // the index fails here.
+  const NORMALIZED = readFileSync(join(import.meta.dirname, '..', 'web', 'lib', 'extension.ts'), 'utf8').match(
+    /const NORMALIZED = `([^`]+)`/,
+  )![1];
+
+  it('findJobByUrl uses the url and normalized-url indexes', async () => {
+    await runMigrations(db);
+    await db.query(
+      `INSERT INTO jobs (id, source, company, title, url)
+       SELECT 'j' || n, 's', 'c', 't', 'https://example.com/jobs/' || n || '?ref=x' FROM generate_series(1, 200) n`,
+    );
+    await db.query('ANALYZE jobs');
+    const client = await db.connect();
+    try {
+      await client.query('SET enable_seqscan = off');
+      const { rows } = await client.query<{ 'QUERY PLAN': string }>(
+        `EXPLAIN SELECT * FROM jobs WHERE url = $1 OR ${NORMALIZED} = $2
+         ORDER BY (url = $1) DESC, (duplicate_of IS NULL) DESC, first_seen_at DESC LIMIT 1`,
+        ['https://example.com/jobs/7?ref=x', 'https://example.com/jobs/7'],
+      );
+      const plan = rows.map((r) => r['QUERY PLAN']).join('\n');
+      assert.match(plan, /jobs_url\b/, plan);
+      assert.match(plan, /jobs_url_normalized/, plan);
+    } finally {
+      client.release();
+    }
+  });
+});

@@ -1,16 +1,22 @@
 import { config } from '../config.ts';
-import { pool, type Job } from '../db.ts';
-import { fetchCompany } from '../sources/index.ts';
+import { pool, withLock, type Job } from '../db.ts';
+import { fetchCompany, type Fetched } from '../sources/index.ts';
 import { BOARDS } from '../sources/boards.ts';
 import { linkedin } from '../sources/linkedin.ts';
 import { parseSalary, rowSalary, SALARY_SOURCES } from '../salary.ts';
-import type { RawJob } from '../types.ts';
 import { save, type Flags } from './shared.ts';
 
 const waitingCount = async () => (await pool.query<{ n: number }>(`SELECT count(*)::int n FROM jobs WHERE status = 'new'`)).rows[0].n;
 
-/** fetch [--company name]: pulls jobs from every source, then filters and scores them. */
-export async function fetch(_args: string[], flags: Flags) {
+/**
+ * fetch [--company name]: pulls jobs from every source, then filters and scores them. Only one fetch runs at a time
+ * (the dashboard's Fetch task and the daily script would otherwise hit every board twice).
+ */
+export async function fetch(args: string[], flags: Flags) {
+  if (!(await withLock('fetch', () => fetchAll(args, flags)))) console.log('A fetch is already running; skipping.');
+}
+
+async function fetchAll(_args: string[], flags: Flags) {
   const only = flags.company?.toLowerCase();
   const {
     rows: [run],
@@ -19,7 +25,7 @@ export async function fetch(_args: string[], flags: Flags) {
   let added = 0,
     total = 0;
   const errors: { company: string; error: string }[] = [];
-  const sources: { name: string; load: () => Promise<RawJob[]> }[] = [
+  const sources: { name: string; load: () => Promise<Fetched> }[] = [
     ...config.companies.map((c) => ({ name: c.name, load: () => fetchCompany(c) })),
     ...(config.remote.enabled ? config.remote.boards.filter((b) => BOARDS[b]).map((b) => ({ name: b, load: BOARDS[b] })) : []),
     ...(config.linkedin.enabled ? [{ name: 'linkedin', load: linkedin }] : []),
@@ -30,9 +36,22 @@ export async function fetch(_args: string[], flags: Flags) {
     for (let c = queue.shift(); c; c = queue.shift()) {
       try {
         const jobs = await c.load();
-        for (const j of jobs) if ((await save(j)) === 'inserted') added++;
-        total += jobs.length;
-        console.log(`✓ ${c.name}: ${jobs.length} postings`);
+        // One posting the database rejects must not cost the rest of the source.
+        let skipped = 0;
+        let firstError = '';
+        for (const j of jobs) {
+          try {
+            if ((await save(j)) === 'inserted') added++;
+          } catch (e) {
+            skipped++;
+            firstError ||= `${j.id}: ${(e as Error).message}`;
+          }
+        }
+        total += jobs.length - skipped;
+        if (jobs.partialError) errors.push({ company: c.name, error: jobs.partialError });
+        if (skipped) errors.push({ company: c.name, error: `${skipped} of ${jobs.length} postings not saved (first: ${firstError})` });
+        const notes = [jobs.partialError, skipped ? `${skipped} skipped` : ''].filter(Boolean).join('; ');
+        console.log(`${notes ? '!' : '✓'} ${c.name}: ${jobs.length - skipped} postings${notes ? ` (${notes})` : ''}`);
       } catch (e) {
         errors.push({ company: c.name, error: (e as Error).message });
         console.log(`✗ ${c.name}: ${(e as Error).message}`);

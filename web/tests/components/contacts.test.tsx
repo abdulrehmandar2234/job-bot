@@ -98,6 +98,44 @@ describe('ContactForm', () => {
       'to ask',
       null,
     ]);
+    // The add form is empty again for the next contact.
+    expect(screen.getByLabelText('Name')).toHaveValue('');
+    expect(screen.getByLabelText('Email')).toHaveValue('');
+  });
+
+  it('keeps what was typed when the save is rejected, and shows the errors', async () => {
+    vi.mocked(saveContact).mockResolvedValue({ ok: false, errors: ['email is not a valid address', 'phone is too long'] });
+    const user = userEvent.setup();
+    render(<ContactForm jobId="j1" />);
+    await user.type(screen.getByLabelText('Name'), 'Jane Doe');
+    await user.type(screen.getByLabelText('Email'), 'jane@acme.com');
+    await user.type(screen.getByLabelText('Phone'), '+971 50 123');
+    await user.selectOptions(screen.getByLabelText('Role'), 'hiring manager');
+    await user.type(screen.getByLabelText('Notes'), 'Met at GITEX');
+    await user.click(screen.getByRole('button', { name: 'Add contact' }));
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('email is not a valid address');
+    expect(alert).toHaveTextContent('phone is too long');
+    expect(screen.getByLabelText('Name')).toHaveValue('Jane Doe');
+    expect(screen.getByLabelText('Email')).toHaveValue('jane@acme.com');
+    expect(screen.getByLabelText('Phone')).toHaveValue('+971 50 123');
+    expect(screen.getByLabelText('Role')).toHaveValue('hiring manager');
+    expect(screen.getByLabelText('Notes')).toHaveValue('Met at GITEX');
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Add contact' })).toBeEnabled();
+  });
+
+  it('disables the button while saving', async () => {
+    let finish!: (v: { ok: boolean; errors: string[] }) => void;
+    vi.mocked(saveContact).mockReturnValue(new Promise((r) => (finish = r)));
+    const user = userEvent.setup();
+    render(<ContactForm jobId="j1" />);
+    await user.type(screen.getByLabelText('Name'), 'Jane');
+    await user.click(screen.getByRole('button', { name: 'Add contact' }));
+    expect(await screen.findByRole('button', { name: 'Saving…' })).toBeDisabled();
+    finish({ ok: true, errors: [] });
+    expect(await screen.findByRole('button', { name: 'Add contact' })).toBeEnabled();
   });
 
   it("edits an existing contact and lists the server's validation errors", async () => {

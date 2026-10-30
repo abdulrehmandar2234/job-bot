@@ -8,6 +8,8 @@ import { CONFIG_FIELDS, get, type Json } from '@/lib/settings-form';
 
 // The real CLI (settings:save, rescore) on temp copies of the settings files, with the bot's test database.
 vi.mock('next/cache', () => ({ refresh: vi.fn() }));
+// The re-score after a config save is a background task (tests/app/settings-actions.test.ts); no worker here.
+vi.mock('@/lib/tasks', () => ({ enqueueTask: vi.fn() }));
 
 const BOT_DB_URL = process.env.DATABASE_URL!.replace(/\/job_bot_test(_[a-z0-9]+)?$/, '/job_bot_test_bot$1');
 const REAL_CONFIG = join(BOT_ROOT, 'config.json');
@@ -55,10 +57,10 @@ afterAll(() => {
 });
 
 describe('settings round-trip through the CLI', () => {
-  it('saves a config form edit, keeps unknown keys and re-scores', async () => {
+  it('saves a config form edit, keeps unknown keys and queues a re-score', async () => {
     const cfg = JSON.parse(readFileSync(CONFIG_FILE, 'utf8'));
     const res = await saveConfig(null, configForm(cfg, { minScore: '61' }));
-    expect(res).toMatchObject({ ok: true, message: expect.stringMatching(/^Saved\. Re-scored \d+ jobs\.$/) });
+    expect(res).toMatchObject({ ok: true, message: 'Saved. Re-scoring jobs in the background.' });
     const after = JSON.parse(readFileSync(CONFIG_FILE, 'utf8'));
     expect(after).toEqual({ ...cfg, minScore: 61 });
     expect(after.futureKey).toEqual({ keep: true });

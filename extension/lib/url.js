@@ -17,6 +17,26 @@ export function normalizeUrl(url) {
   return `${u.protocol}//${u.host}${path}`;
 }
 
+/**
+ * Whether the tab a job was shown for is still the active tab, on the same page (ignoring query and hash).
+ * The side panel checks this before filling, so one job's answers never go into another tab's form.
+ */
+export function sameTab(shown, active) {
+  return Boolean(shown && active && shown.id === active.id && normalizeUrl(shown.url) === normalizeUrl(active.url));
+}
+
+/**
+ * The origins of a page's iframes that differ from the page itself (http(s) only, each once), as permission
+ * patterns. A form embedded from another site (a Greenhouse or Workday iframe) needs access to that site too.
+ */
+export function frameOrigins(pageUrl, frameUrls) {
+  if (!isHttpUrl(pageUrl)) return [];
+  const own = new URL(pageUrl).origin;
+  const out = new Set();
+  for (const u of frameUrls ?? []) if (isHttpUrl(u) && new URL(u).origin !== own) out.add(`${new URL(u).origin}/*`);
+  return [...out];
+}
+
 // Job boards the bot knows by name; any other site is stored with the source "extension".
 const BOARDS = [
   ['bayt.com', 'bayt'],
