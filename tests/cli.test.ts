@@ -1,7 +1,7 @@
 import { after, before, beforeEach, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -278,4 +278,59 @@ describe('CLI settings', () => {
     assert.equal(out.code, 1);
     assert.match(out.stderr, /Invalid settings file .*applicant\.json:\n {2}- noticePeriod: /);
   });
+});
+
+describe('CLI with an API AI provider', () => {
+  // ai:score end to end with OpenAI or DeepSeek: a temp config.json picks the provider, the preloaded fake fetch
+  // (tests/fixtures/fake-fetch.mjs) answers the chat API, and a dummy key stands in. Nothing reaches the network.
+  const KEY = 'sk-test-cli-0123456789';
+  const review = {
+    score: 88,
+    verdict: 'strong',
+    summary: 'Apply',
+    reasons: ['Laravel'],
+    gaps: [],
+    red_flags: [],
+    location: { eligible: 'yes', reason: 'Dubai onsite' },
+  };
+  const chat = (content: object) => ({ body: JSON.stringify({ choices: [{ message: { content: JSON.stringify(content) } }] }) });
+  const withProvider = (provider: string) => {
+    const cfg = JSON.parse(readFileSync(path('config.json'), 'utf8'));
+    const f = join(mkdtempSync(join(tmp, 'provider-')), 'config.json');
+    writeFileSync(f, JSON.stringify({ ...cfg, ai: { ...cfg.ai, provider } }));
+    return f;
+  };
+
+  for (const [provider, name, url, keyEnv, model] of [
+    ['openai', 'OpenAI', 'https://api.openai.com/v1/chat/completions', 'OPENAI_API_KEY', 'gpt-4o-mini'],
+    ['deepseek', 'DeepSeek', 'https://api.deepseek.com/chat/completions', 'DEEPSEEK_API_KEY', 'deepseek-chat'],
+  ] as const) {
+    it(`ai:score --id stores the review from ${name}`, async () => {
+      const id = idOf(await bot(['add', '--file', addFile([posting()])]));
+      const log = join(tmp, `fetch-${provider}.log`);
+      const out = await bot(['ai:score', '--id', id], {
+        JOB_BOT_CONFIG: withProvider(provider),
+        [keyEnv]: KEY,
+        FAKE_FETCH: JSON.stringify({ [url]: chat(review) }),
+        FAKE_FETCH_LOG: log,
+        FAKE_CLAUDE_FAIL: 'the Claude CLI must not be used',
+      });
+      assert.match(out, new RegExp(`AI scoring 1 jobs with ${name} ${model}`));
+      assert.match(out, /88 strong/);
+      assert.ok(!out.includes(KEY));
+      assert.deepEqual(readFileSync(log, 'utf8').trim().split('\n'), [url]);
+      const j = (await getJob(id)) as unknown as Record<string, unknown>;
+      assert.deepEqual([j.ai_score, j.ai_verdict, j.ai_location], [88, 'strong', 'yes']);
+    });
+
+    it(`ai:score --id with ${name} but no key fails with the env var to set, before any request`, async () => {
+      const id = idOf(await bot(['add', '--file', addFile([posting()])]));
+      const log = join(tmp, `fetch-nokey-${provider}.log`);
+      const res = await botExit(['ai:score', '--id', id], { JOB_BOT_CONFIG: withProvider(provider), [keyEnv]: '', FAKE_FETCH_LOG: log });
+      assert.equal(res.code, 1);
+      assert.match(res.stderr, new RegExp(`${name} needs an API key: set ${keyEnv}`));
+      assert.equal(existsSync(log), false);
+      assert.equal(((await getJob(id)) as unknown as Record<string, unknown>).ai_score, null);
+    });
+  }
 });

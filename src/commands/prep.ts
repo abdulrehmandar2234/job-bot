@@ -1,13 +1,14 @@
 import { config } from '../config.ts';
 import { getJob, pool } from '../db.ts';
 import { aiInterviewPrep } from '../ai.ts';
+import { aiLabel } from '../ai-providers.ts';
 
 /** prep <id>: AI interview prep (questions, STAR stories, company brief, requirement map), stored on the job. */
 export async function prep(args: string[]) {
   const j = await getJob(args[0]);
   if (!j) return console.log('Not found');
   if (!config.ai.enabled) return console.log('AI is off (config.json ai.enabled), so there is no interview prep.');
-  console.log(`Preparing interview notes for ${j.company} — ${j.title} with ${config.ai.letterModel}...`);
+  console.log(`Preparing interview notes for ${j.company} — ${j.title} with ${aiLabel('letter')}...`);
   const p = await aiInterviewPrep(j);
   await pool.query('UPDATE jobs SET interview_prep = $2, interview_prep_at = now() WHERE id = $1', [j.id, JSON.stringify(p)]);
   console.log(

@@ -35,11 +35,14 @@ export type RequestOptions = {
 export class HttpError extends Error {
   readonly status: number;
   readonly url: string;
-  constructor(status: number, url: string, message = `${status} ${url}`) {
+  /** The start of the error response body, for APIs that explain the error there (empty when unknown). */
+  readonly body: string;
+  constructor(status: number, url: string, message = `${status} ${url}`, body = '') {
     super(message);
     this.name = 'HttpError';
     this.status = status;
     this.url = url;
+    this.body = body;
   }
 }
 
@@ -119,7 +122,10 @@ export async function request(
       // `url` is where redirects ended up (the dead-link check reads it).
       return { status: res.status, body, fromCache: false, url: res.url || url };
     }
-    if (!retryOn(res.status)) throw new HttpError(res.status, url);
+    if (!retryOn(res.status)) {
+      const body = await res.text().catch(() => '');
+      throw new HttpError(res.status, url, undefined, body.slice(0, 2000));
+    }
     last = String(res.status);
     const wait = retryDelay(attempt, baseDelayMs, res.headers.get('retry-after'));
     if (wait > MAX_RETRY_AFTER_MS) {

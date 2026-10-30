@@ -63,6 +63,25 @@ describe('config validation', () => {
       ['(root)'],
     );
   });
+
+  it('accepts an optional AI provider with optional per-provider models, and checks them', () => {
+    const c = realConfig();
+    assert.equal(c.ai.provider, undefined); // the owner's config.json uses the default, claude-cli
+    for (const provider of ['claude-cli', 'openai', 'deepseek'])
+      assert.ok(validateConfig({ ...c, ai: { ...c.ai, provider } }).ok, provider);
+    c.ai.provider = 'openai';
+    c.ai.openai = { scoreModel: 'gpt-4.1-mini' };
+    c.ai.deepseek = { scoreModel: 'deepseek-chat', letterModel: 'deepseek-reasoner', baseUrl: 'https://api.deepseek.com' };
+    assert.ok(validateConfig(c).ok);
+    c.ai.provider = 'gemini';
+    c.ai.openai = { scoreModel: '', baseUrl: 'not a url' };
+    assert.deepEqual(
+      errorsOf(validateConfig(c))
+        .map((e) => e.path)
+        .sort(),
+      ['ai.openai.baseUrl', 'ai.openai.scoreModel', 'ai.provider'],
+    );
+  });
 });
 
 describe('applicant validation', () => {

@@ -59,7 +59,7 @@ if (!load) {
                                   checks the posting is still open first (--force skips that)
   check:open [<id>...] [--status new,prepared] [--limit N]
                                   mark closed postings expired (default: new + prepared not checked for 3 days)
-  ai:score [--id x] [--limit n]   AI fit review of matching jobs via local Claude CLI (--all to redo)
+  ai:score [--id x] [--limit n]   AI fit review of matching jobs (--all to redo)
   answer <id> [--file q.txt]      AI drafts answers to pasted form questions (--clear to reset)
   prep <id>                       AI interview prep: likely questions, STAR stories, company brief, gaps
   follow-ups                      applied jobs with no news for 7+ days that are due a follow-up

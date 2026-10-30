@@ -38,6 +38,30 @@ const countrySchema = z.object({
   label: text.optional(), // short name for the dashboard, e.g. "Saudi"; missing = name
 });
 
+// An HTTP AI provider: models and an optional base URL (for a proxy or a compatible endpoint). The API key is never
+// here: it comes from the environment only (OPENAI_API_KEY / DEEPSEEK_API_KEY in .env), see src/ai-providers.ts.
+const apiProviderSchema = z
+  .object({
+    scoreModel: text, // fast model for match scoring
+    letterModel: text, // better writer for letters, answers, interview prep and follow-ups
+    baseUrl: z.url().optional(),
+  })
+  .partial();
+
+export const AI_PROVIDERS = ['claude-cli', 'openai', 'deepseek'] as const;
+type ApiProviderName = Exclude<(typeof AI_PROVIDERS)[number], 'claude-cli'>;
+export const PROVIDER_NAME: Record<(typeof AI_PROVIDERS)[number], string> = {
+  'claude-cli': 'Claude CLI',
+  openai: 'OpenAI',
+  deepseek: 'DeepSeek',
+};
+/** Where each API provider's key comes from: the environment (.env), never config.json. */
+export const KEY_ENV: Record<ApiProviderName, string> = { openai: 'OPENAI_API_KEY', deepseek: 'DEEPSEEK_API_KEY' };
+export const API_DEFAULTS: Record<ApiProviderName, { scoreModel: string; letterModel: string; baseUrl: string }> = {
+  openai: { scoreModel: 'gpt-4o-mini', letterModel: 'gpt-4o', baseUrl: 'https://api.openai.com' },
+  deepseek: { scoreModel: 'deepseek-chat', letterModel: 'deepseek-chat', baseUrl: 'https://api.deepseek.com' },
+};
+
 const companySchema = z.object({
   name: text,
   ats: z.enum(ATS),
@@ -57,9 +81,12 @@ export const configSchema = z.object({
   roleExclude: regex,
   ai: z.object({
     enabled: z.boolean(),
+    provider: z.enum(AI_PROVIDERS).optional(), // who runs the AI features; missing = claude-cli
     claudePath: text, // local Claude Code CLI (uses its signed-in account, no API key)
-    scoreModel: text, // fast model for match scoring
-    letterModel: text, // better writer for cover letters
+    scoreModel: text, // Claude CLI: fast model for match scoring
+    letterModel: text, // Claude CLI: better writer for cover letters
+    openai: apiProviderSchema.optional(), // models when provider is "openai"; missing = defaults
+    deepseek: apiProviderSchema.optional(), // models when provider is "deepseek"; missing = defaults
     maxScorePerRun: count, // cap per `ai:score` run
     concurrency: z.number().int().positive(),
     alertStrong: z.boolean().optional(), // macOS notification for each new `strong` verdict; missing = on
@@ -146,6 +173,8 @@ export const applicantSchema = z
 export type Country = z.infer<typeof countrySchema>;
 export type Company = z.infer<typeof companySchema>;
 export type Config = z.infer<typeof configSchema>;
+export type AiSettings = Config['ai'];
+export type AiProvider = (typeof AI_PROVIDERS)[number];
 export type Applicant = z.infer<typeof applicantSchema>;
 
 export type SettingsKind = 'config' | 'applicant';

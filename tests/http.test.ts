@@ -110,6 +110,7 @@ describe('request: retries', () => {
     assert.ok(err instanceof HttpError);
     assert.equal(err.status, 404);
     assert.match(err.message, /^404 https:\/\/f\.test\/missing$/);
+    assert.equal(err.body, 'not found'); // the error body, for APIs that explain the error there
     assert.equal(net.calls.length, 1);
   });
 
