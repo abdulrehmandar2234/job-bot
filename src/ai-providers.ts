@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { delimiter, join } from 'node:path';
+import { posix, win32 } from 'node:path';
 import { AI_BASE_URL_ENV, AI_KEY_ENV, LEGACY_KEY_ENV, PRESETS, detectPreset, type ApiPreset, type ResponseFormat } from './ai-presets.ts';
 import { config } from './config.ts';
 import type { AiSettings } from './settings.ts';
@@ -137,9 +137,11 @@ export function resolveClaude(
   exists: (p: string) => boolean = existsSync,
 ): string {
   if (/[\\/]/.test(claudePath)) return claudePath;
+  // Paths for the target OS (not the one running the tests): win32 joins with "\\" and splits PATH on ";".
+  const p = platform === 'win32' ? win32 : posix;
   const names = platform === 'win32' ? [`${claudePath}.exe`, claudePath] : [claudePath];
-  const dirs = [...(env.PATH ?? env.Path ?? '').split(platform === 'win32' ? ';' : delimiter).filter(Boolean), join(home, '.local', 'bin')];
-  for (const dir of dirs) for (const name of names) if (exists(join(dir, name))) return join(dir, name);
+  const dirs = [...(env.PATH ?? env.Path ?? '').split(p.delimiter).filter(Boolean), p.join(home, '.local', 'bin')];
+  for (const dir of dirs) for (const name of names) if (exists(p.join(dir, name))) return p.join(dir, name);
   return claudePath;
 }
 

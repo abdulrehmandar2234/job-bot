@@ -77,11 +77,16 @@ describe('resolveClaude', () => {
     assert.equal(resolveClaude('/my/claude', {}, 'darwin', '/Users/a', at()), '/my/claude');
   });
 
-  it('on Windows it looks for claude.exe', () => {
-    const home = 'C:\\Users\\a';
-    const exe = `${home}/.local/bin/claude.exe`.replace(/\//g, '\\');
-    const exists = (p: string) => p.replace(/\//g, '\\') === exe;
-    assert.equal(resolveClaude('claude', { Path: 'C:\\Windows' }, 'win32', home, exists).replace(/\//g, '\\'), exe);
+  it('on Windows it looks for claude.exe, with Windows paths', () => {
+    const exists = (p: string) => p === 'C:\\Users\\a\\.local\\bin\\claude.exe';
+    assert.equal(
+      resolveClaude('claude', { Path: 'C:\\Windows;C:\\Tools' }, 'win32', 'C:\\Users\\a', exists),
+      'C:\\Users\\a\\.local\\bin\\claude.exe',
+    );
+    assert.equal(
+      resolveClaude('claude', { Path: 'C:\\Tools' }, 'win32', 'C:\\Users\\a', (p) => p === 'C:\\Tools\\claude.exe'),
+      'C:\\Tools\\claude.exe',
+    );
   });
 });
 
