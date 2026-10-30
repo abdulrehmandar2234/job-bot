@@ -113,7 +113,7 @@ describe('setup wizard', () => {
     assert.equal(cfg.companies.length, json(join(ROOT, 'config.json')).companies.length);
     // Defaults are shown before they are kept.
     assert.match(printed, /Full name \[Jane Doe\]: /);
-    assert.match(printed, /Target countries .* \[AE, SA, NL\]: /);
+    assert.match(printed, /Target countries .* \[AE, SA, NL, PK\]: /);
     assert.match(printed, /Remote work from which country \(config\.json had Pakistan\) \[Portugal\]: /);
     assert.match(printed, /Its two-letter code \(config\.json had PK\) \[PT\]: /);
     assert.match(printed, /Saved\./);

@@ -1,5 +1,6 @@
 import { Suspense } from 'react';
 import { runBot } from '@/lib/bot';
+import { Collapsible } from './collapsible';
 import { Chips } from './ui';
 
 /** What `bot ats <id> --json` returns (src/ats.ts AtsReport plus the version checked). */
@@ -33,16 +34,21 @@ async function AtsLoader({ jobId }: { jobId: string }) {
   return <AtsLists report={report} />;
 }
 
+/** The check folded behind its heading, which keeps the count visible ("shows 2 of 5 job keywords"). */
 export function AtsLists({ report: r }: { report: AtsReport }) {
   if (!r.total) return null;
   return (
-    <section className="space-y-2 rounded-xl border border-zinc-200 p-4 text-sm dark:border-zinc-800">
-      <h2 className="font-medium">
-        CV keyword check{' '}
-        <span className="text-xs font-normal text-zinc-500">
-          · {r.label} ({r.source}) shows {r.present.length} of {r.total} job keywords
-        </span>
-      </h2>
+    <Collapsible
+      id="ats"
+      title={
+        <>
+          CV keyword check{' '}
+          <span className="text-xs font-normal text-zinc-500">
+            · {r.label} ({r.source}) shows {r.present.length} of {r.total} job keywords
+          </span>
+        </>
+      }
+    >
       {r.present.length > 0 && (
         <div>
           <span className="text-zinc-500">Shown:</span> <Chips items={r.present} tone="good" />
@@ -65,6 +71,6 @@ export function AtsLists({ report: r }: { report: AtsReport }) {
           {r.suggestion.gains.length > 0 && <> (adds {r.suggestion.gains.join(', ')})</>}.
         </p>
       )}
-    </section>
+    </Collapsible>
   );
 }

@@ -1,5 +1,6 @@
 import { after, before, beforeEach, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { notify } from '../src/notify.ts';
 import { execFile } from 'node:child_process';
 import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -283,5 +284,38 @@ process.stdout.write(JSON.stringify({ is_error: false, structured_output: ${revi
 
   it('the daily run (bot daily) reports a failed AI review instead of a score count', () => {
     assert.match(readFileSync(path('src', 'commands', 'daily.ts'), 'utf8'), /AI review failed/);
+  });
+
+  it('falls back to osascript when terminal-notifier fails, and logs why', async (t) => {
+    const n = { title: 'Job Bot', message: '17 strong matches: …', url: 'http://localhost:3100' };
+    const calls: string[] = [];
+    const log = t.mock.method(console, 'log', () => {});
+    const tn = '/opt/homebrew/bin/terminal-notifier';
+    const run = async (cmd: string) => {
+      calls.push(cmd);
+      // Wherever it is installed (/opt/homebrew/bin on Apple silicon, /usr/local/bin elsewhere).
+      if (cmd.endsWith('/terminal-notifier')) throw new Error('terminal-notifier: timed out after 15 s (SIGTERM)');
+    };
+    // Only when terminal-notifier is installed here; notifyCommand picks it from disk.
+    if (!existsSync(tn) && !existsSync('/usr/local/bin/terminal-notifier')) return t.skip('terminal-notifier not installed');
+    await notify(n, {}, 'darwin', run);
+    assert.deepEqual(
+      calls.map((c) => c.split('/').pop()),
+      ['terminal-notifier', 'osascript'],
+    );
+    assert.match(
+      String(log.mock.calls[0].arguments[0]),
+      /notification failed: terminal-notifier: timed out after 15 s \(SIGTERM\); trying osascript/,
+    );
+  });
+
+  it('does not fall back for a configured notifier, and logs a failing osascript without throwing', async (t) => {
+    const calls: string[] = [];
+    t.mock.method(console, 'log', () => {});
+    await notify({ title: 'T', message: 'M', url: 'u' }, { JOB_BOT_NOTIFY: '/my/notifier' }, 'darwin', async (cmd: string) => {
+      calls.push(cmd);
+      throw new Error('x');
+    });
+    assert.deepEqual(calls, ['/my/notifier']);
   });
 });

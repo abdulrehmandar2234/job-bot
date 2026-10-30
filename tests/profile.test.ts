@@ -288,7 +288,7 @@ describe('owner regression: same output as before the profile', () => {
   it('the screening prompt describes the owner as before', () => {
     assert.equal(
       candidateSituation(),
-      'The candidate lives in Lahore, Pakistan, speaks English and Urdu only, and needs employer visa sponsorship for onsite roles (UAE, Saudi Arabia, Netherlands); remote roles must be open to someone working from Pakistan.',
+      'The candidate lives in Lahore, Pakistan, speaks English and Urdu only, and needs employer visa sponsorship for onsite roles (UAE, Saudi Arabia, Netherlands) and may already work in Pakistan without sponsorship; remote roles must be open to someone working from Pakistan.',
     );
   });
 });

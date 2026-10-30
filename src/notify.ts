@@ -146,17 +146,38 @@ export function notifyCommand(
   return null;
 }
 
-/** Shows a notification. A failure is logged, never thrown: alerts must not break scoring. */
-export function notify(n: Note, env: NodeJS.ProcessEnv = process.env, platform: NodeJS.Platform = process.platform): Promise<void> {
+type Run = (cmd: string, args: string[]) => Promise<void>;
+const runFile: Run = (cmd, args) =>
+  new Promise((resolve, reject) => {
+    execFile(cmd, args, { timeout: 15_000, windowsHide: true }, (e, _out, err) => {
+      if (!e) return resolve();
+      // Say why: killed after the timeout (e.g. the Mac was locked), or the program's own error.
+      const why = e.killed ? `timed out after 15 s (${e.signal ?? 'killed'})` : `${e.code ?? ''} ${String(err).trim() || e.message}`.trim();
+      reject(new Error(`${cmd.split(/[\\/]/).pop()}: ${why}`));
+    });
+  });
+
+/**
+ * Shows a notification with this OS's notifier. On macOS, if terminal-notifier fails, the plain osascript notification
+ * is tried, so a strong match is not missed. A failure is logged, never thrown: alerts must not break scoring.
+ */
+export async function notify(
+  n: Note,
+  env: NodeJS.ProcessEnv = process.env,
+  platform: NodeJS.Platform = process.platform,
+  run: Run = runFile,
+): Promise<void> {
   const cmd = notifyCommand(n, env, existsSync, platform);
   if (!cmd) {
     if (env.JOB_BOT_NOTIFY !== 'off') console.log(`  notification (no notifier on this system): ${n.title}: ${n.message}`);
-    return Promise.resolve();
+    return;
   }
-  return new Promise((resolve) => {
-    execFile(cmd[0], cmd[1], { timeout: 15_000, windowsHide: true }, (e) => {
-      if (e) console.log(`  notification failed: ${e.message.slice(0, 120)}`);
-      resolve();
-    });
-  });
+  try {
+    await run(cmd[0], cmd[1]);
+  } catch (e) {
+    const fallback = platform === 'darwin' && cmd[0] !== 'osascript' && !env.JOB_BOT_NOTIFY;
+    console.log(`  notification failed: ${(e as Error).message.slice(0, 300)}${fallback ? '; trying osascript' : ''}`);
+    if (!fallback) return;
+    await run('osascript', osascriptArgs(n)).catch((e2: Error) => console.log(`  notification failed: ${e2.message.slice(0, 300)}`));
+  }
 }

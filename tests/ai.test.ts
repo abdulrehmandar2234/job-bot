@@ -170,6 +170,13 @@ describe('prompts', () => {
     assert.match(stdin, /APPLICANT FACTS[\s\S]*FORM QUESTIONS:\nNotice period\?/);
     assert.match(arg(argv, '--system-prompt'), /never guessed: write \[FILL/);
     assert.match(arg(argv, '--system-prompt'), /expectedSalary for "AE"/);
+    // A yes/no answer carries its evidence: the option first, then sentences (never a bare "Yes").
+    assert.match(
+      arg(argv, '--system-prompt'),
+      /start the answer with exactly one of the offered options[\s\S]*then a full stop and 1-2 sentences/,
+    );
+    assert.match(arg(argv, '--system-prompt'), /Never answer with the bare option alone/);
+    assert.match(JSON.parse(arg(argv, '--json-schema')).properties.answers.items.properties.answer.description, /exact option first/);
   });
 
   it('aiAnswers uses the remote salary for remote jobs', async () => {
