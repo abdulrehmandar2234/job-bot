@@ -182,6 +182,178 @@ describe('CLI', () => {
     }
   });
 
+  it('letter --feedback rewrites the current letter with the feedback and prints the AI note', async () => {
+    const id = idOf(await bot(['add', '--file', addFile([posting()])]));
+    const first = 'Dear Testco Cli Hiring Team,\nThe first, long letter.';
+    const out = await bot(['letter', id], { FAKE_CLAUDE_OUT: JSON.stringify({ letter: first }) });
+    const dir = out.match(/Cover {6}: (\S+)\/cover-letter\.txt/)![1];
+    try {
+      await pool.query('UPDATE jobs SET cover_letter_edited_at = now() WHERE id = $1', [id]);
+      const log = join(tmp, `claude-${Math.random()}.jsonl`);
+      const note = 'The CV does not show Kubernetes, so the letter does not claim it.';
+      const second = 'Dear Testco Cli Hiring Team,\nShort.';
+      const again = await bot(['letter', id, '--feedback', 'shorter, and mention Kubernetes'], {
+        FAKE_CLAUDE_OUT: JSON.stringify({ letter: second, note }),
+        FAKE_CLAUDE_LOG: log,
+      });
+      assert.match(again, /Cover {6}: \S+\/cover-letter\.txt \(rewritten by AI with your feedback\)/);
+      assert.match(again, new RegExp(`Note {7}: ${note.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`));
+      const [{ argv, stdin }] = readFileSync(log, 'utf8')
+        .trim()
+        .split('\n')
+        .map((l) => JSON.parse(l) as { argv: string[]; stdin: string });
+      assert.match(argv[argv.indexOf('--system-prompt') + 1], /REVISION[\s\S]*say so in "note"/);
+      assert.match(
+        stdin,
+        /CURRENT LETTER:\nDear Testco Cli Hiring Team,\nThe first, long letter\.\n\nFEEDBACK FROM THE CANDIDATE:\nshorter, and mention Kubernetes$/,
+      );
+      const j = await getJob(id);
+      assert.deepEqual([j.cover_letter, j.cover_letter_ai, j.cover_letter_edited_at], [`${second}\n`, true, null]);
+      assert.equal(readFileSync(join(dir, 'cover-letter.txt'), 'utf8'), `${second}\n`);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('letter --feedback never falls back to the template: an AI failure or bad feedback leaves the letter alone', async () => {
+    const id = idOf(await bot(['add', '--file', addFile([posting()])]));
+    const out = await bot(['letter', id, '--template']);
+    const dir = out.match(/Cover {6}: (\S+)\/cover-letter\.txt/)![1];
+    try {
+      const before = (await getJob(id)).cover_letter;
+      await assert.rejects(
+        bot(['letter', id, '--feedback', 'shorter'], { FAKE_CLAUDE_FAIL: 'offline' }),
+        (e: { stderr: string; code: number }) => {
+          assert.match(e.stderr, /Could not rewrite the letter, it is unchanged: .*offline/);
+          assert.equal(e.code, 1);
+          return true;
+        },
+      );
+      for (const bad of [['--feedback'], [`--feedback=${'x'.repeat(1001)}`]])
+        await assert.rejects(
+          bot(['letter', id, ...bad], { FAKE_CLAUDE_FAIL: 'must not call the AI' }),
+          (e: { stderr: string; code: number }) => {
+            assert.match(e.stderr, /--feedback needs text of at most 1000 characters/);
+            assert.equal(e.code, 1);
+            return true;
+          },
+        );
+      assert.equal((await getJob(id)).cover_letter, before);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('summary writes a CV summary for the job, rewrites it with feedback and prints the note', async () => {
+    const id = idOf(await bot(['add', '--file', addFile([posting()])]));
+    const log = join(tmp, `claude-${Math.random()}.jsonl`);
+    const out = await bot(['summary', id], {
+      FAKE_CLAUDE_OUT: JSON.stringify({ summary: 'Senior Laravel engineer.' }),
+      FAKE_CLAUDE_LOG: log,
+    });
+    assert.match(out, /CV summary : \(written by AI for this job\)\nSenior Laravel engineer\.\n/);
+    assert.match(out, /npm run bot -- cv:tailor/);
+    assert.doesNotMatch(out, /Note/);
+    let j = await getJob(id);
+    assert.equal(j.cv_summary, 'Senior Laravel engineer.');
+    assert.ok(j.cv_summary_at instanceof Date);
+    assert.deepEqual([j.status, j.cv_version, j.cover_letter], ['new', null, null]);
+
+    await pool.query('UPDATE jobs SET cv_summary_edited_at = now() WHERE id = $1', [id]);
+    const again = await bot(['summary', id, '--feedback=--less formal'], {
+      FAKE_CLAUDE_OUT: JSON.stringify({ summary: 'Laravel engineer.', note: 'Left out Go: the CV does not show it.' }),
+      FAKE_CLAUDE_LOG: log,
+    });
+    assert.match(
+      again,
+      /CV summary : \(rewritten by AI with your feedback\)\nLaravel engineer\.\nNote {7}: Left out Go: the CV does not show it\./,
+    );
+    const [first, second] = readFileSync(log, 'utf8')
+      .trim()
+      .split('\n')
+      .map((l) => JSON.parse(l) as { argv: string[]; stdin: string });
+    assert.match(first.argv[first.argv.indexOf('--system-prompt') + 1], /CV, tailored to one job[\s\S]*Use ONLY facts in the CV/);
+    assert.doesNotMatch(first.stdin, /FEEDBACK/);
+    assert.match(second.stdin, /CURRENT SUMMARY:\nSenior Laravel engineer\.\n\nFEEDBACK FROM THE CANDIDATE:\n--less formal$/);
+    j = await getJob(id);
+    assert.deepEqual([j.cv_summary, j.cv_summary_edited_at], ['Laravel engineer.', null]);
+  });
+
+  it('summary leaves the current summary alone when the AI fails', async () => {
+    const id = idOf(await bot(['add', '--file', addFile([posting()])]));
+    await pool.query(`UPDATE jobs SET cv_summary = 'Kept.' WHERE id = $1`, [id]);
+    await assert.rejects(bot(['summary', id], { FAKE_CLAUDE_FAIL: 'offline' }), (e: { stderr: string; code: number }) => {
+      assert.match(e.stderr, /AI summary failed, the summary is unchanged: .*offline/);
+      assert.equal(e.code, 1);
+      return true;
+    });
+    assert.equal((await getJob(id)).cv_summary, 'Kept.');
+    assert.match(await bot(['summary', 'nope']), /Not found/);
+  });
+
+  it('cv:tailor refuses a job without a CV summary', async () => {
+    const id = idOf(await bot(['add', '--file', addFile([posting()])]));
+    await assert.rejects(bot(['cv:tailor', id]), (e: { stderr: string; code: number }) => {
+      assert.match(e.stderr, /No CV summary for this job yet: npm run bot -- summary/);
+      assert.equal(e.code, 1);
+      return true;
+    });
+    assert.equal((await getJob(id)).cv_version, null);
+    assert.match(await bot(['cv:tailor', 'nope']), /Not found/);
+  });
+
+  it('cv:tailor builds a CV with the job summary in a new folder every run and sets it as the job CV', {
+    skip:
+      !existsSync(process.env.JOB_BOT_CHROME || JSON.parse(readFileSync(path('config.json'), 'utf8')).chromePath) && 'Chrome not installed',
+  }, async () => {
+    const id = idOf(await bot(['add', '--file', addFile([posting({ company: 'Tailorco Cli' })])]));
+    await pool.query(`UPDATE jobs SET cv_summary = 'Laravel engineer for Tailorco.' WHERE id = $1`, [id]);
+    const made: string[] = [];
+    try {
+      for (let run = 0; run < 2; run++) {
+        const out = await bot(['cv:tailor', id]);
+        const version = out.match(/CV version : (\S+)/)![1];
+        made.push(version);
+        assert.match(version, /^custom-tailorco-cli-senior-laravel-developer-v\d+$/);
+        const cv = JSON.parse(readFileSync(path('cv', 'versions', version, 'cv.json'), 'utf8'));
+        assert.equal(cv.summary, 'Laravel engineer for Tailorco.');
+        assert.equal(JSON.parse(readFileSync(path('cv', 'versions', version, 'meta.json'), 'utf8')).jobId, id);
+        assert.equal(
+          readFileSync(out.match(/CV file {4}: (\S+)/)![1])
+            .subarray(0, 5)
+            .toString(),
+          '%PDF-',
+        );
+        assert.equal((await getJob(id)).cv_version, version);
+      }
+      assert.notEqual(made[0], made[1], 'a second run never overwrites the first CV');
+      assert.equal(Number(made[1].split('-v').at(-1)), Number(made[0].split('-v').at(-1)) + 1);
+    } finally {
+      for (const v of made) rmSync(path('cv', 'versions', v), { recursive: true, force: true });
+    }
+  });
+
+  it('custom --overrides still builds a one-off CV, in a new folder each run', {
+    skip:
+      !existsSync(process.env.JOB_BOT_CHROME || JSON.parse(readFileSync(path('config.json'), 'utf8')).chromePath) && 'Chrome not installed',
+  }, async () => {
+    const id = idOf(await bot(['add', '--file', addFile([posting({ company: 'Customco Cli' })])]));
+    const overrides = join(tmp, 'overrides.json');
+    writeFileSync(overrides, JSON.stringify({ summary: 'Custom summary.' }));
+    const made: string[] = [];
+    try {
+      for (let run = 0; run < 2; run++) {
+        const file = (await bot(['custom', id, '--overrides', overrides])).match(/Custom CV: (\S+)/)![1];
+        made.push(file.split('/').at(-2)!);
+        assert.equal((await getJob(id)).cv_version, made.at(-1));
+      }
+      assert.match(made[0], /^custom-customco-cli-senior-laravel-developer-v\d+$/);
+      assert.notEqual(made[0], made[1]);
+    } finally {
+      for (const v of made) rmSync(path('cv', 'versions', v), { recursive: true, force: true });
+    }
+  });
+
   it('ai:score stores the review', async () => {
     const id = idOf(await bot(['add', '--file', addFile([posting()])]));
     const review = { score: 87, verdict: 'strong', summary: 'Apply', reasons: ['Laravel'], gaps: [], red_flags: ['Arabic plus'] };

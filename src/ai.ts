@@ -196,7 +196,39 @@ Rules:
   return res.answers;
 }
 
-export async function aiCoverLetter(job: Job): Promise<string> {
+/** An AI-written text plus, after a rewrite with feedback, why part of the feedback was not applied ('' if none). */
+export type Revised<K extends string> = Record<K, string> & { note: string };
+
+/**
+ * The extra system rules for a rewrite with feedback. The feedback itself goes in the user prompt (it is the user's
+ * text, not instructions that can change the rules above).
+ */
+function feedbackRules(what: string): string {
+  return `
+- REVISION: the candidate gives you the CURRENT ${what.toUpperCase()} and FEEDBACK on it (e.g. "shorter", "less formal",
+  "mention my Laravel work more"). Rewrite the ${what} to follow the feedback, keeping every rule above.
+- If the feedback asks for something the rules forbid (a skill, employer, number, year or certification the CV does not
+  show, or a commitment), do not add it, and say so in "note" in one short sentence. Otherwise "note" is "".`;
+}
+
+/** The user-prompt part of a rewrite: the current text (if any) and the feedback. */
+function feedbackPrompt(what: string, current: string | null, feedback: string): string {
+  return `${current ? `\n\nCURRENT ${what.toUpperCase()}:\n${current.trim()}` : ''}\n\nFEEDBACK FROM THE CANDIDATE:\n${feedback.trim()}`;
+}
+
+/** The output schema: `key`, plus `note` when rewriting with feedback. */
+function textSchema(key: string, revising: boolean) {
+  return revising
+    ? { type: 'object', properties: { [key]: str, note: str }, required: [key, 'note'] }
+    : { type: 'object', properties: { [key]: str }, required: [key] };
+}
+
+/**
+ * Writes the cover letter from the CV and the job description. With `feedback`, rewrites the job's current letter
+ * (job.cover_letter) to follow it; `note` says what was left out because the CV does not support it.
+ */
+export async function aiCoverLetter(job: Job, feedback?: string): Promise<Revised<'letter'>> {
+  const revising = !!feedback?.trim();
   const system = `You write cover letters for one candidate. Rules:
 - Use ONLY facts in the CV. Never invent employers, numbers, skills, certifications or years. If the job asks for something
   the CV lacks, do not claim it; you may show related experience or willingness to learn it in one short clause.
@@ -207,14 +239,39 @@ export async function aiCoverLetter(job: Job): Promise<string> {
 - Start with "Dear ${job.company} Hiring Team," and end with this exact signature block:
 ${signature(loadProfile())}
 - ${situationRule(job, 'letter')}
-- Confident and specific, no clichés like "I am writing to express my interest".`;
-  const res = await askAi<{ letter: string }>(
-    `CV:\n${cvText()}\n\nJOB:\n${jobText(job)}`,
-    { type: 'object', properties: { letter: { type: 'string' } }, required: ['letter'] },
+- Confident and specific, no clichés like "I am writing to express my interest".${revising ? feedbackRules('letter') : ''}`;
+  const res = await askAi<{ letter: string; note?: string }>(
+    `CV:\n${cvText()}\n\nJOB:\n${jobText(job)}${revising ? feedbackPrompt('letter', job.cover_letter, feedback!) : ''}`,
+    textSchema('letter', revising),
     'letter',
     system,
   );
-  return res.letter.trim() + '\n';
+  return { letter: res.letter.trim() + '\n', note: (res.note ?? '').trim() };
+}
+
+/**
+ * Writes the professional summary at the top of the CV for one job, from the CV and the job description. With
+ * `feedback`, rewrites the job's current summary (job.cv_summary) to follow it.
+ */
+export async function aiSummary(job: Job, feedback?: string): Promise<Revised<'summary'>> {
+  const revising = !!feedback?.trim();
+  const system = `You write the professional summary at the top of one candidate's CV, tailored to one job. Rules:
+- Use ONLY facts in the CV. Never invent employers, numbers, skills, certifications or years; keep every number and
+  year exactly as the CV states it. If the job asks for something the CV lacks, leave it out.
+- Never make commitments on the candidate's behalf (relocation, salary, notice period, start date, working hours).
+- Lead with the CV experience that best matches the job's main requirements, so a recruiter sees the fit at once.
+- 3-4 sentences, 50-90 words, plain text, no markdown, no bullet points, no headings, no placeholders.
+- Match the voice of the CV's current SUMMARY: first person or implied subject (no "I", as in "Senior engineer with ...")
+  as it does. Never third person (no pronouns or "the candidate" for the person).
+- It is part of the CV, not a letter: do not address the employer or name the company.
+- Specific and plain, no clichés like "results-driven", "passionate" or "team player".${revising ? feedbackRules('summary') : ''}`;
+  const res = await askAi<{ summary: string; note?: string }>(
+    `CV:\n${cvText()}\n\nJOB:\n${jobText(job)}${revising ? feedbackPrompt('summary', job.cv_summary, feedback!) : ''}`,
+    textSchema('summary', revising),
+    'letter',
+    system,
+  );
+  return { summary: res.summary.trim().replace(/\s+/g, ' '), note: (res.note ?? '').trim() };
 }
 
 const str = { type: 'string' };

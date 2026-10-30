@@ -1,7 +1,8 @@
 import { after, before, beforeEach, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFile, spawnSync } from 'node:child_process';
-import { existsSync, readdirSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { TEST_DB } from './helpers.ts';
@@ -14,6 +15,7 @@ import {
   DEADLINE_GRACE_MS,
   enqueue,
   expireStale,
+  FEEDBACK_CAP,
   fail,
   failDeadWorkers,
   finish,
@@ -106,6 +108,15 @@ describe('task queue', () => {
     const { task, created } = await enqueue('follow_up', JOB);
     assert.equal(created, true);
     assert.equal(task.kind, 'follow_up');
+  });
+
+  it('a CV summary and a tailored CV are task kinds with a 4 minute timeout (migration 013)', async () => {
+    for (const kind of ['summary', 'tailored_cv'] as const) {
+      assert.equal(TASK_TIMEOUT_MS[kind], 4 * 60_000);
+      const { task, created } = await enqueue(kind, JOB, kind === 'summary' ? { feedback: 'shorter' } : {});
+      assert.equal(created, true);
+      assert.equal(task.kind, kind);
+    }
   });
 
   it('rejects unknown kinds and jobs at the database', async () => {
@@ -285,6 +296,38 @@ describe('cliArgs', () => {
     assert.deepEqual(cliArgs(t('prep')), ['prep', JOB]);
     assert.deepEqual(cliArgs(t('follow_up')), ['follow-up', JOB]);
     assert.deepEqual(cliArgs(t('letter')), ['letter', JOB]);
+    assert.deepEqual(cliArgs(t('summary')), ['summary', JOB]);
+    assert.deepEqual(cliArgs(t('tailored_cv')), ['cv:tailor', JOB]);
+  });
+
+  it('passes feedback to letter and summary as one --feedback=<text> argument, trimmed', () => {
+    assert.deepEqual(cliArgs(t('letter', { feedback: '  shorter  ' })), ['letter', JOB, '--feedback=shorter']);
+    assert.deepEqual(cliArgs(t('summary', { feedback: 'less formal\nmention Laravel' })), [
+      'summary',
+      JOB,
+      '--feedback=less formal\nmention Laravel',
+    ]);
+    // Text that looks like a flag stays the value, and nothing goes through a shell.
+    assert.deepEqual(cliArgs(t('letter', { feedback: '--template; rm -rf ~' })), ['letter', JOB, '--feedback=--template; rm -rf ~']);
+    assert.deepEqual(cliArgs(t('letter', { feedback: 'x'.repeat(FEEDBACK_CAP) })), [
+      'letter',
+      JOB,
+      `--feedback=${'x'.repeat(FEEDBACK_CAP)}`,
+    ]);
+    for (const feedback of ['', '   ']) assert.deepEqual(cliArgs(t('summary', { feedback })), ['summary', JOB]);
+    assert.deepEqual(cliArgs(t('tailored_cv', { feedback: 'ignored' })), ['cv:tailor', JOB]);
+  });
+
+  it('refuses feedback that is too long or not text', () => {
+    assert.equal(FEEDBACK_CAP, 1000);
+    for (const kind of ['letter', 'summary'] as const) {
+      assert.throws(() => cliArgs(t(kind, { feedback: 'x'.repeat(FEEDBACK_CAP + 1) })), /Feedback is too long \(at most 1000 characters\)/);
+      for (const feedback of [42, ['shorter'], { a: 1 }, null, true])
+        assert.throws(
+          () => cliArgs({ kind, job_id: JOB, args: { feedback } as unknown as Record<string, string> }),
+          /Feedback must be text/,
+        );
+    }
   });
 
   it('passes --force to prepare only for force "true" ("Prepare anyway" on an expired job)', () => {
@@ -324,6 +367,31 @@ describe('task:run (CLI worker)', () => {
     rmSync(dir, { recursive: true, force: true });
     assert.equal((await getJob(JOB))!.cover_letter, `${letter}\n`);
     assert.equal(TASK_TIMEOUT_MS.letter, 4 * 60_000);
+  });
+
+  it('runs a summary task with feedback through the worker; feedback starting with "--" stays the text', async () => {
+    await pool.query(`UPDATE jobs SET cv_summary = 'Old summary.' WHERE id = $1`, [JOB]);
+    const log = join(mkdtempSync(join(tmpdir(), 'jobbot-task-sum-')), 'calls.jsonl');
+    const { task } = await enqueue('summary', JOB, { feedback: '--shorter please' });
+    await taskRun(task.id, { FAKE_CLAUDE_OUT: JSON.stringify({ summary: 'New summary.', note: 'Kept to the CV.' }), FAKE_CLAUDE_LOG: log });
+    const done = await getTask(task.id);
+    assert.equal(done.status, 'done');
+    assert.match(done.output!, /Note {7}: Kept to the CV\./);
+    assert.equal((await getJob(JOB))!.cv_summary, 'New summary.');
+    const [{ stdin }] = readFileSync(log, 'utf8')
+      .trim()
+      .split('\n')
+      .map((l) => JSON.parse(l) as { stdin: string });
+    assert.match(stdin, /CURRENT SUMMARY:\nOld summary\.\n\nFEEDBACK FROM THE CANDIDATE:\n--shorter please$/);
+  });
+
+  it('a task with too-long feedback fails with the reason and changes nothing', async () => {
+    const { task } = await enqueue('letter', JOB, { feedback: 'x'.repeat(FEEDBACK_CAP + 1) });
+    await taskRun(task.id, { FAKE_CLAUDE_FAIL: 'must not call the AI' });
+    const failed = await getTask(task.id);
+    assert.equal(failed.status, 'failed');
+    assert.match(failed.error!, /Feedback is too long/);
+    assert.equal((await getJob(JOB))!.cover_letter, null);
   });
 
   it('runs an answers task from args and removes the questions file', async () => {
