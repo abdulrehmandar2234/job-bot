@@ -1,7 +1,7 @@
 import { after, afterEach, before, beforeEach, describe, it, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import { execFile, spawnSync } from 'node:child_process';
-import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { execFile } from 'node:child_process';
+import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -515,42 +515,5 @@ describe('CLI', () => {
     assert.equal((await getJob('greenhouse:acme:1')).status, 'expired');
     assert.equal((await getJob('greenhouse:acme:2')).status, 'applied');
     assert.match(await bot(['mark', 'greenhouse:acme:2', 'expired']), /→ expired/);
-  });
-});
-
-// ---- scripts/daily-fetch.sh: check:open runs after fetch, and its failure does not stop the notification ----
-
-describe('scripts/daily-fetch.sh', () => {
-  it('runs check:open --limit 100 after fetch; a failing check still notifies', () => {
-    const root = mkdtempSync(join(tmpdir(), 'job-bot-daily-'));
-    try {
-      const home = join(root, 'home');
-      const bin = join(home, '.local', 'bin');
-      mkdirSync(bin, { recursive: true });
-      mkdirSync(join(root, 'repo', 'scripts'), { recursive: true });
-      mkdirSync(join(root, 'repo', 'data'));
-      copyFileSync(path('scripts', 'daily-fetch.sh'), join(root, 'repo', 'scripts', 'daily-fetch.sh'));
-      const calls = join(root, 'calls.txt');
-      const fake = (file: string, body: string) => {
-        writeFileSync(file, `#!/bin/sh\n${body}\n`);
-        chmodSync(file, 0o755);
-      };
-      fake(
-        join(bin, 'node'),
-        `echo "node $*" >> "${calls}"\ncase "$*" in *check:open*) exit 1;; *fetch*) echo "10 postings checked, 1 new.";; esac`,
-      );
-      fake(join(bin, 'osascript'), `echo "osascript $*" >> "${calls}"`);
-      fake(join(root, 'repo', 'scripts', 'backup-db.sh'), 'exit 0');
-      const r = spawnSync('/bin/zsh', [join(root, 'repo', 'scripts', 'daily-fetch.sh')], { encoding: 'utf8', env: { HOME: home } });
-      assert.equal(r.status, 0, r.stderr);
-      const lines = readFileSync(calls, 'utf8').trim().split('\n');
-      assert.match(lines[0], /src\/cli\.ts fetch$/);
-      assert.match(lines[1], /src\/cli\.ts check:open --limit 100$/);
-      assert.match(lines[2], /src\/cli\.ts ai:score$/);
-      assert.match(lines[3], /^osascript .*10 postings checked/);
-      assert.match(readFileSync(join(root, 'repo', 'data', 'fetch.log'), 'utf8'), /check:open failed/);
-    } finally {
-      rmSync(root, { recursive: true, force: true });
-    }
   });
 });

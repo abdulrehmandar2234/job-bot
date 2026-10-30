@@ -14,6 +14,7 @@ export async function runBot(args: string[], timeoutMs = 60_000) {
     cwd: BOT_ROOT,
     timeout: timeoutMs,
     maxBuffer: 10 * 1024 * 1024,
+    windowsHide: true, // no console window flashing up on Windows
   });
   return stdout;
 }
@@ -31,6 +32,7 @@ export function spawnBot(args: string[]) {
       cwd: BOT_ROOT,
       detached: true,
       stdio: ['ignore', log, log],
+      windowsHide: true, // a detached child gets its own console window on Windows otherwise
     });
     // A spawn error leaves the task queued; expire_stale_tasks() fails it after 2 minutes.
     child.on('error', () => {});

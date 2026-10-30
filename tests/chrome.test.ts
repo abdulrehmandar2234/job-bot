@@ -9,9 +9,9 @@ import { headlessShell, playwrightCache, resolveChrome } from '../src/cv/chrome.
 
 describe('playwrightCache', () => {
   it('uses the per-OS default, or PLAYWRIGHT_BROWSERS_PATH', () => {
-    assert.equal(playwrightCache({}, 'darwin', '/Users/a'), '/Users/a/Library/Caches/ms-playwright');
-    assert.equal(playwrightCache({}, 'linux', '/home/a'), '/home/a/.cache/ms-playwright');
-    assert.equal(playwrightCache({ XDG_CACHE_HOME: '/x' }, 'linux', '/home/a'), '/x/ms-playwright');
+    assert.equal(playwrightCache({}, 'darwin', '/Users/a'), join('/Users/a', 'Library', 'Caches', 'ms-playwright'));
+    assert.equal(playwrightCache({}, 'linux', '/home/a'), join('/home/a', '.cache', 'ms-playwright'));
+    assert.equal(playwrightCache({ XDG_CACHE_HOME: '/x' }, 'linux', '/home/a'), join('/x', 'ms-playwright'));
     assert.equal(
       playwrightCache({ LOCALAPPDATA: 'C:\\Users\\a\\AppData\\Local' }, 'win32', 'C:\\Users\\a'),
       join('C:\\Users\\a\\AppData\\Local', 'ms-playwright'),

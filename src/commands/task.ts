@@ -32,7 +32,7 @@ export async function taskRun(args: string[]) {
     const { stdout, stderr } = await run(
       process.execPath,
       ['--no-warnings', '--env-file-if-exists=.env', 'src/cli.ts', ...cliArgs(task, file)],
-      { cwd: ROOT, timeout: TASK_TIMEOUT_MS[task.kind], maxBuffer: 10 * 1024 * 1024 },
+      { cwd: ROOT, timeout: TASK_TIMEOUT_MS[task.kind], maxBuffer: 10 * 1024 * 1024, windowsHide: true },
     );
     await finish(id, stdout + stderr);
     console.log(`[${new Date().toISOString()}] task ${id}: done`);

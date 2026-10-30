@@ -1,8 +1,8 @@
 # job-bot
 
-A personal job-search assistant that runs on your own Mac. It finds software engineering jobs in the **countries you target** (onsite, with or without a visa) and **remote jobs open to the country you live in**. It filters and scores them against your CV, prepares the right CV version, cover letter and form answers for each one, and tracks where you applied.
+A personal job-search assistant that runs on your own computer: macOS (the main platform), Linux or Windows. It finds software engineering jobs in the **countries you target** (onsite, with or without a visa) and **remote jobs open to the country you live in**. It filters and scores them against your CV, prepares the right CV version, cover letter and form answers for each one, and tracks where you applied.
 
-Everything personal lives in two files you fill in yourself, `cv/master.json` (your CV) and `cv/applicant.json` (your profile), plus the target markets in `config.json`. `npm run bot -- setup` asks for most of it: see [Getting started](#getting-started) and the full guide in [docs/SETUP.md](docs/SETUP.md). The `config.json` in the repository is the original author's (UAE, Saudi Arabia and the Netherlands with visa sponsorship, remote from Pakistan); the examples below use it.
+Everything personal lives in two files you fill in yourself, `cv/master.json` (your CV) and `cv/applicant.json` (your profile), plus the target markets in `config.json`. `npm run bot -- setup` asks for most of it: see [Getting started](#getting-started) and the guides in [docs/README.md](docs/README.md). The `config.json` in the repository is the original author's (UAE, Saudi Arabia and the Netherlands with visa sponsorship, onsite in Pakistan, remote from Pakistan); the examples below use it.
 
 ## Purpose
 
@@ -37,7 +37,7 @@ Design principles:
 - **Chrome extension** (`extension/`, see [extension/README.md](extension/README.md)): "Send to job-bot" from any job page (Bayt, GulfTalent, NaukriGulf, company sites), and an "Apply helper" side panel with the prepared CV, letter and answers to copy. **Fill this form** types your name and contact details, the cover letter, drafted answers and the CV PDF into the form's empty fields (outlined in orange). It never overwrites what you typed, never fills answers that need your input, and never clicks a button or submits: you check the form and submit it yourself.
 - **Manual add** of any job as JSON (`bot add`), e.g. from GulfTalent or a referral.
 - **Company discovery** (`bot discover <names> --add`) tries a company name on the six ATS platforms that work by name (a full myworkdayjobs.com URL tries Workday) and adds it to the config if it has jobs in your target countries.
-- **Daily automatic fetch** at 9:00 through a macOS launchd job, followed by AI review of new matches and a macOS notification.
+- **Daily automatic fetch** at 9:00 (`bot daily`, started by launchd on macOS, a systemd timer or cron on Linux, Task Scheduler on Windows), followed by AI review of new matches, a desktop notification and a database backup.
 
 ### Filtering and scoring
 
@@ -58,7 +58,7 @@ Every posting is checked by `src/match.ts`. Jobs that fail a rule are kept with 
 - **Keyword score:** a weighted match of the job's skills against yours (a skill counts as yours when `cv/master.json` lists it), with a `minScore` threshold. It also suggests which CV version fits.
 - **AI review:** the AI (by default the local Claude CLI with model `haiku`; see [AI](#ai) for an API key instead) reads each matching job together with your CV and returns a 0–100 score, a verdict (strong / good / stretch / poor), reasons, gaps and red flags (part-time, language, visa, region lock).
 - **Location check from the whole description:** the same review decides whether you can take the job from where you live (`yes` / `no` / `unclear`), reading the full description rather than only the location field: "US only", "must reside in…", "authorized to work in X without sponsorship", required time zones, or a description that names another country ("work remotely from Slovenia" on a Saudi listing). A `no` moves a matching job to **Filtered out** with the quoted reason (`location (AI): …`), and it stays there when jobs are re-scored; jobs you already acted on keep their status. An `unclear` adds a "Location unclear" flag to check. Himalayas jobs limited to time zones far from GMT+5 are filtered by the keyword rules already.
-- **Instant alerts:** when the AI rates a job `strong`, `ai:score` (and so the daily fetch) shows a macOS notification right away: one per job, or one grouped notification for more than three. Each job alerts once (`alerted_at`). With `terminal-notifier` installed (Homebrew), clicking it opens the job in the dashboard. Turn it off with `config.json` → `ai.alertStrong: false`.
+- **Instant alerts:** when the AI rates a job `strong`, `ai:score` (and so the daily fetch) shows a desktop notification right away (macOS, Linux with `notify-send`, Windows toast): one per job, or one grouped notification for more than three. Each job alerts once (`alerted_at`). With `terminal-notifier` installed (Homebrew), clicking it opens the job in the dashboard. Turn it off with `config.json` → `ai.alertStrong: false`.
 - **Salary:** a salary range in the title or description (AED, SAR, EUR, USD, GBP, PKR; "20k–25k", "up to", per month / per year / per hour, Dutch "bruto per maand") is stored with the job. Funding rounds, budgets, bonuses and years of experience are ignored, and an unclear amount is left out rather than guessed. Adzuna, Himalayas, RemoteOK and Lever give salary data of their own, which wins over the text. `rescore` fills it in for jobs already stored.
 - **Duplicate grouping:** the same job found on several sites (company board, LinkedIn, Bayt, Himalayas) is shown once, with links to every copy.
 
@@ -82,7 +82,7 @@ Every posting is checked by `src/match.ts`. Jobs that fail a rule are kept with 
 - Free-text notes per job (recruiter name, contacts, follow-ups).
 - **Contacts per job** (`bot contacts` / `contact:add`, and on the job page): recruiters, hiring managers and referrals, plus people you know at the same company, with a "ask for a referral before applying" reminder on jobs you have not applied to.
 - **Skip reasons:** skipping a job asks why (`mark <id> skipped --reason stack|seniority|salary|location|company|language|other`, or the Skip button), and `/analytics` shows the patterns.
-- **Database backup:** the daily fetch keeps a `pg_dump` of the last 14 days in `data/backups/` (`scripts/backup-db.sh`).
+- **Database backup:** the daily fetch keeps a `pg_dump` of the last 14 days in `data/backups/` (`bot backup`; gzip in Node, so only `pg_dump` is needed, on any OS).
 
 ### Dashboard
 
@@ -90,7 +90,7 @@ Every posting is checked by `src/match.ts`. Jobs that fail a rule are kept with 
 npm run web          # http://localhost:3100
 ```
 
-- It is for this Mac only: it listens on 127.0.0.1, not on your Wi-Fi, and `web/proxy.ts` refuses any request whose Host is not localhost (so a web page cannot reach it through DNS rebinding). There is no login, so do not expose it.
+- It is for this computer only: it listens on 127.0.0.1, not on your Wi-Fi, and `web/proxy.ts` refuses any request whose Host is not localhost (so a web page cannot reach it through DNS rebinding). There is no login, so do not expose it.
 - Tabs per status, search, country filter, minimum score and "best match first" sorting (AI score first, keyword score as fallback).
 - Salary on each card ("AED 20k–25k / month") and a "Min salary" filter in any of the six currencies, per month or year. It compares in euros per year with fixed, approximate rates (`web/lib/salary.ts`). Jobs without a salary stay visible unless "only with salary" is ticked. When `cv/applicant.json` has `expectedSalary` for the job's country (`AE`, `SA`, `NL`, `remote`), a lower salary gets a "below your expectation" hint; it never hides the job. A plain number there is in the country's currency, per month for AE/SA and per year otherwise; text such as `"AED 25,000 per month"` says it itself.
 - The list shows 25 jobs per page (10, 50 or 100 with the "per page" filter), with page links above and below it. The page links keep the tab, filters and sort; changing the tab or filters goes back to page 1.
@@ -135,7 +135,7 @@ flowchart LR
     API["API routes<br/>/api/import · /api/cv · /api/tasks · ..."]
   end
 
-  Launchd["launchd 9:00<br/>scripts/daily-fetch.sh"]
+  Launchd["scheduler 9:00<br/>launchd · systemd/cron · Task Scheduler<br/>bot daily"]
 
   ATS & Boards & LI --> Fetch --> Match --> DB
   Bayt --> API --> Match
@@ -249,21 +249,23 @@ Every CLI command that uses the database first applies the numbered SQL files in
 - `tasks`: the dashboard's background tasks (see [Architecture](#architecture)).
 - `contacts`: people per job and company.
 
-Connection: `DATABASE_URL` in `.env` (the bot) and `web/.env.local` (the dashboard), e.g. `postgres://postgres@127.0.0.1:5432/job_bot`, on a local PostgreSQL 15 or newer (DBngin or Homebrew).
+Connection: `DATABASE_URL` in `.env` (the bot) and `web/.env.local` (the dashboard), e.g. `postgres://postgres@127.0.0.1:5432/job_bot`, on a local PostgreSQL 15 or newer (DBngin or Homebrew on macOS, the distribution package on Linux, the EDB installer on Windows).
 
 ## Getting started
 
-The full step-by-step guide, with every setting explained, is **[docs/SETUP.md](docs/SETUP.md)**. In short, with Node 24+, PostgreSQL, Chrome and (optionally) a signed-in Claude Code CLI:
+job-bot runs on **macOS, Linux and Windows**. Pick the install guide for your computer: each one goes from a fresh machine to a working dashboard, with copy-paste commands for that system only.
 
-```bash
-git clone <this repository> ~/job-bot && cd ~/job-bot && npm install && npm --prefix web install
-createdb -h 127.0.0.1 -U postgres job_bot   # then DATABASE_URL in .env and web/.env.local (see docs/SETUP.md)
-cp cv/master.example.json cv/master.json     # replace the example with your CV
-npm run bot -- setup && npm run bot -- cv:default   # your profile and target markets, then your CV PDF
-npm run bot -- fetch && npm run bot -- ai:score && npm run web   # http://localhost:3100
-```
+| Your computer                                   | Guide                                              |
+| ----------------------------------------------- | -------------------------------------------------- |
+| macOS                                           | [docs/install/macos.md](docs/install/macos.md)     |
+| Linux (Ubuntu / Debian; notes for Fedora, Arch) | [docs/install/linux.md](docs/install/linux.md)     |
+| Windows 10 / 11 (PowerShell)                    | [docs/install/windows.md](docs/install/windows.md) |
 
-`setup` does not change `companies`, `roleInclude` / `roleExclude`, `linkedin.keywords` or `remote.himalayasQueries`: the repository's values are the original author's (Laravel / Node / React in the UAE, Saudi Arabia and the Netherlands), so review them in `config.json` (see the [configuration reference](docs/SETUP.md#7-configuration-reference-configjson)).
+In short, you need Node.js 24+, PostgreSQL, Git and (optionally) a signed-in Claude Code CLI or one AI API key. Then: clone, `npm install` and `npm --prefix web install`, put `DATABASE_URL` in `.env` and `web/.env.local`, `npx playwright-core install chromium-headless-shell`, `npm run bot -- setup`, your CV in `cv/master.json`, `npm run bot -- fetch`, and `npm run web` (http://localhost:3100).
+
+Everything else is in **[docs/README.md](docs/README.md)**: your CV and profile, every setting, the AI choice, daily use, troubleshooting and updating.
+
+`setup` does not change `companies`, `roleInclude` / `roleExclude`, `linkedin.keywords` or `remote.himalayasQueries`: the repository's values are the original author's (Laravel / Node / React in the UAE, Saudi Arabia, the Netherlands and Pakistan), so review them in `config.json` (see [docs/configuration.md](docs/configuration.md)).
 
 ## CLI reference
 
@@ -303,6 +305,9 @@ npm run bot -- ats <id> [--cv next-nest] [--json] # CV keyword check: shown, hid
 npm run bot -- sponsors:update | stats | dedupe
 npm run bot -- settings:check|settings:save --kind config|applicant [--file x.json]  # validate (and save) settings, JSON result; no --file reads stdin
 npm run bot -- task:run <id>                  # run a queued background task (the dashboard starts these)
+npm run bot -- daily                         # the scheduled morning run: fetch, check:open, ai:score, notification, backup
+npm run bot -- schedule:print [--os macos|linux|windows]   # the scheduler setup for this clone and OS
+npm run bot -- backup                        # pg_dump into data/backups/<db>-YYYY-MM-DD.sql.gz (keeps 14)
 ```
 
 `add` JSON format:
@@ -320,23 +325,19 @@ npm run bot -- task:run <id>                  # run a queued background task (th
 
 ### Daily fetch
 
-The launchd job (`~/Library/LaunchAgents/com.<you>.job-bot.fetch.plist`, see [docs/SETUP.md](docs/SETUP.md#10-the-daily-fetch-launchd)) runs `scripts/daily-fetch.sh` at 9:00 (if the Mac is asleep then, when it wakes; a Mac that was shut down skips that day's run). It logs to `data/fetch.log`. The project lives in `~/job-bot`, not on the Desktop, because macOS does not let background jobs read the Desktop.
+`npm run bot -- daily` runs `fetch`, `check:open --limit 100` and `ai:score`, shows a notification with the result and backs up the database, logging to `data/fetch.log`. A scheduler starts it at 9:00; `npm run bot -- schedule:print` prints the setup for your OS with your paths filled in (step 12 of each [install guide](docs/README.md#1-install-it-on-your-computer) has the details):
 
-Run it now:
+| OS      | Scheduler                                                    | A missed 9:00 (computer off)    |
+| ------- | ------------------------------------------------------------ | ------------------------------- |
+| macOS   | launchd plist running `scripts/daily-fetch.sh` (zsh wrapper) | runs after sleep, not shut-down |
+| Linux   | systemd user timer (or a cron line)                          | runs at boot (timer)            |
+| Windows | Task Scheduler (`Register-ScheduledTask` or `schtasks`)      | runs when the computer is on    |
 
-```bash
-launchctl kickstart gui/$(id -u)/com.<you>.job-bot.fetch
-```
-
-Turn it off:
-
-```bash
-launchctl bootout gui/$(id -u)/com.<you>.job-bot.fetch
-```
+On macOS, keep the project out of `~/Desktop` and `~/Documents`, because macOS does not let background jobs read them. Run it now with `launchctl kickstart gui/$(id -u)/com.<you>.job-bot.fetch` (macOS), `systemctl --user start job-bot-fetch.service` (Linux), `Start-ScheduledTask -TaskName 'job-bot daily fetch'` (Windows), or `npm run bot -- daily` anywhere.
 
 ## Configuration (`config.json`)
 
-An overview; [docs/SETUP.md](docs/SETUP.md#7-configuration-reference-configjson) has every key with its type, default, sensible values and how the filters use it.
+An overview; [docs/configuration.md](docs/configuration.md) has every key with its type, default, sensible values and how the filters use it.
 
 | Key                                          | What it controls                                                                                                                |
 | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
@@ -355,7 +356,7 @@ An overview; [docs/SETUP.md](docs/SETUP.md#7-configuration-reference-configjson)
 
 ## Your profile (`cv/applicant.json`)
 
-Gitignored. Created by `npm run bot -- setup` or the Settings page; `cv/applicant.example.json` shows a fictional person. Every field is described in [docs/SETUP.md](docs/SETUP.md#6-your-profile-cvapplicantjson).
+Gitignored. Created by `npm run bot -- setup` or the Settings page; `cv/applicant.example.json` shows a fictional person. Every field is described in [docs/your-cv-and-profile.md](docs/your-cv-and-profile.md#your-profile-cvapplicantjson).
 
 | Key                                            | What it is for                                                           |
 | ---------------------------------------------- | ------------------------------------------------------------------------ |
@@ -392,7 +393,8 @@ src/
   ai-presets.ts     API presets: URLs, default models, JSON mode, key detection
   profile.ts        your profile from cv/applicant.json (+ cv/master.json fallbacks), visa and remote-from rules
   tasks.ts          background task queue (claim, run, time out, clean up)
-  notify.ts         macOS notifications for strong matches
+  notify.ts         desktop notifications per OS (macOS, Linux, Windows) for strong matches and the daily run
+  backup.ts         pg_dump + gzip of the database, keeping 14
   followup.ts       follow-up reminders and template
   cover.ts          template cover letter
   sponsors.ts       IND recognised-sponsor register
@@ -404,8 +406,8 @@ web/
   components/       UI and client components
   lib/              DB queries, the CLI runner, settings and profile mirrors of the bot's logic
   proxy.ts          refuses requests whose Host is not localhost
-scripts/            daily fetch, database backup, test-database creation, Bayt bookmarklet
-docs/SETUP.md       setup guide for a new user: install, every setting, first run, troubleshooting
+scripts/            launchd wrapper (daily-fetch.sh), test launcher, test-database creation, Bayt bookmarklet
+docs/               README.md (start here), install/{macos,linux,windows}.md, configuration, CV and profile, AI, daily use, troubleshooting, updating
 extension/          Chrome extension: send a job, apply helper side panel with form auto-fill
 tests/              backend tests (node:test)
 web/tests/          dashboard tests (vitest)
@@ -425,14 +427,15 @@ npm run lint         # Biome lint + format check; npm run format fixes it
 - Some tests pin the original author's letters and filter results against the repository's `config.json` and `cv/master.json` (`tests/fixtures/owner-golden.json`), so they fail once you replace those files with your own.
 - Job-site requests are mocked, a fake script (`tests/fixtures/fake-claude.mjs`) stands in for Claude, and the API providers answer from mocked fetch with a dummy key, so tests run offline and use none of your Claude plan or API credit.
 - Every new feature or change ships with its tests (see `CLAUDE.md`).
-- `npm install` points git at `.githooks/`, so each commit runs Biome on the staged files. GitHub Actions runs lint, typecheck and both suites on every push.
+- `npm install` points git at `.githooks/`, so each commit runs Biome on the staged files. GitHub Actions runs lint, typecheck and both suites on Ubuntu on every push, and lint, typecheck and the tests that need no database on Windows.
+- The npm scripts use no shell syntax, so they run in PowerShell and cmd.exe too: `npm test -- tests/match.test.ts` runs one file on any OS (`scripts/run-tests.mjs` sets `DATABASE_URL`).
 
 ## Tech stack
 
 - Node 24+ running TypeScript directly (ESM, no build step)
 - PostgreSQL via `pg`, shared by the bot and the dashboard
 - Next.js 16 + Tailwind (`web/`)
-- `playwright-core` with system Chrome for CV PDFs
+- `playwright-core` with Chrome's headless shell (or a system Chrome) for CV PDFs
 - Claude Code CLI (default) or any OpenAI-compatible API for AI features
 - node:test and Vitest + Testing Library for tests
 

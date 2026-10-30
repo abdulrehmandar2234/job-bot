@@ -1,0 +1,8 @@
+# LF everywhere, also on Windows checkouts with core.autocrlf=true: Biome checks LF line endings, and the shell
+# scripts and the pre-commit hook (run by Git for Windows' sh) break with CRLF.
+* text=auto eol=lf
+*.pdf binary
+*.png binary
+*.jpg binary
+*.ico binary
+*.gz binary

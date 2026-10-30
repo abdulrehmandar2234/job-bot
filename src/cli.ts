@@ -54,9 +54,12 @@ const commands: Record<string, () => Promise<Command>> = {
   'settings:save': async () => (await import('./commands/settings.ts')).settingsSave,
   'task:run': async () => (await import('./commands/task.ts')).taskRun,
   setup: async () => (await import('./commands/setup.ts')).setup,
+  backup: async () => (await import('./commands/backup.ts')).backup,
+  daily: async () => (await import('./commands/daily.ts')).daily,
+  'schedule:print': async () => (await import('./commands/schedule.ts')).schedulePrint,
 };
 // Commands that only touch files: no database connection or migrations.
-const NO_DB = ['settings:check', 'settings:save', 'setup', 'cv:templates', 'cv:preview'];
+const NO_DB = ['settings:check', 'settings:save', 'setup', 'backup', 'daily', 'schedule:print', 'cv:templates', 'cv:preview'];
 
 const load = commands[cmd ?? ''];
 if (!load) {
@@ -104,7 +107,12 @@ if (!load) {
   stats
   settings:check --kind config|applicant [--file x.json]   validate settings (JSON result)
   settings:save --kind config|applicant [--file x.json]    validate, then save if valid
-  task:run <id>                   run a queued background task (the dashboard starts these)`);
+  task:run <id>                   run a queued background task (the dashboard starts these)
+  daily                           the scheduled morning run: fetch, check:open, ai:score, a notification, backup
+                                  (output in data/fetch.log)
+  schedule:print [--os macos|linux|windows]
+                                  print the scheduler setup (launchd, systemd/cron, Task Scheduler) for this clone
+  backup                          pg_dump of the database into data/backups/<db>-YYYY-MM-DD.sql.gz (keeps 14)`);
 } else {
   try {
     const run = await load();
