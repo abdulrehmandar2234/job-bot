@@ -32,14 +32,18 @@ const get = (template: string, query = '') =>
 
 describe('GET /api/cv/preview/[template]', () => {
   it('renders the master CV in the template as inline HTML (`bot cv:preview <template>`), with no scripts allowed', async () => {
-    runBot.mockResolvedValue('<!doctype html><html><body><h1>Jane Doe</h1></body></html>');
+    runBot.mockResolvedValue('<!doctype html><html><head></head><body><h1>Jane Doe</h1></body></html>');
     const res = await get('modern');
     expect(runBot).toHaveBeenCalledExactlyOnceWith(['cv:preview', 'modern'], 60_000);
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toBe('text/html; charset=utf-8');
     expect(res.headers.get('content-security-policy')).toBe("default-src 'none'; style-src 'unsafe-inline'");
     expect(res.headers.get('x-content-type-options')).toBe('nosniff');
-    expect(await res.text()).toMatch(/<h1>Jane Doe<\/h1>/);
+    const html = await res.text();
+    expect(html).toMatch(/<h1>Jane Doe<\/h1>/);
+    expect(html).toContain(
+      '<style>html { background: #fff; color-scheme: light; } body { max-width: 210mm; margin: 0 auto !important; }</style></head>',
+    );
   });
 
   it('with ?pdf serves the PDF the bot printed to data/previews, inline', async () => {

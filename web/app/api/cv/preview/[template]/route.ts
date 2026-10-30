@@ -4,6 +4,8 @@ import type { NextRequest } from 'next/server';
 import { BOT_ROOT, runBot } from '@/lib/bot';
 import { isTemplate } from '@/lib/cv-templates';
 
+const PAGE = 'html { background: #fff; color-scheme: light; } body { max-width: 210mm; margin: 0 auto !important; }';
+
 /**
  * The master CV in one template, to see a design before choosing it (`bot cv:preview <template>`): inline HTML, or
  * with `?pdf` an inline PDF printed by Chrome. Only names from the template list reach the bot.
@@ -19,7 +21,8 @@ export async function GET(req: NextRequest, ctx: RouteContext<'/api/cv/preview/[
     return new Response(`Could not render the preview${pdf ? ' (is Chrome at config.json chromePath?)' : ''}`, { status: 500 });
   }
   if (!pdf)
-    return new Response(out, {
+    // White and A4 wide, as on paper (a browser in dark mode would otherwise show the CV's dark text on dark).
+    return new Response(out.replace('</head>', `<style>${PAGE}</style></head>`), {
       headers: {
         'content-type': 'text/html; charset=utf-8',
         // The page is the CV only: no scripts, no requests, inline styles.
