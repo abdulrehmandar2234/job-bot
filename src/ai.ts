@@ -160,8 +160,10 @@ zones or working hours far from ${zone}, or a description that names another cou
 line (for example "work remotely from Slovenia" on a Saudi Arabia listing). eligible "no" when it clearly rules the
 candidate out, and also when the description says the work is done from, or the person must live in, a specific
 country or region that is not ${home} and not a target country with visa sponsorship: the description wins over the
-LOCATION line. An onsite role in a target country with visa sponsorship is fine. "unclear" only when a remote job never
-says where the person may live; "yes" when it is open to the candidate. Quote the deciding phrase in reason.`;
+LOCATION line. For an onsite role in a target country, never assume sponsorship: "yes" only when the posting offers visa
+sponsorship, relocation or work-permit support; "unclear" when it says nothing about visa or relocation (reason: "posting
+does not mention visa or relocation"). For a remote job, "unclear" when it never says where the person may live.
+Otherwise "yes" when it is open to the candidate. Quote the deciding phrase in reason.`;
   return askClaude<AiScore>(`CANDIDATE CV:\n${cvText()}\n\nJOB:\n${jobText(job)}`, SCORE_SCHEMA, config.ai.scoreModel, system);
 }
 

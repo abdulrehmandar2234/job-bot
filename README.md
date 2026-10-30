@@ -47,6 +47,13 @@ Every posting is checked by `src/match.ts`. Jobs that fail a rule are kept with 
 - **Role:** engineering titles only. Other stacks (Java, Go, Python, ...), mobile, QA and management roles are excluded.
 - **Language:** postings that require fluent Dutch, Arabic, German or French are skipped, unless your profile lists that language. "Arabic is a plus" only adds a warning.
 - **Visa:** per target country, `needsVisa` says whether you need one (missing = yes; the country you live in never does). Where you do, `visa: "employer"` means the employer provides it, and `"ind-register"` (Netherlands) means the company must be on the IND recognised-sponsor register (`bot sponsors:update` refreshes it); "No sponsorship" and "must have right to work" postings are skipped. Where you do not, those rules are skipped.
+- **Visa label on every job:** only the posting itself counts as an offer. Each job shows one of four labels:
+  - **✓ Visa/relocation offered:** the posting says so.
+  - **✓ No visa needed:** a remote job, or a country you may already work in.
+  - **? Company can sponsor, posting does not say:** the company is an IND recognised sponsor.
+  - **? Visa/relocation not mentioned:** the posting is silent. Many Gulf employers sponsor the work visa anyway, but some only hire people already in the country.
+
+  Hover a label for the full note. The **Visa/relocation offered (or not needed)** filter on the job list shows only the first two kinds. The AI location check also marks a silent onsite posting `unclear`, not `yes`.
 - **Age:** postings older than `maxAgeDays` (14) are skipped, and matching jobs expire automatically once they get older.
 - **Keyword score:** a weighted match of the job's skills against yours (a skill counts as yours when `cv/master.json` lists it), with a `minScore` threshold. It also suggests which CV version fits.
 - **AI review:** the local Claude CLI (model `haiku`) reads each matching job together with your CV and returns a 0–100 score, a verdict (strong / good / stretch / poor), reasons, gaps and red flags (part-time, language, visa, region lock).

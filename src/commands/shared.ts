@@ -28,6 +28,7 @@ export function save({ salary: given, ...raw }: RawJob) {
     matched: s.matched,
     missing: s.missing,
     visa: s.visa,
+    visa_evidence: s.visaEvidence,
     flags: s.flags,
     status: s.filterReason ? 'filtered' : 'new',
     filter_reason: s.filterReason,

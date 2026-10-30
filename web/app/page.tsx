@@ -25,6 +25,7 @@ import { allContacts } from '@/lib/contacts-db';
 import { ExpiredBadge } from '@/components/open-check';
 import { FollowUpBadge } from '@/components/follow-up';
 import { Pager } from '@/components/pager';
+import { VisaBadge } from '@/components/visa';
 import { ago, AiReview, Chips, fmtDate, Posted, PostedOn, Score, STATUS_LABEL } from '@/components/ui';
 import { FirstRunBanner, MarketHeader } from '@/components/profile-banner';
 import { readCountryLabels } from '@/lib/profile';
@@ -99,10 +100,11 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<'/'>['searc
   const q = one('q');
   const days = Number(one('days')) || undefined;
   const sort = one('sort') === 'newest' ? 'newest' : 'score';
+  const visaOnly = one('visa') === '1';
   const salary = salaryParams(one);
   const expected = loadExpectations();
   const page = Math.max(1, Math.floor(Number(one('page'))) || 1);
-  const filter = { status, country, min, q, days, sort, followUp, ...salary.filter } as const;
+  const filter = { status, country, min, q, days, sort, followUp, visaOnly, ...salary.filter } as const;
 
   const [jobs, total, counts, run, week, tasks, dueCount] = await Promise.all([
     listJobs(filter, page),
@@ -124,6 +126,7 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<'/'>['searc
       ...(q && { q }),
       ...(days && { days: String(days) }),
       ...(sort === 'newest' && { sort }),
+      ...(visaOnly && { visa: '1' }),
       ...salary.query,
       ...(toPage > 1 && { page: String(toPage) }),
     });
@@ -200,6 +203,10 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<'/'>['searc
           <option value="newest">Newest first</option>
         </select>
         <SalaryFilter params={salary.params} />
+        <label className="flex items-center gap-1 text-zinc-600 dark:text-zinc-400">
+          <input type="checkbox" name="visa" value="1" defaultChecked={visaOnly} />
+          Visa/relocation offered (or not needed)
+        </label>
         <button type="submit" className="btn">
           Apply filters
         </button>
@@ -231,7 +238,12 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<'/'>['searc
                 </div>
                 <p className="text-sm text-zinc-600 dark:text-zinc-400">
                   {j.country ? (labels[j.country] ?? j.country) : ''} · {j.location}
-                  {j.visa && <span className="text-emerald-700 dark:text-emerald-400"> · ✓ {j.visa}</span>}
+                  {(j.visa || j.visa_evidence) && (
+                    <>
+                      {' · '}
+                      <VisaBadge job={j} />
+                    </>
+                  )}
                 </p>
                 <SalaryTag job={j} expected={expected} />
                 <PostedOn postings={postings.get(j.id) ?? []} />

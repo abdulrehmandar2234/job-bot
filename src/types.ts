@@ -6,6 +6,12 @@ export type JobStatus = 'new' | 'prepared' | 'applied' | 'interview' | 'offer' |
 /** The AI review's location check: 'no' means the description rules the candidate out (region, residency, work permit). */
 export type AiLocation = 'yes' | 'no' | 'unclear';
 
+/**
+ * How sure the visa note is: 'offered' = the posting mentions visa/relocation support, 'can-sponsor' = the company
+ * is a registered sponsor but the posting does not say, 'silent' = no mention, 'not-needed' = remote or home country.
+ */
+export type VisaEvidence = 'offered' | 'can-sponsor' | 'silent' | 'not-needed';
+
 /** A drafted answer to one application-form question (`bot answer`). */
 export type FormAnswer = { question: string; answer: string; needs_input: boolean; note: string };
 
@@ -36,6 +42,7 @@ export type Job = {
   matched: string[];
   missing: string[];
   visa: string | null; // why we think visa is possible
+  visa_evidence: VisaEvidence | null; // how sure that is (src/match.ts)
   flags: string[]; // warnings
   status: JobStatus;
   filter_reason: string | null;
