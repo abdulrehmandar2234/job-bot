@@ -2,6 +2,7 @@
   "name": "job-bot",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "description": "Local job hunting bot: fetch jobs for your target countries and remote, filter, score, pick CV version, track applications",
   "scripts": {

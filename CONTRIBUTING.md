@@ -1,6 +1,6 @@
 # Contributing to job-bot
 
-Thanks for helping. Anyone can propose a change: fork the repository, make the change on a branch, and open a pull request. Only the maintainer merges, after review.
+Thanks for helping. job-bot is [MIT licensed](LICENSE): by opening a pull request you agree that your contribution is released under the same license. Anyone can propose a change: fork the repository, make the change on a branch, and open a pull request. Only the maintainer merges, after review.
 
 ## Ground rules
 
