@@ -74,6 +74,16 @@ describe('backup', () => {
     assert.deepEqual(readdirSync(dir), [`testdb-${DATE}.sql.gz`]);
   });
 
+  it('gives pg_dump the password as PGPASSWORD, never as an argument or in the log', async () => {
+    const dir = join(root, 'out8');
+    const envDump = join(root, 'env-dump.mjs');
+    writeFileSync(envDump, "process.stdout.write('pw=' + process.env.PGPASSWORD + ' args=' + process.argv.slice(2).join(' '));");
+    const lines = await backup(opts(dir, { pgDump: [process.execPath, envDump], password: 's3cret' }));
+    const sql = gunzipSync(readFileSync(join(dir, `testdb-${DATE}.sql.gz`))).toString();
+    assert.match(sql, /^pw=s3cret args=-h 127\.0\.0\.1 -p 5432 -U postgres --no-owner testdb$/);
+    assert.ok(lines.every((l) => !l.includes('s3cret')));
+  });
+
   it('throws when pg_dump cannot be started', async () => {
     await assert.rejects(backup(opts(join(root, 'out7'), { pgDump: [join(root, 'no-such-pg_dump')] })), /backup failed: .*ENOENT/);
   });
@@ -96,6 +106,17 @@ describe('backupOptions', () => {
       'pg',
     );
     assert.deepEqual([o.db, o.dir, o.keep, o.host, o.port, o.user], ['x', root, 3, 'h', '1', 'u']);
+  });
+
+  it('takes the database, host, port, user and password from DATABASE_URL; PG* and JOB_BOT_BACKUP_DB win', () => {
+    const url = 'postgres://bot:p%40ss@[::1]:5433/my_db';
+    const o = backupOptions({ DATABASE_URL: url }, 'pg');
+    assert.deepEqual([o.db, o.host, o.port, o.user, o.password], ['my_db', '::1', '5433', 'bot', 'p@ss']);
+    const p = backupOptions({ DATABASE_URL: url, JOB_BOT_BACKUP_DB: 'x', PGHOST: 'h', PGPORT: '1', PGUSER: 'u', PGPASSWORD: 'w' }, 'pg');
+    assert.deepEqual([p.db, p.host, p.port, p.user, p.password], ['x', 'h', '1', 'u', 'w']);
+    const q = backupOptions({ DATABASE_URL: 'postgres://postgres@127.0.0.1:5432/job_bot' }, 'pg');
+    assert.equal('password' in q, false);
+    assert.equal(backupOptions({ DATABASE_URL: 'not a url' }, 'pg').db, 'job_bot');
   });
 
   it("names the file after today's local date when no date is given", () => {

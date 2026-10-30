@@ -8,8 +8,9 @@ import { ROOT } from './settings.ts';
 
 // Daily pg_dump of the job_bot database into data/backups/<db>-YYYY-MM-DD.sql.gz, keeping the newest 14. Gzip is done
 // in Node (zlib), so only pg_dump is needed, on any OS. Run by `bot backup` (and so by the daily fetch).
-// Env overrides (used by tests): JOB_BOT_BACKUP_DB, JOB_BOT_BACKUP_DIR, JOB_BOT_BACKUP_KEEP, JOB_BOT_BACKUP_DATE
-// (YYYY-MM-DD, default today), JOB_BOT_PG_DUMP (the pg_dump program), PGHOST, PGPORT, PGUSER.
+// The connection comes from DATABASE_URL (.env), so a database with a password works too; PGHOST, PGPORT, PGUSER and
+// PGPASSWORD override its parts. Other overrides (also used by tests): JOB_BOT_BACKUP_DB, JOB_BOT_BACKUP_DIR,
+// JOB_BOT_BACKUP_KEEP, JOB_BOT_BACKUP_DATE (YYYY-MM-DD, default today), JOB_BOT_PG_DUMP (the pg_dump program).
 
 export type BackupOptions = {
   db: string;
@@ -21,6 +22,8 @@ export type BackupOptions = {
   host: string;
   port: string;
   user: string;
+  /** Given to pg_dump as PGPASSWORD, never on its command line or in the log. */
+  password?: string;
 };
 
 type Exists = (p: string) => boolean;
@@ -80,15 +83,22 @@ export function backupOptions(env: NodeJS.ProcessEnv = process.env, pgDump = fin
   const keep = Number(env.JOB_BOT_BACKUP_KEEP || 14);
   if (!Number.isInteger(keep) || keep < 1) throw new Error(`backup: JOB_BOT_BACKUP_KEEP must be a whole number from 1, not ${keep}`);
   if (!pgDump) throw new Error('backup: pg_dump not found (PATH, JOB_BOT_PG_DUMP or the usual PostgreSQL install folders)');
+  let url: URL | undefined;
+  try {
+    url = env.DATABASE_URL ? new URL(env.DATABASE_URL) : undefined;
+  } catch {} // an unreadable DATABASE_URL: the defaults below
+  const part = (s: string | undefined) => (s ? decodeURIComponent(s) : undefined);
+  const password = env.PGPASSWORD || part(url?.password);
   return {
-    db: env.JOB_BOT_BACKUP_DB || 'job_bot',
+    db: env.JOB_BOT_BACKUP_DB || part(url?.pathname.slice(1)) || 'job_bot',
     dir: resolve(ROOT, env.JOB_BOT_BACKUP_DIR || 'data/backups'),
     keep,
     date,
     pgDump: [pgDump],
-    host: env.PGHOST || '127.0.0.1',
-    port: env.PGPORT || '5432',
-    user: env.PGUSER || 'postgres',
+    host: env.PGHOST || url?.hostname.replace(/^\[|\]$/g, '') || '127.0.0.1',
+    port: env.PGPORT || url?.port || '5432',
+    user: env.PGUSER || part(url?.username) || 'postgres',
+    ...(password ? { password } : {}),
   };
 }
 
@@ -106,6 +116,7 @@ export async function backup(o: BackupOptions): Promise<string[]> {
   const [cmd, ...pre] = o.pgDump;
   const child = spawn(cmd, [...pre, '-h', o.host, '-p', o.port, '-U', o.user, '--no-owner', o.db], {
     stdio: ['ignore', 'pipe', 'pipe'],
+    env: o.password ? { ...process.env, PGPASSWORD: o.password } : process.env,
     windowsHide: true,
   });
   let stderr = '';
