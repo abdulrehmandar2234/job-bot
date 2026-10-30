@@ -1,3 +1,4 @@
+import { parsePayRange } from '../salary.ts';
 import { HttpError, getText, sleep } from './http.ts';
 import { config } from '../config.ts';
 import { partial, type Fetched, type RawJob } from './index.ts';
@@ -99,6 +100,9 @@ export async function linkedin(): Promise<Fetched> {
       html.match(/show-more-less-html__markup[^>]*>([\s\S]*?)<\/div>\s*<button/)?.[1] ??
       html.match(/description__text[^>]*>([\s\S]*?)<\/section>/)?.[1] ??
       '';
+    // The pay range the company entered sits in its own box ("Base pay range"), not in the description.
+    // Its wrapper is "compensation__salary-range"; the amount is in the element whose class ends in "compensation__salary".
+    const pay = html.match(/compensation__salary"[^>]*>([^<]+)</)?.[1];
     out.push({
       id: `linkedin:${c.id}`,
       source: 'linkedin',
@@ -108,6 +112,7 @@ export async function linkedin(): Promise<Fetched> {
       url: `https://www.linkedin.com/jobs/view/${c.id}/`,
       description: strip(markup),
       posted_at: c.date ? new Date(`${c.date}T00:00:00Z`).toISOString() : null,
+      salary: parsePayRange(pay),
     });
     await sleep(1200);
   }

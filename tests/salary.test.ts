@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseSalary, rowSalary, structuredSalary } from '../src/salary.ts';
+import { parsePayRange, parseSalary, rowSalary, structuredSalary } from '../src/salary.ts';
 import type { Salary } from '../src/types.ts';
 
 const S = (min: number | null, max: number | null, currency: Salary['currency'], period: Salary['period']): Salary => ({
@@ -105,5 +105,36 @@ describe('rowSalary', () => {
   it('rebuilds a stored salary, and is null when there is none', () => {
     assert.deepEqual(rowSalary({ salary_min: 1, salary_max: 2, salary_currency: 'AED', salary_period: 'month' }), S(1, 2, 'AED', 'month'));
     assert.equal(rowSalary({ salary_min: null, salary_max: null, salary_currency: null, salary_period: null }), null);
+  });
+});
+
+describe('parsePayRange (a job site\'s own pay field, e.g. LinkedIn "Base pay range")', () => {
+  const pay = (min: number | null, max: number | null, currency: Salary['currency'], period: Salary['period']): Salary => ({
+    min,
+    max,
+    currency,
+    period,
+  });
+
+  it('reads both ends with currency, decimals, K and period, taking the amounts as given', () => {
+    assert.deepEqual(parsePayRange('$50.00/mo - $100.00/mo'), pay(50, 100, 'USD', 'month'));
+    assert.deepEqual(parsePayRange('  $120,000.00/yr - $150,000.00/yr '), pay(120000, 150000, 'USD', 'year'));
+    assert.deepEqual(parsePayRange('€60K/yr - €80K/yr'), pay(60000, 80000, 'EUR', 'year'));
+    assert.deepEqual(parsePayRange('$40.00/hr - $55.00/hr'), pay(40, 55, 'USD', 'hour'));
+    assert.deepEqual(parsePayRange('SAR 15,000.00/mo - SAR 20,000.00/mo'), pay(15000, 20000, 'SAR', 'month'));
+    assert.deepEqual(parsePayRange('AED 25,000.00/mo'), pay(25000, 25000, 'AED', 'month'));
+    assert.deepEqual(parsePayRange('£45,000.00/yr'), pay(45000, 45000, 'GBP', 'year'));
+  });
+
+  it('returns null for nothing, unknown currencies, or ends that disagree', () => {
+    for (const t of [null, undefined, '', 'Competitive', 'CHF 9,000/mo', '$5,000/mo - €6,000/mo', '$50/hr - $9,000/mo'])
+      assert.equal(parsePayRange(t), null, String(t));
+  });
+});
+
+describe('parseSalary: a range with a period after each end', () => {
+  it('"$120,000/yr - $150,000/yr" reads both ends', () => {
+    assert.deepEqual(parseSalary('Salary: $120,000/yr - $150,000/yr'), { min: 120000, max: 150000, currency: 'USD', period: 'year' });
+    assert.deepEqual(parseSalary('Pay: AED 20,000/month - AED 25,000/month'), { min: 20000, max: 25000, currency: 'AED', period: 'month' });
   });
 });
