@@ -78,3 +78,31 @@ describe('child processes', () => {
     for (const f of starters) assert.match(readFileSync(join(ROOT, f), 'utf8'), /windowsHide: true/, f);
   });
 });
+
+describe('setup docs', () => {
+  const setup = readFileSync(join(ROOT, 'docs', 'SETUP.md'), 'utf8');
+
+  it('cover macOS, Linux and Windows: install, scheduler and notifier', () => {
+    for (const heading of [
+      '### macOS',
+      '### Linux',
+      '### Windows',
+      '### macOS: launchd',
+      '### Linux: a systemd user timer',
+      '### Windows: Task Scheduler',
+    ])
+      assert.ok(setup.includes(`\n${heading}`), heading);
+    for (const text of ['Register-ScheduledTask', 'schtasks /Create', 'OnCalendar=', 'Persistent=true', 'notify-send', 'schedule:print'])
+      assert.ok(setup.includes(text), text);
+  });
+
+  it('say how to install the Chrome headless shell, like the setup wizard', () => {
+    assert.match(setup, /npx playwright-core install chromium-headless-shell/);
+  });
+
+  it('use the same scheduler lines as `bot schedule:print`', () => {
+    assert.ok(setup.includes('ExecStart="/usr/bin/node" --no-warnings --env-file-if-exists=.env src/cli.ts daily'));
+    assert.ok(setup.includes("-Argument '--no-warnings --env-file-if-exists=.env src/cli.ts daily'"));
+    assert.ok(setup.includes('<string>/bin/zsh</string><string>/Users/<you>/job-bot/scripts/daily-fetch.sh</string>'));
+  });
+});

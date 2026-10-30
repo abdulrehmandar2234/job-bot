@@ -1,6 +1,6 @@
 # Setting up job-bot
 
-This guide takes you from a fresh Mac to a running job-bot: the bot CLI, the dashboard, the daily fetch and the Chrome extension. It assumes you are a developer who has not seen the project before. Read [README.md](../README.md) for what the bot does and how it works; this file is only about installing and configuring it.
+This guide takes you from a fresh computer (macOS, Linux or Windows) to a running job-bot: the bot CLI, the dashboard, the daily fetch and the Chrome extension. It assumes you are a developer who has not seen the project before. Read [README.md](../README.md) for what the bot does and how it works; this file is only about installing and configuring it.
 
 job-bot **never applies on your behalf**. It finds, filters, scores and prepares (CV, cover letter, form answers). You review everything and submit every application yourself.
 
@@ -15,27 +15,28 @@ Contents:
 7. [Configuration reference: `config.json`](#7-configuration-reference-configjson)
 8. [Choosing an AI provider](#8-choosing-an-ai-provider)
 9. [First run](#9-first-run)
-10. [The daily fetch (launchd)](#10-the-daily-fetch-launchd)
+10. [The daily fetch (launchd, systemd or cron, Task Scheduler)](#10-the-daily-fetch-launchd-systemd-or-cron-task-scheduler)
 11. [The Chrome extension](#11-the-chrome-extension)
 12. [Updating](#12-updating)
 13. [Troubleshooting](#13-troubleshooting)
-14. [Privacy: what stays on your Mac](#14-privacy-what-stays-on-your-mac)
+14. [Privacy: what stays on your computer](#14-privacy-what-stays-on-your-computer)
 
 ---
 
 ## 1. Prerequisites
 
-| What                                     | Required?                           | Why                                                                                                                                      | Check                                  |
-| ---------------------------------------- | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
-| **macOS**                                | for the daily job and notifications | The daily fetch uses launchd, notifications use `osascript`. The CLI and dashboard also run on Linux, but this guide is for macOS.       |                                        |
-| **Node.js 24 or newer**                  | yes                                 | The bot runs its TypeScript directly with Node (no build step); `package.json` has `"engines": { "node": ">=24" }`.                      | `node --version`                       |
-| **PostgreSQL** (15 or newer; CI uses 18) | yes                                 | One local database, `job_bot`, shared by the bot and the dashboard.                                                                      | `psql --version`                       |
-| **Google Chrome**                        | yes, for CV and letter PDFs         | PDFs are rendered by your installed Chrome through `playwright-core` (no bundled browser is downloaded).                                 | `ls "/Applications/Google Chrome.app"` |
-| **Git**                                  | yes                                 | To clone and update.                                                                                                                     | `git --version`                        |
-| **Claude Code CLI**, signed in           | optional                            | The default AI provider. Without it, use one API key instead (section 8), or turn the AI off.                                            | `which claude`                         |
-| **terminal-notifier**                    | optional                            | Makes the "strong match" notification clickable (it opens the job on the dashboard). Without it, `osascript` shows a plain notification. | `which terminal-notifier`              |
+job-bot runs on **macOS, Linux and Windows 10/11**. macOS is the main platform (the author's), so its steps come first; Linux and Windows differ only in how you install the tools, the scheduler for the daily fetch (section 10) and the notifier. On Windows, use **PowerShell** for the commands in this guide.
 
-Install what is missing:
+| What                                     | Required?                   | Why                                                                                                                                                                                          | Check                                        |
+| ---------------------------------------- | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| **Node.js 24 or newer**                  | yes                         | The bot runs its TypeScript directly with Node (no build step); `package.json` has `"engines": { "node": ">=24" }`.                                                                          | `node --version`                             |
+| **PostgreSQL** (15 or newer; CI uses 18) | yes                         | One local database, `job_bot`, shared by the bot and the dashboard. Its `pg_dump` makes the daily backup.                                                                                    | `pg_dump --version`                          |
+| **Chrome headless shell**                | yes, for CV and letter PDFs | PDFs are printed by Playwright's `chrome-headless-shell`, installed once with `npx playwright-core install chromium-headless-shell` (any OS). Without it, an installed Chrome is used.       | `npm run bot -- cv:default`                  |
+| **Git**                                  | yes                         | To clone and update. On Windows, [Git for Windows](https://git-scm.com/download/win), whose `sh` also runs the pre-commit hook.                                                              | `git --version`                              |
+| **Claude Code CLI**, signed in           | optional                    | The default AI provider. Without it, use one API key instead (section 8), or turn the AI off.                                                                                                | `which claude` (Windows: `where.exe claude`) |
+| **A notifier**                           | optional                    | Strong-match and daily-fetch notifications. macOS: built in (`osascript`); `terminal-notifier` makes them clickable. Linux: `notify-send` (libnotify). Windows: built in (PowerShell toast). | see below                                    |
+
+### macOS
 
 ```bash
 # Node 24 (Homebrew; nvm or fnm also work for the CLI, but see the launchd note in section 10)
@@ -44,37 +45,94 @@ brew install node@24        # follow brew's hint to put it on your PATH
 # PostgreSQL: either DBngin (a free menu-bar app, https://dbngin.com) or Homebrew
 brew install postgresql@17 && brew services start postgresql@17
 
-# Optional
+# Optional: clickable notifications (they open the job on the dashboard)
 brew install terminal-notifier
 ```
 
-**DBngin:** create a PostgreSQL server (15 or newer) on port `5432` and start it. Its default superuser is `postgres` with no password, which is what the examples here use. Its command-line tools live in `/Users/Shared/DBngin/postgresql/<version>/bin/` (add that folder to your PATH, or call `createdb` with its full path).
+**DBngin:** create a PostgreSQL server (15 or newer) on port `5432` and start it. Its default superuser is `postgres` with no password, which is what the examples here use. Its command-line tools live in `/Users/Shared/DBngin/postgresql/<version>/bin/` (add that folder to your PATH, or call `createdb` with its full path; the backup finds its `pg_dump` by itself).
 
-**Homebrew PostgreSQL:** its superuser is your macOS user name, not `postgres`. The test-database script (`scripts/create-test-db.mjs`) and the backup script (`scripts/backup-db.sh`) connect as `postgres`, so create that role once:
+**Homebrew PostgreSQL:** its superuser is your macOS user name, not `postgres`. The test-database script (`scripts/create-test-db.mjs`) and the examples here connect as `postgres`, so create that role once:
 
 ```bash
 createuser -s postgres
 ```
 
-**Claude Code CLI:** install it as described in the [Claude Code docs](https://docs.claude.com/en/docs/claude-code), run `claude` once and sign in. Then note its path for the setup wizard: `which claude` (the native installer puts it in `~/.local/bin/claude`).
+### Linux
+
+Debian and Ubuntu shown; other distributions have the same packages under similar names.
+
+```bash
+# Node 24: from NodeSource (or nvm / fnm; see the scheduler note in section 10)
+curl -fsSL https://deb.nodesource.com/setup_24.x | sudo -E bash -
+sudo apt-get install -y nodejs git
+
+# PostgreSQL, and notify-send for notifications
+sudo apt-get install -y postgresql libnotify-bin
+```
+
+The packaged PostgreSQL has a `postgres` superuser that needs a **password** over TCP (`127.0.0.1`), which is how job-bot connects. Give it one and put it in the connection strings (section 3):
+
+```bash
+sudo -u postgres psql -c "ALTER USER postgres PASSWORD 'choose-one'"
+# then: DATABASE_URL=postgres://postgres:choose-one@127.0.0.1:5432/job_bot
+```
+
+On a single-user machine you can instead allow local connections without a password: in `pg_hba.conf` (`sudo -u postgres psql -c 'SHOW hba_file'`) change the method of the `127.0.0.1/32` and `::1/128` lines to `trust`, then `sudo systemctl reload postgresql`. The test-database script and the test suites connect as `postgres` without a password, so developers need this.
+
+### Windows
+
+In PowerShell:
+
+```powershell
+winget install OpenJS.NodeJS.LTS        # Node 24 or newer (check with node --version; else https://nodejs.org)
+winget install Git.Git
+winget install PostgreSQL.PostgreSQL.17 # or the installer from https://www.postgresql.org/download/windows/; it asks for a postgres password
+```
+
+Open a new PowerShell window afterwards, so the new PATH is used. The PostgreSQL tools are in `C:\Program Files\PostgreSQL\17\bin` (not on PATH by default; the backup finds `pg_dump` there by itself). Use the password you chose in the connection strings: `DATABASE_URL=postgres://postgres:<password>@127.0.0.1:5432/job_bot`. As on Linux, the test suites need passwordless local connections (`trust` in `C:\Program Files\PostgreSQL\17\data\pg_hba.conf`, then restart the `postgresql-x64-17` service).
+
+Notifications need nothing extra: the bot shows a Windows toast through the built-in Windows PowerShell.
+
+### Claude Code CLI (any OS)
+
+Install it as described in the [Claude Code docs](https://docs.claude.com/en/docs/claude-code), run `claude` once and sign in. Then note its path for the setup wizard: `which claude` on macOS and Linux (the native installer puts it in `~/.local/bin/claude`), `where.exe claude` on Windows. On Windows use the native installer's `claude.exe` (`%USERPROFILE%\.local\bin\claude.exe`): an npm-installed `claude.cmd` cannot be started without a shell, which the bot never uses.
 
 ## 2. Get the code and install
+
+macOS and Linux:
 
 ```bash
 git clone <this repository> ~/job-bot
 cd ~/job-bot
 npm install                 # the bot; also points git at .githooks/ (Biome pre-commit check)
 npm --prefix web install    # the dashboard (its own package.json and lockfile)
+npx playwright-core install chromium-headless-shell   # the Chrome that prints CV and letter PDFs, once
 ```
 
-Keep the folder **outside `~/Desktop`, `~/Documents` and `~/Downloads`** if you want the daily fetch: macOS privacy protection does not let a launchd job read those folders.
+Windows (PowerShell):
+
+```powershell
+git clone <this repository> $HOME\job-bot
+cd $HOME\job-bot
+npm install
+npm --prefix web install
+npx playwright-core install chromium-headless-shell
+```
+
+On macOS, keep the folder **outside `~/Desktop`, `~/Documents` and `~/Downloads`** if you want the daily fetch: macOS privacy protection does not let a launchd job read those folders. Linux and Windows have no such rule.
+
+The repository has a `.gitattributes` that keeps LF line endings on every OS, so Git for Windows' `core.autocrlf` does not break Biome's check or the pre-commit hook. The hook (`.githooks/pre-commit`) is a plain `sh` script; Git for Windows runs it with its own `sh`.
 
 ## 3. Create the database and the env files
 
 ### The database
 
 ```bash
-createdb -h 127.0.0.1 -U postgres job_bot
+createdb -h 127.0.0.1 -U postgres job_bot     # macOS, Linux (add -W to be asked for a password)
+```
+
+```powershell
+& "C:\Program Files\PostgreSQL\17\bin\createdb.exe" -h 127.0.0.1 -U postgres job_bot   # Windows: asks for the password
 ```
 
 You do not create any tables. Every bot command that uses the database first applies the SQL files in `src/migrations/` that the database has not run yet (see [Updating](#12-updating)).
@@ -84,13 +142,14 @@ You do not create any tables. Every bot command that uses the database first app
 The bot reads `.env` in the project root (`npm run bot` uses `node --env-file-if-exists=.env`). The dashboard's background tasks start the bot the same way, so they read the same file. Start from the example:
 
 ```bash
-cp .env.example .env
+cp .env.example .env              # Windows PowerShell: Copy-Item .env.example .env
 ```
 
-Then add `DATABASE_URL` and whatever else you need:
+Then add `DATABASE_URL` and whatever else you need (with a password on Linux and Windows, see section 1):
 
 ```bash
 DATABASE_URL=postgres://postgres@127.0.0.1:5432/job_bot
+# or: DATABASE_URL=postgres://postgres:<password>@127.0.0.1:5432/job_bot
 ```
 
 Every variable the bot reads:
@@ -107,10 +166,10 @@ Every variable the bot reads:
 | `JOB_BOT_MASTER`                     | no                                                                        | Use another file instead of `cv/master.json` (same caveat).                                                                                                                                                  |                                                                |
 | `JOB_BOT_CHROME`                     | no                                                                        | Chrome executable; wins over `config.json` `chromePath`.                                                                                                                                                     | `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome` |
 | `JOB_BOT_CLAUDE`                     | no (tests)                                                                | Another executable in place of `ai.claudePath`. Tests point it at `tests/fixtures/fake-claude.mjs`.                                                                                                          |                                                                |
-| `JOB_BOT_NOTIFY`                     | no                                                                        | `off` disables the strong-match notifications; any other value is a program that gets the title, message and URL as arguments.                                                                               | `off`                                                          |
+| `JOB_BOT_NOTIFY`                     | no                                                                        | `off` disables the notifications (strong matches, daily fetch); any other value is a program that gets the title, message and URL as arguments, on any OS.                                                   | `off`                                                          |
 | `JOB_BOT_HTTP_CACHE`                 | no                                                                        | Folder for the HTTP cache (ETag / Last-Modified). Default `data/http-cache`.                                                                                                                                 |                                                                |
 
-The backup script (`scripts/backup-db.sh`, run by the daily fetch) is a shell script and does **not** read `.env`. It takes `PGHOST` / `PGPORT` / `PGUSER` (defaults `127.0.0.1`, `5432`, `postgres`) and `JOB_BOT_BACKUP_DB` / `JOB_BOT_BACKUP_DIR` / `JOB_BOT_BACKUP_KEEP` (defaults `job_bot`, `data/backups`, `14`) from the environment it is started in. `BOT_TEST_DB` and `WEB_TEST_DB` are only for the test suites (see `CLAUDE.md`).
+The backup (`npm run bot -- backup`, run by the daily fetch) connects with `DATABASE_URL` (database, host, port, user and password); `PGHOST` / `PGPORT` / `PGUSER` / `PGPASSWORD` override its parts. `JOB_BOT_BACKUP_DB` / `JOB_BOT_BACKUP_DIR` / `JOB_BOT_BACKUP_KEEP` (defaults: the database of `DATABASE_URL`, else `job_bot`; `data/backups`; `14`) and `JOB_BOT_PG_DUMP` (the `pg_dump` program, if it is not on PATH or in the usual install folder) change the rest. `BOT_TEST_DB` and `WEB_TEST_DB` are only for the test suites (see `CLAUDE.md`).
 
 ### `web/.env.local` (the dashboard)
 
@@ -214,7 +273,7 @@ Fill in `cv/master.json` first: the name, email, phone and LinkedIn defaults com
 | 14d | Remote regions that exclude you (regular expression)                                                                                        | `remote.deny`                                               | The default is the current list without your own country.                                                                                                                       |
 | 15  | LinkedIn onsite search locations, comma-separated                                                                                           | `linkedin.locations`                                        | As you would type them in LinkedIn's location box. Default: the country names.                                                                                                  |
 | 16  | Claude CLI or API key (claude-cli / api)                                                                                                    | `ai.provider`                                               | See section 8.                                                                                                                                                                  |
-| 16a | (claude-cli) Path to the Claude Code CLI                                                                                                    | `ai.claudePath`                                             | The output of `which claude`.                                                                                                                                                   |
+| 16a | (claude-cli) Path to the Claude Code CLI                                                                                                    | `ai.claudePath`                                             | `which claude` (Windows: `where.exe claude`).                                                                                                                                   |
 | 16b | (api) Which provider (`auto`, `openai`, `deepseek`, `anthropic`, `gemini`, `groq`, `openrouter`, `mistral`, `together`, `ollama`, `custom`) | `ai.api.preset`                                             | `auto` removes the preset, so it is detected from the key. The wizard **never asks for the key**: it reminds you to put `AI_API_KEY=...` in `.env`.                             |
 | 16c | (custom only) base URL, model for scoring, model for writing                                                                                | `ai.api.baseUrl`, `ai.api.scoreModel`, `ai.api.letterModel` | An empty base URL means `AI_BASE_URL` in `.env`.                                                                                                                                |
 | 17  | File name of your CV PDF                                                                                                                    | `cvFileName`                                                | Letters, digits, `_`, `.`, `-`, ending in `.pdf`. Default `<your_name>_resume.pdf`.                                                                                             |
@@ -360,7 +419,7 @@ Regex tips for `roleInclude` / `roleExclude` / `match` / `allow` / `deny`: they 
 | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
 | `ai.enabled`               | boolean                                                                                                                        | `true`                          | `false` makes letters and follow-ups use the templates, and turns off the CV summary, letter feedback and interview prep. It does **not** stop the fit review (`ai:score`, also run by the daily fetch) or form answers: those still call the provider and fail without one. | `false` only if you have no AI at all.                               |
 | `ai.provider`              | `claude-cli` \| `api` (older: `openai`, `deepseek`)                                                                            | missing = `claude-cli`          | Who answers (section 8).                                                                                                                                                                                                                                                     |                                                                      |
-| `ai.claudePath`            | text                                                                                                                           |                                 | The Claude Code CLI executable. Required even with `api` (kept for switching back).                                                                                                                                                                                          | `which claude`                                                       |
+| `ai.claudePath`            | text                                                                                                                           |                                 | The Claude Code CLI executable. Required even with `api` (kept for switching back).                                                                                                                                                                                          | `which claude` (Windows: `where.exe claude`)                         |
 | `ai.scoreModel`            | text                                                                                                                           | `haiku`                         | Claude CLI model for the fit review.                                                                                                                                                                                                                                         | `haiku` (fast, cheap)                                                |
 | `ai.letterModel`           | text                                                                                                                           | `sonnet`                        | Claude CLI model for letters, CV summaries, answers, interview prep and follow-ups.                                                                                                                                                                                          | `sonnet`                                                             |
 | `ai.api.preset`            | `openai` \| `deepseek` \| `anthropic` \| `gemini` \| `groq` \| `openrouter` \| `mistral` \| `together` \| `ollama` \| `custom` | missing = detected from the key | The API provider.                                                                                                                                                                                                                                                            | Set it for DeepSeek, Mistral, Together, Ollama and custom endpoints. |
@@ -371,15 +430,15 @@ Regex tips for `roleInclude` / `roleExclude` / `match` / `allow` / `deny`: they 
 | `ai.openai`, `ai.deepseek` | `{ scoreModel, letterModel, baseUrl }`, optional                                                                               |                                 | Older provider sections, still read for `provider: "openai"` / `"deepseek"`. The wizard moves their models into `ai.api`.                                                                                                                                                    |                                                                      |
 | `ai.maxScorePerRun`        | count                                                                                                                          | `80`                            | Most jobs one `ai:score` run reviews (best keyword score first). `--limit` overrides it.                                                                                                                                                                                     | 30–100: caps time and cost per day.                                  |
 | `ai.concurrency`           | positive integer                                                                                                               | `2`                             | AI reviews in parallel.                                                                                                                                                                                                                                                      | 1–4. Higher is faster but hits rate limits sooner.                   |
-| `ai.alertStrong`           | boolean, optional                                                                                                              | missing = `true`                | macOS notification when a job gets the `strong` verdict (once per job; grouped above three).                                                                                                                                                                                 | `false` to stay quiet.                                               |
+| `ai.alertStrong`           | boolean, optional                                                                                                              | missing = `true`                | Desktop notification (macOS, Linux, Windows) when a job gets the `strong` verdict (once per job; grouped above three).                                                                                                                                                       | `false` to stay quiet.                                               |
 
 ### CV output
 
-| Key              | Type    | Default                                                        | What it does                                                                                                        | Sensible value / when to change                                         |
-| ---------------- | ------- | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| `chromePath`     | text    | `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome` | Chrome executable for CV and letter PDFs. `JOB_BOT_CHROME` wins.                                                    | Change only if Chrome is elsewhere.                                     |
-| `cvFileName`     | text    | the author's name                                              | File name of every CV PDF (`cv/default/<cvFileName>`, `cv/versions/<id>/<cvFileName>`); recruiters see it.          | `jane_doe_resume.pdf`                                                   |
-| `autoCvVersions` | boolean | `false`                                                        | `true`: `prepare` picks the per-stack CV version a job fits. `false`: always the default CV unless you pass `--cv`. | Keep `false` until you have rewritten `src/cv/profiles.ts` for your CV. |
+| Key              | Type    | Default           | What it does                                                                                                                                                                                                                        | Sensible value / when to change                                         |
+| ---------------- | ------- | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `chromePath`     | text    | `auto`            | Chrome for CV and letter PDFs. `auto`: Playwright's headless shell (`npx playwright-core install chromium-headless-shell`), else an installed Google Chrome or Chromium of this OS. A path: that executable. `JOB_BOT_CHROME` wins. | Keep `auto`. A path only for a Chrome elsewhere.                        |
+| `cvFileName`     | text    | the author's name | File name of every CV PDF (`cv/default/<cvFileName>`, `cv/versions/<id>/<cvFileName>`); recruiters see it.                                                                                                                          | `jane_doe_resume.pdf`                                                   |
+| `autoCvVersions` | boolean | `false`           | `true`: `prepare` picks the per-stack CV version a job fits. `false`: always the default CV unless you pass `--cv`.                                                                                                                 | Keep `false` until you have rewritten `src/cv/profiles.ts` for your CV. |
 
 ## 8. Choosing an AI provider
 
@@ -453,11 +512,17 @@ On the dashboard: open a job, **Prepare CV**, **Write letter**, check the CV key
 
 The dashboard listens only on `127.0.0.1:3100` and refuses requests whose Host is not localhost. It has no login, so never expose it.
 
-## 10. The daily fetch (launchd)
+## 10. The daily fetch (launchd, systemd or cron, Task Scheduler)
 
-`scripts/daily-fetch.sh` runs `fetch`, then `check:open --limit 100` (closed postings become `expired`), then `ai:score`, shows a notification, and backs up the database to `data/backups/` (newest 14 kept). It logs to `data/fetch.log`.
+`npm run bot -- daily` is the morning run, the same on every OS: `fetch`, then `check:open --limit 100` (closed postings become `expired`) and `ai:score`, a notification with the result, and a backup of the database to `data/backups/` (newest 14 kept). It logs every step to `data/fetch.log`. A failed `check:open`, AI review or backup is noted in the log and does not stop the rest; a failed fetch skips the AI review and says so in the notification.
 
-Save this as `~/Library/LaunchAgents/com.<you>.job-bot.fetch.plist`, replacing `<you>` with your macOS user name and the path with your clone's:
+Your OS's scheduler starts it at 9:00. `npm run bot -- schedule:print` prints the setup for your OS with the paths of your clone and your Node filled in (`--os macos|linux|windows` for another OS); the sections below show the same.
+
+Only one fetch runs at a time: if the dashboard's **Fetch new jobs** is running, the daily fetch is skipped.
+
+### macOS: launchd
+
+launchd runs `scripts/daily-fetch.sh`, a small zsh wrapper that gives launchd's bare environment a PATH and then runs `bot daily`. Save this as `~/Library/LaunchAgents/com.<you>.job-bot.fetch.plist`, replacing `<you>` with your macOS user name and the path with your clone's:
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -465,9 +530,9 @@ Save this as `~/Library/LaunchAgents/com.<you>.job-bot.fetch.plist`, replacing `
 <plist version="1.0">
 <dict>
   <key>Label</key><string>com.<you>.job-bot.fetch</string>
-  <key>ProgramArguments</key><array><string>/Users/<you>/job-bot/scripts/daily-fetch.sh</string></array>
+  <key>ProgramArguments</key><array><string>/bin/zsh</string><string>/Users/<you>/job-bot/scripts/daily-fetch.sh</string></array>
   <key>StartCalendarInterval</key><dict><key>Hour</key><integer>9</integer><key>Minute</key><integer>0</integer></dict>
-  <key>StandardErrorPath</key><string>/Users/<you>/job-bot/data/launchd.err</string>
+  <key>StandardErrorPath</key><string>/Users/<you>/job-bot/data/launchd.err.log</string>
 </dict>
 </plist>
 ```
@@ -483,11 +548,80 @@ tail -f ~/job-bot/data/fetch.log
 
 Turn it off with `launchctl bootout gui/$(id -u)/com.<you>.job-bot.fetch`.
 
-Notes:
-
-- **PATH:** the script sets `PATH` to `~/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin`. `node` (and `claude`, `pg_dump` for the backup) must be in one of those folders. A Node installed only through nvm or fnm is not found: install Node with Homebrew too, or symlink it into `/usr/local/bin`.
+- **PATH:** the wrapper sets `PATH` to `~/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin`. `node` must be in one of those folders (and `claude`, unless `ai.claudePath` is a full path). A Node installed only through nvm or fnm is not found: install Node with Homebrew too, or symlink it into `/usr/local/bin`. Without `node`, the wrapper logs that and shows a notification.
 - **Sleep:** if the Mac is asleep at 9:00, launchd runs the job when it wakes. If it is **shut down** at 9:00, the run is skipped (see Troubleshooting).
-- Only one fetch runs at a time: if the dashboard's **Fetch new jobs** is running, the script's fetch is skipped.
+
+### Linux: a systemd user timer (or cron)
+
+A systemd user timer with `Persistent=true` also catches up a run missed while the computer was off. Save two files (replace the paths with your clone's and `which node`):
+
+```ini
+# ~/.config/systemd/user/job-bot-fetch.service
+[Unit]
+Description=job-bot daily fetch
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/<you>/job-bot
+ExecStart="/usr/bin/node" --no-warnings --env-file-if-exists=.env src/cli.ts daily
+```
+
+```ini
+# ~/.config/systemd/user/job-bot-fetch.timer
+[Unit]
+Description=job-bot daily fetch at 9:00
+
+[Timer]
+OnCalendar=*-*-* 09:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+```
+
+```bash
+systemctl --user daemon-reload && systemctl --user enable --now job-bot-fetch.timer
+systemctl --user start job-bot-fetch.service      # run it once now
+systemctl --user list-timers job-bot-fetch.timer  # next run
+tail -f ~/job-bot/data/fetch.log
+```
+
+Turn it off with `systemctl --user disable --now job-bot-fetch.timer`. User timers run while you are logged in; to run them without a login session too, `sudo loginctl enable-linger $USER`.
+
+**Or cron** (`crontab -e`). Cron skips a run missed while the computer was off, and needs the session bus address for `notify-send` to reach your desktop (`id -u` gives the number):
+
+```bash
+DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
+0 9 * * * cd '/home/<you>/job-bot' && '/usr/bin/node' --no-warnings --env-file-if-exists=.env src/cli.ts daily
+```
+
+- **PATH:** `bot daily` puts `~/.local/bin` (where the Claude CLI installs itself) first on the PATH of each step. Use Node's full path in the unit or crontab: with nvm or fnm that is the version's own folder, so update the line after you change Node versions (or run `schedule:print` again).
+- **Notifications:** `notify-send` (package `libnotify-bin` on Debian/Ubuntu, `libnotify` elsewhere). Without it, the result is only in `data/fetch.log`.
+
+### Windows: Task Scheduler
+
+In PowerShell, from your clone (`Get-Command node` shows Node's path). `-StartWhenAvailable` runs a missed 9:00 as soon as the computer is on again:
+
+```powershell
+$action = New-ScheduledTaskAction -Execute 'C:\Program Files\nodejs\node.exe' -Argument '--no-warnings --env-file-if-exists=.env src/cli.ts daily' -WorkingDirectory "$HOME\job-bot"
+$trigger = New-ScheduledTaskTrigger -Daily -At 9am
+$settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Hours 2)
+Register-ScheduledTask -TaskName 'job-bot daily fetch' -Action $action -Trigger $trigger -Settings $settings -Force
+Start-ScheduledTask -TaskName 'job-bot daily fetch'   # run it once now
+Get-Content "$HOME\job-bot\data\fetch.log" -Wait
+```
+
+Or the same with `schtasks` in `cmd.exe` (no catch-up of a missed run; `bot daily` finds its folder and `.env` by itself, as `schtasks` cannot set a working folder):
+
+```bat
+schtasks /Create /F /SC DAILY /ST 09:00 /TN "job-bot daily fetch" /TR "\"C:\Program Files\nodejs\node.exe\" --no-warnings \"C:\Users\<you>\job-bot\src\cli.ts\" daily"
+schtasks /Run /TN "job-bot daily fetch"
+```
+
+Turn it off with `Unregister-ScheduledTask -TaskName 'job-bot daily fetch'` (or `schtasks /Delete /TN "job-bot daily fetch"`).
+
+- The task runs only while you are logged in, so the toast can show. A console window is open while it runs (a minute or two); that is Task Scheduler starting `node.exe`.
+- **Notifications:** a Windows toast through Windows PowerShell (clicking it opens the dashboard), or a tray balloon if toasts are unavailable. Turn them off with `JOB_BOT_NOTIFY=off` in `.env`.
 
 ## 11. The Chrome extension
 
@@ -508,6 +642,7 @@ The older Bayt bookmarklet still works: it is under "Add jobs from Bayt" on the 
 cd ~/job-bot
 git pull
 npm install && npm --prefix web install   # when package.json or the lockfiles changed
+npx playwright-core install chromium-headless-shell   # when playwright-core was updated (PDFs need its matching shell)
 npm run bot -- stats                      # any database command applies new migrations
 ```
 
@@ -519,15 +654,25 @@ If you replaced `config.json` or `cv/master.json` with your own, `git pull` may 
 
 ## 13. Troubleshooting
 
-**The dashboard does not load (http://localhost:3100).** It only runs while `npm run web` is running, and nothing starts it after a reboot: start it again. It binds to `127.0.0.1`, so use `http://localhost:3100` or `http://127.0.0.1:3100` on the same Mac; it is not reachable from your phone or another computer, and another Host header gets "job-bot only answers on localhost". If the page shows a database error, check that Postgres is running and `web/.env.local` has `DATABASE_URL`. A "column does not exist" error after an update means the migrations have not run yet: run `npm run bot -- stats`.
+**The dashboard does not load (http://localhost:3100).** It only runs while `npm run web` is running, and nothing starts it after a reboot: start it again. It binds to `127.0.0.1`, so use `http://localhost:3100` or `http://127.0.0.1:3100` on the same computer; it is not reachable from your phone or another computer, and another Host header gets "job-bot only answers on localhost". If the page shows a database error, check that Postgres is running and `web/.env.local` has `DATABASE_URL`. A "column does not exist" error after an update means the migrations have not run yet: run `npm run bot -- stats`.
 
-**The 9:00 fetch did not run.** launchd catches up a missed run when the Mac wakes from sleep, but not when it was shut down. Run it by hand: `launchctl kickstart gui/$(id -u)/com.<you>.job-bot.fetch`, or **Fetch new jobs** on the dashboard, or `npm run bot -- fetch && npm run bot -- ai:score`. To also run it at every login, add `<key>RunAtLoad</key><true/>` to the plist and bootstrap it again (bootout first). Check `data/fetch.log`: "Fetch failed — is PostgreSQL (DBngin) running?" means the database was down, and nothing in the log at all usually means the folder is under `~/Desktop` or `~/Documents`, or `node` was not on the script's PATH (see `data/launchd.err`).
+**The 9:00 fetch did not run.** Run it by hand any time: `npm run bot -- daily`, or **Fetch new jobs** on the dashboard. Then check `data/fetch.log`: "Fetch failed — is PostgreSQL running?" means the database was down.
+
+- **macOS:** launchd catches up a missed run when the Mac wakes from sleep, but not when it was shut down. Start it with `launchctl kickstart gui/$(id -u)/com.<you>.job-bot.fetch`. To also run it at every login, add `<key>RunAtLoad</key><true/>` to the plist and bootstrap it again (bootout first). Nothing in the log at all usually means the folder is under `~/Desktop` or `~/Documents`, or `node` was not on the wrapper's PATH (see `data/launchd.err.log`).
+- **Linux:** `systemctl --user status job-bot-fetch.service` and `journalctl --user -u job-bot-fetch` show the last run and its errors; `systemctl --user list-timers` the next one. A timer that never fires while you are logged out needs `loginctl enable-linger`. With cron, check that the crontab line uses Node's full path.
+- **Windows:** Task Scheduler (`taskschd.msc`) shows the task's **Last Run Result**; `Get-ScheduledTaskInfo -TaskName 'job-bot daily fetch'` shows it in PowerShell. A path with spaces in `schtasks /TR` needs the `\"` quoting shown in section 10.
 
 **LinkedIn returns 429.** LinkedIn throttles guest searches from your IP. The bot stops LinkedIn for that run and keeps what it had; the other sources are unaffected. It usually clears within a day. Make fewer requests: fewer `linkedin.keywords` or `locations`, `pagesPerSearch: 1`, or `linkedin.enabled: false` for a few days.
 
-**"AI review failed (is Claude signed in?)".** The Claude Code CLI is signed out or not at `ai.claudePath`. Run `claude` in a terminal and sign in (`/login`), check `which claude` against `config.json` `ai.claudePath`, then `npm run bot -- ai:score`. Fetching is not affected: the daily script only skips the review.
+**"AI review failed (is Claude signed in?)".** The Claude Code CLI is signed out or not at `ai.claudePath`. Run `claude` in a terminal and sign in (`/login`), check `which claude` (Windows: `where.exe claude`) against `config.json` `ai.claudePath`, then `npm run bot -- ai:score`. On Windows `ai.claudePath` must be a `claude.exe` (the native installer's), not an npm `claude.cmd`. Fetching is not affected: the daily run only skips the review.
 
-**Chrome path wrong (`cv:default`, Prepare CV or Download PDF fails to launch a browser).** Set `config.json` `chromePath` (or `JOB_BOT_CHROME`) to the executable inside the app bundle, not the `.app` folder: `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`. Check it with `ls "/Applications/Google Chrome.app/Contents/MacOS/"`.
+**No notifications.** Run `npm run bot -- daily` by hand: `data/fetch.log` gets a `notification:` line with the text, and the terminal shows `notification failed` or `no notifier on this system` when it could not be shown. macOS: allow notifications for Script Editor (osascript) or terminal-notifier in System Settings → Notifications. Linux: install `notify-send` (`libnotify-bin`); from cron it also needs `DBUS_SESSION_BUS_ADDRESS` (section 10). Windows: Focus assist / Do not disturb hides toasts; Settings → System → Notifications must allow Windows PowerShell. `JOB_BOT_NOTIFY=off` in `.env` turns them off on purpose.
+
+**The backup fails.** `npm run bot -- backup` shows why. "pg_dump not found": put PostgreSQL's `bin` folder on PATH or set `JOB_BOT_PG_DUMP` to `pg_dump`'s full path (`pg_dump.exe` on Windows). A password error: put the password in `DATABASE_URL` in `.env` (section 3). A "server version mismatch": use the `pg_dump` of the same (or a newer) PostgreSQL version as the server.
+
+**`npm test` or another npm script fails on Windows.** The npm scripts use no shell syntax (`npm test` runs `scripts/run-tests.mjs`), so they work in PowerShell and cmd.exe. The test suites themselves are developed on macOS and Linux: many tests start small POSIX shell scripts as fake programs, so on Windows only part of them run (CI runs that part on `windows-latest`, see `.github/workflows/test.yml`).
+
+**No Chrome found / Chrome fails to launch (`cv:default`, Prepare CV or Download PDF).** Install the headless shell once: `npx playwright-core install chromium-headless-shell` (it goes to `~/Library/Caches/ms-playwright` on macOS, `~/.cache/ms-playwright` on Linux, `%LOCALAPPDATA%\ms-playwright` on Windows). Or keep `chromePath: "auto"` with Google Chrome installed, or set `chromePath` (or `JOB_BOT_CHROME`) to a Chrome executable: on macOS the binary inside the app bundle, not the `.app` folder (`/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`); on Windows `C:\Program Files\Google\Chrome\Application\chrome.exe`; on Linux `/usr/bin/google-chrome`. On a minimal Linux, `npx playwright-core install-deps chromium-headless-shell` installs the system libraries it needs.
 
 **No jobs match.** Look at the reasons first: `npm run bot -- list --status filtered` or the **Filtered out** tab.
 
@@ -546,9 +691,9 @@ Then `npm run bot -- rescore` (no downloads). Also check that `companies`, `link
 
 **Tests fail after you replaced `config.json` or `cv/master.json`.** Some tests pin the original author's letters and filter results (`tests/fixtures/owner-golden.json`) against the repository's `config.json` and `cv/master.json`. That is expected with your own files; the tests are for developing the bot.
 
-## 14. Privacy: what stays on your Mac
+## 14. Privacy: what stays on your computer
 
-Everything runs locally: the database, the dashboard (127.0.0.1 only) and the CLI. What leaves your Mac:
+Everything runs locally: the database, the dashboard (127.0.0.1 only) and the CLI. What leaves your computer:
 
 - requests to job boards and ATS APIs (no personal data; LinkedIn is used as a guest);
 - the AI prompts, which contain your CV, profile and the job description: to Anthropic through the Claude CLI, or to the API provider you chose (nothing with a local Ollama);

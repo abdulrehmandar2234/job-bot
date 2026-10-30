@@ -31,11 +31,12 @@ Nothing planned right now. Ideas from real use go here.
 - **Split CLI:** one file per command in src/commands/; src/cli.ts is the registry.
 - **Versioned migrations:** src/migrate.ts and src/migrations/NNN_name.sql.
 - **HTTP retry and caching:** src/sources/http.ts (backoff with jitter, ETag / Last-Modified cache in data/http-cache).
-- **Database backups:** scripts/backup-db.sh (daily, keeps 14).
+- **Database backups:** `bot backup` (src/backup.ts: pg_dump + zlib, daily, keeps 14).
+- **Cross-platform:** macOS, Linux and Windows. `bot daily` (src/commands/daily.ts) is the scheduled run on every OS (launchd through scripts/daily-fetch.sh, systemd or cron, Task Scheduler; `bot schedule:print`), notifications per OS (src/notify.ts), npm scripts without shell syntax (scripts/run-tests.mjs).
 
 ### Quality and tooling
 
-- **CI:** .github/workflows/test.yml (Postgres service; lint, typecheck, backend and web suites).
+- **CI:** .github/workflows/test.yml (Ubuntu with a Postgres service: lint, typecheck, backend and web suites; Windows: lint, typecheck and the tests that need no database).
 - **Lint and format:** Biome (`biome.json`), `npm run lint` / `npm run format`, and a pre-commit hook in `.githooks/` that checks staged files.
 - **Coverage report:** `npm run test:coverage` and `npm run test:web:coverage`.
 - **Known test gaps closed:** job list and layout, `runBot`, CopyButton failure, the Bayt collector (web/tests).
