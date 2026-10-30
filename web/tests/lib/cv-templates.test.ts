@@ -48,6 +48,17 @@ describe('server helpers', () => {
     expect(lib.defaultTemplate()).toBe('classic');
   });
 
+  it('cvFileName and cvPath read cvFileName from the config file JOB_BOT_CONFIG names', () => {
+    writeFileSync(join(root, 'config.json'), JSON.stringify({ cvFileName: 'Root_CV.pdf' }));
+    expect(lib.cvFileName()).toBe('Root_CV.pdf'); // no override: config.json in BOT_ROOT
+    expect(lib.cvPath('default')).toBe(join(root, 'cv', 'default', 'Root_CV.pdf'));
+    const other = join(root, 'other-config.json');
+    writeFileSync(other, JSON.stringify({ cvFileName: 'Jane_Doe_CV.pdf' }));
+    process.env.JOB_BOT_CONFIG = other;
+    expect(lib.cvFileName()).toBe('Jane_Doe_CV.pdf');
+    expect(lib.cvPath('laravel-v1')).toBe(join(root, 'cv', 'versions', 'laravel-v1', 'Jane_Doe_CV.pdf'));
+  });
+
   it("versionInfo reads a version's template and feedback note; default, old versions and bad ids are classic", () => {
     const dir = (id: string, meta: object | string) => {
       mkdirSync(join(root, 'cv', 'versions', id), { recursive: true });

@@ -19,6 +19,7 @@ const commands: Record<string, () => Promise<Command>> = {
   'sponsors:update': async () => (await import('./commands/sponsors.ts')).sponsorsUpdate,
   fetch: async () => (await import('./commands/fetch.ts')).fetch,
   dedupe: async () => () => {}, // grouping itself runs after the command, see below
+  migrate: async () => () => {}, // migrations run before every DB command, see below; this one only reports them
   rescore: async () => (await import('./commands/fetch.ts')).rescore,
   discover: async () => (await import('./commands/discover.ts')).discover,
   add: async () => (await import('./commands/add.ts')).add,
@@ -54,9 +55,12 @@ const commands: Record<string, () => Promise<Command>> = {
   'settings:save': async () => (await import('./commands/settings.ts')).settingsSave,
   'task:run': async () => (await import('./commands/task.ts')).taskRun,
   setup: async () => (await import('./commands/setup.ts')).setup,
+  backup: async () => (await import('./commands/backup.ts')).backup,
+  daily: async () => (await import('./commands/daily.ts')).daily,
+  'schedule:print': async () => (await import('./commands/schedule.ts')).schedulePrint,
 };
 // Commands that only touch files: no database connection or migrations.
-const NO_DB = ['settings:check', 'settings:save', 'setup', 'cv:templates', 'cv:preview'];
+const NO_DB = ['settings:check', 'settings:save', 'setup', 'backup', 'daily', 'schedule:print', 'cv:templates', 'cv:preview'];
 
 const load = commands[cmd ?? ''];
 if (!load) {
@@ -102,16 +106,25 @@ if (!load) {
   versions                        list CV versions and usage
   ats <id> [--cv cluster]         CV keyword check: shown, hidden-but-true and missing job keywords (--json)
   stats
+  migrate                         apply pending database migrations and list them (every DB command does this
+                                  first; the dashboard runs it once when it starts)
   settings:check --kind config|applicant [--file x.json]   validate settings (JSON result)
   settings:save --kind config|applicant [--file x.json]    validate, then save if valid
-  task:run <id>                   run a queued background task (the dashboard starts these)`);
+  task:run <id>                   run a queued background task (the dashboard starts these)
+  daily                           the scheduled morning run: fetch, check:open, ai:score, a notification, backup
+                                  (output in data/fetch.log)
+  schedule:print [--os macos|linux|windows]
+                                  print the scheduler setup (launchd, systemd/cron, Task Scheduler) for this clone
+  backup                          pg_dump of the database into data/backups/<db>-YYYY-MM-DD.sql.gz (keeps 14)`);
 } else {
   try {
     const run = await load();
     if (NO_DB.includes(cmd)) await run(args, flags);
     else {
       const { dedupe, migrate, pool } = await import('./db.ts');
-      await migrate();
+      const applied = await migrate();
+      if (cmd === 'migrate')
+        console.log(applied.length ? `Applied ${applied.length} migration(s): ${applied.join(', ')}` : 'Database is up to date.');
       try {
         await run(args, flags);
         // Any command that adds jobs or changes their status can change which copy of a job is the primary.

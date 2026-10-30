@@ -22,6 +22,7 @@ import { TaskBar } from '@/components/tasks';
 import { isActive, openTasks } from '@/lib/tasks';
 import { SalaryFilter, SalaryOnlyToggle, salaryParams, SalaryTag } from '@/components/salary';
 import { loadExpectations } from '@/lib/salary';
+import { aiEnabled } from '@/lib/settings';
 import { ReferralBadge } from '@/components/contacts';
 import { allContacts } from '@/lib/contacts-db';
 import { ExpiredBadge } from '@/components/open-check';
@@ -108,6 +109,7 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<'/'>['searc
   const visaOnly = one('visa') === '1';
   const salary = salaryParams(one);
   const expected = loadExpectations();
+  const ai = aiEnabled(); // config.json ai.enabled: off hides the AI review buttons
   const page = Math.max(1, Math.floor(Number(one('page'))) || 1);
   const size = pageSize(one('size'));
   const everyTab = Boolean(q) && !followUp && !onlyTab;
@@ -312,7 +314,7 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<'/'>['searc
                 <Chips items={j.missing} tone="bad" />
                 <Chips items={j.flags} tone="warn" />
                 {j.notes && <p className="whitespace-pre-line text-sm text-zinc-500">📝 {j.notes}</p>}
-                <JobActions job={j} busy={busy(j.id)} />
+                <JobActions job={j} busy={busy(j.id)} ai={ai} />
               </div>
             </div>
           </li>

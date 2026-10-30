@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { GET, OPTIONS } from '@/app/api/jobs/lookup/route';
-import { cvFileName } from '@/lib/bot';
+import { cvFileName } from '@/lib/cv-templates';
 import { EXTENSION_ID, fillProfile } from '@/lib/extension';
 import { cleanupDb, closeDb, ensureSchema, insertJob, PREFIX } from '../../helpers/db';
 

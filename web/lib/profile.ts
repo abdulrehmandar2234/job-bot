@@ -1,13 +1,9 @@
 import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { BOT_ROOT } from './bot';
 import { countryLabels, market, marketLine, profileGaps, type MasterContact, type ProfileField } from './market';
-import { applicantFile, readConfig } from './settings';
+import { applicantFile, masterFile, readConfig } from './settings';
 
 // Reads config.json, cv/applicant.json and cv/master.json on every call (they change outside the dashboard) for the
 // header, the country labels and the first-run banner. Missing or broken files give empty values, never an error.
-
-const masterFile = () => process.env.JOB_BOT_MASTER || join(BOT_ROOT, 'cv', 'master.json');
 
 function readJson(file: string): Record<string, unknown> | null {
   try {

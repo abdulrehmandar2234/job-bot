@@ -100,6 +100,17 @@ function write(file: string, obj: Json) {
   renameSync(tmp, file);
 }
 
+/** How to find the Claude CLI on this OS. On Windows, spawn needs claude.exe (the native installer), not an npm claude.cmd. */
+export const claudePathHint = (platform: NodeJS.Platform = process.platform) =>
+  platform === 'win32' ? '`where claude`; use the claude.exe of the native installer, not claude.cmd' : '`which claude`';
+const CLAUDE_PATH_HINT = claudePathHint();
+
+export const NEXT_STEPS = [
+  'Next: put your CV in cv/master.json (see cv/master.example.json), then `npm run bot -- cv:default` and `npm run bot -- fetch`.',
+  "PDFs (CV and letters) need Chrome's headless shell, once: `npx playwright-core install chromium-headless-shell`.",
+  'Daily fetch: `npm run bot -- schedule:print` prints the scheduler setup for this computer (docs/install/<your OS>.md, step 12).',
+];
+
 /** Runs the wizard. Returns true when the files were written. */
 export async function runSetup(io: SetupIO, files: SetupFiles = { config: CONFIG_FILE, applicant: APPLICANT_FILE }): Promise<boolean> {
   const p = prompter(io);
@@ -200,7 +211,7 @@ export async function runSetup(io: SetupIO, files: SetupFiles = { config: CONFIG
     if (mode === 'claude-cli') {
       // Missing means claude-cli, so the default is only written when the file already named a provider.
       if (ai.provider !== undefined) ai.provider = 'claude-cli';
-      ai.claudePath = await p.ask('Path to the Claude Code CLI (`which claude`)', text(ai.claudePath), (v) => (v ? null : 'required'));
+      ai.claudePath = await p.ask(`Path to the Claude Code CLI (${CLAUDE_PATH_HINT})`, text(ai.claudePath), (v) => (v ? null : 'required'));
     } else {
       const legacy = ai.provider === 'openai' || ai.provider === 'deepseek' ? (ai.provider as 'openai' | 'deepseek') : null;
       const api = (isObj(ai.api) ? ai.api : {}) as Json;
@@ -281,7 +292,7 @@ export async function runSetup(io: SetupIO, files: SetupFiles = { config: CONFIG
     const gaps = profileGaps(buildProfile(app, master));
     if (gaps.length)
       p.say(`Still missing in your profile: ${gaps.join(', ')}. Run setup again or edit it on the dashboard's Settings page.`);
-    p.say('Next: put your CV in cv/master.json (see cv/master.example.json), then `npm run bot -- cv:default` and `npm run bot -- fetch`.');
+    for (const line of NEXT_STEPS) p.say(line);
     return true;
   } finally {
     p.close();

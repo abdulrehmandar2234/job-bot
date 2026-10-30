@@ -33,6 +33,8 @@ import { ExpiredBadge, OpenCheck } from '@/components/open-check';
 import { VisaBadge } from '@/components/visa';
 import { Chips, fmtDate, Posted, PostedOn, Score, STATUS_LABEL } from '@/components/ui';
 import { readCountryLabels } from '@/lib/profile';
+import { aiEnabled } from '@/lib/settings';
+import { AiOffNote } from '@/components/ai-off';
 
 export default function Page(props: PageProps<'/jobs/[id]'>) {
   return (
@@ -130,6 +132,9 @@ async function JobDetail({ params }: { params: PageProps<'/jobs/[id]'>['params']
   const answers = job.form_answers ?? [];
   // Same rule as <InterviewPrep>, for the section link.
   const hasPrep = Boolean(job.interview_prep) || job.status === 'applied' || job.status === 'interview';
+  // config.json ai.enabled: off hides the AI-only buttons, each with a note linking to Settings. "Write letter" and
+  // the follow-up draft stay: the bot falls back to its templates for them.
+  const ai = aiEnabled();
 
   return (
     <div className="mt-4 space-y-4">
@@ -182,8 +187,9 @@ async function JobDetail({ params }: { params: PageProps<'/jobs/[id]'>['params']
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <OpenJobLink job={job} />
-              <StatusActions job={job} busy={busy} />
+              <StatusActions job={job} busy={busy} ai={ai} />
             </div>
+            {!ai && job.ai_score == null && <AiOffNote what="the AI review" />}
             <OpenCheck job={job} />
           </section>
 
@@ -315,6 +321,7 @@ async function JobDetail({ params }: { params: PageProps<'/jobs/[id]'>['params']
                   busy={busy.includes('letter')}
                   save={saveLetter}
                   rewrite={rewriteLetter}
+                  ai={ai}
                 />
               </FoldedText>
             )}
@@ -332,10 +339,12 @@ async function JobDetail({ params }: { params: PageProps<'/jobs/[id]'>['params']
                 {busy.includes('summary') ? (
                   <Busy>{job.cv_summary ? 'Rewriting summary…' : 'Writing summary…'}</Busy>
                 ) : (
-                  <form action={writeSummary}>
-                    <input type="hidden" name="id" value={job.id} />
-                    <SubmitButton pendingText="Starting…">{job.cv_summary ? 'Rewrite summary' : 'Write summary'}</SubmitButton>
-                  </form>
+                  ai && (
+                    <form action={writeSummary}>
+                      <input type="hidden" name="id" value={job.id} />
+                      <SubmitButton pendingText="Starting…">{job.cv_summary ? 'Rewrite summary' : 'Write summary'}</SubmitButton>
+                    </form>
+                  )
                 )}
                 {job.cv_summary && <CopyButton text={job.cv_summary} />}
                 {job.cv_summary &&
@@ -359,7 +368,10 @@ async function JobDetail({ params }: { params: PageProps<'/jobs/[id]'>['params']
                 busy={busy.includes('summary') || busy.includes('tailored_cv')}
                 save={saveSummary}
                 rewrite={rewriteSummary}
+                ai={ai}
               />
+            ) : !ai ? (
+              <AiOffNote what="writing a CV summary for this job" />
             ) : (
               <p className="text-sm text-zinc-500">
                 The summary at the top of your CV, rewritten for this job from your CV and the job description. Only facts from your CV.
@@ -368,7 +380,7 @@ async function JobDetail({ params }: { params: PageProps<'/jobs/[id]'>['params']
           </section>
 
           <section id="cv-panel" className="scroll-mt-4">
-            <CvPanel job={job} busy={busy} />
+            <CvPanel job={job} busy={busy} ai={ai} />
           </section>
 
           <section id="answers" className="scroll-mt-4 space-y-3">
@@ -410,28 +422,32 @@ async function JobDetail({ params }: { params: PageProps<'/jobs/[id]'>['params']
                 time.
               </p>
             )}
-            <form action={draftAnswers} className="space-y-2">
-              <input type="hidden" name="id" value={job.id} />
-              <textarea
-                name="questions"
-                aria-label="Application form questions"
-                rows={4}
-                required
-                className="input w-full"
-                placeholder={
-                  'Paste the questions from the application form, e.g.\nHow many years of experience do you have with Laravel?\nDo you require visa sponsorship? Yes / No\nWhy do you want to work with us?'
-                }
-              />
-              {busy.includes('answers') ? (
-                <Busy>Drafting answers…</Busy>
-              ) : (
-                <SubmitButton pendingText="Starting…">Draft answers</SubmitButton>
-              )}
-            </form>
+            {!ai ? (
+              <AiOffNote what="drafting answers" />
+            ) : (
+              <form action={draftAnswers} className="space-y-2">
+                <input type="hidden" name="id" value={job.id} />
+                <textarea
+                  name="questions"
+                  aria-label="Application form questions"
+                  rows={4}
+                  required
+                  className="input w-full"
+                  placeholder={
+                    'Paste the questions from the application form, e.g.\nHow many years of experience do you have with Laravel?\nDo you require visa sponsorship? Yes / No\nWhy do you want to work with us?'
+                  }
+                />
+                {busy.includes('answers') ? (
+                  <Busy>Drafting answers…</Busy>
+                ) : (
+                  <SubmitButton pendingText="Starting…">Draft answers</SubmitButton>
+                )}
+              </form>
+            )}
           </section>
 
           <div id="prep" className="scroll-mt-4 empty:hidden">
-            <InterviewPrep job={job} busy={busy} />
+            <InterviewPrep job={job} busy={busy} ai={ai} />
           </div>
 
           <section id="description" className="scroll-mt-4 space-y-2">

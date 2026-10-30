@@ -31,7 +31,7 @@ export const normalize = (s: string) =>
 const clip = (s: string, n = 70) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 
 /** All text of the master CV, one string, for the title and summary checks. */
-function masterText(cv: Cv): string {
+export function masterText(cv: Cv): string {
   return [
     cv.name,
     cv.title,

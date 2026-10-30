@@ -122,6 +122,7 @@ describe('applyFill', () => {
 
 describe('fillProfile', () => {
   const root = mkdtempSync(join(tmpdir(), 'job-bot-fill-profile-'));
+  const files = { master: join(root, 'cv', 'master.json'), applicant: join(root, 'cv', 'applicant.json') };
   afterAll(() => rmSync(root, { recursive: true, force: true }));
 
   it('reads name and contact from cv/master.json, with applicant.json currentLocation first', () => {
@@ -133,7 +134,7 @@ describe('fillProfile', () => {
         contact: { email: 'sara@example.com', phone: '+1', linkedin: 'https://linkedin.com/in/s', location: 'Lahore' },
       }),
     );
-    expect(fillProfile(root)).toEqual({
+    expect(fillProfile(files)).toEqual({
       name: 'Sara Khan',
       email: 'sara@example.com',
       phone: '+1',
@@ -141,11 +142,22 @@ describe('fillProfile', () => {
       location: 'Lahore',
     });
     writeFileSync(join(root, 'cv', 'applicant.json'), JSON.stringify({ currentLocation: 'Dubai, UAE' }));
-    expect(fillProfile(root).location).toBe('Dubai, UAE');
+    expect(fillProfile(files).location).toBe('Dubai, UAE');
   });
 
   it('gives empty strings when the files are missing', () => {
-    expect(fillProfile(join(root, 'nope'))).toEqual({ name: '', email: '', phone: '', linkedin: '', location: '' });
+    const none = { master: join(root, 'nope', 'master.json'), applicant: join(root, 'nope', 'applicant.json') };
+    expect(fillProfile(none)).toEqual({ name: '', email: '', phone: '', linkedin: '', location: '' });
+  });
+
+  it('reads the files JOB_BOT_MASTER and JOB_BOT_APPLICANT name by default', () => {
+    vi.stubEnv('JOB_BOT_MASTER', files.master);
+    vi.stubEnv('JOB_BOT_APPLICANT', files.applicant);
+    try {
+      expect(fillProfile()).toMatchObject({ name: 'Sara Khan', location: 'Dubai, UAE' });
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 });
 
