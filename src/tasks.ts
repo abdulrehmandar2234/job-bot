@@ -1,5 +1,6 @@
 import { pool } from './db.ts';
 import type { Task, TaskKind } from './types.ts';
+import { isTemplate } from './cv/templates/index.ts';
 
 // The background task queue (table `tasks`, src/migrations/002_tasks.sql).
 // The dashboard enqueues (web/lib/tasks.ts, same SQL as enqueue() here) and spawns a detached `task:run <id>`
@@ -17,13 +18,16 @@ export const TASK_TIMEOUT_MS: Record<TaskKind, number> = {
   letter: 4 * 60_000,
   summary: 4 * 60_000,
   tailored_cv: 4 * 60_000,
+  cv_template: 4 * 60_000,
+  cv_feedback: 5 * 60_000,
+  cv_review: 4 * 60_000,
 };
 /** Extra time before a running task counts as stale, so the worker can record its own timeout first. */
 export const DEADLINE_GRACE_MS = 60_000;
 export const OUTPUT_CAP = 8000;
 export const QUESTIONS_CAP = 8000;
 export const CV_VERSION = /^[a-z0-9][a-z0-9-]*$/;
-/** Longest feedback for rewriting a letter or summary ("What should change?" on the job page). */
+/** Longest feedback for rewriting a letter, summary or CV ("What should change?" on the job page). */
 export const FEEDBACK_CAP = 1000;
 
 export const tail = (s: string, n = OUTPUT_CAP) => (s.length > n ? '…' + s.slice(-n) : s);
@@ -136,7 +140,7 @@ export async function fail(id: number, error: string, output = '') {
 }
 
 /**
- * `--feedback=<text>` for a letter or summary task with feedback, else nothing. Throws when the feedback is not a
+ * `--feedback=<text>` for a letter, summary or CV task with feedback, else nothing. Throws when the feedback is not a
  * string of at most FEEDBACK_CAP characters. One `--name=value` argument, so text starting with "--" stays the value.
  */
 export function feedbackArgs(args: Record<string, unknown>): string[] {
@@ -183,6 +187,18 @@ export function cliArgs(task: Pick<Task, 'kind' | 'job_id' | 'args'>, questionsF
       return ['summary', job(), ...feedbackArgs(task.args)];
     case 'tailored_cv':
       return ['cv:tailor', job()];
+    case 'cv_template': {
+      const template = task.args.template;
+      if (!isTemplate(template)) throw new Error(`Unknown CV template ${JSON.stringify(template)}`);
+      return ['cv:template', job(), template];
+    }
+    case 'cv_feedback': {
+      const feedback = feedbackArgs(task.args);
+      if (!feedback.length) throw new Error('Write what should change in the CV first');
+      return ['cv:feedback', job(), ...feedback];
+    }
+    case 'cv_review':
+      return ['cv:review', job()];
     case 'answers':
       if (!questionsFile) throw new Error('answers task without a questions file');
       return ['answer', job(), '--file', questionsFile];

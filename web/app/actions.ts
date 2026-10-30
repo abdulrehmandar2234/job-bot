@@ -5,6 +5,7 @@ import { pool, STATUSES, type Status } from '@/lib/db';
 import { dismissTask as dismissFailedTask, enqueueTask, type TaskKind } from '@/lib/tasks';
 import { checkFeedback, checkText, type TextFormState, type WrittenKind } from '@/lib/written-text';
 import { skipReason } from '@/lib/skips';
+import { isTemplate } from '@/lib/cv-templates';
 
 // Server actions are reachable by POST, so every input is validated here.
 const USER_STATUSES: readonly Status[] = STATUSES.filter((s) => s !== 'filtered');
@@ -140,6 +141,46 @@ export async function saveLetter(_prev: TextFormState, formData: FormData) {
 
 export async function saveSummary(_prev: TextFormState, formData: FormData) {
   return saveText('summary', formData);
+}
+
+/** Tasks that change a job's CV version (as CV_TASKS in components/cv-panel.tsx): one at a time per job. */
+const CV_CHANGES: readonly TaskKind[] = ['prepare', 'tailored_cv', 'cv_template', 'cv_feedback'];
+async function cvChanging(id: string) {
+  const { rowCount } = await pool.query(`SELECT 1 FROM tasks WHERE job_id = $1 AND kind = ANY($2) AND status IN ('queued', 'running')`, [
+    id,
+    CV_CHANGES,
+  ]);
+  return !!rowCount;
+}
+
+/**
+ * Uses a CV template for this job and re-renders its CV in it as a new version (`bot cv:template <id> <template>`).
+ * Does nothing while the job's CV is being changed by another task.
+ */
+export async function applyCvTemplate(formData: FormData) {
+  const id = await assertJob(formData.get('id'));
+  const template = formData.get('template');
+  if (!isTemplate(template)) throw new Error('Unknown CV template');
+  if (!(await cvChanging(id))) await enqueueTask('cv_template', id, { template });
+  refresh();
+}
+
+/** Queues the AI revision of the job's CV with the user's feedback (`bot cv:feedback <id> --feedback`). */
+export async function improveCv(_prev: TextFormState, formData: FormData): Promise<TextFormState> {
+  const id = await assertJob(formData.get('id'));
+  const checked = checkFeedback(formData.get('feedback'));
+  if ('error' in checked) return { ok: false, message: checked.error };
+  if (await cvChanging(id)) return { ok: false, message: 'The CV is being changed right now. Try again when it is done.' };
+  await enqueueTask('cv_feedback', id, { feedback: checked.feedback });
+  refresh();
+  return { ok: true, message: 'Improving your CV with your feedback…' };
+}
+
+/** The AI's short review of the job's CV against the job (`bot cv:review <id>`), stored on the job. */
+export async function reviewCv(formData: FormData) {
+  const id = await assertJob(formData.get('id'));
+  await enqueueTask('cv_review', id);
+  refresh();
 }
 
 /** AI fit review of one job via the configured AI provider (`bot ai:score --id`). */

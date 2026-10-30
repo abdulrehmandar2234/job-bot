@@ -168,6 +168,7 @@ export const CONFIG_FIELDS: Record<string, FieldType> = {
   minScore: 'number',
   maxAgeDays: 'number',
   autoCvVersions: 'bool',
+  cvTemplate: 'optional', // empty = classic, the built-in default (the key is left out)
   roleInclude: 'text',
   roleExclude: 'text',
   'linkedin.enabled': 'bool',

@@ -165,6 +165,12 @@ describe('mergeConfig', () => {
     expect(cfg.maxAgeDays).toBe('abc');
   });
 
+  it('saves cvTemplate, and leaves the key out for classic (the built-in default)', () => {
+    expect(mergeConfig(CONFIG, configForm({ cvTemplate: 'compact' })).cvTemplate).toBe('compact');
+    expect('cvTemplate' in mergeConfig({ ...CONFIG, cvTemplate: 'modern' }, configForm({ cvTemplate: '' }))).toBe(false);
+    expect(mergeConfig({ ...CONFIG, cvTemplate: 'modern' }, configForm()).cvTemplate).toBe('modern'); // not in the form: kept
+  });
+
   it('saves ai.alertStrong as a checkbox', () => {
     expect(get(mergeConfig(CONFIG, configForm({ 'ai.alertStrong': 'on' })), 'ai.alertStrong')).toBe(true);
     expect(get(mergeConfig(CONFIG, configForm()), 'ai.alertStrong')).toBe(false);

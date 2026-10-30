@@ -29,6 +29,11 @@ const commands: Record<string, () => Promise<Command>> = {
   letter: async () => (await import('./commands/prepare.ts')).letter,
   summary: async () => (await import('./commands/prepare.ts')).summary,
   'cv:tailor': async () => (await import('./commands/cv.ts')).cvTailor,
+  'cv:template': async () => (await import('./commands/cv.ts')).cvTemplate,
+  'cv:templates': async () => (await import('./commands/cv-templates.ts')).cvTemplates,
+  'cv:preview': async () => (await import('./commands/cv-templates.ts')).cvPreview,
+  'cv:feedback': async () => (await import('./commands/cv.ts')).cvFeedback,
+  'cv:review': async () => (await import('./commands/cv.ts')).cvReview,
   'letter:pdf': async () => (await import('./commands/prepare.ts')).letterPdf,
   'check:open': async () => (await import('./commands/open.ts')).checkOpen,
   'ai:score': async () => (await import('./commands/ai.ts')).aiScore,
@@ -54,7 +59,7 @@ const commands: Record<string, () => Promise<Command>> = {
   'schedule:print': async () => (await import('./commands/schedule.ts')).schedulePrint,
 };
 // Commands that only touch files: no database connection or migrations.
-const NO_DB = ['settings:check', 'settings:save', 'setup', 'backup', 'daily', 'schedule:print'];
+const NO_DB = ['settings:check', 'settings:save', 'setup', 'backup', 'daily', 'schedule:print', 'cv:templates', 'cv:preview'];
 
 const load = commands[cmd ?? ''];
 if (!load) {
@@ -73,6 +78,11 @@ if (!load) {
                                   something out because the CV does not support it)
   summary <id> [--feedback "…"]   AI writes a CV summary for this job (or rewrites it with your feedback)
   cv:tailor <id>                  one-off CV version with the job's CV summary (sets it as the job's CV)
+  cv:templates                    list the CV designs (default: config.json cvTemplate, else classic)
+  cv:template <id> <template>     use a CV design for this job and re-render its CV as a new version
+  cv:preview <template> [--pdf]   the master CV in a design (HTML, or data/previews/<template>.pdf)
+  cv:feedback <id> --feedback "…" AI revises the job's CV with your feedback (master CV content only, a new version)
+  cv:review <id>                  AI suggests how to improve the job's CV for this job (stored on the job)
   letter:pdf <id>                 print the cover letter to cover-letter.pdf in the job's applications/ folder
   check:open [<id>...] [--status new,prepared] [--limit N]
                                   mark closed postings expired (default: new + prepared not checked for 3 days)

@@ -67,6 +67,8 @@ Every posting is checked by `src/match.ts`. Jobs that fail a rule are kept with 
 - **CV versions:** a default CV plus versions per stack cluster (`laravel`, `tall`, `laravel-vue`, `mern`, `pern`, `next-nest`, `backend-node`, `frontend-react`, `ai-fullstack`) and one-off custom CVs for a single job. Every PDF has the same filename (`config.json` → `cvFileName`), and the folder name identifies the version. Versions are reused and only rebuilt (`v2`, `v3`, ...) when the master CV, profiles or template change.
 - **Cover letters:** written by the AI (letter model) from the job description and your CV, using only true facts and making no promises about salary, notice period or start date. They are signed with the name and contact in your profile. If AI fails, a template letter is used instead, built from your profile: its `coverLetter` sentences (introduction, a pitch per CV cluster, how you work, remote experience), where you live and your visa need. To change a letter, tell the AI what should change (`letter <id> --feedback "shorter"`, e.g. "less formal" or "more about one project"): it rewrites the current letter with the same rules, and if the feedback asks for something your CV does not show, it leaves it out and says so in a short note. Or edit the letter by hand on the job page.
 - **CV summary for a job:** the AI (letter model) rewrites the summary at the top of your CV for one job, from your CV and the job description: 3–4 sentences, 50–90 words, in the voice of your current summary, with only facts from your CV (no new skills, years or numbers, no promises). `summary <id>` writes it, `summary <id> --feedback "…"` rewrites it like a letter, and `cv:tailor <id>` builds a one-off CV version with it (in a new `custom-<company-role>-v<N>` folder every time, so a CV you already sent is never overwritten) and makes it the job's CV.
+- **CV templates:** every CV can be rendered in one of three ATS-safe designs (one text column, real text, standard section names, no images or tables): **classic** (the original design, unchanged), **modern** (a teal name banner and accent colour, skills as short text lines) and **compact** (smaller font and tighter spacing, to fit more on one page). `config.json` → `cvTemplate` sets the default (missing = classic), and each job can use its own: `cv:template <id> <template>` (or **Apply template** on the job page) re-renders the job's CV as a new version, so a CV you may already have sent is never overwritten. `prepare`, `cv:tailor` and `custom` use the job's template. `cv:templates` lists them and `cv:preview <template> [--pdf]` shows your master CV in one.
+- **Feedback on the generated CV:** `cv:feedback <id> --feedback "…"` (at most 1000 characters; "summary too generic", "put Laravel experience first", "too long, fit on one page", "skills order wrong") has the AI (letter model) revise the job's CV from the job description, your master CV and the job's current CV. It may only reorder, re-frame, shorten or select what `cv/master.json` has: the title and summary wording, the order and selection of skill groups, skills, bullets and projects. The reply is then checked in code (`src/cv/feedback.ts`): every employer, bullet, skill group, skill and project must match the master CV, a new title or summary may not name a skill or number the master does not have, and employers are never dropped. Anything else is left out and listed under the AI's note. The result is a new one-off version in the job's template, made the job's CV. `cv:review <id>` ("Suggest improvements") stores a short, honest AI review of the CV against the job (what is weak or missing, what to put first) that you can turn into feedback.
 - **CV keyword check** (`bot ats <id>`, and on the job page): the job's skill keywords split into those the CV version shows near the top, those you have (in `cv/master.json`) but this version keeps further down, and real gaps that are not on your CV at all. It names the CV version that shows the most of them. Gaps are only listed, never suggested for the CV.
 - **Form answers:** paste the questions from an application form and the AI drafts an answer for each one, using only your CV and `cv/applicant.json`. Personal decisions it cannot know (salary, notice period, start date) come back as `[FILL: ...]` and are highlighted. Each answer has a Copy button.
 - **Interview prep:** for applied and interview jobs, the AI (letter model) writes likely technical questions with what to emphasise from your CV, behavioural questions with STAR stories built only from your CV, a short company brief from the posting alone (no web research, so unsure points are marked "verify before interview"), questions to ask them, and the job's key requirements mapped to your CV or marked as gaps. Everything has Copy buttons and a Regenerate button.
@@ -95,6 +97,7 @@ npm run web          # http://localhost:3100
 - Search (company or title) looks in **every tab**, and each card shows which tab it is in (Matching, Prepared, Applied, Skipped…). "Search only in <tab>" or a tab link narrows it to one tab.
 - Per job: open the posting, **Prepare CV** (picks or builds the CV version), **Download CV**, AI review, and status buttons.
 - Job page: "Check if still open" button, full description, CV keyword check, cover letter, form-answer helper, notes and status history. The cover letter is never written automatically: **Write letter** writes it (AI from the description, else the template), **Rewrite letter** writes a new one, **Copy** copies it, and **Download PDF** downloads it as a one-page PDF in the CV's style, with your name and contact as the header (`bot letter:pdf <id>`, saved as `cover-letter.pdf` in the job's `applications/` folder). Under the letter, **What should change?** with **Rewrite with feedback** has the AI rewrite it (`letter <id> --feedback`), and **Edit** lets you change it yourself and **Save** it with no AI (the label then says "edited by you").
+- Job page, **CV for this job**: the CV version and its template, a template select with **Apply template** (a background task; previews of each template open in a new tab), **Download CV**, **What should change in this CV?** with **Improve CV with feedback** (`cv:feedback`), and **Suggest improvements** (`cv:review`) whose suggestions **Use as feedback** copies into the box. When a CV was revised with feedback, what was left out because your master CV does not have it is listed there. `GET /api/cv/preview/<template>` shows your master CV in a template (HTML, or `?pdf` for a PDF). The Settings page has the default **CV template**.
 - Job page, **CV summary for this job** (next to the cover letter): **Write summary** has the AI write a CV summary for the job, then **Rewrite summary**, **Copy** and **Use in my CV for this job**, which builds a one-off CV with it (`cv:tailor`) so **Download CV** serves that one. It has the same **What should change?** and **Edit** as the letter. While the AI writes or the CV is built, a "Writing summary…" / "Building CV with this summary…" note replaces the buttons.
 - "Fetch new jobs" button and an "Add jobs from Bayt" section with the bookmarklet.
 - **Settings** (`/settings`): your profile, the cover-letter sentences, form facts, the search and filter settings and the AI provider, validated with the same schemas as the CLI before they are saved.
@@ -168,12 +171,17 @@ cv/master.json                       your CV data (the only file you edit)
 src/cv/profiles.ts                   per-cluster framing: headline, summary, skill/bullet order
 src/cv/versions.ts                   builds and reuses versions, bumps v2/v3 on change
 src/cv/render.ts                     HTML template → PDF via Chrome (playwright-core; src/cv/chrome.ts picks which)
+src/cv/templates/                    the CV designs: classic.ts, modern.ts, compact.ts, index.ts (list and names)
+src/cv/feedback.ts                   keeps a CV revised with feedback to master CV content
 
 cv/original/<your original CV>.pdf  optional, never changes
 cv/default/<cvFileName>
 cv/versions/<cluster>-v<N>/<cvFileName>
-cv/versions/custom-<company-role>-v<N>/<cvFileName>   one-off CV for one job (custom, cv:tailor), new N per run
+cv/versions/<cluster>-<template>-v<N>/<cvFileName>   the same in another template (modern, compact); cluster may be "default"
+cv/versions/custom-<company-role>-v<N>/<cvFileName>   one-off CV for one job (custom, cv:tailor, cv:feedback, cv:template), new N per run
 ```
+
+Each version folder has `cv.json` (the data it was rendered from) and `meta.json` (cluster, template, master hash, the job for one-off versions, and for a CV revised with feedback what was left out). Versions made before templates existed have no template and are classic.
 
 `cvFileName` is set in `config.json` (e.g. `jane_doe_resume.pdf`). The per-cluster framings in `src/cv/profiles.ts` (headline and summary per stack) are written for the original author's CV; with your own CV, keep `autoCvVersions: false` and send the default CV until you have rewritten them for yourself (`tests/cv.test.ts` checks a framing never claims more than `cv/master.json`).
 
@@ -212,6 +220,8 @@ Each feature uses either the score model (fast) or the letter model (better writ
 | Fit review     | score  | `haiku`    | score model          | `ai:score`, daily fetch, button                     |
 | Cover letter   | letter | `sonnet`   | letter model         | `letter`, "Write letter", "Rewrite with feedback"   |
 | CV summary     | letter | `sonnet`   | letter model         | `summary`, "Write summary", "Rewrite with feedback" |
+| CV feedback    | letter | `sonnet`   | letter model         | `cv:feedback`, "Improve CV with feedback"           |
+| CV review      | letter | `sonnet`   | letter model         | `cv:review`, "Suggest improvements"                 |
 | Form answers   | letter | `sonnet`   | letter model         | `answer`, "Draft answers"                           |
 | Interview prep | letter | `sonnet`   | letter model         | `prep`, "Prepare for interview"                     |
 | Follow-up      | letter | `sonnet`   | letter model         | `follow-up`, "Draft follow-up"                      |
@@ -233,7 +243,7 @@ The prompts only allow facts from `cv/master.json` and `cv/applicant.json`, and 
 
 Every CLI command that uses the database first applies the numbered SQL files in `src/migrations/` that the database has not run yet (recorded in `schema_migrations`), so there is no migration command. The dashboard does not run them: after pulling, run any bot command (e.g. `npm run bot -- stats`) before using it. To change the schema, add the next `NNN_name.sql` file; never edit one that is already committed (see `src/migrate.ts`).
 
-- `jobs`: one row per posting. It holds the score, matched/missing skills, visa note, flags, status, filter reason, CV version, cover letter, CV summary for the job, when you last edited either by hand, AI review, form answers, interview prep, follow-up count and draft, alert time, notes and `duplicate_of`.
+- `jobs`: one row per posting. It holds the score, matched/missing skills, visa note, flags, status, filter reason, CV version, the CV template chosen for the job, the AI review of its CV, cover letter, CV summary for the job, when you last edited either by hand, AI review, form answers, interview prep, follow-up count and draft, alert time, notes and `duplicate_of`.
 - `job_events`: every status change with a note.
 - `fetch_runs`: per fetch, how many postings were checked, how many were new and which sources failed.
 - `tasks`: the dashboard's background tasks (see [Architecture](#architecture)).
@@ -270,6 +280,11 @@ npm run bot -- letter <id> [--template]       # write or rewrite the cover lette
 npm run bot -- letter <id> --feedback "shorter"   # AI rewrites the current letter with your feedback (prints a note on what it left out)
 npm run bot -- summary <id> [--feedback "…"]  # AI CV summary for this job (or rewrite it with feedback)
 npm run bot -- cv:tailor <id>                 # one-off CV with the job's CV summary, set as the job's CV
+npm run bot -- cv:templates                   # list the CV templates (classic, modern, compact)
+npm run bot -- cv:template <id> <template>    # use a template for this job; re-renders its CV as a new version
+npm run bot -- cv:preview <template> [--pdf]  # your master CV in a template (HTML, or data/previews/<template>.pdf)
+npm run bot -- cv:feedback <id> --feedback "put Laravel experience first"  # AI revises the job's CV (master CV content only)
+npm run bot -- cv:review <id>                 # AI suggests how to improve the job's CV for this job
 npm run bot -- letter:pdf <id>                # cover letter as a PDF in the job's applications/ folder
 npm run bot -- check:open [<id>...] [--status new,prepared] [--limit N]  # mark closed postings expired
 npm run bot -- answer <id> [--file q.txt] [--clear]
@@ -334,6 +349,7 @@ An overview; [docs/SETUP.md](docs/SETUP.md#7-configuration-reference-configjson)
 | `adzuna`                                     | Optional: Adzuna country indexes, keywords, pages per search                                                                    |
 | `ai`                                         | `enabled`, `provider`, Claude path and models, `api` (preset, base URL, models), `maxScorePerRun`, `concurrency`, `alertStrong` |
 | `cvFileName`, `autoCvVersions`, `chromePath` | CV output settings. `chromePath`: `"auto"` (default) uses the Chrome headless shell, else a system Chrome; or a path            |
+| `cvTemplate`                                 | Default CV design: `classic` (missing), `modern` or `compact`; a job can use its own                                            |
 
 `needsVisa` missing means a visa is needed; `label` is the short name on the dashboard. `remote.from` / `remote.fromCode` are the country you work remotely from and its ISO code (missing: `linkedin.remoteFrom`, then your profile).
 
@@ -383,7 +399,7 @@ src/
   sponsors.ts       IND recognised-sponsor register
   discover.ts       find a company's ATS board
   sources/          ATS adapters, job boards, LinkedIn, dead-link check, paced and cached HTTP
-  cv/               profiles, versioning, PDF rendering
+  cv/               profiles, versioning, PDF rendering, templates/ (CV designs), feedback.ts (master-CV check)
 web/
   app/              pages, server actions, API routes
   components/       UI and client components

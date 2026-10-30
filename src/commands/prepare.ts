@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs';
 import { config, path } from '../config.ts';
 import { getJob, pool, setStatus, type Job, type JobStatus } from '../db.ts';
-import { cvFile, masterRaw, versionFor } from '../cv/versions.ts';
+import { cvFile, jobTemplate, masterRaw, versionFor } from '../cv/versions.ts';
 import { htmlToPdf, letterHtml, type Cv } from '../cv/render.ts';
 import { PROFILES } from '../cv/profiles.ts';
 import { coverLetter } from '../cover.ts';
@@ -35,7 +35,7 @@ export function applicationDir(j: Pick<Job, 'company' | 'title'>): string {
  * The --feedback flag as text: '' when absent. Sets the exit code and returns null when it is not usable (a bare
  * --feedback, or longer than FEEDBACK_CAP; the dashboard and task:run check the same).
  */
-function feedbackFlag(flags: Flags): string | null {
+export function feedbackFlag(flags: Flags): string | null {
   if (flags.feedback === undefined) return '';
   const text = flags.feedback === 'true' ? '' : flags.feedback.trim();
   if (!text || flags.feedback.length > FEEDBACK_CAP) {
@@ -175,7 +175,9 @@ export async function prepare(args: string[], flags: Flags) {
   }
   const forced = flags.cv; // --cv default | --cv laravel | --cv custom-xyz
   const cluster = forced ?? (config.autoCvVersions ? (j.cluster ?? 'default') : 'default');
-  const { id, created } = forced && !PROFILES[forced] ? { id: forced, created: false } : await versionFor(cluster);
+  const template = jobTemplate(j);
+  const { id, created } =
+    forced && forced !== 'default' && !PROFILES[forced] ? { id: forced, created: false } : await versionFor(cluster, template);
   const dir = applicationDir(j);
   writeFileSync(
     `${dir}/application.json`,
@@ -203,6 +205,7 @@ export async function prepare(args: string[], flags: Flags) {
   }
   console.log(`${j.company} — ${j.title}`);
   console.log(`CV version : ${id}${created ? ' (newly generated)' : ''}`);
+  if (!forced || PROFILES[forced] || forced === 'default') console.log(`Template   : ${template}`);
   if (id === 'default' && j.cluster && j.cluster !== 'default')
     console.log(`             (if needed, a "${j.cluster}" version can be made: prepare ${j.id} --cv ${j.cluster})`);
   console.log(`CV file    : ${cvFile(id)}`);
