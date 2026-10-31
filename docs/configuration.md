@@ -7,6 +7,7 @@ Back to the [start page](README.md). Your CV and profile are in [your-cv-and-pro
 Contents:
 
 - [Editing and checking `config.json`](#editing-and-checking-configjson)
+- [Presets](#presets)
 - [How filtering and scoring work](#how-filtering-and-scoring-work)
 - [Countries and visa](#countries-and-visa)
 - [Remote](#remote)
@@ -20,6 +21,8 @@ Contents:
 - [Environment variables](#environment-variables)
 
 ## Editing and checking `config.json`
+
+`config.json` is yours and never committed (it is in `.gitignore`). On the first run, the bot and the dashboard create it as a copy of `config.default.json`, the settings the repository ships. To start over, delete `config.json` (or copy `config.default.json` over it).
 
 There are three ways to change it:
 
@@ -36,7 +39,25 @@ npm run bot -- settings:check --kind applicant --file cv/applicant.json
 
 **After changing filters, run `npm run bot -- rescore`**: it re-applies the filters and the keyword score to every stored job without downloading anything.
 
-In the tables below, "Default" is the value in the repository's `config.json` (the original owner's, shown as an example), not a value the code fills in, unless the cell says "missing =".
+## Presets
+
+`presets/` holds ready-made starting points. `npm run bot -- setup` lists them and asks which to use (comma-separated; Enter keeps `config.json` as it is). A preset replaces only the keys it covers.
+
+| Kind   | Preset        | What it sets                                                                                                                        |
+| ------ | ------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| Market | `gulf`        | The UAE and Saudi Arabia (employer visa), their LinkedIn locations and Gulf company boards (Careem, Tamara, Salla, Foodics, ...)    |
+| Market | `netherlands` | The Netherlands (IND-registered sponsors), Adzuna `nl` and Dutch or Netherlands-hiring boards (Adyen, Mollie, bol.com, Picnic, ...) |
+| Market | `pakistan`    | Pakistan (no visa for citizens), onsite and hybrid, and Pakistani boards (Motive, Devsinc, Securiti, Educative, Tajir)              |
+| Stack  | `php-laravel` | LinkedIn keywords and remote queries for PHP / Laravel, and `php`, `laravel` in `roleInclude`                                       |
+| Stack  | `javascript`  | Node.js, NestJS, React, Next.js, Vue and MERN keywords, and `node`, `react` in `roleInclude`                                        |
+| Stack  | `python`      | Python, Django and FastAPI keywords, `python`, `django` in `roleInclude`, and takes `python` out of `roleExclude`                   |
+
+- **Markets** set `countries`, `linkedin.locations`, `adzuna.countries` and `companies` (the boards of every chosen market, each once). Your remote-from country and its rules are separate questions.
+- **Stacks** set `linkedin.keywords`, `remote.himalayasQueries` and `roleInclude` (generic words such as engineer, developer, software, plus each stack's), and take out of `roleExclude` only the words a stack needs. The rest of `roleExclude` stays.
+- `config.default.json` is the three markets with the `php-laravel` and `javascript` stacks; a test (`tests/presets.test.ts`) keeps them in step.
+- A preset is a plain JSON file: add your own to `presets/markets/` or `presets/stacks/` with the same fields, and the wizard offers it. Pull requests with new markets or stacks are welcome.
+
+In the tables below, "Default" is the value in `config.default.json` (the original owner's, shown as an example), not a value the code fills in, unless the cell says "missing =".
 
 ## How filtering and scoring work
 

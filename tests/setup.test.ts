@@ -19,7 +19,7 @@ const json = (f: string) => JSON.parse(readFileSync(f, 'utf8'));
 function files(applicant?: string) {
   const dir = mkdtempSync(join(tmpdir(), 'job-bot-setup-'));
   const config = join(dir, 'config.json');
-  copyFileSync(join(ROOT, 'config.json'), config);
+  copyFileSync(join(ROOT, 'config.default.json'), config);
   const app = join(dir, 'applicant.json');
   if (applicant) copyFileSync(applicant, app);
   return { config, applicant: app };
@@ -48,6 +48,7 @@ const JANE = [
   'Portuguese citizen',
   'Only outside the EU',
   'Yes',
+  '', // market presets: none, keep config.json
   'NL, DE', // target countries: keep NL, drop AE/SA, add DE
   '', // NL name
   '', // NL pattern
@@ -63,6 +64,7 @@ const JANE = [
   '', // allow: default for Portugal
   '', // deny: without Portugal
   'Amsterdam, Berlin', // LinkedIn locations
+  '', // stack presets: none
   '', // Claude CLI or API key: the default, claude-cli
   '/usr/local/bin/claude',
   '', // CV file name
@@ -109,8 +111,8 @@ describe('setup wizard', () => {
     assert.deepEqual(cfg.linkedin.locations, ['Amsterdam', 'Berlin']);
     assert.equal(cfg.ai.claudePath, '/usr/local/bin/claude');
     assert.equal(cfg.ai.provider, undefined); // the default is not written
-    assert.equal(cfg.cvFileName, 'abdulrehman_dar_resume.pdf'); // an existing value is only ever the default
-    assert.equal(cfg.companies.length, json(join(ROOT, 'config.json')).companies.length);
+    assert.equal(cfg.cvFileName, 'jane_doe_resume.pdf'); // the shipped resume.pdf is replaced by one from her name
+    assert.equal(cfg.companies.length, json(join(ROOT, 'config.default.json')).companies.length);
     // Defaults are shown before they are kept.
     assert.match(printed, /Full name \[Jane Doe\]: /);
     assert.match(printed, /Target countries .* \[AE, SA, NL, PK\]: /);
@@ -122,6 +124,40 @@ describe('setup wizard', () => {
     assert.match(printed, /npm run bot -- schedule:print/);
   });
 
+  it('presets: a market and a stack replace the lists they cover, shown first and then as the defaults', async () => {
+    const f = files();
+    const answers = [...JANE];
+    answers.splice(JANE.indexOf('NL, DE') - 1, 2, 'netherlands', ''); // market preset, then Enter keeps its countries
+    answers.splice(answers.indexOf('Amsterdam, Berlin'), 2, '', 'python'); // its LinkedIn locations, then the stack
+    // NL from the preset has no visa questions answered differently: Enter keeps them.
+    answers.splice(answers.indexOf('n'), 1, '');
+    answers.splice(answers.indexOf('Germany'), 4);
+    const { ok, printed } = await run(answers, f, JANE_MASTER);
+    assert.equal(ok, true, printed);
+    const cfg = json(f.config);
+    assert.equal(validateConfig(cfg).ok, true);
+    assert.deepEqual(Object.keys(cfg.countries), ['NL']);
+    assert.deepEqual(cfg.linkedin.locations, ['Netherlands']);
+    assert.deepEqual(cfg.adzuna.countries, ['nl']);
+    assert.ok(cfg.companies.some((c: { name: string }) => c.name === 'Adyen'));
+    assert.ok(!cfg.companies.some((c: { name: string }) => c.name === 'Careem'), 'Gulf boards are gone');
+    assert.deepEqual(cfg.linkedin.keywords, ['python', 'django', 'fastapi']);
+    assert.match(cfg.roleInclude, /\|python\|django$/);
+    assert.doesNotMatch(cfg.roleExclude, /python/);
+    assert.match(printed, /netherlands: Onsite jobs in the Netherlands/);
+    assert.match(printed, /python: Python back-end roles/);
+    assert.match(printed, /Target countries .* \[NL\]: /);
+  });
+
+  it('presets: an unknown name is refused with the known ones, and asked again', async () => {
+    const f = files();
+    const answers = [...JANE];
+    answers.splice(JANE.indexOf('NL, DE') - 1, 1, 'mars', '');
+    const { ok, printed } = await run(answers, f, JANE_MASTER);
+    assert.equal(ok, true, printed);
+    assert.match(printed, /unknown market preset "mars" \(known: gulf, netherlands, pakistan\)/);
+  });
+
   it('tells how to find the Claude CLI on each OS', () => {
     assert.equal(claudePathHint('darwin'), '`which claude`');
     assert.equal(claudePathHint('linux'), '`which claude`');
@@ -130,6 +166,7 @@ describe('setup wizard', () => {
 
   it('the owner: pressing Enter everywhere keeps config.json and the profile as they are', async () => {
     const f = files(OWNER_APPLICANT);
+    writeFileSync(f.config, JSON.stringify({ ...json(f.config), cvFileName: 'abdulrehman_dar_resume.pdf' }));
     const before = json(f.config);
     const { ok, printed } = await run(Array(40).fill(''), f, OWNER_MASTER);
     assert.equal(ok, true, printed);
@@ -160,7 +197,7 @@ describe('setup wizard', () => {
     assert.equal(validateConfig(cfg).ok, true);
     assert.equal(cfg.ai.provider, 'api');
     assert.equal(cfg.ai.api, undefined); // auto: nothing to store
-    assert.equal(cfg.ai.claudePath, json(join(ROOT, 'config.json')).ai.claudePath); // kept for switching back
+    assert.equal(cfg.ai.claudePath, json(join(ROOT, 'config.default.json')).ai.claudePath); // kept for switching back
     assert.match(printed, /Which provider \(auto, openai, deepseek, anthropic, .*custom; auto = from the key\) \[auto\]: /);
     assert.match(printed, /Put your API key in \.env \(in the job-bot folder\) as AI_API_KEY=\.\.\./);
     assert.match(printed, /sk-ant- Anthropic, gsk_ Groq, sk-or- OpenRouter, AIza Gemini, other sk- OpenAI/);

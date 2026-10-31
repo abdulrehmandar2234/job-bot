@@ -1,0 +1,41 @@
+{
+  "name": "Pakistan",
+  "description": "Onsite and hybrid jobs in Pakistan (no visa needed for citizens).",
+  "countries": {
+    "PK": {
+      "name": "Pakistan",
+      "visa": "employer",
+      "needsVisa": false,
+      "match": "lahore|karachi|islamabad|rawalpindi|faisalabad|multan|peshawar|sialkot|hyderabad, sindh|pakistan"
+    }
+  },
+  "linkedinLocations": ["Pakistan"],
+  "adzunaCountries": [],
+  "companies": [
+    {
+      "name": "Motive",
+      "ats": "greenhouse",
+      "token": "gomotive"
+    },
+    {
+      "name": "Tajir",
+      "ats": "ashby",
+      "token": "tajir"
+    },
+    {
+      "name": "Devsinc",
+      "ats": "smartrecruiters",
+      "token": "devsinc"
+    },
+    {
+      "name": "Securiti",
+      "ats": "smartrecruiters",
+      "token": "securiti"
+    },
+    {
+      "name": "Educative",
+      "ats": "lever",
+      "token": "educative"
+    }
+  ]
+}

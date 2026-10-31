@@ -15,7 +15,7 @@ import { InvalidSettingsError } from '../src/settings.ts';
 // the result is valid, and atomically. The real config.json is never touched.
 const tmp = mkdtempSync(join(tmpdir(), 'jobbot-discover-'));
 after(() => rmSync(tmp, { recursive: true, force: true }));
-const REAL = readFileSync(path('config.json'), 'utf8');
+const REAL = readFileSync(path('config.default.json'), 'utf8');
 
 /** A temp copy of config.json with two companies. */
 function configCopy(edit: (c: Record<string, any>) => void = () => {}) {
@@ -92,6 +92,6 @@ describe('discover --add (CLI)', () => {
     );
     assert.match(stdout, /added to config\.json: Gamma \(greenhouse:gamma\)/);
     assert.deepEqual(companies(file).at(-1), { name: 'Gamma', ats: 'greenhouse', token: 'gamma' });
-    assert.equal(readFileSync(path('config.json'), 'utf8'), REAL);
+    assert.equal(readFileSync(path('config.default.json'), 'utf8'), REAL);
   });
 });

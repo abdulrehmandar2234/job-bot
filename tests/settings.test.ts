@@ -16,7 +16,7 @@ import {
   writeSettingsFile,
 } from '../src/settings.ts';
 
-const realConfig = () => JSON.parse(readFileSync(path('config.json'), 'utf8'));
+const realConfig = () => JSON.parse(readFileSync(path('config.default.json'), 'utf8'));
 const example = () => JSON.parse(readFileSync(path('cv', 'applicant.example.json'), 'utf8'));
 const errorsOf = (r: { ok: boolean; errors?: { path: string; message: string }[] }) => (r.ok ? [] : r.errors!);
 

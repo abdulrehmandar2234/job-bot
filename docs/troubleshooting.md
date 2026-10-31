@@ -114,7 +114,7 @@ The message names each bad field with its path, e.g. `companies[3].ats`. Fix it,
 
 ### Tests fail after you replaced `config.json` or `cv/master.json`
 
-Some tests pin the original owner's letters and filter results (`tests/fixtures/owner-golden.json`) against the repository's `config.json` and `cv/master.json`. That is expected with your own files; the tests are for developing the bot. They also need their own databases (`npm run test:db -- job_bot_test_bot job_bot_test`), which connect as `postgres` without a password: see `CLAUDE.md`.
+Some tests pin the original owner's letters and filter results (`tests/fixtures/owner-golden.json`) against `config.default.json` and the repository's `cv/master.json`. That is expected with your own files; the tests are for developing the bot. They also need their own databases (`npm run test:db -- job_bot_test_bot job_bot_test`), which connect as `postgres` without a password: see `CLAUDE.md`.
 
 ## macOS
 

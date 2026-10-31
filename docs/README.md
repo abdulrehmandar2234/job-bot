@@ -38,7 +38,8 @@ Want to improve job-bot? See [CONTRIBUTING.md](../CONTRIBUTING.md). The project'
 
 The repository is a working copy of one person's setup. These tracked files hold **the original owner's** data, and you replace them with your own:
 
-- `config.json`: the owner's target markets (the UAE, Saudi Arabia, the Netherlands, remote from Pakistan), about 50 company boards, job-title rules and search keywords for a Laravel / PHP / Node / React developer. `npm run bot -- setup` rewrites the markets, AI and CV file name; the rest you review yourself (see [configuration.md](configuration.md)).
+- `config.default.json`: the default settings, which are the owner's search settings with nothing personal in them: target markets (the UAE, Saudi Arabia, the Netherlands, Pakistan, remote from Pakistan), about 55 company boards, job-title rules and search keywords for a Laravel / PHP / Node / React developer. Your own `config.json` starts as a copy of it on the first run and is never committed.
+- `presets/`: ready-made markets (`gulf`, `netherlands`, `pakistan`) and stacks (`php-laravel`, `javascript`, `python`). `npm run bot -- setup` offers them, then asks for the markets, AI and CV file name; the rest you review yourself (see [configuration.md](configuration.md#presets)).
 - `cv/master.json`: the owner's CV. You replace it with yours, starting from `cv/master.example.json`.
 - `src/cv/profiles.ts`: per-stack CV headlines and summaries written for the owner's CV (see [your-cv-and-profile.md](your-cv-and-profile.md#cv-versions-and-the-per-stack-framings)).
 
@@ -52,6 +53,6 @@ Everything runs locally: the database, the dashboard (it only answers on `127.0.
 - the AI prompts, which contain your CV, profile and the job description: to Anthropic through the Claude CLI, or to the API provider you chose (nothing leaves with a local Ollama);
 - the Dutch IND sponsor register download, if you use it.
 
-Gitignored, never committed: `.env`, `web/.env.local`, `cv/applicant.json`, `cv/versions/` (generated CVs), `applications/` (letters per job) and `data/` (logs, HTTP cache, IND register, backups).
+Gitignored, never committed: `config.json`, `.env`, `web/.env.local`, `cv/applicant.json`, `cv/versions/` (generated CVs), `applications/` (letters per job) and `data/` (logs, HTTP cache, IND register, backups).
 
-**Tracked by git:** `config.json`, `cv/master.json`, `cv/default/` and `cv/original/`. If you commit your own CV there, keep your copy of the repository private.
+**Tracked by git:** `config.default.json`, `presets/`, `cv/master.json`, `cv/default/` and `cv/original/`. If you commit your own CV there, keep your copy of the repository private.

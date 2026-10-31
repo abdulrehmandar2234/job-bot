@@ -1,11 +1,11 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
 import * as BOT_PRESETS from '../../../src/ai-presets';
 import { ATS as BOT_ATS } from '../../../src/settings';
 import { BOT_ROOT } from '@/lib/bot';
-import { aiKeyStatus, applicantFile, configFile, readApplicant, readConfig } from '@/lib/settings';
+import { aiKeyStatus, applicantFile, configFile, defaultConfigFile, ensureConfigFile, readApplicant, readConfig } from '@/lib/settings';
 import {
   AI_KEY_ENV,
   API_PRESETS,
@@ -46,6 +46,20 @@ describe('settings files', () => {
     vi.stubEnv('JOB_BOT_APPLICANT', '');
     expect(configFile()).toBe(join(BOT_ROOT, 'config.json'));
     expect(applicantFile()).toBe(join(BOT_ROOT, 'cv', 'applicant.json'));
+  });
+
+  it('config.json starts as a copy of config.default.json, only at its own place and only when missing', () => {
+    expect(defaultConfigFile()).toBe(join(BOT_ROOT, 'config.default.json'));
+    const home = join(dir, 'home-config.json');
+    const defaults = tmp('defaults.json', '{"minScore": 1}');
+    expect(ensureConfigFile(home, defaults, home)).toBe(true);
+    expect(readFileSync(home, 'utf8')).toBe('{"minScore": 1}');
+    writeFileSync(home, '{"minScore": 9}');
+    expect(ensureConfigFile(home, defaults, home)).toBe(false);
+    expect(readFileSync(home, 'utf8')).toBe('{"minScore": 9}');
+    const other = join(dir, 'typo.json');
+    expect(ensureConfigFile(other, defaults, home)).toBe(false); // a missing JOB_BOT_CONFIG file stays missing
+    expect(existsSync(other)).toBe(false);
   });
 
   it('reads the files named by JOB_BOT_CONFIG / JOB_BOT_APPLICANT', () => {

@@ -10,7 +10,8 @@ web/.next/
 !.env.example
 web/.env*.local
 
-# Personal data that stays on this Mac
+# Personal data that stays on this computer (config.json starts as a copy of config.default.json)
+config.json
 cv/applicant.json
 applications/
 data/

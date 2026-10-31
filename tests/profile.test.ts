@@ -169,7 +169,7 @@ describe('profile: the files', () => {
   });
 
   it('validates the new market fields in config.json', () => {
-    const cfg = JSON.parse(readFileSync(join(import.meta.dirname, '..', 'config.json'), 'utf8'));
+    const cfg = JSON.parse(readFileSync(join(import.meta.dirname, '..', 'config.default.json'), 'utf8'));
     assert.equal(validateConfig(cfg).ok, true);
     cfg.remote.fromCode = 'pk';
     cfg.countries.AE.needsVisa = 'yes';

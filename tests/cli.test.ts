@@ -125,7 +125,7 @@ describe('CLI', () => {
     const dir = applicationDirOf(j);
     try {
       const meta = JSON.parse(readFileSync(join(dir, 'application.json'), 'utf8'));
-      assert.match(meta.cvFile, /cv\/default\/abdulrehman_dar_resume\.pdf$/);
+      assert.match(meta.cvFile, /cv\/default\/resume\.pdf$/);
       assert.equal(existsSync(join(dir, 'cover-letter.txt')), false);
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -158,7 +158,7 @@ describe('CLI', () => {
       assert.equal(e.code, 1);
       return true;
     });
-    if (!resolveChrome(JSON.parse(readFileSync(path('config.json'), 'utf8')).chromePath)) return;
+    if (!resolveChrome(JSON.parse(readFileSync(path('config.default.json'), 'utf8')).chromePath)) return;
     const out = await bot(['letter', id, '--template']);
     const dir = out.match(/Cover {6}: (\S+)\/cover-letter\.txt/)![1];
     try {
@@ -308,7 +308,7 @@ describe('CLI', () => {
   });
 
   it('cv:tailor builds a CV with the job summary in a new folder every run and sets it as the job CV', {
-    skip: !resolveChrome(JSON.parse(readFileSync(path('config.json'), 'utf8')).chromePath) && 'Chrome not installed',
+    skip: !resolveChrome(JSON.parse(readFileSync(path('config.default.json'), 'utf8')).chromePath) && 'Chrome not installed',
   }, async () => {
     const id = idOf(await bot(['add', '--file', addFile([posting({ company: 'Tailorco Cli' })])]));
     await pool.query(`UPDATE jobs SET cv_summary = 'Laravel engineer for Tailorco.' WHERE id = $1`, [id]);
@@ -338,7 +338,7 @@ describe('CLI', () => {
   });
 
   it('custom --overrides still builds a one-off CV, in a new folder each run', {
-    skip: !resolveChrome(JSON.parse(readFileSync(path('config.json'), 'utf8')).chromePath) && 'Chrome not installed',
+    skip: !resolveChrome(JSON.parse(readFileSync(path('config.default.json'), 'utf8')).chromePath) && 'Chrome not installed',
   }, async () => {
     const id = idOf(await bot(['add', '--file', addFile([posting({ company: 'Customco Cli' })])]));
     const overrides = join(tmp, 'overrides.json');
@@ -421,7 +421,7 @@ const botExit = (args: string[], env: Record<string, string> = {}) =>
 
 describe('CLI settings', () => {
   // Never the worktree's own config.json / cv/applicant.json: JOB_BOT_CONFIG / JOB_BOT_APPLICANT point at temp copies.
-  const realConfig = readFileSync(path('config.json'), 'utf8');
+  const realConfig = readFileSync(path('config.default.json'), 'utf8');
   const target = () => {
     const d = mkdtempSync(join(tmp, 'settings-'));
     const config = join(d, 'config.json');
@@ -524,7 +524,7 @@ describe('CLI with an API AI provider', () => {
   };
   const chat = (content: object) => ({ body: JSON.stringify({ choices: [{ message: { content: JSON.stringify(content) } }] }) });
   const withAi = (ai: object) => {
-    const cfg = JSON.parse(readFileSync(path('config.json'), 'utf8'));
+    const cfg = JSON.parse(readFileSync(path('config.default.json'), 'utf8'));
     const f = join(mkdtempSync(join(tmp, 'provider-')), 'config.json');
     writeFileSync(f, JSON.stringify({ ...cfg, ai: { ...cfg.ai, ...ai } }));
     return f;

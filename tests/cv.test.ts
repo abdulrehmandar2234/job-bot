@@ -17,9 +17,9 @@ const allSkills = (cv: Cv) => cv.skills.flatMap((g) => g.items).sort();
 
 describe('CV versions', () => {
   it('every version keeps the same PDF file name, only the folder differs', () => {
-    assert.equal(config.cvFileName, 'abdulrehman_dar_resume.pdf');
-    assert.ok(cvFile('default').endsWith('/cv/default/abdulrehman_dar_resume.pdf'));
-    assert.ok(cvFile('laravel-v2').endsWith('/cv/versions/laravel-v2/abdulrehman_dar_resume.pdf'));
+    assert.equal(config.cvFileName, 'resume.pdf');
+    assert.ok(cvFile('default').endsWith('/cv/default/resume.pdf'));
+    assert.ok(cvFile('laravel-v2').endsWith('/cv/versions/laravel-v2/resume.pdf'));
   });
 
   for (const [id, p] of Object.entries(PROFILES)) {

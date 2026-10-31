@@ -8,7 +8,7 @@ import { countryLabels, flag, market, marketLine, profileGaps, REQUIRED_PROFILE,
 import { readCountryLabels, readMarketLine, readProfileStatus } from '@/lib/profile';
 
 const json = (f: string) => JSON.parse(readFileSync(join(BOT_ROOT, f), 'utf8'));
-const OWNER_CONFIG = json('config.json');
+const OWNER_CONFIG = json('config.default.json');
 const OWNER_APPLICANT = json('tests/fixtures/applicant-owner.json');
 const OWNER_MASTER = json('cv/master.json');
 

@@ -1,0 +1,8 @@
+{
+  "name": "JavaScript and TypeScript",
+  "description": "Node.js, NestJS, React, Next.js, Vue and MERN roles, front end to full stack.",
+  "linkedinKeywords": ["node.js", "nestjs", "react", "next.js", "full stack developer", "mern"],
+  "remoteQueries": ["node", "nestjs", "react", "next.js", "full stack", "mern", "typescript", "vue"],
+  "roleInclude": "node|react",
+  "allowInTitles": []
+}

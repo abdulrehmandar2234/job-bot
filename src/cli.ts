@@ -1,4 +1,4 @@
-import { InvalidSettingsError } from './settings.ts';
+import { ensureConfigFile, InvalidSettingsError } from './settings.ts';
 import type { Command, Flags } from './commands/shared.ts';
 
 const [cmd, ...rest] = process.argv.slice(2);
@@ -61,6 +61,9 @@ const commands: Record<string, () => Promise<Command>> = {
 };
 // Commands that only touch files: no database connection or migrations.
 const NO_DB = ['settings:check', 'settings:save', 'setup', 'backup', 'daily', 'schedule:print', 'cv:templates', 'cv:preview'];
+
+// A fresh clone has config.default.json only: every command (setup and settings:check too) starts from a copy.
+ensureConfigFile();
 
 const load = commands[cmd ?? ''];
 if (!load) {

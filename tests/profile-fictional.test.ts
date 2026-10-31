@@ -11,7 +11,7 @@ import type { Job } from '../src/db.ts';
 
 const ROOT = join(import.meta.dirname, '..');
 const dir = mkdtempSync(join(tmpdir(), 'job-bot-jane-'));
-const cfg = JSON.parse(readFileSync(join(ROOT, 'config.json'), 'utf8'));
+const cfg = JSON.parse(readFileSync(join(ROOT, 'config.default.json'), 'utf8'));
 cfg.cvFileName = 'jane_doe_resume.pdf';
 cfg.linkedin.remoteFrom = 'Portugal';
 cfg.remote.from = 'Portugal';

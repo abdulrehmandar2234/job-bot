@@ -12,7 +12,7 @@ vi.mock('next/cache', () => ({ refresh: vi.fn() }));
 vi.mock('@/lib/tasks', () => ({ enqueueTask: vi.fn() }));
 
 const BOT_DB_URL = process.env.DATABASE_URL!.replace(/\/job_bot_test(_[a-z0-9]+)?$/, '/job_bot_test_bot$1');
-const REAL_CONFIG = join(BOT_ROOT, 'config.json');
+const REAL_CONFIG = join(BOT_ROOT, 'config.default.json');
 const realConfigText = readFileSync(REAL_CONFIG, 'utf8');
 const dir = mkdtempSync(join(tmpdir(), 'job-bot-web-settings-rt-'));
 const CONFIG_FILE = join(dir, 'config.json');

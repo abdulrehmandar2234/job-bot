@@ -11,6 +11,7 @@ let GET: typeof import('@/app/api/cv/[version]/route').GET;
 
 beforeAll(async () => {
   writeFileSync(join(root, 'config.json'), JSON.stringify({ cvFileName: 'Jane_Doe_CV.pdf' }));
+  vi.stubEnv('JOB_BOT_CONFIG', join(root, 'config.json')); // not the shipped defaults tests/setup.ts points at
   mkdirSync(join(root, 'cv', 'default'), { recursive: true });
   mkdirSync(join(root, 'cv', 'versions', 'laravel-lead'), { recursive: true });
   writeFileSync(join(root, 'cv', 'default', 'Jane_Doe_CV.pdf'), '%PDF default');
@@ -25,7 +26,10 @@ beforeAll(async () => {
     cwd.mockRestore();
   }
 });
-afterAll(() => rmSync(root, { recursive: true, force: true }));
+afterAll(() => {
+  vi.unstubAllEnvs();
+  rmSync(root, { recursive: true, force: true });
+});
 
 const get = (version: string, query = '', origin?: string) =>
   GET(new NextRequest(`http://localhost:3100/api/cv/${encodeURIComponent(version)}${query}`, { headers: origin ? { origin } : {} }), {

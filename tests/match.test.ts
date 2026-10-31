@@ -1,7 +1,7 @@
-import { isIndSponsor } from '../src/sponsors.ts';
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { daysAgo, raw } from './helpers.ts';
+import { daysAgo, raw } from './helpers.ts'; // first: it points the bot at a temp config before src/ loads one
+import { isIndSponsor } from '../src/sponsors.ts';
 import { pickCluster, scoreJob } from '../src/match.ts';
 
 describe('scoreJob: location', () => {

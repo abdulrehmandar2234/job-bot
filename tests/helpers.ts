@@ -1,4 +1,4 @@
-import { mkdtempSync } from 'node:fs';
+import { copyFileSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { mock } from 'node:test';
@@ -19,6 +19,13 @@ process.env.JOB_BOT_NOTIFY ||= 'off';
 // letters, prompts and filters they check do not depend on whoever runs them. Suites that test other profiles set
 // JOB_BOT_APPLICANT themselves (src/profile.ts reads it on every call).
 process.env.JOB_BOT_APPLICANT ||= join(import.meta.dirname, 'fixtures', 'applicant-owner.json');
+
+// config.json is personal and gitignored too: tests use a temp copy of the shipped config.default.json, so they never
+// depend on (or write) whoever runs them. Suites that test other settings set JOB_BOT_CONFIG themselves.
+if (!process.env.JOB_BOT_CONFIG) {
+  process.env.JOB_BOT_CONFIG = join(mkdtempSync(join(tmpdir(), 'job-bot-config-')), 'config.json');
+  copyFileSync(join(import.meta.dirname, '..', 'config.default.json'), process.env.JOB_BOT_CONFIG);
+}
 
 // Never write the real HTTP cache (data/http-cache) from a test. Suites that test the cache set their own dir.
 process.env.JOB_BOT_HTTP_CACHE ||= mkdtempSync(join(tmpdir(), 'job-bot-http-cache-'));

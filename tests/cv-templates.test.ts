@@ -146,7 +146,7 @@ describe('choosing a template', () => {
   });
 
   it('config.json cvTemplate is optional and must name a template', () => {
-    const cfg = JSON.parse(readFileSync(path('config.json'), 'utf8'));
+    const cfg = JSON.parse(readFileSync(path('config.default.json'), 'utf8'));
     delete cfg.cvTemplate;
     assert.equal(validateConfig(cfg).ok, true);
     for (const t of TEMPLATE_IDS) assert.equal(validateConfig({ ...cfg, cvTemplate: t }).ok, true);

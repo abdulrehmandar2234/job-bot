@@ -1,0 +1,197 @@
+{
+  "name": "Netherlands",
+  "description": "Onsite jobs in the Netherlands, at employers that are recognised visa sponsors (the IND register).",
+  "countries": {
+    "NL": {
+      "name": "Netherlands",
+      "visa": "ind-register",
+      "needsVisa": true,
+      "match": "amsterdam|rotterdam|utrecht|eindhoven|the hague|den haag|netherlands|nederland|\\bnl\\b"
+    }
+  },
+  "linkedinLocations": ["Netherlands"],
+  "adzunaCountries": ["nl"],
+  "companies": [
+    {
+      "name": "Adyen",
+      "ats": "greenhouse",
+      "token": "adyen"
+    },
+    {
+      "name": "Mollie",
+      "ats": "ashby",
+      "token": "mollie"
+    },
+    {
+      "name": "bol.com",
+      "ats": "greenhouse",
+      "token": "bolcom"
+    },
+    {
+      "name": "Catawiki",
+      "ats": "greenhouse",
+      "token": "catawiki"
+    },
+    {
+      "name": "Miro",
+      "ats": "greenhouse",
+      "token": "realtimeboardglobal"
+    },
+    {
+      "name": "Bynder",
+      "ats": "ashby",
+      "token": "bynder"
+    },
+    {
+      "name": "Mendix",
+      "ats": "lever",
+      "token": "mendix"
+    },
+    {
+      "name": "Typeform",
+      "ats": "greenhouse",
+      "token": "typeform"
+    },
+    {
+      "name": "Elastic",
+      "ats": "greenhouse",
+      "token": "elastic",
+      "indName": "elasticsearch B.V."
+    },
+    {
+      "name": "GitLab",
+      "ats": "greenhouse",
+      "token": "gitlab"
+    },
+    {
+      "name": "Datadog",
+      "ats": "greenhouse",
+      "token": "datadog"
+    },
+    {
+      "name": "MongoDB",
+      "ats": "greenhouse",
+      "token": "mongodb"
+    },
+    {
+      "name": "Stripe",
+      "ats": "greenhouse",
+      "token": "stripe"
+    },
+    {
+      "name": "Databricks",
+      "ats": "greenhouse",
+      "token": "databricks"
+    },
+    {
+      "name": "Celonis",
+      "ats": "greenhouse",
+      "token": "celonis"
+    },
+    {
+      "name": "Grafana Labs",
+      "ats": "greenhouse",
+      "token": "grafanalabs"
+    },
+    {
+      "name": "HelloFresh",
+      "ats": "greenhouse",
+      "token": "hellofresh"
+    },
+    {
+      "name": "Dataiku",
+      "ats": "greenhouse",
+      "token": "dataiku"
+    },
+    {
+      "name": "bunq",
+      "ats": "recruitee",
+      "token": "bunq"
+    },
+    {
+      "name": "Fastned",
+      "ats": "recruitee",
+      "token": "fastned"
+    },
+    {
+      "name": "LINKIT",
+      "ats": "recruitee",
+      "token": "linkit"
+    },
+    {
+      "name": "CM.com",
+      "ats": "recruitee",
+      "token": "cmcom"
+    },
+    {
+      "name": "Mijndomein",
+      "ats": "recruitee",
+      "token": "mijndomein"
+    },
+    {
+      "name": "Channable",
+      "ats": "recruitee",
+      "token": "channable"
+    },
+    {
+      "name": "Vandebron",
+      "ats": "recruitee",
+      "token": "vandebron"
+    },
+    {
+      "name": "Nmbrs",
+      "ats": "recruitee",
+      "token": "nmbrs"
+    },
+    {
+      "name": "TicketSwap",
+      "ats": "recruitee",
+      "token": "ticketswap"
+    },
+    {
+      "name": "Effectory",
+      "ats": "recruitee",
+      "token": "effectory"
+    },
+    {
+      "name": "Shiftbase",
+      "ats": "recruitee",
+      "token": "shiftbase"
+    },
+    {
+      "name": "Eventix",
+      "ats": "recruitee",
+      "token": "eventix"
+    },
+    {
+      "name": "Coolblue",
+      "ats": "smartrecruiters",
+      "token": "coolblue"
+    },
+    {
+      "name": "Delivery Hero",
+      "ats": "smartrecruiters",
+      "token": "deliveryhero"
+    },
+    {
+      "name": "Picnic",
+      "ats": "smartrecruiters",
+      "token": "picnic"
+    },
+    {
+      "name": "Polarsteps",
+      "ats": "ashby",
+      "token": "polarsteps"
+    },
+    {
+      "name": "Docplanner",
+      "ats": "ashby",
+      "token": "docplanner"
+    },
+    {
+      "name": "IMC Trading",
+      "ats": "greenhouse",
+      "token": "imc"
+    }
+  ]
+}

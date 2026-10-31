@@ -50,7 +50,8 @@ npm run test:web        # dashboard tests
 While working, run one file at a time, for example `npm test -- tests/match.test.ts` or `cd web && npx vitest run tests/lib/db.test.ts`.
 
 - **Schema changes:** add the next numbered file in `src/migrations/`. Never edit a migration that is already on `main`.
-- **New settings:** add them to the zod schema in `src/settings.ts`, to the Settings page if users edit them there, and to [docs/configuration.md](docs/configuration.md).
+- **New settings:** add them to the zod schema in `src/settings.ts`, to `config.default.json` if they need a default, to the Settings page if users edit them there, and to [docs/configuration.md](docs/configuration.md). Your own `config.json` is gitignored: never commit it.
+- **New presets:** a market or stack is one JSON file in `presets/markets/` or `presets/stacks/` (copy an existing one). `tests/presets.test.ts` validates every preset.
 - **Logic copied into the dashboard:** if you copy bot logic into `web/`, add a parity test, as the existing ones do.
 - **Docs:** update README.md and the pages in `docs/` when behaviour changes. The three install guides must stay in step with each other.
 

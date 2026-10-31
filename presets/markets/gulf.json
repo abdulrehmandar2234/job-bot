@@ -1,0 +1,93 @@
+{
+  "name": "Gulf: UAE and Saudi Arabia",
+  "description": "Onsite jobs in the UAE and Saudi Arabia, where the employer sorts out the work visa.",
+  "countries": {
+    "AE": {
+      "name": "UAE",
+      "visa": "employer",
+      "needsVisa": true,
+      "match": "dubai|abu dhabi|sharjah|\\buae\\b|united arab emirates|emirates"
+    },
+    "SA": {
+      "name": "Saudi Arabia",
+      "label": "Saudi",
+      "visa": "employer",
+      "needsVisa": true,
+      "match": "riyadh|jeddah|jedda|dammam|khobar|saudi|\\bksa\\b"
+    }
+  },
+  "linkedinLocations": ["United Arab Emirates", "Saudi Arabia"],
+  "adzunaCountries": [],
+  "companies": [
+    {
+      "name": "Careem",
+      "ats": "greenhouse",
+      "token": "careem"
+    },
+    {
+      "name": "Tamara",
+      "ats": "greenhouse",
+      "token": "tamara"
+    },
+    {
+      "name": "Lean Technologies",
+      "ats": "ashby",
+      "token": "leantech"
+    },
+    {
+      "name": "Ziina",
+      "ats": "ashby",
+      "token": "ziina"
+    },
+    {
+      "name": "Salla",
+      "ats": "workable",
+      "token": "salla"
+    },
+    {
+      "name": "Foodics",
+      "ats": "workable",
+      "token": "foodics"
+    },
+    {
+      "name": "Lucidya",
+      "ats": "workable",
+      "token": "lucidya"
+    },
+    {
+      "name": "Tamatem",
+      "ats": "workable",
+      "token": "tamatem"
+    },
+    {
+      "name": "Unifonic",
+      "ats": "recruitee",
+      "token": "unifonic"
+    },
+    {
+      "name": "Namshi",
+      "ats": "smartrecruiters",
+      "token": "namshi"
+    },
+    {
+      "name": "Dnata",
+      "ats": "recruitee",
+      "token": "dnata"
+    },
+    {
+      "name": "Almosafer",
+      "ats": "smartrecruiters",
+      "token": "almosafer"
+    },
+    {
+      "name": "Shipa",
+      "ats": "workable",
+      "token": "shipa"
+    },
+    {
+      "name": "Seera",
+      "ats": "smartrecruiters",
+      "token": "seera"
+    }
+  ]
+}
