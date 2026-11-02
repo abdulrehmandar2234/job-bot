@@ -1,8 +1,23 @@
 @import "tailwindcss";
 
+/* Light or dark comes from <html data-theme>, set before the first paint by the script in app/layout.tsx (the
+   reader's choice from the day / night toggle, else the system's). Without that attribute (no JS) the system
+   setting still applies. Tailwind's dark: variant follows the same rule. */
+@custom-variant dark {
+  &:where([data-theme="dark"], [data-theme="dark"] *) {
+    @slot;
+  }
+  @media (prefers-color-scheme: dark) {
+    &:where(:root:not([data-theme]), :root:not([data-theme]) *) {
+      @slot;
+    }
+  }
+}
+
 :root {
   --background: #ffffff;
   --foreground: #18181b;
+  color-scheme: light;
 }
 
 @theme inline {
@@ -12,10 +27,18 @@
   --font-mono: var(--font-geist-mono);
 }
 
+/* Native controls (selects, scrollbars, date pickers) follow the theme too, through color-scheme. */
+:root[data-theme="dark"] {
+  --background: #09090b;
+  --foreground: #f4f4f5;
+  color-scheme: dark;
+}
+
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme]) {
     --background: #09090b;
     --foreground: #f4f4f5;
+    color-scheme: dark;
   }
 }
 
