@@ -10,6 +10,7 @@ import { rescore } from '../src/commands/fetch.ts';
 import { timing } from '../src/sources/http.ts';
 import { fetchCompany } from '../src/sources/index.ts';
 import { BOARDS } from '../src/sources/boards.ts';
+import { config } from '../src/config.ts';
 
 const salaryOf = async (id: string) => {
   const j = await getJob(id);
@@ -45,6 +46,20 @@ describe('save() and salary', () => {
     await save(raw({ description: AED_MONTH, salary: { min: 300_000, max: null, currency: 'AED', period: 'year' } }));
     assert.deepEqual(await salaryOf('test:1'), [300_000, null, 'AED', 'year']);
   });
+
+  it('reads "Rs" as INR for a job in India and as PKR elsewhere', async () => {
+    const RS = 'We use Laravel, PHP, React and Node.js. Salary: Rs. 350,000 per month.';
+    config.countries.IN = { name: 'India', visa: 'employer', match: 'bengaluru|\\bindia\\b' };
+    try {
+      await save(raw({ id: 'test:in', location: 'Bengaluru, India', description: RS }));
+      await save(raw({ id: 'test:ae', url: 'https://example.com/2', description: RS }));
+    } finally {
+      delete config.countries.IN;
+    }
+    assert.equal((await getJob('test:in')).country, 'IN');
+    assert.deepEqual(await salaryOf('test:in'), [350_000, 350_000, 'INR', 'month']);
+    assert.deepEqual(await salaryOf('test:ae'), [350_000, 350_000, 'PKR', 'month']);
+  });
 });
 
 describe('rescore and salary', () => {
@@ -66,6 +81,18 @@ describe('rescore and salary', () => {
     assert.deepEqual(await salaryOf('test:new'), [20_000, 25_000, 'AED', 'month']);
     assert.deepEqual(await salaryOf('test:applied'), [20_000, 25_000, 'AED', 'month']);
     assert.equal((await getJob('test:applied')).status, 'applied');
+  });
+
+  it("re-reads a stored job's lakh amounts in rupees from its country", async () => {
+    await save(raw({ id: 'test:applied', description: 'Laravel and React. CTC: 15-20 lakhs.' }));
+    await pool.query(`UPDATE jobs SET status = 'applied', country = 'IN'`);
+    const log = quiet();
+    try {
+      await rescore();
+    } finally {
+      log.mock.restore();
+    }
+    assert.deepEqual(await salaryOf('test:applied'), [1_500_000, 2_000_000, 'INR', 'year']);
   });
 
   it('keeps a structured salary from an API source that the text does not repeat', async () => {
@@ -164,6 +191,44 @@ describe('structured salary from sources', () => {
       jobs.map((j) => j.salary),
       [{ min: 15_000, max: 20_000, currency: 'AED', period: 'month' }, null],
     );
+  });
+
+  it('adzuna: yearly INR for in', async () => {
+    const env = { id: process.env.ADZUNA_APP_ID, key: process.env.ADZUNA_APP_KEY };
+    const saved = config.adzuna;
+    process.env.ADZUNA_APP_ID = 'id';
+    process.env.ADZUNA_APP_KEY = 'key';
+    config.adzuna = { ...saved, countries: ['in'], keywords: ['laravel'], pagesPerSearch: 1 };
+    net = mockFetch({
+      'api.adzuna.com/v1/api/jobs/in/search/1': {
+        results: [
+          {
+            id: '1',
+            title: 'Laravel Developer',
+            company: { display_name: 'A' },
+            description: 'x',
+            redirect_url: 'https://a/1',
+            created: '2026-10-27T08:00:00Z',
+            salary_min: 1200000,
+            salary_max: 1800000,
+            salary_is_predicted: '0',
+          },
+        ],
+      },
+    });
+    try {
+      const jobs = await BOARDS.adzuna();
+      assert.deepEqual(
+        jobs.map((j) => j.salary),
+        [{ min: 1_200_000, max: 1_800_000, currency: 'INR', period: 'year' }],
+      );
+    } finally {
+      config.adzuna = saved;
+      process.env.ADZUNA_APP_ID = env.id ?? '';
+      process.env.ADZUNA_APP_KEY = env.key ?? '';
+      if (env.id === undefined) delete process.env.ADZUNA_APP_ID;
+      if (env.key === undefined) delete process.env.ADZUNA_APP_KEY;
+    }
   });
 
   it("adzuna: yearly EUR for nl, skipping Adzuna's own estimates", async () => {

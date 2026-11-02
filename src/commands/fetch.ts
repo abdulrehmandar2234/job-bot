@@ -93,7 +93,7 @@ export async function rescore() {
   // Jobs the user acted on are not re-scored, but their salary and visa note are filled in (or corrected) too.
   const { rows: acted } = await pool.query<Job>(`SELECT * FROM jobs WHERE status NOT IN ('new', 'filtered')`);
   for (const j of acted) {
-    const s = keptSalary(j) ?? parseSalary(`${j.title}\n${j.description}`);
+    const s = keptSalary(j) ?? parseSalary(`${j.title}\n${j.description}`, j.country);
     const scored = scoreJob({ ...j, posted_at: null });
     await pool.query(
       `UPDATE jobs SET salary_min = $2, salary_max = $3, salary_currency = $4, salary_period = $5,

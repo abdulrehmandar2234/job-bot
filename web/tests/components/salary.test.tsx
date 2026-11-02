@@ -62,6 +62,7 @@ describe('SalaryFilter', () => {
       'AED',
       'SAR',
       'PKR',
+      'INR',
       '/ year',
       '/ month',
     ]);

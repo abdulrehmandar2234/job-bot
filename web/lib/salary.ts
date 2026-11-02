@@ -30,18 +30,22 @@ export function formatSalary(j: JobSalary): string | null {
   return `${amount} / ${per}`;
 }
 
-// What the user expects per country (cv/applicant.json expectedSalary: AE, SA, NL, remote). A plain number is in the
-// country's currency, per month in the Gulf and per year elsewhere; a text like "AED 25,000 per month" or "EUR 70k"
-// says it itself.
-const LOCAL: Record<string, SalaryCurrency> = { AE: 'AED', SA: 'SAR', NL: 'EUR', remote: 'USD' };
+// What the user expects per country (cv/applicant.json expectedSalary: AE, SA, NL, IN, remote). A plain number is in the
+// country's currency, per month in the Gulf and per year elsewhere; a text like "AED 25,000 per month", "EUR 70k" or
+// "18 LPA" says it itself.
+const LOCAL: Record<string, SalaryCurrency> = { AE: 'AED', SA: 'SAR', NL: 'EUR', IN: 'INR', remote: 'USD' };
 const CURRENCY_WORDS: [RegExp, SalaryCurrency][] = [
   [/\bAED\b|dirham/i, 'AED'],
   [/\bSAR\b|riyal/i, 'SAR'],
   [/\bEUR\b|€|euro/i, 'EUR'],
   [/\bUSD\b|\$/i, 'USD'],
   [/\bGBP\b|£/i, 'GBP'],
+  // Before PKR: "Rs" next to ₹, INR or LPA is Indian (the bot's rule in src/salary.ts); under IN it is too, see below.
+  [/\bINR\b|₹|\d\s?LPA\b/i, 'INR'],
   [/\bPKR\b|\bRs\b/i, 'PKR'],
 ];
+// "k", lakh (100,000), crore (10,000,000) and LPA (lakh per annum) after a number.
+const MULT: Record<string, number> = { k: 1000, lakh: 1e5, lac: 1e5, lpa: 1e5, crore: 1e7, cr: 1e7 };
 
 export type Expectation = { amount: number; currency: SalaryCurrency; period: SalaryPeriod };
 
@@ -50,22 +54,26 @@ export function parseExpectation(value: unknown, country: string): Expectation |
   const period0: SalaryPeriod = country === 'AE' || country === 'SA' ? 'month' : 'year';
   if (typeof value === 'number' && value > 0 && currency0) return { amount: value, currency: currency0, period: period0 };
   if (typeof value !== 'string') return null;
-  // The lowest number named (with its k), so "AED 22-25k" expects 22k.
-  const nums = [...value.matchAll(/(\d[\d,.]*)\s*(k\b)?/gi)].map((m) => ({
-    n: Number(m[1].replace(/[,.](?=\d{3}\b)/g, '').replace(',', '.')),
-    k: !!m[2],
+  // The lowest number named (with its k or lakh), so "AED 22-25k" expects 22k and "18-20 LPA" 18 lakh.
+  const nums = [...value.matchAll(/(\d[\d,.]*)\s*(k|lakhs?|lacs?|lpa|crores?|cr)?\b/gi)].map((m) => ({
+    // Indian grouping ("18,00,000") drops every comma; otherwise a comma or dot before three digits groups thousands.
+    n: Number(/^\d{1,2}(,\d{2})+,\d{3}$/.test(m[1]) ? m[1].replace(/,/g, '') : m[1].replace(/[,.](?=\d{3}\b)/g, '').replace(',', '.')),
+    mult: m[2] ? MULT[m[2].toLowerCase().replace(/s$/, '')] : 1,
   }));
-  const anyK = nums.some((x) => x.k);
-  const amounts = nums.map((x) => x.n * (x.k || (anyK && x.n < 1000) ? 1000 : 1)).filter((n) => n > 0);
-  const currency = CURRENCY_WORDS.find(([re]) => re.test(value))?.[1] ?? currency0;
+  const top = Math.max(1, ...nums.map((x) => x.mult));
+  const amounts = nums.map((x) => x.n * (x.mult > 1 ? x.mult : x.n < 1000 ? top : 1)).filter((n) => n > 0);
+  const named = CURRENCY_WORDS.find(([re]) => re.test(value))?.[1];
+  const currency = named === 'PKR' && country === 'IN' && !/\bPKR\b/i.test(value) ? 'INR' : (named ?? currency0);
   if (!amounts.length || !currency) return null;
-  const period: SalaryPeriod = /month|maand|\bpm\b/i.test(value)
-    ? 'month'
-    : /hour|uur/i.test(value)
-      ? 'hour'
-      : /year|annual|annum|jaar|\bpa\b/i.test(value)
-        ? 'year'
-        : period0;
+  const period: SalaryPeriod = /\d\s?LPA\b/i.test(value)
+    ? 'year'
+    : /month|maand|\bpm\b/i.test(value)
+      ? 'month'
+      : /hour|uur/i.test(value)
+        ? 'hour'
+        : /year|annual|annum|jaar|\bpa\b/i.test(value)
+          ? 'year'
+          : period0;
   return { amount: Math.min(...amounts), currency, period };
 }
 

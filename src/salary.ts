@@ -3,13 +3,17 @@ import type { Job, Salary, SalaryCurrency, SalaryPeriod } from './types.ts';
 // Salary ranges in job postings. Conservative on purpose: an amount only counts when it carries a currency, sits near
 // salary wording (or is a "k" range), and is plausible for the period. Anything unclear returns null instead of a guess.
 
-const CODES = 'AED|SAR|EUR|USD|GBP|PKR';
+const CODES = 'AED|SAR|EUR|USD|GBP|PKR|INR';
+// An amount: Indian grouping ("18,00,000"), thousands groups ("120,000", "4.500") or plain digits, then an optional
+// "k" or an Indian multiplier: lakh / lac (100,000), crore / cr (10,000,000), or LPA ("lakh per annum").
 const TOKEN = new RegExp(
-  String.raw`(?<![\w.,])(?:(?<pre>US\s?\$|\$|€|£|\b(?:${CODES})(?![A-Za-z])|\bRs\.?)\s?)?` +
-    String.raw`(?<num>\d{1,3}(?:[,. ']\d{3})+(?:[.,]\d{1,2})?|\d+(?:[.,]\d{1,2})?)(?<k>\s?[kK](?![a-zA-Z]))?(?:,-)?` +
-    String.raw`(?:\s?(?<post>€|(?<![A-Za-z])(?:${CODES})\b|\b[Ee]uros?\b|\b[Dd]irhams?\b|\b[Rr]iyals?\b))?`,
+  String.raw`(?<![\w.,])(?:(?<pre>US\s?\$|\$|€|£|₹|\b(?:${CODES})(?![A-Za-z])|\bRs\.?)\s?)?` +
+    String.raw`(?<num>\d{1,2}(?:,\d{2})+,\d{3}(?:\.\d{1,2})?|\d{1,3}(?:[,. ']\d{3})+(?:[.,]\d{1,2})?|\d+(?:[.,]\d{1,2})?)` +
+    String.raw`(?:(?<k>\s?[kK](?![a-zA-Z]))|\s?(?<mult>[Ll]akhs?|[Ll]acs?|LPA|lpa|[Cc]rores?|[Cc]r)\b)?(?:,-)?` +
+    String.raw`(?:\s?(?<post>€|(?<![A-Za-z])(?:${CODES})\b|\b[Ee]uros?\b|\b[Dd]irhams?\b|\b[Rr]iyals?\b|\b[Rr]upees?\b))?`,
   'g',
 );
+const MULT: Record<string, number> = { lakh: 1e5, lac: 1e5, lpa: 1e5, crore: 1e7, cr: 1e7 };
 
 const CURRENCY: Record<string, SalaryCurrency> = {
   $: 'USD',
@@ -28,9 +32,14 @@ const CURRENCY: Record<string, SalaryCurrency> = {
   riyal: 'SAR',
   riyals: 'SAR',
   pkr: 'PKR',
-  rs: 'PKR',
-  'rs.': 'PKR',
+  inr: 'INR',
+  '₹': 'INR',
 };
+// "Rs" and "rupees" are written in Pakistan and in India alike. They mean INR when the job is in India (country IN) or
+// the posting is clearly Indian: it shows ₹ or INR, or quotes LPA ("lakh per annum"). Otherwise they stay PKR, the
+// bot's first market. "Lakh" and "crore" alone decide nothing, because Pakistani postings use them too.
+const RUPEE = new Set(['rs', 'rs.', 'rupee', 'rupees']);
+const INDIAN = /₹|\bINR\b|\d\s?LPA\b/i;
 
 // Plausible pay for a developer, per currency and period. Outside these bands the number is something else
 // (an allowance, a budget, a funding round) or the period is wrong, so it is ignored.
@@ -41,6 +50,7 @@ const BANDS: Record<SalaryCurrency, Record<SalaryPeriod, [number, number]>> = {
   AED: { year: [120_000, 2_000_000], month: [3_000, 100_000], hour: [40, 1_000] },
   SAR: { year: [120_000, 2_000_000], month: [3_000, 100_000], hour: [40, 1_000] },
   PKR: { year: [2_500_000, 50_000_000], month: [50_000, 2_000_000], hour: [500, 20_000] },
+  INR: { year: [300_000, 30_000_000], month: [25_000, 1_000_000], hour: [200, 10_000] },
 };
 
 const PERIOD: [SalaryPeriod, RegExp][] = [
@@ -66,23 +76,42 @@ const FROM = /\b(from|starting at|vanaf|min(imum)?|at least)\s*$/i;
 // "$120,000/yr - $150,000/yr": a per-period suffix may sit between the two ends.
 const RANGE_SEP = /^\s*(\/\s?(year|yr|y|annum|month|mo|hour|hr|h)\b)?\s*(-|–|—|to|tot|and|en)\s*$/i;
 
-type Token = { start: number; end: number; value: number; k: boolean; currency: SalaryCurrency | null; foreign: boolean };
+type Token = {
+  start: number;
+  end: number;
+  value: number;
+  /** 1, or what a "k", "lakh" or "crore" after the number multiplied it by. */
+  mult: number;
+  /** "12 LPA": lakh per annum, so the period is a year. */
+  lpa: boolean;
+  currency: SalaryCurrency | null;
+  /** The currency a number without one implies ("12 LPA"); it never overrides a currency the other end names. */
+  implied: SalaryCurrency | null;
+  foreign: boolean;
+};
 
 function amount(num: string): number {
+  if (/^\d{1,2}(,\d{2})+,\d{3}(\.\d{1,2})?$/.test(num)) return Number(num.replace(/,/g, ''));
   if (/^\d{1,3}([,. ']\d{3})+([.,]\d{1,2})?$/.test(num)) return Number(num.replace(/[.,]\d{1,2}$/, '').replace(/[,. ']/g, ''));
   return Number(num.replace(',', '.'));
 }
 
-function tokens(text: string): Token[] {
+function tokens(text: string, country: string | null): Token[] {
+  const indian = country === 'IN' || INDIAN.test(text);
   return [...text.matchAll(TOKEN)].map((m) => {
     const g = m.groups!;
     const cur = (g.pre ?? g.post)?.toLowerCase().replace(/\s/g, '');
+    const unit = g.mult?.toLowerCase().replace(/s$/, '');
+    const mult = g.k ? 1000 : unit ? MULT[unit] : 1;
     return {
       start: m.index,
       end: m.index + m[0].length,
-      k: !!g.k,
-      value: amount(g.num) * (g.k ? 1000 : 1),
-      currency: cur ? (CURRENCY[cur] ?? null) : null,
+      mult,
+      lpa: unit === 'lpa',
+      value: amount(g.num) * mult,
+      currency: !cur ? null : RUPEE.has(cur) ? (indian ? 'INR' : 'PKR') : (CURRENCY[cur] ?? null),
+      // Without a currency, LPA is Indian on its own; a lakh or crore only in a job in India.
+      implied: unit === 'lpa' || (unit && country === 'IN') ? 'INR' : null,
       // CA$, A$, S$, HK$...: a dollar, but not a US one.
       foreign: g.pre === '$' && /[A-Za-z]$/.test(text.slice(0, m.index)),
     };
@@ -100,30 +129,38 @@ const after = (text: string, i: number, n: number) => text.slice(i, i + n).split
 
 const fits = (v: number, cur: SalaryCurrency, p: SalaryPeriod) => v >= BANDS[cur][p][0] && v <= BANDS[cur][p][1];
 
-/** The first salary range in a posting's title or description, or null when there is none (or it is unclear). */
-export function parseSalary(text: string): Salary | null {
-  const all = tokens(text);
+/**
+ * The first salary range in a posting's title or description, or null when there is none (or it is unclear). The job's
+ * country (from scoring) decides what "Rs" means (see RUPEE) and whether a bare lakh is in rupees.
+ */
+export function parseSalary(text: string, country: string | null = null): Salary | null {
+  const all = tokens(text, country);
   for (let i = 0; i < all.length; i++) {
     let a = all[i];
     let b: Token | null = null;
     const next = all[i + 1];
     if (next && RANGE_SEP.test(text.slice(a.end, next.start))) b = next;
-    const currency = a.currency ?? b?.currency;
+    const currency = a.currency ?? b?.currency ?? a.implied ?? b?.implied;
     if (!currency || a.foreign || b?.foreign || (b?.currency && a.currency && b.currency !== a.currency)) continue;
     if (b) {
       i++;
-      // "AED 20-25k": the k belongs to both ends.
-      if (a.k !== b.k && Math.min(a.value, b.value) < 1000) {
-        if (!a.k) a = { ...a, value: a.value * 1000 };
-        else b = { ...b, value: b.value * 1000 };
+      // "AED 20-25k", "12-18 LPA": the k (or lakh) belongs to both ends.
+      if (a.mult !== b.mult && Math.min(a.mult, b.mult) === 1 && Math.min(a.value, b.value) < 1000) {
+        if (a.mult === 1) a = { ...a, value: a.value * b.mult, mult: b.mult, lpa: b.lpa };
+        else b = { ...b, value: b.value * a.mult, mult: a.mult, lpa: a.lpa };
       }
     }
     const end = (b ?? a).end;
     const pre = before(text, a.start, 60);
     const post = after(text, end, 30);
     if (NOT_PAY_BEFORE.test(pre) || NOT_PAY_AFTER.test(post)) continue;
-    const ranged = !!b && (a.k || b.k);
-    const wording = PERIOD.find(([, re]) => re.test(post)) ?? PERIOD.find(([, re]) => re.test(pre));
+    const ranged = !!b && (a.mult > 1 || b.mult > 1);
+    // LPA is per year by definition, and Indian pay quoted in lakh or crore is annual (CTC) unless it says otherwise.
+    const lakhs = currency === 'INR' && Math.max(a.mult, b?.mult ?? 1) >= 1e5;
+    const wording: SalaryPeriod | undefined =
+      a.lpa || b?.lpa
+        ? 'year'
+        : ((PERIOD.find(([, re]) => re.test(post)) ?? PERIOD.find(([, re]) => re.test(pre)))?.[0] ?? (lakhs ? 'year' : undefined));
     if (!wording && !ranged && !SALARY_WORDS.test(before(text, a.start, 100)) && !SALARY_WORDS.test(post)) continue;
 
     let min: number | null = a.value;
@@ -135,7 +172,7 @@ export function parseSalary(text: string): Salary | null {
     const plausible = (p: SalaryPeriod) => values.every((v) => fits(v, currency, p));
     // Without period wording, the size of the number decides; when two periods fit (or none), it is unclear.
     const period = wording
-      ? wording[0]
+      ? wording
       : (['year', 'month'] as const).filter(plausible).length === 1
         ? (['year', 'month'] as const).find(plausible)!
         : null;
@@ -171,9 +208,11 @@ const PAY_CURRENCY: Record<string, SalaryCurrency> = {
   sr: 'SAR',
   pkr: 'PKR',
   rs: 'PKR',
+  inr: 'INR',
+  '₹': 'INR',
 };
 const PAY_PERIOD: Record<string, SalaryPeriod> = { yr: 'year', year: 'year', mo: 'month', month: 'month', hr: 'hour', hour: 'hour' };
-const PAY_END = /(\$|€|£|[a-z]{2,3})\s?([\d,]+(?:\.\d+)?)\s?(k)?\s?\/\s?(yr|year|mo|month|hr|hour)\b/gi;
+const PAY_END = /(\$|€|£|₹|[a-z]{2,3})\s?([\d,]+(?:\.\d+)?)\s?(k)?\s?\/\s?(yr|year|mo|month|hr|hour)\b/gi;
 
 /**
  * A pay range a job site shows in its own field, such as LinkedIn's "Base pay range": "$50.00/mo - $100.00/mo",

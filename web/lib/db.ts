@@ -57,7 +57,7 @@ export type Job = Omit<
     >
   >;
 
-// Salaries come in six currencies and three periods (src/salary.ts). To compare them, everything is turned into
+// Salaries come in seven currencies and three periods (src/salary.ts). To compare them, everything is turned into
 // euros per year. The rates are approximate and fixed on purpose: good enough to filter and hint, not for accounting.
 export const EUR_RATE: Record<SalaryCurrency, number> = {
   EUR: 1,
@@ -66,6 +66,7 @@ export const EUR_RATE: Record<SalaryCurrency, number> = {
   AED: 0.25,
   SAR: 0.245,
   PKR: 0.0033,
+  INR: 0.0105,
 };
 export const PER_YEAR: Record<SalaryPeriod, number> = { year: 1, month: 12, hour: 2080 }; // 40 h x 52 weeks
 
