@@ -2,6 +2,7 @@ import { getJson, sleep } from './http.ts';
 import { config } from '../config.ts';
 import { partial, stripHtml, type Fetched, type RawJob } from './index.ts';
 import { structuredSalary } from '../salary.ts';
+import { currencyOf } from '../currencies.ts';
 import { loadProfile, remoteFromCode } from '../profile.ts';
 
 // Remote job boards. Unlike company ATS boards these list many companies, and the location
@@ -165,18 +166,6 @@ async function arbeitnow(): Promise<Fetched> {
 // and AI reviews of Adzuna jobs see less than for other sources.
 const ADZUNA_PAGE = 50;
 const ADZUNA_COUNTRY: Record<string, string> = { nl: 'Netherlands', in: 'India' };
-const ADZUNA_CURRENCY: Record<string, string> = {
-  nl: 'EUR',
-  de: 'EUR',
-  at: 'EUR',
-  be: 'EUR',
-  fr: 'EUR',
-  es: 'EUR',
-  it: 'EUR',
-  gb: 'GBP',
-  us: 'USD',
-};
-
 async function adzuna(): Promise<Fetched> {
   const id = process.env.ADZUNA_APP_ID;
   const key = process.env.ADZUNA_APP_KEY;
@@ -216,8 +205,8 @@ async function adzuna(): Promise<Fetched> {
             url: j.redirect_url,
             description: strip(j.description ?? ''),
             posted_at: j.created ?? null,
-            // Yearly. Adzuna estimates a salary when the ad has none (salary_is_predicted "1"); those are skipped.
-            salary: String(j.salary_is_predicted) === '1' ? null : structuredSalary(j.salary_min, j.salary_max, ADZUNA_CURRENCY[country]),
+            // Yearly, in the country's currency (src/currencies.json). Adzuna estimates a salary when the ad has none (salary_is_predicted "1"); those are skipped.
+            salary: String(j.salary_is_predicted) === '1' ? null : structuredSalary(j.salary_min, j.salary_max, currencyOf(country)),
           });
         }
         // The free plan has tight per-minute limits, so searches are spaced out.

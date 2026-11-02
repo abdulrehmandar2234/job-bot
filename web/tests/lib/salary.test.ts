@@ -1,16 +1,27 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it, vi } from 'vitest';
-import { belowExpectation, EUR_RATE, formatSalary, loadExpectations, parseExpectation, PER_YEAR, yearlyEur } from '@/lib/salary';
+import {
+  belowExpectation,
+  currencyCodes,
+  defaultCurrency,
+  eurRate,
+  formatSalary,
+  homeCountry,
+  loadExpectations,
+  parseExpectation,
+  PER_YEAR,
+  yearlyEur,
+} from '@/lib/salary';
 
-const job = (
-  min: number | null,
-  max: number | null,
-  cur: 'AED' | 'EUR' | 'USD' | 'SAR' | 'GBP' | 'PKR',
-  per: 'year' | 'month' | 'hour',
-  country = 'AE',
-) => ({ salary_min: min, salary_max: max, salary_currency: cur, salary_period: per, country });
+const job = (min: number | null, max: number | null, cur: string, per: 'year' | 'month' | 'hour', country = 'AE') => ({
+  salary_min: min,
+  salary_max: max,
+  salary_currency: cur,
+  salary_period: per,
+  country,
+});
 
 describe('yearlyEur', () => {
   it('converts every currency to euros and every period to a year', () => {
@@ -19,10 +30,14 @@ describe('yearlyEur', () => {
     expect(yearlyEur(20_000, 'AED', 'month')).toBe(60_000);
     expect(yearlyEur(50, 'USD', 'hour')).toBe(Math.round(50 * 0.92 * 2080));
     expect(yearlyEur(1_000_000, 'PKR', 'month')).toBe(39_600);
+    expect(yearlyEur(1_800_000, 'INR', 'year')).toBe(18_900);
   });
 
-  it('has a rate for every currency the bot parses, and the same periods', () => {
-    expect(Object.keys(EUR_RATE).sort()).toEqual(['AED', 'EUR', 'GBP', 'PKR', 'SAR', 'USD']);
+  it("has a rate for every currency in the bot's table (src/currencies.json), and the same periods", () => {
+    const table = JSON.parse(readFileSync(join(process.cwd(), '..', 'src', 'currencies.json'), 'utf8'));
+    expect(currencyCodes()).toEqual(Object.keys(table.currencies).sort());
+    for (const c of currencyCodes()) expect(eurRate(c)).toBe(table.currencies[c].eur);
+    expect(currencyCodes()).toEqual(expect.arrayContaining(['AED', 'BDT', 'EUR', 'GBP', 'INR', 'PKR', 'SAR', 'USD']));
     expect(Object.keys(PER_YEAR).sort()).toEqual(['hour', 'month', 'year']);
   });
 });
@@ -35,6 +50,7 @@ describe('formatSalary', () => {
     expect(formatSalary(job(300_000, 300_000, 'AED', 'year'))).toBe('AED 300k / year');
     expect(formatSalary(job(2_500_000, 3_000_000, 'PKR', 'year'))).toBe('PKR 2.5M–3M / year');
     expect(formatSalary(job(40, 60, 'USD', 'hour'))).toBe('USD 40–60 / hour');
+    expect(formatSalary(job(1_200_000, 1_800_000, 'INR', 'year'))).toBe('INR 1.2M–1.8M / year');
   });
 
   it('is null without a salary', () => {
@@ -56,6 +72,29 @@ describe('expectations', () => {
     expect(parseExpectation('USD 60k a year', 'remote')).toEqual({ amount: 60_000, currency: 'USD', period: 'year' });
   });
 
+  it("reads a plain number in any table country's currency", () => {
+    expect(parseExpectation(1_800_000, 'IN')).toEqual({ amount: 1_800_000, currency: 'INR', period: 'year' });
+    expect(parseExpectation(150_000, 'BD')).toEqual({ amount: 150_000, currency: 'BDT', period: 'year' });
+    expect(parseExpectation(20_000, 'QA')).toEqual({ amount: 20_000, currency: 'QAR', period: 'month' });
+    expect(parseExpectation('20,000 riyals a month', 'QA')).toEqual({ amount: 20_000, currency: 'QAR', period: 'month' });
+    expect(parseExpectation('CA$110k', 'CA')).toEqual({ amount: 110_000, currency: 'CAD', period: 'year' });
+  });
+
+  it("reads rupees: by country (or the user's for remote), then ₹ / LPA / lakh, with crore and Indian digit grouping", () => {
+    expect(parseExpectation('18 LPA', 'IN')).toEqual({ amount: 1_800_000, currency: 'INR', period: 'year' });
+    expect(parseExpectation('18-22 LPA', 'remote')).toEqual({ amount: 1_800_000, currency: 'INR', period: 'year' });
+    expect(parseExpectation('₹18,00,000 per year', 'remote')).toEqual({ amount: 1_800_000, currency: 'INR', period: 'year' });
+    expect(parseExpectation('INR 1.2 crore', 'IN')).toEqual({ amount: 12_000_000, currency: 'INR', period: 'year' });
+    expect(parseExpectation('Rs 1.5 lakh per month', 'IN')).toEqual({ amount: 150_000, currency: 'INR', period: 'month' });
+    expect(parseExpectation('Rs 3 lakh per month', 'PK')).toEqual({ amount: 300_000, currency: 'PKR', period: 'month' });
+    // Remote: the user's own country decides; without one, lakh points to INR.
+    expect(parseExpectation('Rs 3 lakh per month', 'remote', 'PK')).toEqual({ amount: 300_000, currency: 'PKR', period: 'month' });
+    expect(parseExpectation('Rs 3 lakh per month', 'remote')).toEqual({ amount: 300_000, currency: 'INR', period: 'month' });
+    expect(parseExpectation('Rs 300,000 per month', 'remote')).toEqual({ amount: 300_000, currency: 'PKR', period: 'month' });
+    // An explicit code always wins.
+    expect(parseExpectation('PKR 3 lakh per month', 'IN')).toEqual({ amount: 300_000, currency: 'PKR', period: 'month' });
+  });
+
   it('ignores unknown values', () => {
     expect(parseExpectation(null, 'AE')).toBeNull();
     expect(parseExpectation('negotiable', 'AE')).toBeNull();
@@ -75,6 +114,12 @@ describe('expectations', () => {
     expect(loadExpectations(join(dir, 'nope.json'))).toEqual({});
     writeFileSync(file, '{');
     expect(loadExpectations(file)).toEqual({});
+  });
+
+  it('reads a remote expectation\'s "Rs" in the applicant\'s own country', () => {
+    const file = join(dir, 'pk.json');
+    writeFileSync(file, JSON.stringify({ countryCode: 'pk', expectedSalary: { remote: 'Rs 4 lakh per month' } }));
+    expect(loadExpectations(file)).toEqual({ remote: { amount: 400_000, currency: 'PKR', period: 'month' } });
   });
 
   it('reads the applicant file JOB_BOT_APPLICANT names by default', () => {
@@ -99,10 +144,44 @@ describe('expectations', () => {
     // Remote jobs use the "remote" expectation: USD 70k a year is about EUR 64k.
     expect(belowExpectation(job(null, 70_000, 'USD', 'year', 'RM'), expected)).toBe(false);
     expect(belowExpectation(job(50_000, 60_000, 'USD', 'year', 'RM'), expected)).toBe(true);
+    // INR: 12 lakh a year is about EUR 12.6k, below an IN expectation of 18 LPA.
+    const india = { IN: { amount: 1_800_000, currency: 'INR' as const, period: 'year' as const } };
+    expect(belowExpectation(job(1_000_000, 1_200_000, 'INR', 'year', 'IN'), india)).toBe(true);
+    expect(belowExpectation(job(1_500_000, 2_000_000, 'INR', 'year', 'IN'), india)).toBe(false);
     // No expectation for the country, or no salary: no hint.
     expect(belowExpectation(job(1_000, 2_000, 'SAR', 'month', 'SA'), expected)).toBe(false);
     expect(
       belowExpectation({ salary_min: null, salary_max: null, salary_currency: null, salary_period: null, country: 'AE' }, expected),
     ).toBe(false);
+  });
+});
+
+describe('default salary currency', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'web-currency-'));
+  afterAll(() => rmSync(dir, { recursive: true, force: true }));
+  const files = (applicant: object, config: object) => {
+    writeFileSync(join(dir, 'applicant.json'), JSON.stringify(applicant));
+    writeFileSync(join(dir, 'config.json'), JSON.stringify(config));
+    vi.stubEnv('JOB_BOT_APPLICANT', join(dir, 'applicant.json'));
+    vi.stubEnv('JOB_BOT_CONFIG', join(dir, 'config.json'));
+  };
+
+  it("is the profile country's currency, else remote.fromCode's, else EUR", () => {
+    try {
+      files({ countryCode: 'in' }, { remote: { fromCode: 'PK' } });
+      expect(homeCountry()).toBe('IN');
+      expect(defaultCurrency()).toBe('INR');
+      files({}, { remote: { fromCode: 'PK' } });
+      expect(defaultCurrency()).toBe('PKR');
+      files({ countryCode: 'XX' }, {});
+      expect(defaultCurrency()).toBe('EUR');
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it('takes a country directly', () => {
+    expect(defaultCurrency('GB')).toBe('GBP');
+    expect(defaultCurrency(null)).toBe('EUR');
   });
 });

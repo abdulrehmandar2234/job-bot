@@ -1,17 +1,28 @@
 import { readFileSync } from 'node:fs';
 import type { Job, SalaryCurrency, SalaryPeriod } from '../../src/types';
-import { applicantFile } from './settings';
-import { EUR_RATE, PER_YEAR } from './db';
+import { applicantFile, readApplicant, readConfig } from './settings';
+import { PER_YEAR } from './db';
+import { currencyCodes, currencyOf, eurRate, isCurrency, namedCurrency } from './currencies';
 
-// The approximate rate tables live in db.ts, whose list filter turns them into SQL (db.ts imports no local modules:
-// the bot's tests load it with plain Node, which needs file extensions). Re-exported here with the other helpers.
-export { EUR_RATE, PER_YEAR };
-export const CURRENCIES = Object.keys(EUR_RATE) as SalaryCurrency[];
+// Currencies and their approximate EUR rates come from the bot's table, src/currencies.json (see ./currencies).
+export { currencyCodes, eurRate, isCurrency, PER_YEAR };
 
 export type JobSalary = Pick<Job, 'salary_min' | 'salary_max' | 'salary_currency' | 'salary_period'>;
 
 export const yearlyEur = (amount: number, currency: SalaryCurrency, period: SalaryPeriod) =>
-  Math.round(amount * EUR_RATE[currency] * PER_YEAR[period]);
+  Math.round(amount * eurRate(currency) * PER_YEAR[period]);
+
+const str = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : null);
+
+/** The user's country: cv/applicant.json countryCode, else config.json remote.fromCode; null when neither is set. */
+export function homeCountry(): string | null {
+  const remote = readConfig().data?.remote;
+  const fromCode = remote && typeof remote === 'object' && !Array.isArray(remote) ? (remote as Record<string, unknown>).fromCode : null;
+  return str(readApplicant().data?.countryCode)?.toUpperCase() ?? str(fromCode)?.toUpperCase() ?? null;
+}
+
+/** The salary filter's currency until the user picks one: their country's, else EUR. */
+export const defaultCurrency = (home = homeCountry()) => currencyOf(home) ?? 'EUR';
 
 const short = (n: number) => (n >= 1_000_000 ? `${+(n / 1_000_000).toFixed(1)}M` : n >= 1000 ? `${+(n / 1000).toFixed(1)}k` : String(n));
 
@@ -30,42 +41,40 @@ export function formatSalary(j: JobSalary): string | null {
   return `${amount} / ${per}`;
 }
 
-// What the user expects per country (cv/applicant.json expectedSalary: AE, SA, NL, remote). A plain number is in the
-// country's currency, per month in the Gulf and per year elsewhere; a text like "AED 25,000 per month" or "EUR 70k"
-// says it itself.
-const LOCAL: Record<string, SalaryCurrency> = { AE: 'AED', SA: 'SAR', NL: 'EUR', remote: 'USD' };
-const CURRENCY_WORDS: [RegExp, SalaryCurrency][] = [
-  [/\bAED\b|dirham/i, 'AED'],
-  [/\bSAR\b|riyal/i, 'SAR'],
-  [/\bEUR\b|€|euro/i, 'EUR'],
-  [/\bUSD\b|\$/i, 'USD'],
-  [/\bGBP\b|£/i, 'GBP'],
-  [/\bPKR\b|\bRs\b/i, 'PKR'],
-];
+// What the user expects per country (cv/applicant.json expectedSalary: a country code, or "remote"). A plain number is
+// in the country's currency (src/currencies.json; USD for remote), per month in the Gulf and per year elsewhere; a text
+// like "AED 25,000 per month", "EUR 70k" or "18 LPA" says it itself. A shared mark such as "Rs" means the currency of
+// that country, or for "remote" of the user's own country (`home`).
+const GULF = ['AE', 'SA', 'QA', 'KW', 'BH', 'OM'];
+// "k", lakh (100,000), crore (10,000,000) and LPA (lakh per annum) after a number.
+const MULT: Record<string, number> = { k: 1000, lakh: 1e5, lac: 1e5, lpa: 1e5, crore: 1e7, cr: 1e7 };
 
 export type Expectation = { amount: number; currency: SalaryCurrency; period: SalaryPeriod };
 
-export function parseExpectation(value: unknown, country: string): Expectation | null {
-  const currency0 = LOCAL[country];
-  const period0: SalaryPeriod = country === 'AE' || country === 'SA' ? 'month' : 'year';
+export function parseExpectation(value: unknown, country: string, home: string | null = null): Expectation | null {
+  const currency0 = country === 'remote' ? 'USD' : currencyOf(country);
+  const period0: SalaryPeriod = GULF.includes(country) ? 'month' : 'year';
   if (typeof value === 'number' && value > 0 && currency0) return { amount: value, currency: currency0, period: period0 };
   if (typeof value !== 'string') return null;
-  // The lowest number named (with its k), so "AED 22-25k" expects 22k.
-  const nums = [...value.matchAll(/(\d[\d,.]*)\s*(k\b)?/gi)].map((m) => ({
-    n: Number(m[1].replace(/[,.](?=\d{3}\b)/g, '').replace(',', '.')),
-    k: !!m[2],
+  // The lowest number named (with its k or lakh), so "AED 22-25k" expects 22k and "18-20 LPA" 18 lakh.
+  const nums = [...value.matchAll(/(\d[\d,.]*)\s*(k|lakhs?|lacs?|lpa|crores?|cr)?\b/gi)].map((m) => ({
+    // Indian grouping ("18,00,000") drops every comma; otherwise a comma or dot before three digits groups thousands.
+    n: Number(/^\d{1,2}(,\d{2})+,\d{3}$/.test(m[1]) ? m[1].replace(/,/g, '') : m[1].replace(/[,.](?=\d{3}\b)/g, '').replace(',', '.')),
+    mult: m[2] ? MULT[m[2].toLowerCase().replace(/s$/, '')] : 1,
   }));
-  const anyK = nums.some((x) => x.k);
-  const amounts = nums.map((x) => x.n * (x.k || (anyK && x.n < 1000) ? 1000 : 1)).filter((n) => n > 0);
-  const currency = CURRENCY_WORDS.find(([re]) => re.test(value))?.[1] ?? currency0;
+  const top = Math.max(1, ...nums.map((x) => x.mult));
+  const amounts = nums.map((x) => x.n * (x.mult > 1 ? x.mult : x.n < 1000 ? top : 1)).filter((n) => n > 0);
+  const currency = namedCurrency(value, country === 'remote' ? home : country) ?? currency0;
   if (!amounts.length || !currency) return null;
-  const period: SalaryPeriod = /month|maand|\bpm\b/i.test(value)
-    ? 'month'
-    : /hour|uur/i.test(value)
-      ? 'hour'
-      : /year|annual|annum|jaar|\bpa\b/i.test(value)
-        ? 'year'
-        : period0;
+  const period: SalaryPeriod = /\d\s?LPA\b/i.test(value)
+    ? 'year'
+    : /month|maand|\bpm\b/i.test(value)
+      ? 'month'
+      : /hour|uur/i.test(value)
+        ? 'hour'
+        : /year|annual|annum|jaar|\bpa\b/i.test(value)
+          ? 'year'
+          : period0;
   return { amount: Math.min(...amounts), currency, period };
 }
 
@@ -75,10 +84,11 @@ export function parseExpectation(value: unknown, country: string): Expectation |
  */
 export function loadExpectations(file = applicantFile()): Record<string, Expectation> {
   try {
-    const expected = JSON.parse(readFileSync(file, 'utf8')).expectedSalary ?? {};
+    const data = JSON.parse(readFileSync(file, 'utf8'));
+    const home = str(data.countryCode)?.toUpperCase() ?? null;
     return Object.fromEntries(
-      Object.entries(expected)
-        .map(([k, v]) => [k, parseExpectation(v, k)] as const)
+      Object.entries(data.expectedSalary ?? {})
+        .map(([k, v]) => [k, parseExpectation(v, k, home)] as const)
         .filter((e): e is [string, Expectation] => e[1] != null),
     );
   } catch {

@@ -4,7 +4,7 @@ import { fetchCompany, type Fetched } from '../sources/index.ts';
 import { BOARDS } from '../sources/boards.ts';
 import { linkedin } from '../sources/linkedin.ts';
 import { parseSalary, rowSalary, SALARY_SOURCES } from '../salary.ts';
-import { save, type Flags } from './shared.ts';
+import { homeCountry, save, type Flags } from './shared.ts';
 import { scoreJob } from '../match.ts';
 
 const waitingCount = async () => (await pool.query<{ n: number }>(`SELECT count(*)::int n FROM jobs WHERE status = 'new'`)).rows[0].n;
@@ -93,7 +93,7 @@ export async function rescore() {
   // Jobs the user acted on are not re-scored, but their salary and visa note are filled in (or corrected) too.
   const { rows: acted } = await pool.query<Job>(`SELECT * FROM jobs WHERE status NOT IN ('new', 'filtered')`);
   for (const j of acted) {
-    const s = keptSalary(j) ?? parseSalary(`${j.title}\n${j.description}`);
+    const s = keptSalary(j) ?? parseSalary(`${j.title}\n${j.description}`, j.country, homeCountry());
     const scored = scoreJob({ ...j, posted_at: null });
     await pool.query(
       `UPDATE jobs SET salary_min = $2, salary_max = $3, salary_currency = $4, salary_period = $5,
