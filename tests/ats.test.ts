@@ -135,7 +135,7 @@ describe('ats CLI', () => {
     const out = await bot(['ats', 'test:ats', '--cv', 'laravel']);
     assert.match(out, /CV keyword check — Acme — Senior Full Stack Engineer/);
     assert.match(out, /CV version {5}: laravel \(chosen with --cv\), shows \d+ of 9 job keywords/);
-    assert.match(out, /Missing {8}: Kubernetes {3}\(real gaps/);
+    assert.match(out, /Missing {8}: Kubernetes {3}\(not on your CV; only if you really have one: cv:feedback test:ats --add-skills "…"\)/);
     assert.match(out, /Suggestion {5}: the "[a-z-]+" version shows \d+ \(\+ .+\) — prepare test:ats --cv [a-z-]+/);
   });
 

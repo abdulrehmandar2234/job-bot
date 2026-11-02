@@ -16,6 +16,7 @@ import {
 import { renderPdf, type Cv } from '../cv/render.ts';
 import { PROFILES } from '../cv/profiles.ts';
 import { keepToMaster } from '../cv/feedback.ts';
+import { confirmSkills, parseSkills } from '../cv/confirm-skills.ts';
 import { isTemplate, TEMPLATE_IDS } from '../cv/templates/index.ts';
 import { aiCvFeedback, aiCvReview } from '../ai.ts';
 import { feedbackFlag } from './prepare.ts';
@@ -124,15 +125,30 @@ export async function cvTemplate(args: string[]) {
   console.log(`CV file    : ${cvFile(made.id)}`);
 }
 
+/** The feedback the AI gets when the candidate only confirmed skills and wrote nothing. */
+export const confirmedFeedback = (skills: string[]) =>
+  `I have these skills, now on my master CV: ${skills.join(', ')}. This job asks for them: show them where it will see ` +
+  'them (near the top of the skills, and in the summary where they fit).';
+
 /**
- * cv:feedback <id> --feedback "…": the AI revises the job's CV (its current version, else the master CV) to follow
- * the feedback. keepToMaster() then drops anything the master CV does not have. The result is a new one-off version
- * in the job's template that becomes the job's CV; the note says what the AI and the check left out.
+ * cv:feedback <id> --feedback "…" [--add-skills "Docker,GraphQL"]: the AI revises the job's CV (its current version,
+ * else the master CV) to follow the feedback. keepToMaster() then drops anything the master CV does not have. The
+ * result is a new one-off version in the job's template that becomes the job's CV; the note says what the AI and the
+ * check left out.
+ * --add-skills: skills the job asks for that the candidate confirmed they have ("I have this" on the job page). They
+ * are added to the master CV first (src/cv/confirm-skills.ts, with a backup), so the revision may show them. With
+ * them, --feedback is optional.
  */
 export async function cvFeedback(args: string[], flags: Flags) {
   const feedback = feedbackFlag(flags);
   if (feedback === null) return;
-  if (!feedback) {
+  const skills = parseSkills(flags['add-skills']);
+  if ('error' in skills) {
+    console.error(skills.error);
+    process.exitCode = 1;
+    return;
+  }
+  if (!feedback && !skills.length) {
     console.error('cv:feedback needs --feedback "what should change", e.g. --feedback "put Laravel experience first"');
     process.exitCode = 1;
     return;
@@ -140,11 +156,17 @@ export async function cvFeedback(args: string[], flags: Flags) {
   const j = await getJob(args[0]);
   if (!j) return console.log('Not found');
   if (!config.ai.enabled) return console.log(`${AI_OFF}: improving the CV with feedback needs it, so the CV is unchanged.`);
+  if (skills.length) {
+    const { added, backup } = confirmSkills(skills);
+    if (added.length) console.log(`Master CV  : added ${added.join(', ')} (the CV before: ${backup})`);
+    const already = skills.filter((s) => !added.includes(s));
+    if (already.length) console.log(`Master CV  : already shows ${already.join(', ')}`);
+  }
   const master = JSON.parse(masterRaw()) as Cv;
   const current = versionCv(j.cv_version);
   let res: Awaited<ReturnType<typeof aiCvFeedback>>;
   try {
-    res = await aiCvFeedback(j, master, current, feedback);
+    res = await aiCvFeedback(j, master, current, feedback || confirmedFeedback(skills));
   } catch (e) {
     console.error(`AI CV revision failed, the CV is unchanged: ${(e as Error).message}`);
     process.exitCode = 1;

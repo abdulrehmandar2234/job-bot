@@ -56,7 +56,7 @@ The home page shows four numbers (matching now, new today, applied in the last 7
 Click a job's title. From top to bottom:
 
 - **Check if still open:** asks the job board whether the posting still exists. **Prepare CV** checks this first and stops on a closed posting.
-- The full description, the AI review (score, verdict, reasons, gaps, red flags, location check) and the **CV keyword check**: which of the job's skills the CV shows near the top, which you have but this CV keeps further down, and which are real gaps.
+- The full description, the AI review (score, verdict, reasons, gaps, red flags, location check) and the **CV keyword check**: which of the job's skills the CV shows near the top, which you have but this CV keeps further down, and which are not on your CV. Tick **I have this** for a skill you really have (with an optional note for the AI) and **Add to my CV and improve it for this job** adds it to your master CV and revises this job's CV.
 - **CV for this job:** the CV version and its template, **Apply template** (classic, modern, compact; previews open in a new tab), **Download CV**, **What should change in this CV?** → **Improve CV with feedback**, and **Suggest improvements** (its suggestions can be copied into the box with **Use as feedback**). See [your-cv-and-profile.md](your-cv-and-profile.md#improving-a-jobs-cv-with-feedback).
 - **Cover letter:** **Write letter**, **Rewrite letter**, **Copy**, **Download PDF**, **What should change?** → **Rewrite with feedback**, and **Edit** / **Save** to change it yourself.
 - **CV summary for this job:** **Write summary**, then **Rewrite summary**, **Copy**, and **Use in my CV for this job**, which builds a one-off CV with it so **Download CV** serves that one.

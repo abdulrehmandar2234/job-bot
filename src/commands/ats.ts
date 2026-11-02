@@ -40,7 +40,7 @@ export async function ats(args: string[], flags: Flags) {
   console.log(`CV version     : ${id} (${source}), shows ${r.present.length} of ${r.total} job keywords`);
   console.log(`Shown          : ${list(r.present)}`);
   console.log(`Hidden but true: ${list(r.hiddenButTrue)}   (on your CV, but not near the top of this version)`);
-  console.log(`Missing        : ${list(r.missing)}   (real gaps: not on your CV, do not add them)`);
+  console.log(`Missing        : ${list(r.missing)}   (not on your CV; only if you really have one: cv:feedback ${j.id} --add-skills "…")`);
   if (r.suggestion) {
     console.log(
       `Suggestion     : the "${r.suggestion.version}" version shows ${r.suggestion.shows} (+ ${list(r.suggestion.gains)})` +

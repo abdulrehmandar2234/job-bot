@@ -24,7 +24,7 @@ import { Busy, TaskBar } from '@/components/tasks';
 import { WrittenText } from '@/components/written-text';
 import { SalaryTag } from '@/components/salary';
 import { AtsCheck } from '@/components/ats-check';
-import { CvPanel } from '@/components/cv-panel';
+import { CV_TASKS, CvPanel } from '@/components/cv-panel';
 import { loadExpectations } from '@/lib/salary';
 import { Contacts, ReferralReminder } from '@/components/contacts';
 import { allContacts } from '@/lib/contacts-db';
@@ -277,7 +277,7 @@ async function JobDetail({ params }: { params: PageProps<'/jobs/[id]'>['params']
           <div className="space-y-2">
             <AiReviewFold job={job} />
             <SkillsMatch job={job} />
-            <AtsCheck jobId={job.id} />
+            <AtsCheck jobId={job.id} confirm={ai && !CV_TASKS.some((k) => busy.includes(k))} />
           </div>
 
           <section id="letter" className="scroll-mt-4 space-y-2">

@@ -1,6 +1,7 @@
 import { pool } from './db.ts';
 import type { Task, TaskKind } from './types.ts';
 import { isTemplate } from './cv/templates/index.ts';
+import { parseSkills } from './cv/confirm-skills.ts';
 
 // The background task queue (table `tasks`, src/migrations/002_tasks.sql).
 // The dashboard enqueues (web/lib/tasks.ts, same SQL as enqueue() here) and spawns a detached `task:run <id>`
@@ -194,8 +195,10 @@ export function cliArgs(task: Pick<Task, 'kind' | 'job_id' | 'args'>, questionsF
     }
     case 'cv_feedback': {
       const feedback = feedbackArgs(task.args);
-      if (!feedback.length) throw new Error('Write what should change in the CV first');
-      return ['cv:feedback', job(), ...feedback];
+      const skills = typeof task.args.skills === 'string' ? parseSkills(task.args.skills) : [];
+      if ('error' in skills) throw new Error(skills.error);
+      if (!feedback.length && !skills.length) throw new Error('Write what should change in the CV first');
+      return ['cv:feedback', job(), ...feedback, ...(skills.length ? [`--add-skills=${skills.join(',')}`] : [])];
     }
     case 'cv_review':
       return ['cv:review', job()];
