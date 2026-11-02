@@ -385,6 +385,7 @@ src/
   types.ts          row types shared with the dashboard
   match.ts          filters, keyword score, CV cluster
   salary.ts         salary range extraction
+  currencies.ts     country → currency table (currencies.json): rates, symbols, plausibility bands
   ats.ts            CV keyword check (shown / hidden but true / missing)
   db.ts             Postgres access, upsert, status changes, dedupe
   migrate.ts        migration runner (applied on start)

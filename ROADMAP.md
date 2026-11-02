@@ -21,6 +21,7 @@ Nothing planned right now. Ideas from real use go here.
 - **Dead-link check:** `bot check:open`; `prepare` checks first; status `expired` with its own tab (src/sources/open.ts).
 - **ATS keyword check:** `bot ats <id>` and on the job page (src/ats.ts).
 - **Salary extraction:** src/salary.ts; shown on cards, minimum-salary filter on the job list.
+- **Currencies by country:** src/currencies.json maps countries to currencies (INR with lakh / crore / LPA, "Rs" by country); the salary filter lists them all and starts in your own.
 - **Contacts per job:** `bot contacts` / `contact:add`, and on the job page with referral reminders.
 - **Chrome extension:** `extension/` (send a job, apply helper side panel, form auto-fill that never submits).
 
