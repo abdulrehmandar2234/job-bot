@@ -1,6 +1,6 @@
 import type { SalaryCurrency, SalaryPeriod } from '../../src/types';
 import { AutoCheckbox } from '@/components/auto-submit';
-import { belowExpectation, CURRENCIES, formatSalary, yearlyEur, type Expectation, type JobSalary } from '@/lib/salary';
+import { belowExpectation, currencyCodes, formatSalary, isCurrency, yearlyEur, type Expectation, type JobSalary } from '@/lib/salary';
 
 /** The salary of a job, e.g. "💰 AED 20k–25k / month", with a hint when it is below what you expect for that country. */
 export function SalaryTag({ job, expected }: { job: JobSalary & { country: string | null }; expected: Record<string, Expectation> }) {
@@ -22,11 +22,14 @@ export function SalaryTag({ job, expected }: { job: JobSalary & { country: strin
 
 export type SalaryParams = { sal?: number; cur: SalaryCurrency; per: SalaryPeriod; only: boolean };
 
-/** Reads the salary filter from the list page's query string (sal, cur, per, salonly). */
-export function salaryParams(one: (k: string) => string | undefined) {
+/**
+ * Reads the salary filter from the list page's query string (sal, cur, per, salonly). Without a currency there, the
+ * filter uses `fallback`: the user's own country's currency (defaultCurrency in lib/salary).
+ */
+export function salaryParams(one: (k: string) => string | undefined, fallback: SalaryCurrency = 'EUR') {
   const p: SalaryParams = {
     sal: Number(one('sal')) > 0 ? Number(one('sal')) : undefined,
-    cur: CURRENCIES.includes(one('cur') as SalaryCurrency) ? (one('cur') as SalaryCurrency) : 'EUR',
+    cur: isCurrency(one('cur')) ? one('cur')! : fallback,
     per: one('per') === 'month' ? 'month' : 'year',
     only: one('salonly') === '1',
   };
@@ -56,7 +59,7 @@ export function SalaryFilter({ params }: { params: SalaryParams }) {
         className="input h-9 w-28 rounded-r-none"
       />
       <select name="cur" defaultValue={params.cur} aria-label="Salary currency" className="input -ml-px h-9 rounded-none">
-        {CURRENCIES.map((c) => (
+        {currencyCodes().map((c) => (
           <option key={c} value={c}>
             {c}
           </option>

@@ -97,7 +97,8 @@ export type RawJob = {
   salary?: Salary | null; // structured salary from the source's API; else save() parses the description
 };
 
-export type SalaryCurrency = 'AED' | 'SAR' | 'EUR' | 'USD' | 'GBP' | 'PKR' | 'INR';
+/** An ISO 4217 code from src/currencies.json ("INR", "EUR"); see src/currencies.ts. */
+export type SalaryCurrency = string;
 export type SalaryPeriod = 'year' | 'month' | 'hour';
 /** A salary range. One end may be open ("up to AED 25k": min null). */
 export type Salary = { min: number | null; max: number | null; currency: SalaryCurrency; period: SalaryPeriod };

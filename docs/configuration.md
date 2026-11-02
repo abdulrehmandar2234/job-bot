@@ -97,6 +97,15 @@ Example, for someone in Portugal looking at the Netherlands and Germany:
 }
 ```
 
+### Salary currencies
+
+Salaries are read and compared through [`src/currencies.json`](../src/currencies.json), not `config.json`. Under `"countries"` it maps each country code to its currency (`"IN": "INR"`); under `"currencies"` each currency has an approximate EUR rate (`eur`), the `symbols` and `words` postings write it with, and optionally tuned plausibility `bands` per year / month / hour. A currency without bands is checked against a wide US-dollar range after conversion.
+
+- **Add a country:** one line under `"countries"`. Add the currency too when the table does not have it yet.
+- **Shared marks:** "Rs" (PKR, INR, LKR, NPR) or "riyal" (SAR, QAR) mean the currency of the job's country, else of your own country (`remote.fromCode`, else `countryCode`) for remote jobs, else the one the text points to (₹, INR, LPA, lakh point to INR), else the first currency in the table. Plain "$" is always USD; other dollars count when written as such (`CA$`, `A$`, `S$`).
+- **Dashboard:** the "Min salary" filter lists every currency there and starts in your country's currency.
+- The rates are fixed on purpose: good enough to filter, not for accounting. Update them in the file when they drift.
+
 ## Remote
 
 | Key                       | Type                | Default                                                       | What it does                                                                                                                                                                                                     | Sensible value / when to change                                          |
@@ -169,7 +178,7 @@ LinkedIn is searched as a guest (no login, your account is never used), with req
 
 ## Adzuna (optional section)
 
-Adzuna is an official job-search API. It needs a free key you register yourself at [developer.adzuna.com](https://developer.adzuna.com), in `.env` as `ADZUNA_APP_ID` and `ADZUNA_APP_KEY`; without them the `adzuna` board is skipped with one log line. It only returns a snippet of each description, so its keyword scores see less text.
+Adzuna is an official job-search API. Salaries it returns are read in each country's currency from `src/currencies.json`. It needs a free key you register yourself at [developer.adzuna.com](https://developer.adzuna.com), in `.env` as `ADZUNA_APP_ID` and `ADZUNA_APP_KEY`; without them the `adzuna` board is skipped with one log line. It only returns a snippet of each description, so its keyword scores see less text.
 
 | Key                     | Type             | Default                                        | What it does                                                                                              | Sensible value / when to change       |
 | ----------------------- | ---------------- | ---------------------------------------------- | --------------------------------------------------------------------------------------------------------- | ------------------------------------- |

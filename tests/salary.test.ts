@@ -38,6 +38,7 @@ const FOUND: [string, Salary][] = [
   ['Salary: PKR 400,000 - 600,000 per month', S(400_000, 600_000, 'PKR', 'month')],
   ['Salary Rs. 350,000/month', S(350_000, 350_000, 'PKR', 'month')],
   ['Salary: AED 20,000+ per month', S(20_000, null, 'AED', 'month')],
+  ['CA$120,000 - CA$140,000 per year', S(120_000, 140_000, 'CAD', 'year')],
 ];
 
 // Numbers that are not a salary, or a salary too unclear to trust.
@@ -55,7 +56,7 @@ const NOT_FOUND = [
   'Customers in 40+ countries and 10,000 merchants',
   'Salary: competitive, plus annual bonus',
   'Call us on +971 4 123 4567',
-  'CA$120,000 - CA$140,000 per year',
+  'XY$120,000 - XY$140,000 per year', // a dollar the table does not know
   'Salary AED 100',
   'Salary: AED 110,000', // too big for a month, too small for a year
   'AED 20,000 - 90,000 per month', // range too wide to mean anything
@@ -97,7 +98,7 @@ describe('structuredSalary', () => {
   it('is null for empty or zero values and for currencies outside the table', () => {
     assert.equal(structuredSalary(0, 0, 'USD'), null);
     assert.equal(structuredSalary(undefined, '', 'USD'), null);
-    assert.equal(structuredSalary(50000, 60000, 'CAD'), null);
+    assert.equal(structuredSalary(50000, 60000, 'XYZ'), null);
   });
 });
 
@@ -127,7 +128,7 @@ describe('parsePayRange (a job site\'s own pay field, e.g. LinkedIn "Base pay ra
   });
 
   it('returns null for nothing, unknown currencies, or ends that disagree', () => {
-    for (const t of [null, undefined, '', 'Competitive', 'CHF 9,000/mo', '$5,000/mo - €6,000/mo', '$50/hr - $9,000/mo'])
+    for (const t of [null, undefined, '', 'Competitive', 'XYZ 9,000/mo', '$5,000/mo - €6,000/mo', '$50/hr - $9,000/mo'])
       assert.equal(parsePayRange(t), null, String(t));
   });
 });
@@ -151,23 +152,30 @@ describe('parseSalary: Indian rupees', () => {
     assert.deepEqual(parseSalary('Pay: 25 lakhs INR'), S(2_500_000, 2_500_000, 'INR', 'year'));
   });
 
-  it('reads "Rs" as INR in a job in India, or next to ₹ / INR / LPA; as PKR otherwise', () => {
-    assert.deepEqual(parseSalary('Salary: Rs 15 lakh per annum', 'IN'), S(1_500_000, 1_500_000, 'INR', 'year'));
-    assert.deepEqual(parseSalary('Salary: Rs. 12,00,000 - 18,00,000 per annum', 'IN'), S(1_200_000, 1_800_000, 'INR', 'year'));
-    assert.deepEqual(parseSalary('Salary Rs. 350,000/month', 'IN'), S(350_000, 350_000, 'INR', 'month'));
+  it('reads "Rs" by the job\'s country first, then the user\'s, then the text, then PKR', () => {
+    const RS = 'Salary Rs. 350,000/month';
+    assert.deepEqual(parseSalary(RS, 'IN'), S(350_000, 350_000, 'INR', 'month'));
+    assert.deepEqual(parseSalary(RS, 'PK'), S(350_000, 350_000, 'PKR', 'month'));
+    assert.deepEqual(parseSalary(RS, 'LK'), S(350_000, 350_000, 'LKR', 'month'));
+    // A remote job: the user's own country decides.
+    assert.deepEqual(parseSalary(RS, 'RM', 'IN'), S(350_000, 350_000, 'INR', 'month'));
+    assert.deepEqual(parseSalary('Salary: Rs 2 lakh per month', 'RM', 'PK'), S(200_000, 200_000, 'PKR', 'month'));
+    // The job's country wins over the user's, and over lakh in the text.
+    assert.deepEqual(parseSalary('Salary: Rs 2 lakh per month', 'PK', 'IN'), S(200_000, 200_000, 'PKR', 'month'));
+    // No country with "Rs": ₹, INR, LPA or lakh point to INR; otherwise PKR.
     assert.deepEqual(parseSalary('Salary: Rs 10-14 LPA'), S(1_000_000, 1_400_000, 'INR', 'year'));
+    assert.deepEqual(parseSalary('Salary: Rs 15 lakh per annum'), S(1_500_000, 1_500_000, 'INR', 'year'));
     assert.deepEqual(parseSalary('Salary: Rs 90,000 per month (₹10.8 lakh a year)'), S(90_000, 90_000, 'INR', 'month'));
-    assert.deepEqual(parseSalary('Salary Rs. 350,000/month'), S(350_000, 350_000, 'PKR', 'month'));
-    assert.deepEqual(parseSalary('Salary Rs. 350,000/month', 'RM'), S(350_000, 350_000, 'PKR', 'month'));
-    // Pakistani postings use lakh too: "Rs" with a lakh alone stays PKR.
-    assert.deepEqual(parseSalary('Salary: Rs 2 lakh per month'), S(200_000, 200_000, 'PKR', 'month'));
+    assert.deepEqual(parseSalary(RS), S(350_000, 350_000, 'PKR', 'month'));
+    // An explicit code always wins.
     assert.deepEqual(parseSalary('Salary: PKR 3-4 lakh per month', 'IN'), S(300_000, 400_000, 'PKR', 'month'));
   });
 
-  it('takes a bare lakh as INR only in a job in India, and reads it per year there', () => {
+  it('reads a bare lakh in the rupee of the job or the user, or as INR when the text has nothing else', () => {
     assert.deepEqual(parseSalary('CTC 15 lakhs', 'IN'), S(1_500_000, 1_500_000, 'INR', 'year'));
     assert.deepEqual(parseSalary('Salary: 8 - 12 lakh', 'IN'), S(800_000, 1_200_000, 'INR', 'year'));
-    assert.equal(parseSalary('CTC 15 lakhs'), null);
+    assert.deepEqual(parseSalary('Salary: 3 lakh per month', 'RM', 'PK'), S(300_000, 300_000, 'PKR', 'month'));
+    assert.deepEqual(parseSalary('CTC 15 lakhs'), S(1_500_000, 1_500_000, 'INR', 'year'));
   });
 
   it('ignores rupee amounts that are not pay, or not plausible', () => {
@@ -177,7 +185,7 @@ describe('parseSalary: Indian rupees', () => {
       'Annual learning budget of ₹50,000',
       'Salary: ₹500 per month',
       'Salary: ₹50 crore per year',
-      'Salary: Rs 15 lakh per annum', // PKR without a sign it is Indian, and too low for a PKR year
+      'We serve 50 lakh customers across India',
     ])
       assert.equal(parseSalary(text), null, text);
   });
@@ -188,10 +196,40 @@ describe('parseSalary: Indian rupees', () => {
   });
 });
 
-describe('structuredSalary and parsePayRange: INR', () => {
-  it('accepts INR from a source and ₹ / INR in a pay field', () => {
+describe('parseSalary: currencies from the table', () => {
+  it('reads any code, symbol or word in src/currencies.json', () => {
+    assert.deepEqual(parseSalary('Salary: BDT 80,000 - 120,000 per month'), S(80_000, 120_000, 'BDT', 'month'));
+    assert.deepEqual(parseSalary('Salary: ৳1,00,000 per month'), S(100_000, 100_000, 'BDT', 'month'));
+    assert.deepEqual(parseSalary('Gaji: Rp 15.000.000 per month'), S(15_000_000, 15_000_000, 'IDR', 'month'));
+    assert.deepEqual(parseSalary('Salary: 12,000 - 15,000 zł per month'), S(12_000, 15_000, 'PLN', 'month'));
+    assert.deepEqual(parseSalary('Salary: CHF 120,000 per year'), S(120_000, 120_000, 'CHF', 'year'));
+    assert.deepEqual(parseSalary('Salary: ₦800,000 per month'), S(800_000, 800_000, 'NGN', 'month'));
+  });
+
+  it('reads "$" as USD, and other dollars only when the text names them', () => {
+    assert.deepEqual(parseSalary('Salary: $120,000 per year', 'CA'), S(120_000, 120_000, 'USD', 'year'));
+    assert.deepEqual(parseSalary('Salary: C$95,000 - C$110,000 per year', 'CA'), S(95_000, 110_000, 'CAD', 'year'));
+    assert.deepEqual(parseSalary('Salary: A$140k - A$160k'), S(140_000, 160_000, 'AUD', 'year'));
+    assert.deepEqual(parseSalary('Salary: S$8,000 per month'), S(8_000, 8_000, 'SGD', 'month'));
+  });
+
+  it('resolves a shared word by country: "riyal" is SAR, or QAR in Qatar', () => {
+    assert.deepEqual(parseSalary('Salary: 20,000 riyals per month'), S(20_000, 20_000, 'SAR', 'month'));
+    assert.deepEqual(parseSalary('Salary: 20,000 riyals per month', 'QA'), S(20_000, 20_000, 'QAR', 'month'));
+  });
+
+  it('does not read the PHP language as Philippine pesos', () => {
+    assert.equal(parseSalary('Salary: PHP 80,000 per month'), null);
+    assert.deepEqual(parseSalary('Salary: ₱80,000 per month'), S(80_000, 80_000, 'PHP', 'month'));
+  });
+});
+
+describe('structuredSalary and parsePayRange: table currencies', () => {
+  it('accepts INR and other table currencies from a source and in a pay field', () => {
     assert.deepEqual(structuredSalary(1_200_000, 1_800_000, 'inr'), S(1_200_000, 1_800_000, 'INR', 'year'));
     assert.deepEqual(parsePayRange('₹15,00,000.00/yr - ₹25,00,000.00/yr'), S(1_500_000, 2_500_000, 'INR', 'year'));
     assert.deepEqual(parsePayRange('INR 90,000.00/mo'), S(90_000, 90_000, 'INR', 'month'));
+    assert.deepEqual(parsePayRange('CA$90K/yr - CA$110K/yr'), S(90_000, 110_000, 'CAD', 'year'));
+    assert.deepEqual(parsePayRange('PLN 20,000.00/mo'), S(20_000, 20_000, 'PLN', 'month'));
   });
 });

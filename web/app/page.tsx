@@ -21,7 +21,7 @@ import { JobActions } from '@/components/job-actions';
 import { TaskBar } from '@/components/tasks';
 import { isActive, openTasks } from '@/lib/tasks';
 import { SalaryFilter, SalaryOnlyToggle, salaryParams, SalaryTag } from '@/components/salary';
-import { loadExpectations } from '@/lib/salary';
+import { defaultCurrency, loadExpectations } from '@/lib/salary';
 import { aiEnabled } from '@/lib/settings';
 import { ReferralBadge } from '@/components/contacts';
 import { allContacts } from '@/lib/contacts-db';
@@ -107,7 +107,7 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<'/'>['searc
   const days = Number(one('days')) || undefined;
   const sort = one('sort') === 'newest' ? 'newest' : 'score';
   const visaOnly = one('visa') === '1';
-  const salary = salaryParams(one);
+  const salary = salaryParams(one, defaultCurrency());
   const expected = loadExpectations();
   const ai = aiEnabled(); // config.json ai.enabled: off hides the AI review buttons
   const page = Math.max(1, Math.floor(Number(one('page'))) || 1);

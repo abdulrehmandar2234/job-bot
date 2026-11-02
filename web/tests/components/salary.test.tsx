@@ -2,6 +2,7 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { SalaryFilter, SalaryOnlyToggle, salaryParams, SalaryTag } from '@/components/salary';
+import { currencyCodes } from '@/lib/salary';
 
 const job = { salary_min: 18_000, salary_max: 22_000, salary_currency: 'AED' as const, salary_period: 'month' as const, country: 'AE' };
 const params = (q: Record<string, string>) => salaryParams((k) => q[k]);
@@ -41,6 +42,14 @@ describe('salaryParams', () => {
     });
     expect(params({ sal: '-5', cur: 'BTC', per: 'week' }).params).toEqual({ sal: undefined, cur: 'EUR', per: 'year', only: false });
   });
+
+  it("falls back to the user's currency, and takes any currency in the table", () => {
+    expect(salaryParams(() => undefined, 'INR').params.cur).toBe('INR');
+    expect(salaryParams((k) => ({ cur: 'BTC' })[k], 'PKR').params.cur).toBe('PKR');
+    const p = params({ sal: '1800000', cur: 'INR', per: 'year' });
+    expect(p.params.cur).toBe('INR');
+    expect(p.filter.minSalary).toBe(18_900);
+  });
 });
 
 describe('SalaryFilter', () => {
@@ -55,16 +64,12 @@ describe('SalaryFilter', () => {
     expect(screen.getByRole('combobox', { name: 'Salary currency' })).toHaveValue('EUR');
     expect(screen.getByRole('combobox', { name: 'Salary period' })).toHaveValue('month');
     expect(screen.getByRole('checkbox', { name: 'only with salary' })).toBeChecked();
-    expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual([
-      'EUR',
-      'USD',
-      'GBP',
-      'AED',
-      'SAR',
-      'PKR',
-      'INR',
-      '/ year',
-      '/ month',
-    ]);
+    // Every currency of src/currencies.json, A–Z, then the periods.
+    const options = screen.getAllByRole('option').map((o) => o.textContent);
+    expect(options.slice(-2)).toEqual(['/ year', '/ month']);
+    const codes = options.slice(0, -2);
+    expect(codes).toEqual(currencyCodes());
+    expect(codes).toEqual([...codes].sort());
+    expect(codes).toEqual(expect.arrayContaining(['AED', 'BDT', 'EUR', 'INR', 'PKR', 'USD']));
   });
 });

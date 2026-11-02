@@ -3,7 +3,8 @@ import { Pool } from 'pg';
 // is bundled and Turbopack's root stays web/.
 // .ts extension: the bot's tests (tests/statuses.test.ts) load this file in plain Node too.
 import { FOLLOW_UP_DUE_SQL } from './followup.ts';
-import type { FetchRun, FormAnswer, InterviewPrep, Job as JobRow, JobEvent, SalaryCurrency, SalaryPeriod } from '../../src/types';
+import { currencyTable } from './currencies.ts';
+import type { FetchRun, FormAnswer, InterviewPrep, Job as JobRow, JobEvent, SalaryPeriod } from '../../src/types';
 
 // Same Postgres database the CLI bot writes to (job-bot/.env and web/.env.local).
 const g = globalThis as unknown as { jobBotPool?: Pool };
@@ -57,23 +58,15 @@ export type Job = Omit<
     >
   >;
 
-// Salaries come in seven currencies and three periods (src/salary.ts). To compare them, everything is turned into
-// euros per year. The rates are approximate and fixed on purpose: good enough to filter and hint, not for accounting.
-export const EUR_RATE: Record<SalaryCurrency, number> = {
-  EUR: 1,
-  USD: 0.92,
-  GBP: 1.17,
-  AED: 0.25,
-  SAR: 0.245,
-  PKR: 0.0033,
-  INR: 0.0105,
-};
+// Salaries come in any currency of src/currencies.json and three periods (src/salary.ts). To compare them, everything is
+// turned into euros per year. The rates in that table are approximate and fixed on purpose: good enough to filter and
+// hint, not for accounting.
 export const PER_YEAR: Record<SalaryPeriod, number> = { year: 1, month: 12, hour: 2080 }; // 40 h x 52 weeks
 
-/** SQL for a job's best pay (top of its range) in euros per year; NULL without a salary. Built from the tables above. */
-const SQL_YEARLY_EUR = `(coalesce(salary_max, salary_min)
-  * CASE salary_currency ${Object.entries(EUR_RATE)
-    .map(([c, r]) => `WHEN '${c}' THEN ${r}`)
+/** SQL for a job's best pay (top of its range) in euros per year; NULL without a salary. Built from the rate tables. */
+const sqlYearlyEur = () => `(coalesce(salary_max, salary_min)
+  * CASE salary_currency ${Object.entries(currencyTable().currencies)
+    .map(([c, e]) => `WHEN '${c.replace(/[^A-Z]/g, '')}' THEN ${Number(e.eur)}`)
     .join(' ')} END
   * CASE salary_period ${Object.entries(PER_YEAR)
     .map(([p, n]) => `WHEN '${p}' THEN ${n}`)
@@ -131,7 +124,7 @@ function jobWhere(f: JobFilter) {
   // Jobs without a salary stay in the list unless salaryOnly asks for jobs that name one.
   if (f.minSalary) {
     params.push(f.minSalary);
-    where.push(`(${SQL_YEARLY_EUR} >= $${params.length}${f.salaryOnly ? '' : ' OR salary_currency IS NULL'})`);
+    where.push(`(${sqlYearlyEur()} >= $${params.length}${f.salaryOnly ? '' : ' OR salary_currency IS NULL'})`);
   }
   if (f.salaryOnly) where.push('salary_currency IS NOT NULL');
   if (f.visaOnly) where.push(`visa_evidence IN ('offered', 'not-needed')`);

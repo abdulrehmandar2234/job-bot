@@ -46,7 +46,7 @@ The home page shows four numbers (matching now, new today, applied in the last 7
 - **Country**, **Score ≥ 50 / 60 / 70 / 80**, **Posted** (last 24 hours, 3 days, 7 days).
 - **Sort:** "Best match first" (the AI score, with the keyword score as a fallback) or "Newest first".
 - **Per page:** 10, 25 (default), 50 or 100. Page links above and below the list keep the tab, filters and sort.
-- **Min salary** in AED, SAR, EUR, USD, GBP, PKR or INR, per month or year (compared in euros per year with fixed, approximate rates). Jobs without a salary stay visible unless "only with salary" is ticked.
+- **Min salary** in any currency of `src/currencies.json`, per month or year. It starts in your country's currency (`countryCode` in `cv/applicant.json`, else `remote.fromCode`) and compares in euros per year with fixed, approximate rates. Jobs without a salary stay visible unless "only with salary" is ticked.
 - **Visa/relocation offered (or not needed)** keeps only jobs whose posting offers a visa or relocation, and jobs where you need none.
 
 **Each card** shows the scores, the AI verdict and reasons, the location with the visa label, the salary (with a "below your expectation" hint when `cv/applicant.json` → `expectedSalary` is higher), every site the same job was found on, matched and missing skills, flags, your notes, and buttons: open the posting, **Prepare CV**, **Download CV**, AI review, and status buttons. **Skip** asks why (stack, seniority, salary, location, company, language, other); `/analytics` shows the patterns.

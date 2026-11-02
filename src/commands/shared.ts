@@ -1,5 +1,7 @@
+import { config } from '../config.ts';
 import { upsertJob, type Job } from '../db.ts';
 import { scoreJob } from '../match.ts';
+import { loadProfile, remoteFromCode } from '../profile.ts';
 import { parseSalary } from '../salary.ts';
 import type { RawJob } from '../types.ts';
 
@@ -19,10 +21,13 @@ export const AI_OFF = 'AI is off (config.json ai.enabled)';
 
 export const today = () => new Date().toLocaleDateString('en-CA'); // local YYYY-MM-DD
 
+/** The user's own country (remote.fromCode, else the profile's countryCode): what "Rs" means in a remote job. */
+export const homeCountry = () => remoteFromCode(config, loadProfile());
+
 /** Scores a posting and upserts it as new or filtered. A source's own salary data wins over parsing the text. */
 export function save({ salary: given, ...raw }: RawJob) {
   const s = scoreJob(raw);
-  const salary = given ?? parseSalary(`${raw.title}\n${raw.description}`, s.country);
+  const salary = given ?? parseSalary(`${raw.title}\n${raw.description}`, s.country, homeCountry());
   return upsertJob({
     ...raw,
     country: s.country,
