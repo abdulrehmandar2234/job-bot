@@ -14,13 +14,23 @@ describe('root layout', () => {
     expect(metadata.description).toBe('Matching jobs in UAE, Saudi Arabia and the Netherlands');
   });
 
-  it('renders an English document with both fonts and the page inside <body>', () => {
+  it('renders an English document with both fonts, smooth scrolling Next.js can pause, and the page inside <body>', () => {
     const html = renderToStaticMarkup(
       RootLayout({ children: <main>dashboard</main>, params: Promise.resolve({}) } as Parameters<typeof RootLayout>[0]),
     );
     expect(html).toBe(
-      '<html lang="en" class="font-geist-sans font-geist-mono h-full antialiased"><head></head>' +
+      '<html lang="en" data-scroll-behavior="smooth" class="font-geist-sans font-geist-mono h-full antialiased"><head></head>' +
         '<body class="min-h-full flex flex-col"><main>dashboard</main></body></html>',
     );
+  });
+
+  it('tolerates attributes a browser extension adds to <html> and <body> (no hydration error on every page)', () => {
+    const tree = RootLayout({ children: <main>dashboard</main>, params: Promise.resolve({}) } as Parameters<typeof RootLayout>[0]);
+    expect(tree.props.suppressHydrationWarning).toBe(true);
+    const body = tree.props.children;
+    expect(body.type).toBe('body');
+    expect(body.props.suppressHydrationWarning).toBe(true);
+    // Only the two outer elements: the page itself still reports real mismatches.
+    expect(body.props.children.props.suppressHydrationWarning).toBeUndefined();
   });
 });

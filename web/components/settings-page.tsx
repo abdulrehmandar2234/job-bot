@@ -1,40 +1,9 @@
 import { connection } from 'next/server';
 import { ApplicantForm, ConfigForm, JsonEditor } from '@/components/settings';
+import { SettingsNav } from '@/components/settings-nav';
 import { salaryKeys } from '@/lib/settings-form';
 import { SETTINGS_GROUPS } from '@/lib/settings-sections';
 import { aiKeyStatus, readApplicant, readConfig } from '@/lib/settings';
-
-const navLink =
-  'block rounded-lg px-2.5 py-1 text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-zinc-100';
-
-/**
- * Links to every section: a sticky column on the left on large screens, a wrapped list of links above the forms on
- * small ones. Plain anchors, so it needs no client JS.
- */
-export function SettingsNav() {
-  return (
-    <nav aria-label="Settings sections" className="text-sm lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:self-start lg:overflow-y-auto">
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
-        {SETTINGS_GROUPS.map((g) => (
-          <div key={g.id}>
-            <a href={`#${g.id}`} className="mb-1 block px-2.5 text-xs font-semibold tracking-wide text-zinc-500 uppercase hover:underline">
-              {g.title}
-            </a>
-            <ul className="flex flex-wrap gap-x-1 lg:block lg:space-y-0.5">
-              {g.sections.map((s) => (
-                <li key={s.id}>
-                  <a href={`#${s.id}`} className={navLink}>
-                    {s.title}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ))}
-      </div>
-    </nav>
-  );
-}
 
 /** Reads both files on every request: they change outside the dashboard too. */
 export async function Settings() {
