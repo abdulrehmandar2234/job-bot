@@ -86,6 +86,7 @@ if (!load) {
   cv:template <id> <template>     use a CV design for this job and re-render its CV as a new version
   cv:preview <template> [--pdf]   the master CV in a design (HTML, or data/previews/<template>.pdf)
   cv:feedback <id> --feedback "…" AI revises the job's CV with your feedback (master CV content only, a new version)
+         [--add-skills "Docker,GraphQL"]  first add job skills you confirm you have to the master CV (with a backup)
   cv:review <id>                  AI suggests how to improve the job's CV for this job (stored on the job)
   letter:pdf <id>                 print the cover letter to cover-letter.pdf in the job's applications/ folder
   check:open [<id>...] [--status new,prepared] [--limit N]

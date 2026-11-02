@@ -235,6 +235,54 @@ describe('cv:feedback', () => {
   });
 });
 
+describe('cv:feedback --add-skills', () => {
+  it('adds the confirmed skills to the master CV with a backup, and the revised CV keeps them', { skip: noChrome }, async () => {
+    const id = await addJob('Skillsco Cli');
+    const file = join(tmp, 'master-skills.json');
+    writeFileSync(file, readFileSync(MASTER));
+    const backups = join(tmp, 'cv-backups');
+    const log = join(tmp, 'claude-skills.jsonl');
+    const proposal = {
+      cv: {
+        ...master,
+        skills: [
+          { group: 'DevOps & Tools', items: ['Kubernetes', 'Docker'] },
+          ...master.skills.filter((g) => g.group !== 'DevOps & Tools'),
+        ],
+        projects: master.projects.map((p) => p.name),
+      },
+      note: '',
+    };
+    const out = await bot(['cv:feedback', id, '--add-skills=Kubernetes,Docker'], {
+      JOB_BOT_MASTER: file,
+      JOB_BOT_CV_BACKUP_DIR: backups,
+      FAKE_CLAUDE_OUT: JSON.stringify(proposal),
+      FAKE_CLAUDE_LOG: log,
+    });
+    assert.match(out, /Master CV {2}: added Kubernetes \(the CV before: .*cv-backups\/master-.*\.json\)/);
+    assert.match(out, /Master CV {2}: already shows Docker/);
+    assert.deepEqual(
+      readdirSync(backups).map((f) => readFileSync(join(backups, f), 'utf8')),
+      [readFileSync(MASTER, 'utf8')],
+    );
+    const devops = (JSON.parse(readFileSync(file, 'utf8')) as Cv).skills.find((g) => g.group === 'DevOps & Tools')!;
+    assert.deepEqual(devops.items, ['Docker', 'AWS', 'Git', 'Kubernetes']);
+
+    const v = versionOf(out);
+    assert.deepEqual(cvJson(v).skills[0], { group: 'DevOps & Tools', items: ['Kubernetes', 'Docker'] }, 'not left out');
+    assert.equal(meta(v).feedbackNote, undefined);
+    const { stdin } = JSON.parse(readFileSync(log, 'utf8').trim()) as { stdin: string };
+    assert.match(stdin, /"Kubernetes"[\s\S]*FEEDBACK FROM THE CANDIDATE:\nI have these skills, now on my master CV: Kubernetes, Docker\./);
+  });
+
+  it('refuses unknown skills and changes nothing', async () => {
+    const id = await addJob('Skillsco Bad');
+    const res = await fails(['cv:feedback', id, '--add-skills=Cobol']);
+    assert.match(res.stderr, /Unknown skill: Cobol/);
+    assert.equal((await getJob(id))!.cv_version, null);
+  });
+});
+
 describe('cv:review', () => {
   it('stores the AI review on the job and changes nothing else', async () => {
     const id = await addJob('Reviewco Cli');

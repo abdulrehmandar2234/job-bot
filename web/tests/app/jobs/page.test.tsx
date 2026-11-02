@@ -16,6 +16,7 @@ vi.mock('@/app/actions', () => ({
   tailorCv: vi.fn(),
   applyCvTemplate: vi.fn(),
   improveCv: vi.fn(),
+  addSkillsToCv: vi.fn(),
   reviewCv: vi.fn(),
   setStatus: vi.fn(),
   prepare: vi.fn(),

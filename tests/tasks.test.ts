@@ -337,6 +337,18 @@ describe('cliArgs', () => {
     ]);
   });
 
+  it('runs cv:feedback with confirmed skills, with or without feedback, and only known skill names', () => {
+    assert.deepEqual(cliArgs(t('cv_feedback', { skills: 'Docker,GraphQL' })), ['cv:feedback', JOB, '--add-skills=Docker,GraphQL']);
+    assert.deepEqual(cliArgs(t('cv_feedback', { skills: 'Docker', feedback: 'used it at work' })), [
+      'cv:feedback',
+      JOB,
+      '--feedback=used it at work',
+      '--add-skills=Docker',
+    ]);
+    assert.throws(() => cliArgs(t('cv_feedback', { skills: 'Docker,--template' })), /Unknown skill: --template/);
+    assert.throws(() => cliArgs(t('cv_feedback', { skills: '' })), /needs skill names/);
+  });
+
   it('passes feedback to letter and summary as one --feedback=<text> argument, trimmed', () => {
     assert.deepEqual(cliArgs(t('letter', { feedback: '  shorter  ' })), ['letter', JOB, '--feedback=shorter']);
     assert.deepEqual(cliArgs(t('summary', { feedback: 'less formal\nmention Laravel' })), [

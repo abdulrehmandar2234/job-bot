@@ -6,6 +6,7 @@ import { AtsCheck, AtsLists, type AtsReport } from '@/components/ats-check';
 import { runBot } from '@/lib/bot';
 
 vi.mock('@/lib/bot', () => ({ runBot: vi.fn() }));
+vi.mock('@/app/actions', () => ({ addSkillsToCv: vi.fn() }));
 
 const report = (o: Partial<AtsReport> = {}): AtsReport => ({
   label: 'laravel-v2',
@@ -34,14 +35,15 @@ describe('AtsLists', () => {
     expect(screen.getByRole('heading', { name: /CV keyword check/ })).toHaveTextContent('laravel-v2 (prepared) shows 2 of 5 job keywords');
     expect(screen.getByText('Shown:').parentElement).toHaveTextContent('LaravelPHP');
     expect(screen.getByText(/not near the top of this version/).parentElement).toHaveTextContent('DockerAWS');
-    expect(screen.getByText(/real gaps, do not add them/).parentElement).toHaveTextContent('Kubernetes');
+    expect(screen.getByText(/add one only if you really have it/).parentElement).toHaveTextContent('Kubernetes');
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
     expect(screen.getByText(/version shows 4 of them/)).toHaveTextContent('The backend-node version shows 4 of them (adds Docker, AWS).');
   });
 
   it('leaves out empty lists and the suggestion when there is none', () => {
     render(<AtsLists report={report({ hiddenButTrue: [], missing: [], total: 2, suggestion: null })} />);
     expect(screen.queryByText(/not near the top/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/real gaps/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Not on your CV/)).not.toBeInTheDocument();
     expect(screen.queryByText(/💡/)).not.toBeInTheDocument();
   });
 
@@ -61,6 +63,13 @@ describe('AtsLists', () => {
     expect(screen.getByText(/version shows 4 of them/)).not.toHaveTextContent('Kubernetes');
   });
 
+  it('offers the missing keywords as "I have this" checkboxes when they can be added', () => {
+    render(<AtsLists report={report({ missing: ['Kubernetes', 'Kafka'] })} confirmFor="greenhouse:acme:1" />);
+    expect(screen.getAllByRole('checkbox').map((c) => (c as HTMLInputElement).value)).toEqual(['Kubernetes', 'Kafka']);
+    expect(screen.getByRole('button', { name: 'Add to my CV and improve it for this job' })).toBeInTheDocument();
+    expect(screen.queryByText(/add one only if you really have it/)).not.toBeInTheDocument();
+  });
+
   it('renders nothing when the job names no known keywords', () => {
     const { container } = render(<AtsLists report={report({ present: [], hiddenButTrue: [], missing: [], total: 0, suggestion: null })} />);
     expect(container).toBeEmptyDOMElement();
@@ -73,6 +82,18 @@ describe('AtsCheck', () => {
     await renderCheck('greenhouse:acme:1');
     expect(runBot).toHaveBeenCalledWith(['ats', 'greenhouse:acme:1', '--json']);
     expect(screen.getByRole('heading', { name: /CV keyword check/ })).toBeInTheDocument();
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+  });
+
+  it('shows the checkboxes with confirm', async () => {
+    vi.mocked(runBot).mockResolvedValue(JSON.stringify(report()));
+    const loader = (
+      AtsCheck({ jobId: 'greenhouse:acme:1', confirm: true }) as ReactElement<{
+        children: ReactElement<Record<string, unknown>, (p: unknown) => Promise<ReactNode>>;
+      }>
+    ).props.children;
+    render(<>{await loader.type(loader.props)}</>);
+    expect(screen.getByRole('checkbox', { name: 'Kubernetes' })).toBeInTheDocument();
   });
 
   it('says it is unavailable when the bot answers something else than a report', async () => {

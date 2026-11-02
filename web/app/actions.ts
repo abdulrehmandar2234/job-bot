@@ -176,6 +176,32 @@ export async function improveCv(_prev: TextFormState, formData: FormData): Promi
   return { ok: true, message: 'Improving your CV with your feedback…' };
 }
 
+/** A skill name as the bot's job keyword list writes them (src/match.ts SKILLS); the bot checks the names again. */
+const SKILL_NAME = /^[A-Za-z0-9][A-Za-z0-9 .#/+-]{0,29}$/;
+
+/**
+ * "I have this" on the CV keyword check: adds the ticked job skills to the master CV, then the AI improves the job's
+ * CV with them and the optional note (`bot cv:feedback <id> --add-skills … [--feedback …]`).
+ */
+export async function addSkillsToCv(_prev: TextFormState, formData: FormData): Promise<TextFormState> {
+  const id = await assertJob(formData.get('id'));
+  const skills = formData.getAll('skill');
+  if (!skills.length) return { ok: false, message: 'Tick the skills you have first.' };
+  if (skills.length > 50 || skills.some((s) => typeof s !== 'string' || !SKILL_NAME.test(s)))
+    return { ok: false, message: 'Unknown skill name.' };
+  const note = formData.get('feedback');
+  let feedback = '';
+  if (typeof note === 'string' && note.trim()) {
+    const checked = checkFeedback(note);
+    if ('error' in checked) return { ok: false, message: checked.error };
+    feedback = checked.feedback;
+  }
+  if (await cvChanging(id)) return { ok: false, message: 'The CV is being changed right now. Try again when it is done.' };
+  await enqueueTask('cv_feedback', id, { skills: skills.join(','), ...(feedback ? { feedback } : {}) });
+  refresh();
+  return { ok: true, message: 'Adding the skills to your master CV and improving this CV…' };
+}
+
 /** The AI's short review of the job's CV against the job (`bot cv:review <id>`), stored on the job. */
 export async function reviewCv(formData: FormData) {
   const id = await assertJob(formData.get('id'));

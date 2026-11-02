@@ -1,6 +1,6 @@
 import { refresh } from 'next/cache';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { applyCvTemplate, improveCv, reviewCv } from '@/app/actions';
+import { addSkillsToCv, applyCvTemplate, improveCv, reviewCv } from '@/app/actions';
 import { spawnBot } from '@/lib/bot';
 import { pool } from '@/lib/db';
 import type { Task } from '@/lib/tasks';
@@ -79,6 +79,48 @@ describe('improveCv', () => {
       message: 'The CV is being changed right now. Try again when it is done.',
     });
     expect((await tasks()).map((t) => t.kind)).toEqual(['cv_template']);
+  });
+});
+
+describe('addSkillsToCv', () => {
+  const skillsForm = (skills: string[], feedback?: string, job = id) => {
+    const fd = form({ id: job, ...(feedback === undefined ? {} : { feedback }) });
+    for (const s of skills) fd.append('skill', s);
+    return fd;
+  };
+
+  it('queues `cv:feedback --add-skills` with the ticked skills, and the note when there is one', async () => {
+    expect(await addSkillsToCv(null, skillsForm(['Docker', 'C#/.NET'], '  '))).toEqual({
+      ok: true,
+      message: 'Adding the skills to your master CV and improving this CV…',
+    });
+    const [t] = await tasks();
+    expect(t).toMatchObject({ kind: 'cv_feedback', args: { skills: 'Docker,C#/.NET' } });
+    expect(t.args).not.toHaveProperty('feedback');
+    expect(spawn).toHaveBeenCalledExactlyOnceWith(['task:run', String(t.id)]);
+
+    const other = PREFIX + 'cv-panel-2';
+    await insertJob({ id: other, status: 'prepared', cv_version: 'default' });
+    await addSkillsToCv(null, skillsForm(['Kubernetes'], ' used it at work\n', other));
+    const { rows } = await pool.query<Task>('SELECT * FROM tasks WHERE job_id = $1', [other]);
+    expect(rows[0].args).toEqual({ skills: 'Kubernetes', feedback: 'used it at work' });
+  });
+
+  it('answers with the problem: nothing ticked, a bad name, a long note, the CV being changed', async () => {
+    expect(await addSkillsToCv(null, skillsForm([], 'I know Docker'))).toEqual({ ok: false, message: 'Tick the skills you have first.' });
+    for (const bad of ['--template', 'Docker,Rust', ''])
+      expect(await addSkillsToCv(null, skillsForm([bad]))).toEqual({ ok: false, message: 'Unknown skill name.' });
+    expect(await addSkillsToCv(null, skillsForm(['Docker'], 'x'.repeat(FEEDBACK_CAP + 1)))).toEqual({
+      ok: false,
+      message: 'Feedback is too long: at most 1000 characters.',
+    });
+    await pool.query(`INSERT INTO tasks (kind, job_id) VALUES ('prepare', $1)`, [id]);
+    expect(await addSkillsToCv(null, skillsForm(['Docker']))).toEqual({
+      ok: false,
+      message: 'The CV is being changed right now. Try again when it is done.',
+    });
+    expect((await tasks()).map((t) => t.kind)).toEqual(['prepare']);
+    await expect(addSkillsToCv(null, form({ id: PREFIX + 'nope' }))).rejects.toThrow('Unknown job');
   });
 });
 
