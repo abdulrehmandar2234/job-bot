@@ -1,3 +1,4 @@
+import Form from 'next/form';
 import Link from 'next/link';
 import { Fragment, Suspense } from 'react';
 import { fetchNow } from './actions';
@@ -207,8 +208,17 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<'/'>['searc
       {/* Row 1: the text filters and Apply; row 2: the selects, then the two "only jobs with ..." toggles, each group
           wrapping as a unit. Every control is h-9 so the rows line up.
           The choices apply on change (AutoSelect / AutoCheckbox); typed text waits for Apply filters, which also
-          sends everything without JS. */}
-      <form aria-label="Job filters" className="mb-4 space-y-2 rounded-xl border border-zinc-200 p-3 text-sm dark:border-zinc-800">
+          sends everything without JS.
+          next/form turns the GET submit into a client-side navigation: only the list re-renders, with no full page
+          load, and the scroll position stays. The key remounts it when the URL changes some other way (a tab link,
+          Back), so its uncontrolled fields show the filters in the URL again. */}
+      <Form
+        key={JSON.stringify(sp)}
+        action="/"
+        scroll={false}
+        aria-label="Job filters"
+        className="mb-4 space-y-2 rounded-xl border border-zinc-200 p-3 text-sm dark:border-zinc-800"
+      >
         {followUp ? <input type="hidden" name="view" value="followup" /> : <input type="hidden" name="status" value={status} />}
         <div className="flex flex-wrap items-center gap-2">
           <input
@@ -269,7 +279,7 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<'/'>['searc
             </label>
           </div>
         </div>
-      </form>
+      </Form>
 
       <Pager page={page} total={total} pageSize={size} href={pageHref} />
 

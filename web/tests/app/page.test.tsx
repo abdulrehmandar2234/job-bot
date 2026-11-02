@@ -5,6 +5,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { RouterContext } from 'next/dist/shared/lib/router-context.shared-runtime';
 import Page from '@/app/page';
 import { BOT_ROOT } from '@/lib/bot';
 import { pool, statusCounts, type Status } from '@/lib/db';
@@ -46,9 +47,11 @@ async function resolve(node: ReactNode): Promise<ReactNode> {
   return cloneElement(node, undefined, await resolve(props.children));
 }
 
-async function renderPage(searchParams: Record<string, string | string[]> = {}) {
+async function renderPage(searchParams: Record<string, string | string[]> = {}, router?: object) {
   const shell = Page({ params: Promise.resolve({}), searchParams: Promise.resolve(searchParams) } as Parameters<typeof Page>[0]);
-  return render(<>{await resolve(shell)}</>);
+  const page = <>{await resolve(shell)}</>;
+  // next/form navigates through the router in context; without one it falls back to a native (full page) submit.
+  return render(router ? <RouterContext.Provider value={router as never}>{page}</RouterContext.Provider> : page);
 }
 
 // Other rows may be in the shared test database: only look at our cards (titles start with "TG ").
@@ -267,6 +270,22 @@ describe('job list page', () => {
     } finally {
       submit.mockRestore();
     }
+  });
+
+  it('applies filters with a client-side navigation, not a full page load, keeping the scroll position', async () => {
+    const push = vi.fn();
+    await renderPage({ status: 'applied', sort: 'newest' }, { push, replace: vi.fn(), prefetch: vi.fn(async () => {}) });
+    const form = screen.getByRole('form', { name: 'Job filters' });
+    fireEvent.change(within(form).getByRole('searchbox', { name: 'Search company or title' }), { target: { value: 'php' } });
+    const submitted = fireEvent.submit(form);
+    // The router navigates; the browser's own submit (a full page load) is cancelled.
+    expect(submitted).toBe(false);
+    expect(push).toHaveBeenCalledTimes(1);
+    const [href, , options] = push.mock.calls[0];
+    const url = new URL(href);
+    expect(url.pathname).toBe('/');
+    expect(Object.fromEntries(url.searchParams)).toMatchObject({ status: 'applied', q: 'php', sort: 'newest' });
+    expect(options).toMatchObject({ scroll: false });
   });
 
   it('marks only the active status tab as the current page', async () => {
