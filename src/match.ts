@@ -1,6 +1,7 @@
 import { config } from './config.ts';
 import { masterRaw } from './cv/versions.ts';
-import { loadProfile, needsVisa, remoteFrom } from './profile.ts';
+import { loadProfile, needsVisa, remoteFrom, remoteFromCode } from './profile.ts';
+import { effectiveRemoteRules } from './regions.ts';
 import { isIndSponsor } from './sponsors.ts';
 import type { RawJob } from './sources/index.ts';
 import type { VisaEvidence } from './types.ts';
@@ -140,12 +141,14 @@ function remoteCountry(location: string, description: string): { country: string
   if (!config.remote.enabled || !/\bremote\b|anywhere|worldwide|work from home/i.test(location)) return null;
   const region = location.replace(/\bremote\b|[—–\-(),:|/]/gi, ' ').trim();
   // "Remote — Dubai" means living in Dubai: treat as an on-site country, not as remote from the candidate's country.
+  const profile = loadProfile();
+  const rules = effectiveRemoteRules(config.remote, remoteFromCode(config, profile), remoteFrom(config, profile));
+  const allow = new RegExp(rules.allow, 'i');
+  const deny = new RegExp(rules.deny, 'i');
+  const flagRe = new RegExp(rules.flag, 'i');
   for (const [code, c] of Object.entries(config.countries)) {
-    if (new RegExp(c.match, 'i').test(region) && !new RegExp(config.remote.allow, 'i').test(region)) return { country: code };
+    if (new RegExp(c.match, 'i').test(region) && !allow.test(region)) return { country: code };
   }
-  const allow = new RegExp(config.remote.allow, 'i');
-  const deny = new RegExp(config.remote.deny, 'i');
-  const flagRe = new RegExp(config.remote.flag, 'i');
   if (region && !/not stated/i.test(region)) {
     if (!allow.test(region) && deny.test(region)) return { country: null, reason: `remote, but only for: ${region.slice(0, 80)}` };
     if (!allow.test(region)) return { country: null, reason: `remote, region does not include ${fromName()}: ${region.slice(0, 80)}` };

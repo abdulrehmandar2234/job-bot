@@ -43,7 +43,7 @@ Design principles:
 
 Every posting is checked by `src/match.ts`. Jobs that fail a rule are kept with status `filtered` and a reason, so you can see why.
 
-- **Location:** onsite jobs in the `config.json` → `countries`, plus remote jobs that can be done from your country (`remote.from`; `remote.allow` / `remote.deny` list the regions that include or exclude it). Remote jobs locked to other regions are skipped. "EMEA" or no region gets a warning flag.
+- **Location:** onsite jobs in the `config.json` → `countries`, plus remote jobs that can be done from your country (`remote.fromCode`): its name, its regions (such as South Asia or EMEA) and its time zone count as open, other countries and regions as closed ([Remote regions](docs/configuration.md#remote-regions)). Remote jobs locked to other regions are skipped. "EMEA" or no region gets a warning flag.
 - **Role:** engineering titles only. Other stacks (Java, Go, Python, ...), mobile, QA and management roles are excluded.
 - **Language:** postings that require fluent Dutch, Arabic, German or French are skipped, unless your profile lists that language. "Arabic is a plus" only adds a warning.
 - **Visa:** per target country, `needsVisa` says whether you need one (missing = yes; the country you live in never does). Where you do, `visa: "employer"` means the employer provides it, and `"ind-register"` (Netherlands) means the company must be on the IND recognised-sponsor register (`bot sponsors:update` refreshes it); "No sponsorship" and "must have right to work" postings are skipped. Where you do not, those rules are skipped.
@@ -265,7 +265,7 @@ In short, with Git already installed, you need Node.js 24+, PostgreSQL and (opti
 
 Everything else is in **[docs/README.md](docs/README.md)**: your CV and profile, every setting, the AI choice, daily use, troubleshooting and updating.
 
-Your `config.json` starts as a copy of `config.default.json` (the original author's search settings: Laravel / Node / React in the UAE, Saudi Arabia, the Netherlands and Pakistan; nothing personal) and is never committed. `setup` offers ready-made **presets** from `presets/`: markets (`gulf`, `netherlands`, `pakistan`) set the countries and company boards, stacks (`php-laravel`, `javascript`, `python`) the keywords and job-title rules. Without them, review `companies`, `roleInclude` / `roleExclude`, `linkedin.keywords` and `remote.himalayasQueries` yourself (see [docs/configuration.md](docs/configuration.md#presets)).
+Your `config.json` starts as a copy of `config.default.json` (the original author's search settings: Laravel / Node / React in the UAE, Saudi Arabia, the Netherlands and Pakistan; nothing personal) and is never committed. `setup` offers ready-made **presets** from `presets/`: markets (`gulf`, `india`, `netherlands`, `pakistan`) set the countries and company boards, stacks (`php-laravel`, `javascript`, `python`) the keywords and job-title rules. Without them, review `companies`, `roleInclude` / `roleExclude`, `linkedin.keywords` and `remote.himalayasQueries` yourself (see [docs/configuration.md](docs/configuration.md#presets)).
 
 ## CLI reference
 

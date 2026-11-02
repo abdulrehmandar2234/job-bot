@@ -56,7 +56,7 @@ Look at the reasons first: the **Filtered out** tab, or `npm run bot -- list --s
 
 - "location not in target countries": widen `countries.<code>.match` (cities, spellings), or the jobs are elsewhere.
 - "title is not an engineering role" / "title excluded": your titles are not in `roleInclude`, or `roleExclude` catches them (the repository's list excludes Python, Java, Go, mobile, DevOps, QA, management and more).
-- "remote, region does not include ...": add your region to `remote.allow`.
+- "remote, region does not include ...": check `remote.fromCode` (Settings → Remote boards). If your country is right and the region should include you, add it to `remote.allow` or open an issue so it goes into `src/regions.ts` ([Remote regions](configuration.md#remote-regions)).
 - "score N below minScore": lower `minScore`, or add the skills you have to `cv/master.json`.
 - "NL job but company not on IND sponsor register": run `npm run bot -- sponsors:update`.
 - "no recognisable tech stack": your stack is not in the keyword list in `src/match.ts`; rely on the AI score and keep `minScore` low.

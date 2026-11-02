@@ -14,7 +14,7 @@ describe('presets', () => {
   it('every preset in presets/ loads and is valid', () => {
     assert.deepEqual(
       loadMarkets().map((m) => m.id),
-      ['gulf', 'netherlands', 'pakistan'],
+      ['gulf', 'india', 'netherlands', 'pakistan'],
     );
     assert.deepEqual(
       loadStacks().map((s) => s.id),
@@ -83,6 +83,27 @@ describe('presets', () => {
     assert.equal(cfg.remote.allow, DEFAULTS.remote.allow);
     assert.equal(new RegExp(cfg.roleExclude, 'i').test('Senior Python Developer'), false);
     assert.equal(new RegExp(cfg.roleInclude, 'i').test('Senior Python Developer'), true);
+  });
+
+  it("india: the tech hubs match India, and Pakistan's Hyderabad (Sindh) stays Pakistan", () => {
+    const [india, pk] = pick(loadMarkets(), ['india', 'pakistan'], 'markets');
+    const inMatch = new RegExp(india.countries.IN.match as string, 'i');
+    const pkMatch = new RegExp(pk.countries.PK.match as string, 'i');
+    for (const where of [
+      'Bengaluru, Karnataka, India',
+      'Bangalore',
+      'Hyderabad, Telangana',
+      'Gurugram',
+      'Pune',
+      'New Delhi',
+      'Remote, India',
+    ])
+      assert.equal(inMatch.test(where), true, where);
+    for (const where of ['Hyderabad, Sindh, Pakistan', 'Hyderabad, Pakistan', 'Indianapolis, Indiana', 'Lahore'])
+      assert.equal(inMatch.test(where), false, where);
+    assert.equal(pkMatch.test('Hyderabad, Sindh, Pakistan'), true);
+    assert.deepEqual(india.adzunaCountries, ['in']);
+    assert.ok(india.companies.length >= 10);
   });
 
   it('pick refuses an unknown id and names the known ones', () => {

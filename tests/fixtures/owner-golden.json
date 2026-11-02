@@ -107,7 +107,7 @@
       "cluster": "default",
       "visa": null,
       "flags": [],
-      "filterReason": "remote, region does not include Pakistan: Kenya",
+      "filterReason": "remote, but only for: Kenya",
       "matched": [],
       "missing": []
     },

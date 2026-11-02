@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { daysAgo, raw } from './helpers.ts'; // first: it points the bot at a temp config before src/ loads one
 import { isIndSponsor } from '../src/sponsors.ts';
 import { pickCluster, scoreJob } from '../src/match.ts';
+import { config } from '../src/config.ts';
 
 describe('scoreJob: location', () => {
   it('matches onsite jobs in the target countries', () => {
@@ -37,7 +38,14 @@ describe('scoreJob: remote from Pakistan', () => {
   });
 
   it('rejects remote regions that do not include Pakistan', () => {
-    assert.match(scoreJob(raw({ location: 'Remote — Kenya' })).filterReason!, /does not include Pakistan/);
+    assert.match(scoreJob(raw({ location: 'Remote — Japan' })).filterReason!, /does not include Pakistan/);
+    assert.match(scoreJob(raw({ location: 'Remote — Kenya' })).filterReason!, /remote, but only for: Kenya/);
+  });
+
+  it('accepts regions Pakistan is in, and rejects India-only remote jobs', () => {
+    for (const where of ['Remote — South Asia', 'Remote (APAC)', 'Remote, GMT+5', 'Remote — Middle East'])
+      assert.equal(scoreJob(raw({ location: where })).country, 'RM', where);
+    assert.match(scoreJob(raw({ location: 'Remote — India' })).filterReason!, /remote, but only for: India/);
   });
 
   it('rejects remote jobs whose description requires living elsewhere', () => {
@@ -205,5 +213,43 @@ describe('pickCluster', () => {
   });
   it('falls back to default', () => {
     assert.equal(pickCluster('COBOL'), 'default');
+  });
+});
+
+describe('scoreJob: remote from India (rules follow remote.fromCode)', () => {
+  const asIndia = (fn: () => void) => {
+    const was = { ...config.remote };
+    Object.assign(config.remote, { from: 'India', fromCode: 'IN' });
+    try {
+      fn();
+    } finally {
+      config.remote = was;
+    }
+  };
+
+  it('accepts India, South Asia and IST remote jobs, and says to work from India', () => {
+    asIndia(() => {
+      for (const where of ['Remote — India', 'Remote, Bengaluru, India', 'Remote — South Asia', 'Remote (IST)', 'Remote, GMT+5:30']) {
+        const s = scoreJob(raw({ location: where }));
+        assert.equal(s.country, 'RM', where);
+        assert.equal(s.filterReason, null, where);
+      }
+      assert.equal(scoreJob(raw({ location: 'Remote — Worldwide' })).visa, 'Remote: work from India, no visa needed');
+    });
+  });
+
+  it('rejects remote jobs limited to a neighbour or to EMEA', () => {
+    asIndia(() => {
+      assert.match(scoreJob(raw({ location: 'Remote — Bangladesh' })).filterReason!, /remote, but only for: Bangladesh/);
+      assert.match(scoreJob(raw({ location: 'Remote — EMEA' })).filterReason!, /remote, but only for: EMEA/);
+    });
+  });
+
+  it('hand-written remote.allow still wins over the computed rules', () => {
+    asIndia(() => {
+      config.remote.allow = 'worldwide|emea';
+      assert.equal(scoreJob(raw({ location: 'Remote — EMEA' })).country, 'RM');
+      assert.match(scoreJob(raw({ location: 'Remote — India' })).filterReason!, /does not include India|only for: India/);
+    });
   });
 });

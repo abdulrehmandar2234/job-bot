@@ -1,0 +1,65 @@
+{
+  "name": "India",
+  "description": "Onsite and hybrid jobs in India's tech hubs (Bengaluru, Hyderabad, Pune, Delhi NCR, Mumbai, Chennai).",
+  "countries": {
+    "IN": {
+      "name": "India",
+      "visa": "employer",
+      "match": "bengaluru|bangalore|hyderabad(?!,? (sindh|pakistan))|\\bpune\\b|mumbai|new delhi|\\bdelhi\\b|gurgaon|gurugram|noida|chennai|kolkata|ahmedabad|kochi|jaipur|\\bindia\\b"
+    }
+  },
+  "linkedinLocations": ["India"],
+  "adzunaCountries": ["in"],
+  "companies": [
+    {
+      "name": "Groww",
+      "ats": "greenhouse",
+      "token": "groww"
+    },
+    {
+      "name": "CRED",
+      "ats": "lever",
+      "token": "cred"
+    },
+    {
+      "name": "Atlan",
+      "ats": "ashby",
+      "token": "atlan"
+    },
+    {
+      "name": "Druva",
+      "ats": "greenhouse",
+      "token": "druva"
+    },
+    {
+      "name": "Zeta",
+      "ats": "lever",
+      "token": "zeta"
+    },
+    {
+      "name": "Swiggy",
+      "ats": "smartrecruiters",
+      "token": "swiggy"
+    },
+    {
+      "name": "Meesho",
+      "ats": "lever",
+      "token": "meesho"
+    },
+    {
+      "name": "InMobi",
+      "ats": "greenhouse",
+      "token": "inmobi"
+    },
+    {
+      "name": "HackerRank",
+      "ats": "greenhouse",
+      "token": "hackerrank"
+    },
+    {
+      "name": "slice",
+      "ats": "greenhouse",
+      "token": "slice"
+    }
+  ]
+}

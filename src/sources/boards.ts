@@ -160,11 +160,11 @@ async function arbeitnow(): Promise<Fetched> {
 
 // Adzuna: official API with a free app_id/app_key that the user registers for themselves (ADZUNA_APP_ID and
 // ADZUNA_APP_KEY in .env). Without them the board is skipped. Adzuna has no UAE or Saudi index (its country
-// list is gb, us, at, au, be, br, ca, ch, de, es, fr, in, it, mx, nl, nz, pl, sg, za), so only 'nl' is useful here.
+// list is gb, us, at, au, be, br, ca, ch, de, es, fr, in, it, mx, nl, nz, pl, sg, za); the market presets use nl and in.
 // Note: the search API only returns a short snippet of each description, not the full text, so keyword scores
 // and AI reviews of Adzuna jobs see less than for other sources.
 const ADZUNA_PAGE = 50;
-const ADZUNA_COUNTRY: Record<string, string> = { nl: 'Netherlands' };
+const ADZUNA_COUNTRY: Record<string, string> = { nl: 'Netherlands', in: 'India' };
 const ADZUNA_CURRENCY: Record<string, string> = {
   nl: 'EUR',
   de: 'EUR',

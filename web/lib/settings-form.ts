@@ -179,9 +179,10 @@ export const CONFIG_FIELDS: Record<string, FieldType> = {
   'remote.enabled': 'bool',
   'remote.boards': 'lines',
   'remote.himalayasQueries': 'lines',
-  'remote.allow': 'text',
-  'remote.deny': 'text',
-  'remote.flag': 'text',
+  // Region patterns: empty = computed from the remote-from country (src/regions.ts).
+  'remote.allow': 'optional',
+  'remote.deny': 'optional',
+  'remote.flag': 'optional',
   'remote.from': 'optional',
   'remote.fromCode': 'code',
   'ai.enabled': 'bool',

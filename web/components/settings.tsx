@@ -321,8 +321,12 @@ export function ConfigForm({ config, keys }: { config: SettingsFile; keys?: AiKe
           <p className="text-xs text-zinc-500">
             Adzuna needs a free API key: set ADZUNA_APP_ID and ADZUNA_APP_KEY in .env, or it is skipped.
           </p>
+          <p className="text-xs text-zinc-500">
+            Which remote jobs are open to you is worked out from the country code above (its regions, such as South Asia or EMEA, and its
+            time zone). Leave the region patterns empty for that; fill one in only to replace it.
+          </p>
           {(['allow', 'deny', 'flag'] as const).map((k) => (
-            <Field key={k} label={`Region ${k}`} hint="regular expression" {...f(`remote.${k}`)}>
+            <Field key={k} label={`Region ${k}`} hint="regular expression; empty = automatic" {...f(`remote.${k}`)}>
               <textarea name={`remote.${k}`} rows={2} defaultValue={text(get(c, `remote.${k}`))} className={`${input} font-mono text-xs`} />
             </Field>
           ))}
