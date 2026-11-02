@@ -138,3 +138,60 @@ describe('parseSalary: a range with a period after each end', () => {
     assert.deepEqual(parseSalary('Pay: AED 20,000/month - AED 25,000/month'), { min: 20000, max: 25000, currency: 'AED', period: 'month' });
   });
 });
+
+describe('parseSalary: Indian rupees', () => {
+  it('reads ₹, INR, Indian digit grouping, lakh, crore and LPA (lakh per annum)', () => {
+    assert.deepEqual(parseSalary('CTC: ₹12 LPA'), S(1_200_000, 1_200_000, 'INR', 'year'));
+    assert.deepEqual(parseSalary('Salary: 12-18 LPA'), S(1_200_000, 1_800_000, 'INR', 'year'));
+    assert.deepEqual(parseSalary('Salary up to 30 LPA'), S(null, 3_000_000, 'INR', 'year'));
+    assert.deepEqual(parseSalary('Package: INR 18,00,000 per annum'), S(1_800_000, 1_800_000, 'INR', 'year'));
+    assert.deepEqual(parseSalary('Salary: ₹12,50,000 - ₹18,00,000'), S(1_250_000, 1_800_000, 'INR', 'year'));
+    assert.deepEqual(parseSalary('Salary: ₹80,000 per month'), S(80_000, 80_000, 'INR', 'month'));
+    assert.deepEqual(parseSalary('Compensation: ₹1.2 crore per year'), S(12_000_000, 12_000_000, 'INR', 'year'));
+    assert.deepEqual(parseSalary('Pay: 25 lakhs INR'), S(2_500_000, 2_500_000, 'INR', 'year'));
+  });
+
+  it('reads "Rs" as INR in a job in India, or next to ₹ / INR / LPA; as PKR otherwise', () => {
+    assert.deepEqual(parseSalary('Salary: Rs 15 lakh per annum', 'IN'), S(1_500_000, 1_500_000, 'INR', 'year'));
+    assert.deepEqual(parseSalary('Salary: Rs. 12,00,000 - 18,00,000 per annum', 'IN'), S(1_200_000, 1_800_000, 'INR', 'year'));
+    assert.deepEqual(parseSalary('Salary Rs. 350,000/month', 'IN'), S(350_000, 350_000, 'INR', 'month'));
+    assert.deepEqual(parseSalary('Salary: Rs 10-14 LPA'), S(1_000_000, 1_400_000, 'INR', 'year'));
+    assert.deepEqual(parseSalary('Salary: Rs 90,000 per month (₹10.8 lakh a year)'), S(90_000, 90_000, 'INR', 'month'));
+    assert.deepEqual(parseSalary('Salary Rs. 350,000/month'), S(350_000, 350_000, 'PKR', 'month'));
+    assert.deepEqual(parseSalary('Salary Rs. 350,000/month', 'RM'), S(350_000, 350_000, 'PKR', 'month'));
+    // Pakistani postings use lakh too: "Rs" with a lakh alone stays PKR.
+    assert.deepEqual(parseSalary('Salary: Rs 2 lakh per month'), S(200_000, 200_000, 'PKR', 'month'));
+    assert.deepEqual(parseSalary('Salary: PKR 3-4 lakh per month', 'IN'), S(300_000, 400_000, 'PKR', 'month'));
+  });
+
+  it('takes a bare lakh as INR only in a job in India, and reads it per year there', () => {
+    assert.deepEqual(parseSalary('CTC 15 lakhs', 'IN'), S(1_500_000, 1_500_000, 'INR', 'year'));
+    assert.deepEqual(parseSalary('Salary: 8 - 12 lakh', 'IN'), S(800_000, 1_200_000, 'INR', 'year'));
+    assert.equal(parseSalary('CTC 15 lakhs'), null);
+  });
+
+  it('ignores rupee amounts that are not pay, or not plausible', () => {
+    for (const text of [
+      'We raised ₹50 crore in our Series A',
+      '₹50 lakh in funding from local investors',
+      'Annual learning budget of ₹50,000',
+      'Salary: ₹500 per month',
+      'Salary: ₹50 crore per year',
+      'Salary: Rs 15 lakh per annum', // PKR without a sign it is Indian, and too low for a PKR year
+    ])
+      assert.equal(parseSalary(text), null, text);
+  });
+
+  it('keeps reading Western grouping and other currencies as before', () => {
+    assert.deepEqual(parseSalary('Salary: INR 1,500,000 per year'), S(1_500_000, 1_500_000, 'INR', 'year'));
+    assert.deepEqual(parseSalary('Salary: $120,000 - $150,000 per year', 'IN'), S(120_000, 150_000, 'USD', 'year'));
+  });
+});
+
+describe('structuredSalary and parsePayRange: INR', () => {
+  it('accepts INR from a source and ₹ / INR in a pay field', () => {
+    assert.deepEqual(structuredSalary(1_200_000, 1_800_000, 'inr'), S(1_200_000, 1_800_000, 'INR', 'year'));
+    assert.deepEqual(parsePayRange('₹15,00,000.00/yr - ₹25,00,000.00/yr'), S(1_500_000, 2_500_000, 'INR', 'year'));
+    assert.deepEqual(parsePayRange('INR 90,000.00/mo'), S(90_000, 90_000, 'INR', 'month'));
+  });
+});

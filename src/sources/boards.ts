@@ -175,6 +175,7 @@ const ADZUNA_CURRENCY: Record<string, string> = {
   it: 'EUR',
   gb: 'GBP',
   us: 'USD',
+  in: 'INR',
 };
 
 async function adzuna(): Promise<Fetched> {

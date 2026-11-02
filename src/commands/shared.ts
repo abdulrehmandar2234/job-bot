@@ -22,7 +22,7 @@ export const today = () => new Date().toLocaleDateString('en-CA'); // local YYYY
 /** Scores a posting and upserts it as new or filtered. A source's own salary data wins over parsing the text. */
 export function save({ salary: given, ...raw }: RawJob) {
   const s = scoreJob(raw);
-  const salary = given ?? parseSalary(`${raw.title}\n${raw.description}`);
+  const salary = given ?? parseSalary(`${raw.title}\n${raw.description}`, s.country);
   return upsertJob({
     ...raw,
     country: s.country,

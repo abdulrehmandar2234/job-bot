@@ -7,7 +7,7 @@ import { belowExpectation, EUR_RATE, formatSalary, loadExpectations, parseExpect
 const job = (
   min: number | null,
   max: number | null,
-  cur: 'AED' | 'EUR' | 'USD' | 'SAR' | 'GBP' | 'PKR',
+  cur: 'AED' | 'EUR' | 'USD' | 'SAR' | 'GBP' | 'PKR' | 'INR',
   per: 'year' | 'month' | 'hour',
   country = 'AE',
 ) => ({ salary_min: min, salary_max: max, salary_currency: cur, salary_period: per, country });
@@ -19,10 +19,11 @@ describe('yearlyEur', () => {
     expect(yearlyEur(20_000, 'AED', 'month')).toBe(60_000);
     expect(yearlyEur(50, 'USD', 'hour')).toBe(Math.round(50 * 0.92 * 2080));
     expect(yearlyEur(1_000_000, 'PKR', 'month')).toBe(39_600);
+    expect(yearlyEur(1_800_000, 'INR', 'year')).toBe(18_900);
   });
 
   it('has a rate for every currency the bot parses, and the same periods', () => {
-    expect(Object.keys(EUR_RATE).sort()).toEqual(['AED', 'EUR', 'GBP', 'PKR', 'SAR', 'USD']);
+    expect(Object.keys(EUR_RATE).sort()).toEqual(['AED', 'EUR', 'GBP', 'INR', 'PKR', 'SAR', 'USD']);
     expect(Object.keys(PER_YEAR).sort()).toEqual(['hour', 'month', 'year']);
   });
 });
@@ -35,6 +36,7 @@ describe('formatSalary', () => {
     expect(formatSalary(job(300_000, 300_000, 'AED', 'year'))).toBe('AED 300k / year');
     expect(formatSalary(job(2_500_000, 3_000_000, 'PKR', 'year'))).toBe('PKR 2.5M–3M / year');
     expect(formatSalary(job(40, 60, 'USD', 'hour'))).toBe('USD 40–60 / hour');
+    expect(formatSalary(job(1_200_000, 1_800_000, 'INR', 'year'))).toBe('INR 1.2M–1.8M / year');
   });
 
   it('is null without a salary', () => {
@@ -54,6 +56,18 @@ describe('expectations', () => {
     expect(parseExpectation('SAR 22-25k monthly', 'SA')).toEqual({ amount: 22_000, currency: 'SAR', period: 'month' });
     expect(parseExpectation('€5.500 bruto per maand', 'NL')).toEqual({ amount: 5_500, currency: 'EUR', period: 'month' });
     expect(parseExpectation('USD 60k a year', 'remote')).toEqual({ amount: 60_000, currency: 'USD', period: 'year' });
+  });
+
+  it('reads rupees: INR under IN, ₹ / INR / LPA anywhere, lakh, crore and Indian digit grouping', () => {
+    expect(parseExpectation(1_800_000, 'IN')).toEqual({ amount: 1_800_000, currency: 'INR', period: 'year' });
+    expect(parseExpectation('18 LPA', 'IN')).toEqual({ amount: 1_800_000, currency: 'INR', period: 'year' });
+    expect(parseExpectation('18-22 LPA', 'remote')).toEqual({ amount: 1_800_000, currency: 'INR', period: 'year' });
+    expect(parseExpectation('₹18,00,000 per year', 'remote')).toEqual({ amount: 1_800_000, currency: 'INR', period: 'year' });
+    expect(parseExpectation('INR 1.2 crore', 'IN')).toEqual({ amount: 12_000_000, currency: 'INR', period: 'year' });
+    expect(parseExpectation('Rs 1.5 lakh per month', 'IN')).toEqual({ amount: 150_000, currency: 'INR', period: 'month' });
+    // "Rs" stays PKR outside India, and an explicit PKR always does.
+    expect(parseExpectation('Rs 3 lakh per month', 'remote')).toEqual({ amount: 300_000, currency: 'PKR', period: 'month' });
+    expect(parseExpectation('PKR 3 lakh per month', 'IN')).toEqual({ amount: 300_000, currency: 'PKR', period: 'month' });
   });
 
   it('ignores unknown values', () => {
@@ -99,6 +113,10 @@ describe('expectations', () => {
     // Remote jobs use the "remote" expectation: USD 70k a year is about EUR 64k.
     expect(belowExpectation(job(null, 70_000, 'USD', 'year', 'RM'), expected)).toBe(false);
     expect(belowExpectation(job(50_000, 60_000, 'USD', 'year', 'RM'), expected)).toBe(true);
+    // INR: 12 lakh a year is about EUR 12.6k, below an IN expectation of 18 LPA.
+    const india = { IN: { amount: 1_800_000, currency: 'INR' as const, period: 'year' as const } };
+    expect(belowExpectation(job(1_000_000, 1_200_000, 'INR', 'year', 'IN'), india)).toBe(true);
+    expect(belowExpectation(job(1_500_000, 2_000_000, 'INR', 'year', 'IN'), india)).toBe(false);
     // No expectation for the country, or no salary: no hint.
     expect(belowExpectation(job(1_000, 2_000, 'SAR', 'month', 'SA'), expected)).toBe(false);
     expect(

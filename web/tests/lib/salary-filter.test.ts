@@ -14,6 +14,7 @@ async function seed() {
   await insertJob({ id: 'sal-usd', salary_min: null, salary_max: 90_000, salary_currency: 'USD', salary_period: 'year' }); // 82.8k
   await insertJob({ id: 'sal-pkr', salary_min: 400_000, salary_max: 600_000, salary_currency: 'PKR', salary_period: 'month' }); // 23.8k
   await insertJob({ id: 'sal-hour', salary_min: 30, salary_max: 35, salary_currency: 'GBP', salary_period: 'hour' }); // 85k
+  await insertJob({ id: 'sal-inr', salary_min: 5_000_000, salary_max: 6_000_000, salary_currency: 'INR', salary_period: 'year' }); // 63k
   await insertJob({ id: 'sal-none' });
 }
 const ids = (rows: { id: string }[]) =>
@@ -24,7 +25,7 @@ const ids = (rows: { id: string }[]) =>
 describe('listJobs salary filter', () => {
   it('compares the top of each range in euros per year, and keeps jobs without a salary', async () => {
     await seed();
-    expect(ids(await listJobs({ status: 'new', minSalary: 60_000 }))).toEqual(['sal-aed', 'sal-hour', 'sal-none', 'sal-usd']);
+    expect(ids(await listJobs({ status: 'new', minSalary: 60_000 }))).toEqual(['sal-aed', 'sal-hour', 'sal-inr', 'sal-none', 'sal-usd']);
     expect(ids(await listJobs({ status: 'new', minSalary: 80_000 }))).toEqual(['sal-hour', 'sal-none', 'sal-usd']);
   });
 
@@ -32,14 +33,28 @@ describe('listJobs salary filter', () => {
     await seed();
     const eur = ids(await listJobs({ status: 'new', minSalary: yearlyEur(5_000, 'EUR', 'month') }));
     const aed = ids(await listJobs({ status: 'new', minSalary: yearlyEur(240_000, 'AED', 'year') }));
-    expect(eur).toEqual(['sal-aed', 'sal-hour', 'sal-none', 'sal-usd']);
+    const inr = ids(await listJobs({ status: 'new', minSalary: yearlyEur(5_714_286, 'INR', 'year') }));
+    expect(eur).toEqual(['sal-aed', 'sal-hour', 'sal-inr', 'sal-none', 'sal-usd']);
     expect(aed).toEqual(eur);
+    expect(inr).toEqual(eur);
   });
 
   it('"only with salary" hides jobs without one, with or without a minimum', async () => {
     await seed();
-    expect(ids(await listJobs({ status: 'new', salaryOnly: true }))).toEqual(['sal-aed', 'sal-eur', 'sal-hour', 'sal-pkr', 'sal-usd']);
-    expect(ids(await listJobs({ status: 'new', minSalary: 60_000, salaryOnly: true }))).toEqual(['sal-aed', 'sal-hour', 'sal-usd']);
+    expect(ids(await listJobs({ status: 'new', salaryOnly: true }))).toEqual([
+      'sal-aed',
+      'sal-eur',
+      'sal-hour',
+      'sal-inr',
+      'sal-pkr',
+      'sal-usd',
+    ]);
+    expect(ids(await listJobs({ status: 'new', minSalary: 60_000, salaryOnly: true }))).toEqual([
+      'sal-aed',
+      'sal-hour',
+      'sal-inr',
+      'sal-usd',
+    ]);
   });
 
   it('returns the salary columns', async () => {
