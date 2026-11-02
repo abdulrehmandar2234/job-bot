@@ -46,6 +46,7 @@ The home page shows four numbers (matching now, new today, applied in the last 7
 - **Country**, **Score ≥ 50 / 60 / 70 / 80**, **Posted** (last 24 hours, 3 days, 7 days).
 - **Sort:** "Best match first" (the AI score, with the keyword score as a fallback) or "Newest first".
 - **Per page:** 10, 25 (default), 50 or 100. Page links above and below the list keep the tab, filters and sort.
+- The selects and the two "only ..." toggles apply as soon as you change them; typed text (search, min salary) waits for **Apply filters** or Enter. Only the list updates: the page does not reload and keeps its scroll position, and Back brings the previous filters back.
 - **Min salary** in AED, SAR, EUR, USD, GBP or PKR, per month or year (compared in euros per year with fixed, approximate rates). Jobs without a salary stay visible unless "only with salary" is ticked.
 - **Visa/relocation offered (or not needed)** keeps only jobs whose posting offers a visa or relocation, and jobs where you need none.
 
