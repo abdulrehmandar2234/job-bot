@@ -103,6 +103,7 @@ npm run web          # http://localhost:3100
 - **Settings** (`/settings`): your profile, the cover-letter sentences, form facts, the search and filter settings and the AI provider, validated with the same schemas as the CLI before they are saved.
 - **Analytics** (`/analytics`): the application funnel, response rates per source, country, CV version and AI verdict, weekly activity, time to a reply, skip patterns and fetch health (recent fetches and the sources that failed).
 - A first-run banner until your profile has a name, email, location, country code and languages.
+- Day and night themes: the round button in the bottom-right corner switches them, and the choice is remembered in this browser. Until you use it, the dashboard follows your system's light or dark setting.
 
 ## How it works
 

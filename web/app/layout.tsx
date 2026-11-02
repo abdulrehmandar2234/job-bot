@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
+import { ThemeToggle } from '@/components/theme-toggle';
+import { THEME_SCRIPT } from '@/lib/theme';
 import './globals.css';
 
 const geistSans = Geist({
@@ -18,8 +20,9 @@ export const metadata: Metadata = {
 };
 
 // suppressHydrationWarning: browser extensions add attributes to <html> and <body> before React loads (ColorZilla's
-// cz-shortcut-listen, Grammarly's data-gr-*), which Next.js otherwise reports as a hydration error on every page.
-// It covers only these two elements' own attributes, not the page inside them.
+// cz-shortcut-listen, Grammarly's data-gr-*), which Next.js otherwise reports as a hydration error on every page, and
+// the theme script sets <html data-theme> before React loads too. It covers only these two elements' own attributes,
+// not the page inside them.
 export default function RootLayout({ children }: LayoutProps<'/'>) {
   return (
     <html
@@ -28,8 +31,13 @@ export default function RootLayout({ children }: LayoutProps<'/'>) {
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
       suppressHydrationWarning
     >
+      <head>
+        {/* biome-ignore lint/security/noDangerouslySetInnerHtml: a fixed script from lib/theme.ts, no user input */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+      </head>
       <body className="min-h-full flex flex-col" suppressHydrationWarning>
         {children}
+        <ThemeToggle />
       </body>
     </html>
   );
