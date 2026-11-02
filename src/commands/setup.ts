@@ -87,23 +87,6 @@ const presetIds =
 /** The CV file name config.default.json ships with: the wizard proposes one from the user's name instead. */
 export const SHIPPED_CV_FILE_NAME = 'resume.pdf';
 
-/** The remote "allow" pattern for a new remote-from country: worldwide-style regions plus the country itself. */
-export function defaultAllow(current: string, country: string): string {
-  const c = country.toLowerCase();
-  if (!c || new RegExp(`\\b${esc(c)}\\b`, 'i').test(current)) return current;
-  return `worldwide|anywhere|global|${esc(c)}|emea|international`;
-}
-
-/** The "deny" pattern without the remote-from country (a list of excluded regions must not exclude home). */
-export function defaultDeny(current: string, country: string): string {
-  const c = country.toLowerCase();
-  if (!c) return current;
-  return current
-    .split('|')
-    .filter((part) => !new RegExp(`^(\\\\b)?${esc(c)}(\\\\b)?$`, 'i').test(part))
-    .join('|');
-}
-
 function readJson(file: string): Json | null {
   if (!existsSync(file)) return null;
   const v: unknown = JSON.parse(readFileSync(file, 'utf8'));
@@ -210,12 +193,22 @@ export async function runSetup(io: SetupIO, files: SetupFiles = { config: CONFIG
       const codeDefault = from.toLowerCase() === home.toLowerCase() ? code : wasCode || code;
       const codeLabel = wasCode && wasCode !== codeDefault ? ` (config.json had ${wasCode})` : '';
       remote.fromCode = (await p.ask(`Its two-letter code${codeLabel}`, codeDefault, checks.code)).toUpperCase();
-      remote.allow = await p.ask(
-        'Remote regions that include you (regular expression)',
-        defaultAllow(text(remote.allow), from),
-        checks.regex,
-      );
-      remote.deny = await p.ask('Remote regions that exclude you (regular expression)', defaultDeny(text(remote.deny), from), checks.regex);
+      // The region patterns are computed from the country (src/regions.ts). Hand-written ones are offered again only
+      // while the country stays the same: a cloned config.json's patterns belong to its previous owner's country.
+      const sameCountry = was.toLowerCase() === from.toLowerCase() && (!wasCode || wasCode === remote.fromCode);
+      if (!sameCountry) delete remote.flag;
+      for (const [key, question] of [
+        ['allow', 'Remote regions that include you'],
+        ['deny', 'Remote regions that exclude you'],
+      ] as const) {
+        const custom = await p.ask(
+          `${question} (regular expression; Enter = automatic for ${remote.fromCode})`,
+          sameCountry ? text(remote[key]) : '',
+          (v) => (v ? checks.regex(v) : null),
+        );
+        if (custom) remote[key] = custom;
+        else delete remote[key];
+      }
       linkedin.remoteFrom = from;
     }
     const names = Object.values(next).map((c) => text(c.name));

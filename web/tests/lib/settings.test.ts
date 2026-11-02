@@ -196,6 +196,15 @@ describe('mergeConfig', () => {
     expect('adzuna' in mergeConfig(CONFIG, configForm())).toBe(false);
   });
 
+  it('cleared remote region patterns are removed, so the bot computes them from the country', () => {
+    const cfg = mergeConfig(CONFIG, configForm({ 'remote.allow': ' ', 'remote.deny': '', 'remote.flag': '' })) as {
+      remote: Record<string, unknown>;
+    };
+    expect(['allow' in cfg.remote, 'deny' in cfg.remote, 'flag' in cfg.remote]).toEqual([false, false, false]);
+    expect(cfg.remote.boards).toEqual(['himalayas', 'remotive']);
+    expect(mergeConfig(CONFIG, configForm({ 'remote.allow': 'worldwide|india' }))).toMatchObject({ remote: { allow: 'worldwide|india' } });
+  });
+
   it('does not create an adzuna section from empty fields', () => {
     const cfg = mergeConfig(CONFIG, configForm({ 'adzuna.countries': ' \n', 'adzuna.keywords': '', 'adzuna.pagesPerSearch': '' }));
     expect('adzuna' in cfg).toBe(false);

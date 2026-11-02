@@ -196,6 +196,17 @@ describe('ConfigForm', () => {
     expect(fd.get('ai.api.baseUrl')).toBe('');
   });
 
+  it('shows the region patterns as automatic when config.json has none, and a set one as written', () => {
+    const { allow: _a, deny: _d, flag: _f, ...remote } = CONFIG.remote;
+    const { unmount } = render(<ConfigForm config={file({ ...CONFIG, remote })} />);
+    for (const k of ['allow', 'deny', 'flag']) expect(screen.getByLabelText(new RegExp(`^Region ${k}`))).toHaveValue('');
+    expect(screen.getAllByText('regular expression; empty = automatic')).toHaveLength(3);
+    expect(screen.getByText(/worked out from the country code above/)).toBeInTheDocument();
+    unmount();
+    render(<ConfigForm config={file(CONFIG)} />);
+    expect(screen.getByLabelText(/^Region allow/)).toHaveValue('worldwide');
+  });
+
   it('shows the Adzuna section, empty without one, and the boards note', () => {
     const { unmount } = render(<ConfigForm config={file(CONFIG)} />);
     expect(screen.getByLabelText(/^Adzuna countries/)).toHaveValue('');

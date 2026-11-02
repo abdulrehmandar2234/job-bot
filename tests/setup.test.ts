@@ -6,7 +6,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { PassThrough, Readable } from 'node:stream';
 import './helpers.ts';
-import { claudePathHint, defaultAllow, defaultDeny, runSetup } from '../src/commands/setup.ts';
+import { claudePathHint, runSetup } from '../src/commands/setup.ts';
+import { effectiveRemoteRules } from '../src/regions.ts';
 import { validateApplicant, validateConfig } from '../src/settings.ts';
 
 const ROOT = join(import.meta.dirname, '..');
@@ -61,8 +62,8 @@ const JANE = [
   'y', // remote jobs
   '', // remote from: her country
   '', // code
-  '', // allow: default for Portugal
-  '', // deny: without Portugal
+  '', // allow: automatic for PT
+  '', // deny: automatic for PT
   'Amsterdam, Berlin', // LinkedIn locations
   '', // stack presets: none
   '', // Claude CLI or API key: the default, claude-cli
@@ -104,10 +105,14 @@ describe('setup wizard', () => {
     assert.equal(cfg.remote.from, 'Portugal');
     assert.equal(cfg.remote.fromCode, 'PT');
     assert.equal(cfg.linkedin.remoteFrom, 'Portugal');
-    assert.match(cfg.remote.allow, /\|portugal\|/);
-    assert.doesNotMatch(cfg.remote.allow, /pakistan/);
-    assert.doesNotMatch(cfg.remote.deny, /portugal/);
-    assert.match(cfg.remote.deny, /\|spain\|/);
+    // No hand-written region patterns: they are computed for Portugal.
+    assert.deepEqual([cfg.remote.allow, cfg.remote.deny, cfg.remote.flag], [undefined, undefined, undefined]);
+    const rules = effectiveRemoteRules(cfg.remote, cfg.remote.fromCode, cfg.remote.from);
+    assert.match(rules.allow, /\|portugal\|/);
+    assert.doesNotMatch(rules.allow, /pakistan/);
+    assert.doesNotMatch(rules.deny, /portugal/);
+    assert.match(rules.deny, /\|spain\|/);
+    assert.match(printed, /Remote regions that include you \(regular expression; Enter = automatic for PT\): /);
     assert.deepEqual(cfg.linkedin.locations, ['Amsterdam', 'Berlin']);
     assert.equal(cfg.ai.claudePath, '/usr/local/bin/claude');
     assert.equal(cfg.ai.provider, undefined); // the default is not written
@@ -155,7 +160,7 @@ describe('setup wizard', () => {
     answers.splice(JANE.indexOf('NL, DE') - 1, 1, 'mars', '');
     const { ok, printed } = await run(answers, f, JANE_MASTER);
     assert.equal(ok, true, printed);
-    assert.match(printed, /unknown market preset "mars" \(known: gulf, netherlands, pakistan\)/);
+    assert.match(printed, /unknown market preset "mars" \(known: gulf, india, netherlands, pakistan\)/);
   });
 
   it('tells how to find the Claude CLI on each OS', () => {
@@ -180,6 +185,41 @@ describe('setup wizard', () => {
     assert.match(printed, /Its two-letter country code \(ISO\), e\.g\. PT \[PK\]: /);
     assert.match(printed, /Remote work from which country \[Pakistan\]: /);
     assert.match(printed, /Claude CLI or API key \(claude-cli \/ api\) \[claude-cli\]: /);
+  });
+
+  it('hand-written remote region patterns stay while the country stays, and go when it changes', async () => {
+    const custom = { allow: 'worldwide|pakistan', deny: 'india', flag: 'emea' };
+    const owner = files(OWNER_APPLICANT);
+    writeFileSync(owner.config, JSON.stringify({ ...json(owner.config), remote: { ...json(owner.config).remote, ...custom } }));
+    const kept = await run(Array(40).fill(''), owner, OWNER_MASTER);
+    assert.equal(kept.ok, true, kept.printed);
+    assert.deepEqual(
+      [json(owner.config).remote.allow, json(owner.config).remote.deny, json(owner.config).remote.flag],
+      Object.values(custom),
+    );
+    assert.match(
+      kept.printed,
+      /Remote regions that include you \(regular expression; Enter = automatic for PK\) \[worldwide\|pakistan\]: /,
+    );
+    // Jane moves the remote country to Portugal: Pakistan's patterns would be wrong for her, so they are not offered.
+    const jane = files();
+    writeFileSync(jane.config, JSON.stringify({ ...json(jane.config), remote: { ...json(jane.config).remote, ...custom } }));
+    const moved = await run(JANE, jane, JANE_MASTER);
+    assert.equal(moved.ok, true, moved.printed);
+    const remote = json(jane.config).remote;
+    assert.deepEqual([remote.allow, remote.deny, remote.flag], [undefined, undefined, undefined]);
+  });
+
+  it('a typed region pattern is checked and saved as written', async () => {
+    const f = files();
+    const answers = [...JANE];
+    const at = answers.indexOf('Amsterdam, Berlin') - 2;
+    answers.splice(at, 2, '(broken', 'worldwide|portugal|europe', '');
+    const { ok, printed } = await run(answers, f, JANE_MASTER);
+    assert.equal(ok, true, printed);
+    assert.equal(json(f.config).remote.allow, 'worldwide|portugal|europe');
+    assert.equal(json(f.config).remote.deny, undefined);
+    assert.match(printed, /not a valid regular expression|Invalid regular expression/i);
   });
 
   /** JANE's answers with the Claude CLI question and path replaced by these AI answers. */
@@ -292,14 +332,6 @@ describe('setup wizard', () => {
     const { ok, printed } = await run([], { config: join(dir, 'config.json'), applicant: join(dir, 'a.json') }, JANE_MASTER);
     assert.equal(ok, false);
     assert.match(printed, /missing or not a JSON object/);
-  });
-
-  it('remote region patterns follow the remote-from country', () => {
-    assert.equal(defaultAllow('worldwide|pakistan|asia', 'Pakistan'), 'worldwide|pakistan|asia');
-    assert.equal(defaultAllow('worldwide|pakistan', 'India'), 'worldwide|anywhere|global|india|emea|international');
-    assert.equal(defaultDeny('\\b(us|usa)\\b|india|philippines', 'India'), '\\b(us|usa)\\b|philippines');
-    assert.equal(defaultDeny('canada|\\bindia\\b', 'India'), 'canada');
-    assert.equal(defaultDeny('canada', ''), 'canada');
   });
 
   it('runs as `bot setup` on stdin, without a database', () => {

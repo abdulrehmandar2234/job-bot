@@ -119,9 +119,10 @@ export const configSchema = z.object({
     enabled: z.boolean(),
     boards: z.array(text), // himalayas | remotive | remoteok | arbeitnow | adzuna
     himalayasQueries: z.array(text),
-    allow: regex, // remote regions that include the candidate's country
-    deny: regex, // remote regions / phrases that exclude it
-    flag: regex, // allowed, but worth double-checking
+    // Missing or empty = computed from the remote-from country (src/regions.ts); set = used as written.
+    allow: regex.optional(), // remote regions that include the candidate's country
+    deny: regex.optional(), // remote regions / phrases that exclude it
+    flag: regex.optional(), // allowed, but worth double-checking
     // The country remote work is done from (where the candidate lives). Missing = linkedin.remoteFrom, then the
     // profile's country (cv/applicant.json) for `from`, and the profile's countryCode for `fromCode`.
     from: text.optional(), // e.g. "Portugal", used in filter reasons, the visa note and the AI prompts
