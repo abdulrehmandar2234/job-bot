@@ -23,4 +23,14 @@ describe('root layout', () => {
         '<body class="min-h-full flex flex-col"><main>dashboard</main></body></html>',
     );
   });
+
+  it('tolerates attributes a browser extension adds to <html> and <body> (no hydration error on every page)', () => {
+    const tree = RootLayout({ children: <main>dashboard</main>, params: Promise.resolve({}) } as Parameters<typeof RootLayout>[0]);
+    expect(tree.props.suppressHydrationWarning).toBe(true);
+    const body = tree.props.children;
+    expect(body.type).toBe('body');
+    expect(body.props.suppressHydrationWarning).toBe(true);
+    // Only the two outer elements: the page itself still reports real mismatches.
+    expect(body.props.children.props.suppressHydrationWarning).toBeUndefined();
+  });
 });
