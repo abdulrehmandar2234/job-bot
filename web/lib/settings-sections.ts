@@ -1,6 +1,6 @@
 /**
  * The Settings page's sections, in page order: the cards in components/settings.tsx take their id and title from here,
- * and the section nav in components/settings-page.tsx links to each id, so the two cannot drift apart.
+ * and the section nav in components/settings-nav.tsx links to each id, so the two cannot drift apart.
  */
 export const SETTINGS_GROUPS = [
   {

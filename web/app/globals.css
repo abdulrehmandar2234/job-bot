@@ -19,6 +19,14 @@
   }
 }
 
+/* Section links (the Settings nav) glide to their target instead of jumping. data-scroll-behavior on <html> lets
+   Next.js turn this off while it changes pages, so page changes still start at the top at once. */
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
