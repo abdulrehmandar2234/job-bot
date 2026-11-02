@@ -40,8 +40,9 @@ async function AtsLoader({ jobId, confirm }: { jobId: string; confirm: boolean }
 }
 
 /**
- * The check folded behind its heading, which keeps the count visible ("shows 2 of 5 job keywords"). With `confirmFor`
- * (the job id), the missing skills come with "I have this" checkboxes instead of plain chips.
+ * The check folded behind its heading, which keeps the counts visible ("shows 2 of 5 job keywords · 1 not on your
+ * CV"), so a job with skills to tick is seen without opening it. With `confirmFor` (the job id), the missing skills
+ * come with "I have this" checkboxes instead of plain chips.
  */
 export function AtsLists({ report: r, confirmFor }: { report: AtsReport; confirmFor?: string }) {
   if (!r.total) return null;
@@ -54,6 +55,9 @@ export function AtsLists({ report: r, confirmFor }: { report: AtsReport; confirm
           <span className="text-xs font-normal text-zinc-500">
             · {r.label} ({r.source}) shows {r.present.length} of {r.total} job keywords
           </span>
+          {r.missing.length > 0 && (
+            <span className="text-xs font-normal text-rose-700 dark:text-rose-400"> · {r.missing.length} not on your CV</span>
+          )}
         </>
       }
     >

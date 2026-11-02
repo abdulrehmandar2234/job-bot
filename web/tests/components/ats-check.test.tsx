@@ -53,9 +53,14 @@ describe('AtsLists', () => {
     const details = heading.closest('details')!;
     expect(details).toHaveAttribute('id', 'ats');
     expect(details).not.toHaveAttribute('open');
-    expect(heading.closest('summary')).toHaveTextContent('shows 2 of 5 job keywords');
+    expect(heading.closest('summary')).toHaveTextContent('shows 2 of 5 job keywords · 1 not on your CV');
     expect(heading.closest('summary')).not.toHaveTextContent('Kubernetes');
     expect(details).toHaveTextContent('Kubernetes');
+  });
+
+  it('leaves the missing count out of the heading when nothing is missing', () => {
+    render(<AtsLists report={report({ missing: [], total: 4 })} />);
+    expect(screen.getByRole('heading', { name: /CV keyword check/ })).not.toHaveTextContent('not on your CV');
   });
 
   it('never offers a missing keyword in the suggestion', () => {
