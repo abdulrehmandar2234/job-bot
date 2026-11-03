@@ -115,6 +115,7 @@ const view = (over: Partial<TaskView>): TaskView => ({
   error: null,
   created_at: new Date(),
   started_at: new Date(),
+  finished_at: null,
   company: null,
   title: null,
   ...over,
@@ -151,6 +152,35 @@ describe('TaskBar', () => {
     expect(alert).toHaveTextContent('Claude is offline');
     const form = within(alert).getByRole('button', { name: 'Dismiss' }).closest('form')!;
     expect(form.querySelector('input[name="task"]')).toHaveValue('9');
+  });
+
+  it('shows only the most recently finished task, with a Dismiss for exactly that task', () => {
+    render(
+      <TaskBar
+        tasks={[
+          view({ id: 5, kind: 'letter', status: 'done', finished_at: new Date('2026-01-01T10:00:00Z') }),
+          view({
+            id: 6,
+            kind: 'summary',
+            status: 'done',
+            finished_at: new Date('2026-01-01T11:00:00Z'),
+            company: 'Acme',
+            title: 'Engineer',
+          }),
+        ]}
+      />,
+    );
+    const notice = screen.getByRole('status');
+    expect(notice).toHaveTextContent('Writing CV summary (Acme — Engineer) finished');
+    expect(notice).not.toHaveTextContent('Writing cover letter');
+    const form = within(notice).getByRole('button', { name: 'Dismiss' }).closest('form')!;
+    expect(form.querySelector('input[name="task"]')).toHaveValue('6');
+  });
+
+  it('shows no finished notice once the task is dismissed (it is no longer in the list)', () => {
+    render(<TaskBar tasks={[view({ kind: 'prepare', job_id: 'j', company: 'Acme', title: 'Engineer' })]} />);
+    expect(screen.getByRole('status')).toHaveTextContent('Working…');
+    expect(screen.queryByRole('button', { name: 'Dismiss' })).not.toBeInTheDocument();
   });
 
   it('polls only for active tasks', async () => {

@@ -147,6 +147,14 @@ describe('CV summary', () => {
     await expect(tailorCv(form({ id: PREFIX + 'nope' }))).rejects.toThrow('Unknown job');
   });
 
+  it('tailorCv reads the job and its summary in one query: a job that disappears is "Unknown job", not a crash', async () => {
+    const gone = PREFIX + 'tailor-gone';
+    await insertJob({ id: gone, cv_summary: 'Senior engineer.' });
+    await pool.query('DELETE FROM jobs WHERE id = $1', [gone]);
+    await expect(tailorCv(form({ id: gone }))).rejects.toThrow('Unknown job');
+    await expect(tailorCv(form({}))).rejects.toThrow('Missing job id');
+  });
+
   it('saveSummary stores the edited summary as one paragraph and marks it edited', async () => {
     await pool.query(`UPDATE jobs SET cv_summary = 'AI summary.', cv_summary_at = now() - interval '1 day' WHERE id = $1`, [id]);
     expect(await saveSummary(null, form({ id, text: ' My own\r\nsummary. ' }))).toEqual({ ok: true, message: 'Saved.' });

@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import type { NextRequest } from 'next/server';
-import { cvFileName, cvPath } from '@/lib/cv-templates';
+import { CV_VERSION, cvFileName, cvPath } from '@/lib/cv-templates';
 import { isExtensionOrigin } from '@/lib/extension';
 
 /**
@@ -10,7 +10,7 @@ import { isExtensionOrigin } from '@/lib/extension';
 export async function GET(req: NextRequest, ctx: RouteContext<'/api/cv/[version]'>) {
   const { version } = await ctx.params;
   const origin = req.headers.get('origin');
-  if (!/^[a-z0-9-]+$/.test(version)) return new Response('Bad version', { status: 400 });
+  if (!CV_VERSION.test(version)) return new Response('Bad version', { status: 400 });
   try {
     const pdf = await readFile(cvPath(version));
     const disposition = req.nextUrl.searchParams.has('download') ? 'attachment' : 'inline';

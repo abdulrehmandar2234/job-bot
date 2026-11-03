@@ -2,10 +2,10 @@
 
 import { refresh } from 'next/cache';
 import { pool, STATUSES, type Status } from '@/lib/db';
-import { dismissTask as dismissFailedTask, enqueueTask, type TaskKind } from '@/lib/tasks';
+import { CvBusyError, dismissTask as dismissFailedTask, enqueueTask, type TaskKind } from '@/lib/tasks';
 import { checkFeedback, checkText, type TextFormState, type WrittenKind } from '@/lib/written-text';
 import { skipReason } from '@/lib/skips';
-import { isTemplate } from '@/lib/cv-templates';
+import { CV_VERSION, isTemplate } from '@/lib/cv-templates';
 
 // Server actions are reachable by POST, so every input is validated here.
 const USER_STATUSES: readonly Status[] = STATUSES.filter((s) => s !== 'filtered');
@@ -66,9 +66,9 @@ export async function saveNotes(formData: FormData) {
 export async function prepare(formData: FormData) {
   const id = await assertJob(formData.get('id'));
   const cv = formData.get('cv');
-  const args: Record<string, string> = typeof cv === 'string' && /^[a-z0-9][a-z0-9-]*$/.test(cv) ? { cv } : {};
+  const args: Record<string, string> = typeof cv === 'string' && CV_VERSION.test(cv) ? { cv } : {};
   if (formData.get('force') === 'true') args.force = 'true';
-  await enqueueTask('prepare', id, args);
+  await enqueueCvChange('prepare', id, args);
   refresh();
 }
 
@@ -88,10 +88,13 @@ export async function writeSummary(formData: FormData) {
 
 /** Builds a one-off CV with the job's CV summary and makes it the job's CV (`bot cv:tailor <id>`). */
 export async function tailorCv(formData: FormData) {
-  const id = await assertJob(formData.get('id'));
+  const id = formData.get('id');
+  if (typeof id !== 'string' || !id) throw new Error('Missing job id');
+  // One query for the job and its summary, so a job deleted after a separate existence check cannot crash this.
   const { rows } = await pool.query<{ cv_summary: string | null }>('SELECT cv_summary FROM jobs WHERE id = $1', [id]);
+  if (!rows.length) throw new Error('Unknown job');
   if (!rows[0].cv_summary) throw new Error('Write the CV summary for this job first');
-  await enqueueTask('tailored_cv', id);
+  await enqueueCvChange('tailored_cv', id);
   refresh();
 }
 
@@ -143,26 +146,32 @@ export async function saveSummary(_prev: TextFormState, formData: FormData) {
   return saveText('summary', formData);
 }
 
-/** Tasks that change a job's CV version (as CV_TASKS in components/cv-panel.tsx): one at a time per job. */
-const CV_CHANGES: readonly TaskKind[] = ['prepare', 'tailored_cv', 'cv_template', 'cv_feedback'];
-async function cvChanging(id: string) {
-  const { rowCount } = await pool.query(`SELECT 1 FROM tasks WHERE job_id = $1 AND kind = ANY($2) AND status IN ('queued', 'running')`, [
-    id,
-    CV_CHANGES,
-  ]);
-  return !!rowCount;
+/**
+ * Queues a CV-changing task (CV_CHANGES in lib/tasks.ts: one at a time per job, checked by the insert itself).
+ * Returns the refusal when another task is already changing the job's CV, so no click is lost silently.
+ */
+async function enqueueCvChange(kind: TaskKind, id: string, args: Record<string, string> = {}): Promise<TextFormState> {
+  try {
+    await enqueueTask(kind, id, args);
+    return null;
+  } catch (e) {
+    if (e instanceof CvBusyError) return { ok: false, message: e.message };
+    throw e;
+  }
 }
 
 /**
  * Uses a CV template for this job and re-renders its CV in it as a new version (`bot cv:template <id> <template>`).
- * Does nothing while the job's CV is being changed by another task.
+ * While the job's CV is being changed by another task, answers with the refusal instead of queueing.
  */
-export async function applyCvTemplate(formData: FormData) {
+export async function applyCvTemplate(_prev: TextFormState, formData: FormData): Promise<TextFormState> {
   const id = await assertJob(formData.get('id'));
   const template = formData.get('template');
   if (!isTemplate(template)) throw new Error('Unknown CV template');
-  if (!(await cvChanging(id))) await enqueueTask('cv_template', id, { template });
+  const busy = await enqueueCvChange('cv_template', id, { template });
+  if (busy) return busy;
   refresh();
+  return { ok: true, message: 'Applying the template…' };
 }
 
 /** Queues the AI revision of the job's CV with the user's feedback (`bot cv:feedback <id> --feedback`). */
@@ -170,8 +179,8 @@ export async function improveCv(_prev: TextFormState, formData: FormData): Promi
   const id = await assertJob(formData.get('id'));
   const checked = checkFeedback(formData.get('feedback'));
   if ('error' in checked) return { ok: false, message: checked.error };
-  if (await cvChanging(id)) return { ok: false, message: 'The CV is being changed right now. Try again when it is done.' };
-  await enqueueTask('cv_feedback', id, { feedback: checked.feedback });
+  const busy = await enqueueCvChange('cv_feedback', id, { feedback: checked.feedback });
+  if (busy) return busy;
   refresh();
   return { ok: true, message: 'Improving your CV with your feedback…' };
 }
@@ -196,8 +205,8 @@ export async function addSkillsToCv(_prev: TextFormState, formData: FormData): P
     if ('error' in checked) return { ok: false, message: checked.error };
     feedback = checked.feedback;
   }
-  if (await cvChanging(id)) return { ok: false, message: 'The CV is being changed right now. Try again when it is done.' };
-  await enqueueTask('cv_feedback', id, { skills: skills.join(','), ...(feedback ? { feedback } : {}) });
+  const busy = await enqueueCvChange('cv_feedback', id, { skills: skills.join(','), ...(feedback ? { feedback } : {}) });
+  if (busy) return busy;
   refresh();
   return { ok: true, message: 'Adding the skills to your master CV and improving this CV…' };
 }

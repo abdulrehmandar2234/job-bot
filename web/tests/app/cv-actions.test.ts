@@ -33,8 +33,8 @@ beforeEach(async () => {
 afterAll(closeDb);
 
 describe('applyCvTemplate', () => {
-  it('queues `cv:template` with the chosen template and starts its worker', async () => {
-    await applyCvTemplate(form({ id, template: 'compact' }));
+  it('queues `cv:template` with the chosen template, starts its worker and says so', async () => {
+    expect(await applyCvTemplate(null, form({ id, template: 'compact' }))).toEqual({ ok: true, message: 'Applying the template…' });
     const [t] = await tasks();
     expect(t).toMatchObject({ kind: 'cv_template', status: 'queued', args: { template: 'compact' } });
     expect(spawn).toHaveBeenCalledExactlyOnceWith(['task:run', String(t.id)]);
@@ -43,14 +43,17 @@ describe('applyCvTemplate', () => {
 
   it('refuses a template that is not in the list, and an unknown job', async () => {
     for (const template of ['fancy', '', 'Modern'])
-      await expect(applyCvTemplate(form({ id, template }))).rejects.toThrow('Unknown CV template');
-    await expect(applyCvTemplate(form({ id: PREFIX + 'nope', template: 'modern' }))).rejects.toThrow('Unknown job');
+      await expect(applyCvTemplate(null, form({ id, template }))).rejects.toThrow('Unknown CV template');
+    await expect(applyCvTemplate(null, form({ id: PREFIX + 'nope', template: 'modern' }))).rejects.toThrow('Unknown job');
     expect(await tasks()).toEqual([]);
   });
 
-  it('queues nothing while another task changes the CV', async () => {
+  it('answers with the refusal (instead of dropping the click) while another task changes the CV', async () => {
     await pool.query(`INSERT INTO tasks (kind, job_id) VALUES ('cv_feedback', $1)`, [id]);
-    await applyCvTemplate(form({ id, template: 'modern' }));
+    expect(await applyCvTemplate(null, form({ id, template: 'modern' }))).toEqual({
+      ok: false,
+      message: 'The CV is being changed right now. Try again when it is done.',
+    });
     expect((await tasks()).map((t) => t.kind)).toEqual(['cv_feedback']);
     expect(spawn).not.toHaveBeenCalled();
   });

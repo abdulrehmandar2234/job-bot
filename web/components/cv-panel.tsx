@@ -1,14 +1,15 @@
-import { applyCvTemplate, improveCv, reviewCv } from '@/app/actions';
+import { improveCv, reviewCv } from '@/app/actions';
 import { defaultTemplate, TEMPLATES, templateName, versionInfo } from '@/lib/cv-templates';
 import type { Job } from '@/lib/db';
-import type { TaskKind } from '@/lib/tasks';
+import { CV_CHANGES, type TaskKind } from '@/lib/tasks';
+import { ApplyTemplateForm } from './apply-template';
 import { SubmitButton } from './client';
 import { CvFeedback } from './cv-feedback';
 import { AiOffNote } from './ai-off';
 import { Busy } from './tasks';
 
-/** Tasks that change the job's CV version; while one runs, the others are hidden so they never race. */
-export const CV_TASKS: readonly TaskKind[] = ['prepare', 'tailored_cv', 'cv_template', 'cv_feedback'];
+/** Tasks that change the job's CV version; while one runs, the others are hidden (and enqueueTask refuses them). */
+export const CV_TASKS: readonly TaskKind[] = CV_CHANGES;
 
 /**
  * The job's CV on the job page: its version and template, a template select with Apply template (`bot cv:template`,
@@ -38,24 +39,8 @@ export function CvPanel({ job, busy = [], ai = true }: { job: Job; busy?: readon
         )}
       </div>
 
-      <form action={applyCvTemplate} className="flex flex-wrap items-end gap-2">
-        <input type="hidden" name="id" value={job.id} />
-        <label className="text-sm">
-          <span className="block text-zinc-500">Template</span>
-          <select name="template" defaultValue={chosen} className="input">
-            {TEMPLATES.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.name}
-                {t.id === fallback ? ' (default)' : ''}
-              </option>
-            ))}
-          </select>
-        </label>
-        {changing === 'cv_template' ? (
-          <Busy>Applying template…</Busy>
-        ) : (
-          !changing && <SubmitButton pendingText="Starting…">Apply template</SubmitButton>
-        )}
+      <div className="flex flex-wrap items-end gap-2">
+        <ApplyTemplateForm id={job.id} chosen={chosen} fallback={fallback} changing={changing ?? null} />
         <span className="text-xs text-zinc-500">
           Preview:{' '}
           {TEMPLATES.map((t, i) => (
@@ -67,7 +52,7 @@ export function CvPanel({ job, busy = [], ai = true }: { job: Job; busy?: readon
             </span>
           ))}
         </span>
-      </form>
+      </div>
       <p className="text-xs text-zinc-500">
         {job.cv_version
           ? 'Applying a template builds a new CV version; the CV you may already have sent stays as it is.'

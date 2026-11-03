@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
@@ -36,6 +36,15 @@ describe('the template list', () => {
   });
 });
 
+describe('CV_VERSION', () => {
+  it('is the one rule for a version name, matching the bot (src/tasks.ts, which checks task args again)', () => {
+    const src = readFileSync(join(import.meta.dirname, '..', '..', '..', 'src', 'tasks.ts'), 'utf8');
+    expect(src.match(/export const CV_VERSION = (\/.+\/);/)![1]).toBe(lib.CV_VERSION.toString());
+    for (const v of ['default', 'laravel-v1', 'a', 'custom-acme-v2']) expect(lib.CV_VERSION.test(v)).toBe(true);
+    for (const v of ['-v1', '-', 'Laravel', 'a b', '../etc', 'x/y', '']) expect(lib.CV_VERSION.test(v)).toBe(false);
+  });
+});
+
 describe('server helpers', () => {
   it('defaultTemplate reads config.json cvTemplate, else classic', () => {
     const config = join(root, 'config.json');
@@ -70,7 +79,7 @@ describe('server helpers', () => {
     dir('broken-v1', '{');
     expect(lib.versionInfo('laravel-compact-v1')).toEqual({ template: 'compact', feedbackNote: [] });
     expect(lib.versionInfo('custom-acme-v2')).toEqual({ template: 'modern', feedbackNote: ['Skill "Go" (not on your master CV)'] });
-    for (const v of ['laravel-v1', 'broken-v1', 'missing-v1', 'default', '../etc'])
+    for (const v of ['laravel-v1', 'broken-v1', 'missing-v1', 'default', '../etc', '-v1'])
       expect(lib.versionInfo(v)).toEqual({ template: 'classic', feedbackNote: [] });
   });
 });

@@ -3,13 +3,17 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 import { spawnBot } from '@/lib/bot';
 import { pool } from '@/lib/db';
 import {
+  CvBusyError,
   DEAD_WORKER_ERROR,
+  dismissTask,
   enqueueTask,
+  EXPIRE_EVERY_MS,
   failDeadWorkers,
   KEEP_FINISHED_DAYS,
   openTasks,
   pidAlive,
   pruneFinished,
+  resetExpireThrottle,
   type Task,
 } from '@/lib/tasks';
 import { cleanupDb, closeDb, ensureSchema, insertJob, PREFIX } from '../helpers/db';
@@ -43,6 +47,7 @@ beforeEach(async () => {
   await cleanupDb();
   await insertJob({ id, status: 'new' });
   vi.clearAllMocks();
+  resetExpireThrottle(); // each test sees the stale check run again
 });
 afterAll(closeDb);
 
@@ -76,6 +81,87 @@ describe('dead workers', () => {
     expect(task.id).not.toBe(dead.id);
     expect(spawnBot).toHaveBeenCalledExactlyOnceWith(['task:run', String(task.id)]);
     expect((await getTask(dead.id)).status).toBe('failed');
+  });
+});
+
+describe('one CV change per job', () => {
+  const activeKinds = async () =>
+    (
+      await pool.query<{ kind: string }>(`SELECT kind FROM tasks WHERE job_id = $1 AND status IN ('queued', 'running') ORDER BY id`, [id])
+    ).rows.map((r) => r.kind);
+
+  it('refuses a second, different CV-changing kind for the same job (the insert itself checks)', async () => {
+    expect((await enqueueTask('cv_feedback', id, { feedback: 'shorter' })).created).toBe(true);
+    await expect(enqueueTask('cv_template', id, { template: 'modern' })).rejects.toThrow(CvBusyError);
+    await expect(enqueueTask('prepare', id)).rejects.toThrow('The CV is being changed right now. Try again when it is done.');
+    await expect(enqueueTask('tailored_cv', id)).rejects.toThrow(CvBusyError);
+    expect(await activeKinds()).toEqual(['cv_feedback']);
+    expect(spawnBot).toHaveBeenCalledOnce();
+  });
+
+  it('the same kind again returns the running task, as before', async () => {
+    const first = await enqueueTask('cv_template', id, { template: 'modern' });
+    const again = await enqueueTask('cv_template', id, { template: 'compact' });
+    expect(again.created).toBe(false);
+    expect(again.task.id).toBe(first.task.id);
+    expect(spawnBot).toHaveBeenCalledOnce();
+  });
+
+  it('a finished CV task blocks nothing, and non-CV kinds run alongside a CV change', async () => {
+    const { task } = await enqueueTask('cv_template', id, { template: 'modern' });
+    expect((await enqueueTask('ai_review', id)).created).toBe(true);
+    expect((await enqueueTask('letter', id)).created).toBe(true);
+    await pool.query(`UPDATE tasks SET status = 'done', finished_at = now() WHERE id = $1`, [task.id]);
+    expect((await enqueueTask('prepare', id)).created).toBe(true);
+  });
+});
+
+describe('stale-check throttle', () => {
+  it('openTasks runs the stale check at most once per window; enqueueTask always runs it', async () => {
+    const spy = vi.spyOn(pool, 'query');
+    const expires = () => spy.mock.calls.filter(([sql]) => String(sql).includes('expire_stale_tasks')).length;
+    await openTasks(id);
+    expect(expires()).toBe(1);
+    await openTasks(id);
+    await openTasks(id);
+    expect(expires()).toBe(1); // within the window: one DB pass, no extra round-trips per poll
+    await enqueueTask('letter', id);
+    expect(expires()).toBe(2); // enqueueing never skips it (a dead same-kind worker must fail first)
+    const later = Date.now() + EXPIRE_EVERY_MS + 1;
+    const now = vi.spyOn(Date, 'now').mockReturnValue(later);
+    try {
+      await openTasks(id);
+      expect(expires()).toBe(3); // the window passed: a stale task still fails eventually
+    } finally {
+      now.mockRestore();
+      spy.mockRestore();
+    }
+  });
+
+  it('a dead worker still fails on the first look after the window', async () => {
+    const dead = await addTask('prep', 'running', { pid: deadPid() });
+    await openTasks(id); // first look in this window
+    expect((await getTask(dead.id)).status).toBe('failed');
+  });
+});
+
+describe('finished notice', () => {
+  it('openTasks lists a recently finished task until dismissed; dismissed it never comes back', async () => {
+    const done = await addTask('letter', 'done');
+    const old = await addTask('summary', 'done', { ageDays: 1 });
+    let ids = (await openTasks(id)).map((t) => t.id);
+    expect(ids).toContain(done.id);
+    expect(ids).not.toContain(old.id); // too old for the notice
+    expect(await dismissTask(done.id)).toBe(true);
+    ids = (await openTasks(id)).map((t) => t.id);
+    expect(ids).not.toContain(done.id);
+  });
+
+  it('dismissTask hides done and failed tasks, never active ones', async () => {
+    const queued = await addTask('letter', 'queued');
+    expect(await dismissTask(queued.id)).toBe(false);
+    const failed = await addTask('summary', 'failed');
+    expect(await dismissTask(failed.id)).toBe(true);
   });
 });
 

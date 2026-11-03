@@ -72,7 +72,7 @@ describe('GET /api/cv/[version]', () => {
     expect(await res.text()).toBe('CV not found');
   });
 
-  it.each(['../default', '..', 'Laravel', 'a b', 'x/y', ''])('rejects the version %j with 400', async (version) => {
+  it.each(['../default', '..', 'Laravel', 'a b', 'x/y', '', '-leading'])('rejects the version %j with 400', async (version) => {
     const res = await get(version);
     expect(res.status).toBe(400);
     expect(await res.text()).toBe('Bad version');

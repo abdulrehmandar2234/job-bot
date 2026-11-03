@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   countJobs,
   pageSize,
@@ -235,8 +235,14 @@ describe('postingsFor', () => {
     expect(map.get(id('solo'))).toEqual([{ id: id('solo'), source: 'lever', url: 'https://lever/solo' }]);
   });
 
-  it('returns an empty map for no ids', async () => {
-    expect((await postingsFor([])).size).toBe(0);
+  it('returns an empty map for no ids without querying (an empty tab costs no round-trip)', async () => {
+    const spy = vi.spyOn(pool, 'query');
+    try {
+      expect((await postingsFor([])).size).toBe(0);
+      expect(spy).not.toHaveBeenCalled();
+    } finally {
+      spy.mockRestore();
+    }
   });
 });
 
@@ -300,8 +306,9 @@ describe('weekStats', () => {
     await insertJob({ id: 'today' });
     await insertJob({ id: 'today-filtered', status: 'filtered' });
     await insertJob({ id: 'yesterday', first_seen_at: daysAgo(2) });
-    // A copy of a job found on another site today is the same job, shown under "Posted on".
+    // A copy of a job found on another site is the same job, shown under "Posted on": counted once in both stats.
     await insertJob({ id: 'today-copy', source: 'linkedin', duplicate_of: id('today') });
+    await insertJob({ id: 'ap-copy', source: 'linkedin', status: 'applied', applied_at: daysAgo(2), duplicate_of: id('ap-recent') });
     const after = await weekStats();
     expect(after.applied_week - before.applied_week).toBe(1);
     expect(after.new_today - before.new_today).toBe(1);
