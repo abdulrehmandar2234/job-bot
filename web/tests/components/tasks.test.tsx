@@ -7,6 +7,7 @@ import { JobActions } from '@/components/job-actions';
 import { TaskBar } from '@/components/tasks';
 import type { Job } from '@/lib/db';
 import type { TaskView } from '@/lib/tasks';
+import { mockFetch } from '../helpers/fetch';
 
 vi.mock('@/app/actions', () => ({
   writeLetter: vi.fn(),
@@ -18,11 +19,11 @@ vi.mock('@/app/actions', () => ({
 vi.mock('next/navigation', () => ({ useRouter: vi.fn() }));
 
 const refresh = vi.fn();
-let fetchMock: ReturnType<typeof vi.fn>;
+let fetched: ReturnType<typeof mockFetch>;
 /** Each poll answers with the next list of active ids (the last one repeats). */
 const answers = (...lists: number[][]) => {
   let i = 0;
-  fetchMock.mockImplementation(async () => Response.json({ active: lists[Math.min(i++, lists.length - 1)] }));
+  fetched = mockFetch({ '/api/tasks': () => ({ active: lists[Math.min(i++, lists.length - 1)] }) });
 };
 const tick = (ms = 3000) => act(() => vi.advanceTimersByTimeAsync(ms));
 
@@ -30,8 +31,7 @@ beforeEach(() => {
   vi.useFakeTimers();
   refresh.mockReset();
   vi.mocked(useRouter).mockReturnValue({ refresh } as unknown as ReturnType<typeof useRouter>);
-  fetchMock = vi.fn();
-  vi.stubGlobal('fetch', fetchMock);
+  fetched = mockFetch();
 });
 afterEach(() => {
   vi.useRealTimers();
@@ -42,7 +42,7 @@ describe('TaskWatcher', () => {
   it('does not poll when nothing is active', async () => {
     render(<TaskWatcher active={[]} />);
     await tick(30_000);
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(fetched.fn).not.toHaveBeenCalled();
     expect(refresh).not.toHaveBeenCalled();
   });
 
@@ -51,12 +51,12 @@ describe('TaskWatcher', () => {
     render(<TaskWatcher active={[7]} />);
     await tick();
     await tick();
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetched.fn).toHaveBeenCalledTimes(2);
     expect(refresh).not.toHaveBeenCalled();
     await tick();
     expect(refresh).toHaveBeenCalledOnce();
     await tick(30_000);
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetched.fn).toHaveBeenCalledTimes(3);
     expect(refresh).toHaveBeenCalledOnce();
   });
 
@@ -64,7 +64,7 @@ describe('TaskWatcher', () => {
     answers([3]);
     render(<TaskWatcher active={[3]} job="greenhouse:a b" intervalMs={1000} />);
     await tick(1000);
-    expect(fetchMock).toHaveBeenCalledExactlyOnceWith('/api/tasks?job=greenhouse%3Aa%20b', { cache: 'no-store' });
+    expect(fetched.fn).toHaveBeenCalledExactlyOnceWith('/api/tasks?job=greenhouse%3Aa%20b', { cache: 'no-store' });
   });
 
   it('refreshes when another task starts too', async () => {
@@ -89,7 +89,7 @@ describe('TaskWatcher', () => {
 
   it('keeps polling through a failed request', async () => {
     answers([]);
-    fetchMock.mockRejectedValueOnce(new Error('offline'));
+    fetched.fn.mockRejectedValueOnce(new Error('offline'));
     render(<TaskWatcher active={[1]} />);
     await tick();
     expect(refresh).not.toHaveBeenCalled();
@@ -103,7 +103,7 @@ describe('TaskWatcher', () => {
     await tick();
     unmount();
     await tick(30_000);
-    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(fetched.fn).toHaveBeenCalledOnce();
   });
 });
 
@@ -187,7 +187,7 @@ describe('TaskBar', () => {
     answers([]);
     render(<TaskBar tasks={[view({ id: 4, status: 'failed', error: 'x' })]} />);
     await tick();
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(fetched.fn).not.toHaveBeenCalled();
   });
 });
 

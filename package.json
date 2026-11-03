@@ -12,7 +12,7 @@
     "test:web": "npm --prefix web test",
     "test:all": "npm test && npm run test:web",
     "test:db": "node scripts/create-test-db.mjs",
-    "typecheck": "tsc -p . && cd web && npx next typegen && npx tsc -p .",
+    "typecheck": "tsc -p . && npm --prefix web run typecheck",
     "test:coverage": "node scripts/run-tests.mjs --coverage",
     "test:web:coverage": "npm --prefix web run test:coverage",
     "lint": "biome check .",

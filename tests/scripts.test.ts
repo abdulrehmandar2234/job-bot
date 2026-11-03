@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { testCommand } from '../scripts/run-tests.mjs';
+import { allTestFiles, DB_FREE, testCommands } from '../scripts/run-tests.mjs';
 
 // npm scripts and git hooks must run on macOS, Linux and Windows (cmd.exe and PowerShell), so no POSIX shell syntax.
 const ROOT = join(import.meta.dirname, '..');
@@ -27,15 +27,27 @@ describe('package.json scripts', () => {
 });
 
 describe('scripts/run-tests.mjs', () => {
-  it('runs every test file against job_bot_test_bot by default', () => {
-    const { args, env } = testCommand([], { PATH: '/bin' });
-    assert.deepEqual(args, ['--no-warnings', '--test', '--test-concurrency=1', 'tests/**/*.test.ts']);
-    assert.equal(env.DATABASE_URL, 'postgres://postgres@127.0.0.1:5432/job_bot_test_bot');
-    assert.equal(env.PATH, '/bin');
+  it('splits the default run: database-free files in parallel, then the DB files one at a time', () => {
+    const runs = testCommands([], { PATH: '/bin' });
+    assert.equal(runs.length, 2);
+    const [free, db] = runs;
+    assert.deepEqual(free.args.slice(0, 2), ['--no-warnings', '--test']);
+    assert.ok(!free.args.includes('--test-concurrency=1'), 'database-free files use node’s default concurrency');
+    assert.deepEqual([...free.args.slice(2)].sort(), [...DB_FREE].sort());
+    assert.deepEqual(db.args.slice(0, 3), ['--no-warnings', '--test', '--test-concurrency=1']);
+    for (const f of db.args.slice(3)) assert.ok(!DB_FREE.includes(f), `${f} is in both runs`);
+    // Together the two runs cover every test file on disk, each exactly once.
+    assert.deepEqual([...free.args.slice(2), ...db.args.slice(3)].sort(), allTestFiles());
+    for (const { env } of runs) {
+      assert.equal(env.DATABASE_URL, 'postgres://postgres@127.0.0.1:5432/job_bot_test_bot');
+      assert.equal(env.PATH, '/bin');
+    }
   });
 
-  it('uses BOT_TEST_DB, given files and extra node flags, and coverage of src/', () => {
-    const { args, env } = testCommand(['--coverage', '--test-name-pattern=x', 'tests/a.test.ts'], { BOT_TEST_DB: 'job_bot_test_bot_wt1' });
+  it('uses BOT_TEST_DB, given files and extra node flags, and one serialized run with coverage of src/', () => {
+    const runs = testCommands(['--coverage', '--test-name-pattern=x', 'tests/a.test.ts'], { BOT_TEST_DB: 'job_bot_test_bot_wt1' });
+    assert.equal(runs.length, 1);
+    const { args, env } = runs[0];
     assert.equal(env.DATABASE_URL, 'postgres://postgres@127.0.0.1:5432/job_bot_test_bot_wt1');
     assert.deepEqual(args.slice(3), [
       '--experimental-test-coverage',
@@ -43,6 +55,8 @@ describe('scripts/run-tests.mjs', () => {
       '--test-name-pattern=x',
       'tests/a.test.ts',
     ]);
+    // Coverage without files needs a single run too, or node would write two partial reports.
+    assert.deepEqual(testCommands(['--coverage'], {})[0].args.at(-1), 'tests/**/*.test.ts');
   });
 
   it('passes the exit code of the test run through', () => {
@@ -95,15 +109,15 @@ describe('install guides (docs/install/*.md)', () => {
     for (const g of [macos, linux, windows]) assert.match(g, /npx playwright-core install chromium-headless-shell/);
   });
 
+  it('the docs index links every install guide (docs/SETUP.md, the old redirect stub, is gone)', () => {
+    const index = readFileSync(join(ROOT, 'docs', 'README.md'), 'utf8');
+    for (const page of ['install/macos.md', 'install/linux.md', 'install/windows.md']) assert.ok(index.includes(page), page);
+    assert.ok(!readdirSync(join(ROOT, 'docs')).includes('SETUP.md'));
+  });
+
   it('use the same scheduler lines as `bot schedule:print`', () => {
     assert.ok(linux.includes('ExecStart="/usr/bin/node" --no-warnings --env-file-if-exists=.env src/cli.ts daily'));
     assert.ok(windows.includes("-Argument '--no-warnings --env-file-if-exists=.env src/cli.ts daily'"));
     assert.ok(macos.includes('<string>/bin/zsh</string><string>/Users/<you>/job-bot/scripts/daily-fetch.sh</string>'));
-  });
-
-  it('the old docs/SETUP.md only points to the new pages', () => {
-    const old = readFileSync(join(ROOT, 'docs', 'SETUP.md'), 'utf8');
-    for (const page of ['install/macos.md', 'install/linux.md', 'install/windows.md', 'configuration.md', 'README.md'])
-      assert.ok(old.includes(page), page);
   });
 });
