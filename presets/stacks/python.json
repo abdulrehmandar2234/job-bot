@@ -4,5 +4,16 @@
   "linkedinKeywords": ["python", "django", "fastapi"],
   "remoteQueries": ["python", "django", "fastapi"],
   "roleInclude": "python|django",
-  "allowInTitles": ["python"]
+  "allowInTitles": ["python"],
+  "skills": [
+    { "name": "Python", "pattern": "\\bpython\\b", "weight": 2 },
+    { "name": "Django", "pattern": "\\bdjango\\b", "weight": 2 },
+    { "name": "FastAPI", "pattern": "\\bfastapi\\b", "weight": 2 },
+    { "name": "Flask", "pattern": "\\bflask\\b" },
+    { "name": "Celery", "pattern": "\\bcelery\\b" },
+    { "name": "SQLAlchemy", "pattern": "\\bsqlalchemy\\b" },
+    { "name": "Pydantic", "pattern": "\\bpydantic\\b" },
+    { "name": "Testing", "pattern": "\\bpytest\\b|\\bunittest\\b|unit test|integration test|\\btdd\\b" }
+  ],
+  "clusters": []
 }

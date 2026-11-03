@@ -1,5 +1,6 @@
 import { config } from './config.ts';
 import { masterRaw } from './cv/versions.ts';
+import { DEFAULT_STACKS, loadStacks, pick, type Stack } from './presets.ts';
 import { loadProfile, needsVisa, remoteFrom, remoteFromCode } from './profile.ts';
 import { effectiveRemoteRules } from './regions.ts';
 import { masterFile } from './settings.ts';
@@ -53,23 +54,19 @@ export function withCv<T extends Omit<Skill, 'have'>>(skills: T[], cvText: strin
   return skills.map((s) => ({ ...s, have: s.re.test(cvText) || !!s.cv?.test(cvText) }));
 }
 
-// Skills we look for in job descriptions; `cv` = other CV wording that also proves it (MySQL proves SQL).
-const SKILL_PATTERNS: Omit<Skill, 'have'>[] = [
-  { name: 'PHP', re: /\bphp\b/i },
-  { name: 'Laravel', re: /\blaravel\b/i, weight: 2 },
-  { name: 'Livewire', re: /\blivewire\b/i },
-  { name: 'Filament', re: /\bfilament(php)?\b/i },
-  { name: 'Inertia.js', re: /\binertia/i },
-  { name: 'Alpine.js', re: /\balpine(\.?js)?\b/i },
-  { name: 'JavaScript', re: /\bjavascript\b|\bes6\b/i },
-  { name: 'TypeScript', re: /\btypescript\b|\bts\b/i, weight: 2 },
-  { name: 'Node.js', re: /\bnode(\.?js)?\b/i, weight: 2 },
-  { name: 'NestJS', re: /\bnest\.?js\b|\bnestjs\b/i, weight: 2 },
-  { name: 'Express.js', re: /\bexpress(\.?js)?\b/i },
-  { name: 'React', re: /\breact(\.?js)?\b/i, weight: 2 },
-  { name: 'Next.js', re: /\bnext\.?js\b/i, weight: 2 },
-  { name: 'Redux', re: /\bredux\b/i },
-  { name: 'Vue.js', re: /\bvue(\.?js)?\b|\bnuxt/i },
+// The stacks whose skills and CV clusters drive scoring: config.json `stacks`, missing or empty = the stacks
+// config.default.json is built from, so existing config files behave as before. Stack preset files are read once.
+let allStacks: Stack[] | null = null;
+const stacksKey = () => (config.stacks?.length ? config.stacks : DEFAULT_STACKS).join(',');
+function activeStacks(): Stack[] {
+  allStacks ??= loadStacks();
+  return pick(allStacks, config.stacks?.length ? config.stacks : DEFAULT_STACKS, 'stacks');
+}
+
+// Skills the keyword score looks for whatever the stack; the active stacks' skills (presets/stacks/*.json) come
+// first, and a stack skill with the same name replaces an entry here. `cv` = other CV wording that also proves it
+// (MySQL proves SQL).
+const BASE_SKILLS: Omit<Skill, 'have'>[] = [
   { name: 'MongoDB', re: /\bmongo(db)?\b/i },
   { name: 'PostgreSQL', re: /\bpostgres(ql)?\b/i },
   { name: 'MySQL', re: /\bmysql\b|\bmariadb\b/i },
@@ -102,16 +99,45 @@ const SKILL_PATTERNS: Omit<Skill, 'have'>[] = [
   { name: 'Java', re: /\bjava\b(?!script)|\bspring boot\b/i, weight: 2 },
   { name: 'Ruby', re: /\bruby\b|\brails\b/i, weight: 2 },
   { name: 'C#/.NET', re: /\bc#|\.net\b/i, weight: 2 },
+  // Markers for the big web stacks, like Python / Go / Java above: a posting built on one of them should still count
+  // against a CV that lacks it. When that stack's preset is active, its own granular skills replace these by name.
+  { name: 'PHP', re: /\bphp\b|\blaravel\b/i, weight: 2 },
+  {
+    name: 'JavaScript',
+    re: /\bjavascript\b|\btypescript\b|\bnode(\.?js)?\b|\breact(\.?js)?\b|\bnext\.?js\b|\bvue(\.?js)?\b|\bnestjs\b/i,
+    weight: 2,
+  },
 ];
+
+/** The active stacks' skills (in config order), then the cross-stack ones; the first entry with a name wins. */
+function buildSkillPatterns(stacks: Stack[]): Omit<Skill, 'have'>[] {
+  const out: Omit<Skill, 'have'>[] = [];
+  const seen = new Set<string>();
+  const push = (s: Omit<Skill, 'have'>) => {
+    if (seen.has(s.name)) return;
+    seen.add(s.name);
+    out.push(s);
+  };
+  for (const st of stacks)
+    for (const s of st.skills)
+      push({ name: s.name, re: new RegExp(s.pattern, 'i'), weight: s.weight, cv: s.cv ? new RegExp(s.cv, 'i') : undefined });
+  for (const s of BASE_SKILLS) push(s);
+  return out;
+}
 
 // Loaded on first use, not at import time: src/cli.ts imports each command lazily, so commands that never score
 // (list, mark, settings:check, ...) still run while cv/master.json is missing — only scoring itself fails loudly.
+// Rebuilt only when config `stacks` changes (tests swap it in place), so skill patterns stay compiled once, never
+// per posting.
 const skillsTarget: Skill[] = [];
-let skillsLoaded = false;
+let skillsFor: string | null = null;
 function loadSkills(): Skill[] {
-  if (!skillsLoaded) {
-    skillsTarget.push(...withCv(SKILL_PATTERNS, cvSkills()));
-    skillsLoaded = true;
+  const key = stacksKey();
+  if (skillsFor !== key) {
+    const built = withCv(buildSkillPatterns(activeStacks()), cvSkills());
+    skillsTarget.length = 0;
+    skillsTarget.push(...built);
+    skillsFor = key;
   }
   return skillsTarget;
 }
@@ -124,18 +150,40 @@ export const SKILLS: Skill[] = new Proxy(skillsTarget, {
   getOwnPropertyDescriptor: (_t, p) => Reflect.getOwnPropertyDescriptor(loadSkills(), p),
 });
 
-// Which CV version (cluster) fits a job. 'default' = the original PDF, untouched.
-const CLUSTERS: { id: string; re: RegExp[] }[] = [
-  { id: 'ai-fullstack', re: [/\bllms?\b|\bopenai\b|generative ai|\bgenai\b|\bai agents?\b/i] },
-  { id: 'laravel', re: [/\blaravel\b|\bphp\b/i] },
-  { id: 'tall', re: [/\blivewire\b|\balpine|\btailwind/i, /\blaravel\b/i] },
-  { id: 'laravel-vue', re: [/\bvue/i, /\blaravel\b|\bphp\b/i] },
-  { id: 'next-nest', re: [/\bnest\.?js\b|\bnestjs\b/i, /\bnext\.?js\b|\breact\b/i] },
-  { id: 'mern', re: [/\bmongo/i, /\breact\b/i, /\bnode|\bexpress/i] },
-  { id: 'pern', re: [/\bpostgres/i, /\breact\b/i, /\bnode|\bexpress/i] },
-  { id: 'backend-node', re: [/\bnode(\.?js)?\b|\bnest/i] },
-  { id: 'frontend-react', re: [/\breact\b|\bnext\.?js\b/i] },
+// Which CV version (cluster) fits a job. 'default' = the original PDF, untouched. The active stacks' clusters come
+// from their preset files; the two here are cross-stack: LLM experience is the strongest differentiator, so it wins
+// over plain stack clusters when the posting also asks for the JS stack, and still competes by specificity otherwise.
+type Cluster = { id: string; priority: number; all: RegExp[]; none: RegExp[] };
+const LLM = /\bllms?\b|\bopenai\b|generative ai|\bgenai\b|\bai agents?\b/i;
+const BASE_CLUSTERS: Cluster[] = [
+  { id: 'ai-fullstack', priority: 1, all: [LLM, /\bnode|\breact\b|\bnext\.?js|\bnest/i], none: [] },
+  { id: 'ai-fullstack', priority: 0, all: [LLM], none: [] },
 ];
+
+// Like the skill list: built once per `stacks` value, and sorted so the first matching cluster is the winner
+// (highest priority first, then the most `all` conditions, merge order on ties).
+let clustersFor: string | null = null;
+let clusterList: Cluster[] = [];
+function loadClusters(): Cluster[] {
+  const key = stacksKey();
+  if (clustersFor !== key) {
+    const merged = [
+      ...BASE_CLUSTERS,
+      ...activeStacks().flatMap((st) =>
+        st.clusters.map((c) => ({
+          id: c.id,
+          priority: c.priority ?? 0,
+          all: c.all.map((p) => new RegExp(p, 'i')),
+          none: (c.none ?? []).map((p) => new RegExp(p, 'i')),
+        })),
+      ),
+    ];
+    merged.sort((a, b) => b.priority - a.priority || b.all.length - a.all.length);
+    clusterList = merged;
+    clustersFor = key;
+  }
+  return clusterList;
+}
 
 export type Scored = {
   country: string | null;
@@ -344,16 +392,8 @@ function skillScore(
   return { country, score, cluster: pickCluster(text), matched, missing, visa, visaEvidence, flags, filterReason: null };
 }
 
-/** The most specific CV variant for a posting. Falls back to the untouched default CV. */
+/** The most specific CV variant for a posting (the active stacks' clusters). Falls back to the untouched default CV. */
 export function pickCluster(text: string): string {
-  const php = /\blaravel\b|\bphp\b/i.test(text);
-  const js = /\bnode|\breact\b|\bnext\.?js|\bnest/i.test(text);
-  // A posting asking for both Laravel and JS stacks is exactly what the default CV already says.
-  if (php && js && !/\blivewire|\bvue/i.test(text)) return 'default';
-  // LLM experience is the strongest differentiator, so it wins over plain stack clusters.
-  if (js && CLUSTERS[0].re[0].test(text)) return 'ai-fullstack';
-  const hits = CLUSTERS.filter((c) => c.re.every((r) => r.test(text)));
-  // Prefer clusters with more conditions (more specific), keep list order on ties.
-  hits.sort((a, b) => b.re.length - a.re.length);
-  return hits[0]?.id ?? 'default';
+  const hit = loadClusters().find((c) => c.all.every((r) => r.test(text)) && !c.none.some((r) => r.test(text)));
+  return hit?.id ?? 'default';
 }

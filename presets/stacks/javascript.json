@@ -4,5 +4,23 @@
   "linkedinKeywords": ["node.js", "nestjs", "react", "next.js", "full stack developer", "mern"],
   "remoteQueries": ["node", "nestjs", "react", "next.js", "full stack", "mern", "typescript", "vue"],
   "roleInclude": "node|react",
-  "allowInTitles": []
+  "allowInTitles": [],
+  "skills": [
+    { "name": "JavaScript", "pattern": "\\bjavascript\\b|\\bes6\\b" },
+    { "name": "TypeScript", "pattern": "\\btypescript\\b|\\bts\\b", "weight": 2 },
+    { "name": "Node.js", "pattern": "\\bnode(\\.?js)?\\b", "weight": 2 },
+    { "name": "NestJS", "pattern": "\\bnest\\.?js\\b|\\bnestjs\\b", "weight": 2 },
+    { "name": "Express.js", "pattern": "\\bexpress(\\.?js)?\\b" },
+    { "name": "React", "pattern": "\\breact(\\.?js)?\\b", "weight": 2 },
+    { "name": "Next.js", "pattern": "\\bnext\\.?js\\b", "weight": 2 },
+    { "name": "Redux", "pattern": "\\bredux\\b" },
+    { "name": "Vue.js", "pattern": "\\bvue(\\.?js)?\\b|\\bnuxt" }
+  ],
+  "clusters": [
+    { "id": "next-nest", "all": ["\\bnest\\.?js\\b|\\bnestjs\\b", "\\bnext\\.?js\\b|\\breact\\b"] },
+    { "id": "mern", "all": ["\\bmongo", "\\breact\\b", "\\bnode|\\bexpress"] },
+    { "id": "pern", "all": ["\\bpostgres", "\\breact\\b", "\\bnode|\\bexpress"] },
+    { "id": "backend-node", "all": ["\\bnode(\\.?js)?\\b|\\bnest"] },
+    { "id": "frontend-react", "all": ["\\breact\\b|\\bnext\\.?js\\b"] }
+  ]
 }

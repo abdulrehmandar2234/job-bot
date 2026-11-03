@@ -28,6 +28,7 @@ Nothing planned right now. Ideas from real use go here.
 
 ### Code and architecture
 
+- **Preset-driven scoring:** each stack preset carries its skill patterns and CV clusters (`skills` / `clusters` in presets/stacks/\*.json); scoring follows config.json `stacks` (missing = `php-laravel` + `javascript`, the old built-in behaviour), with cross-stack skills in src/match.ts `BASE_SKILLS`.
 - **Background task queue:** `tasks` table, src/tasks.ts, web/lib/tasks.ts, `bot task:run <id>`.
 - **Shared types:** src/types.ts, imported by the dashboard.
 - **Settings validation:** zod schemas in src/settings.ts, checked at startup.
