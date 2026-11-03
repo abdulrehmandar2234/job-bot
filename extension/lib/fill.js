@@ -11,7 +11,7 @@ const norm = (s) =>
     .replace(/[^a-z0-9]+/g, ' ')
     .trim();
 
-/** "Abdul Rehman Dar" → { first: "Abdul Rehman", last: "Dar" }. */
+/** "Sara Ann Khan" → { first: "Sara Ann", last: "Khan" }. */
 export function splitName(full) {
   const parts = String(full ?? '')
     .trim()
@@ -83,9 +83,14 @@ export function similarity(a, b) {
 
 const usable = (a) => a && !a.needs_input && a.answer && !/\[FILL\b/i.test(a.answer);
 
+/** Loose option matching needs at least this many characters: "No" must never pick "Norway" by containment. */
+const MIN_CONTAINS_LENGTH = 3;
+
 /**
  * The option of a select that matches `value`: exact text or value first, then an option whose text is the
- * value's first whole words ("Yes, within a month" → "Yes", but "Notice period…" never → "No"), or that contains it.
+ * value's first whole words ("Yes, within a month" → "Yes", but "Notice period…" never → "No"), or whose text
+ * contains the value as whole words ("United Arab Emirates" → "United Arab Emirates (UAE)"). The contains rule
+ * is word-bounded and needs a value of 3+ characters, so a short answer only ever matches an option exactly.
  */
 export function pickOption(options, value) {
   const v = norm(value);
@@ -94,7 +99,9 @@ export function pickOption(options, value) {
   if (exact) return exact.value;
   const loose = options.find((o) => {
     const t = norm(o.text);
-    return t && (v.startsWith(`${t} `) || t.includes(v));
+    if (!t) return false;
+    if (v.startsWith(`${t} `)) return true;
+    return v.length >= MIN_CONTAINS_LENGTH && ` ${t} `.includes(` ${v} `);
   });
   return loose ? loose.value : null;
 }
@@ -103,14 +110,15 @@ export function pickOption(options, value) {
  * Plans the fill. `fields`: what lib/page-fill.js describeFields() found ({ index, tag, type, label, aria,
  * placeholder, name, id, autocomplete, empty, options }). `data`: { profile, cover_letter, answers, cv }.
  * Returns { fills: [{ index, kind: 'text'|'select'|'file', value, label, source }], skipped: [labels] }.
+ * `usedAnswers` carries the drafted answers already planned elsewhere (another frame of the same page), so an
+ * answer is typed into one field on the whole page; planFrameFills() passes it between frames.
  */
-export function planFill(fields, data) {
+export function planFill(fields, data, usedAnswers = new Set()) {
   const profile = { ...(data.profile ?? {}), ...splitName(data.profile?.name) };
   if (data.profile?.first) profile.first = data.profile.first;
   if (data.profile?.last) profile.last = data.profile.last;
   profile.cover_letter = data.cover_letter ?? '';
   const answers = (data.answers ?? []).filter(usable);
-  const usedAnswers = new Set();
   const fills = [];
   const skipped = [];
 
@@ -160,4 +168,15 @@ export function planFill(fields, data) {
     } else fills.push({ index: f.index, kind: 'text', value: String(value), label, source });
   }
   return { fills, skipped };
+}
+
+/**
+ * Plans the fill for every frame of a page in one pass (`frames`: one describeFields() result per frame), sharing
+ * the used-answer bookkeeping, so a drafted answer goes into one field across all frames, not once per frame.
+ * Profile values are not single-use: a form split over frames may legitimately ask for the email twice.
+ * Returns one { fills, skipped } plan per frame, in the same order.
+ */
+export function planFrameFills(frames, data) {
+  const used = new Set();
+  return frames.map((fields) => planFill(fields ?? [], data, used));
 }
