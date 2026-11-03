@@ -96,6 +96,9 @@ export const configSchema = z.object({
   maxAgeDays: count, // postings older than this are filtered out
   countries: z.record(z.string(), countrySchema),
   companies: z.array(companySchema),
+  // Stack presets (presets/stacks) whose skills and CV clusters drive the keyword score (src/match.ts).
+  // Missing or empty = php-laravel + javascript, the stacks config.default.json is built from.
+  stacks: z.array(text).optional(),
   roleInclude: regex,
   roleExclude: regex,
   ai: z.object({

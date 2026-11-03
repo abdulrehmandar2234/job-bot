@@ -14,6 +14,14 @@ export const PRESETS_DIR = path('presets');
 export const BASE_ROLE_INCLUDE = 'engineer|developer|full.?stack|back.?end|front.?end|software|web';
 
 const text = z.string().min(1);
+const regex = text.refine((s) => {
+  try {
+    new RegExp(s, 'i');
+    return true;
+  } catch {
+    return false;
+  }
+}, 'not a valid regular expression');
 
 const marketSchema = z.object({
   name: text,
@@ -24,6 +32,24 @@ const marketSchema = z.object({
   companies: z.array(z.object({ name: text, ats: text, token: text }).loose()),
 });
 
+// A skill the keyword score looks for in postings (src/match.ts). `cv` = other CV wording that also proves it
+// (MySQL proves SQL). A stack skill with the same name as a cross-stack one (src/match.ts BASE_SKILLS) replaces it.
+const skillSchema = z.object({
+  name: text,
+  pattern: regex, // matched against the job title + description, and against the master CV for `have`
+  weight: z.number().int().positive().optional(), // missing = 1
+  cv: regex.optional(),
+});
+
+// Which CV version (cluster) fits a posting: every `all` pattern must match and no `none` pattern may. The most
+// specific cluster wins (highest `priority` first, then the most `all` patterns); 'default' = the untouched CV.
+const clusterSchema = z.object({
+  id: text,
+  all: z.array(regex).min(1),
+  none: z.array(regex).optional(),
+  priority: z.number().int().optional(), // missing = 0; higher beats specificity
+});
+
 const stackSchema = z.object({
   name: text,
   description: text,
@@ -31,7 +57,12 @@ const stackSchema = z.object({
   remoteQueries: z.array(text),
   roleInclude: text, // title words, "|"-separated, added to BASE_ROLE_INCLUDE
   allowInTitles: z.array(text), // roleExclude parts this stack must not filter out (e.g. "python")
+  skills: z.array(skillSchema).default([]), // what the keyword score looks for when this stack is active
+  clusters: z.array(clusterSchema).default([]), // which CV framing fits a posting (src/cv/profiles.ts ids)
 });
+
+/** The stacks scoring falls back to when config.json has no `stacks` key: what config.default.json is built from. */
+export const DEFAULT_STACKS = ['php-laravel', 'javascript'];
 
 export type Market = z.infer<typeof marketSchema> & { id: string };
 export type Stack = z.infer<typeof stackSchema> & { id: string };
@@ -123,7 +154,8 @@ export function applyMarkets(cfg: Json, markets: Market[]): Json {
 
 /**
  * config.json with these stacks: LinkedIn keywords, remote board queries and roleInclude come from them, and
- * roleExclude loses the parts a stack needs (Python roles are excluded by default). Everything else is kept.
+ * roleExclude loses the parts a stack needs (Python roles are excluded by default). The chosen ids go into `stacks`,
+ * so scoring (src/match.ts) uses these stacks' skills and CV clusters too. Everything else is kept.
  */
 export function applyStacks(cfg: Json, stacks: Stack[]): Json {
   if (!stacks.length) return cfg;
@@ -133,6 +165,7 @@ export function applyStacks(cfg: Json, stacks: Stack[]): Json {
   const exclude = alternatives(String(cfg.roleExclude ?? ''));
   return {
     ...cfg,
+    stacks: stacks.map((s) => s.id),
     linkedin: { ...linkedin, keywords: union(stacks.map((s) => s.linkedinKeywords)) },
     remote: { ...remote, himalayasQueries: union(stacks.map((s) => s.remoteQueries)) },
     roleInclude: union([alternatives(BASE_ROLE_INCLUDE), ...stacks.map((s) => alternatives(s.roleInclude))]).join('|'),
