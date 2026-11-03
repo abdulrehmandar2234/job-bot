@@ -277,7 +277,7 @@ async function JobDetail({ params }: { params: PageProps<'/jobs/[id]'>['params']
           <div className="space-y-2">
             <AiReviewFold job={job} />
             <SkillsMatch job={job} />
-            <AtsCheck jobId={job.id} confirm={ai && !CV_TASKS.some((k) => busy.includes(k))} />
+            <AtsCheck jobId={job.id} cvVersion={job.cv_version ?? job.cluster} confirm={ai && !CV_TASKS.some((k) => busy.includes(k))} />
           </div>
 
           <section id="letter" className="scroll-mt-4 space-y-2">

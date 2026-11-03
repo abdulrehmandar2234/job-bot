@@ -1,37 +1,30 @@
 import { Suspense } from 'react';
-import { runBot } from '@/lib/bot';
+import { type AtsReport, cachedAtsReport } from '@/lib/ats-cache';
 import { addSkillsToCv } from '@/app/actions';
 import { Collapsible } from './collapsible';
 import { MissingSkills } from './missing-skills';
 import { Chips } from './ui';
 
-/** What `bot ats <id> --json` returns (src/ats.ts AtsReport plus the version checked). */
-export type AtsReport = {
-  label: string; // version checked, e.g. laravel-v2 or next-nest
-  source: string; // prepared | suggested | chosen with --cv
-  present: string[];
-  hiddenButTrue: string[];
-  missing: string[];
-  total: number;
-  suggestion: { version: string; shows: number; gains: string[] } | null;
-};
+// The report shape lives with the cache; re-exported so the component's users keep one import.
+export type { AtsReport } from '@/lib/ats-cache';
 
 /**
  * "CV keyword check" for the job's prepared (or suggested) CV version. Loads on its own, so the page never waits for it.
+ * `cvVersion` is the job's prepared version (or suggested cluster): part of the cache key, so a new version re-runs the check.
  * `confirm`: the missing skills can be ticked and added to the CV (the AI is on and no task is changing the CV).
  */
-export function AtsCheck({ jobId, confirm = false }: { jobId: string; confirm?: boolean }) {
+export function AtsCheck({ jobId, cvVersion = null, confirm = false }: { jobId: string; cvVersion?: string | null; confirm?: boolean }) {
   return (
     <Suspense fallback={<p className="text-sm text-zinc-500">Checking CV keywords…</p>}>
-      <AtsLoader jobId={jobId} confirm={confirm} />
+      <AtsLoader jobId={jobId} cvVersion={cvVersion} confirm={confirm} />
     </Suspense>
   );
 }
 
-async function AtsLoader({ jobId, confirm }: { jobId: string; confirm: boolean }) {
+async function AtsLoader({ jobId, cvVersion, confirm }: { jobId: string; cvVersion: string | null; confirm: boolean }) {
   let report: AtsReport;
   try {
-    report = JSON.parse(await runBot(['ats', jobId, '--json'])) as AtsReport;
+    report = await cachedAtsReport(jobId, cvVersion);
   } catch {
     // The bot failed, or printed "Not found" instead of JSON.
     return <p className="text-sm text-zinc-500">CV keyword check is not available right now.</p>;
