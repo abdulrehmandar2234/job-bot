@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import './helpers.ts';
 import { aiAnswers, aiCoverLetter, aiScore, aiSummary, applicantFacts, cvText } from '../src/ai.ts';
-import { askClaude } from '../src/ai-providers.ts';
+import { askClaude, CLI_KILL_GRACE_MS } from '../src/ai-providers.ts';
 import type { Job } from '../src/db.ts';
 
 const FAKE = join(import.meta.dirname, 'fixtures', 'fake-claude.mjs');
@@ -15,6 +15,7 @@ beforeEach(() => {
   log = join(mkdtempSync(join(tmpdir(), 'jobbot-ai-')), 'calls.jsonl');
   Object.assign(process.env, { JOB_BOT_CLAUDE: FAKE, FAKE_CLAUDE_LOG: log });
   delete process.env.FAKE_CLAUDE_FAIL;
+  delete process.env.FAKE_CLAUDE_HANG;
 });
 afterEach(() => {
   delete process.env.JOB_BOT_CLAUDE;
@@ -25,7 +26,7 @@ const calls = () =>
   readFileSync(log, 'utf8')
     .trim()
     .split('\n')
-    .map((l) => JSON.parse(l) as { argv: string[]; stdin: string });
+    .map((l) => JSON.parse(l) as { pid: number; argv: string[]; stdin: string });
 const arg = (argv: string[], name: string) => argv[argv.indexOf(name) + 1];
 
 const job = (o: Partial<Job> = {}) =>
@@ -65,6 +66,26 @@ describe('askClaude', () => {
     process.env.JOB_BOT_CLAUDE = '/nonexistent/claude';
     await assert.rejects(askClaude('x', {}, 'haiku', ''), /ENOENT/);
   });
+
+  it('a timed-out CLI that ignores SIGTERM is SIGKILLed after the grace', async () => {
+    process.env.FAKE_CLAUDE_HANG = '1';
+    const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+    const alive = (pid: number) => {
+      try {
+        process.kill(pid, 0);
+        return true;
+      } catch {
+        return false;
+      }
+    };
+    await assert.rejects(askClaude('x', {}, 'haiku', '', undefined, 300), /Claude CLI timed out/);
+    // The fake logged its pid before hanging; SIGTERM alone must not have ended it, SIGKILL after the grace does.
+    const until = Date.now() + CLI_KILL_GRACE_MS + 5000;
+    while (!existsSync(log) && Date.now() < until) await wait(25);
+    const [{ pid }] = calls();
+    while (alive(pid) && Date.now() < until) await wait(50);
+    assert.equal(alive(pid), false, 'the wedged CLI was SIGKILLed');
+  });
 });
 
 describe('prompts', () => {
@@ -73,6 +94,26 @@ describe('prompts', () => {
     assert.match(t, /Abdul Rehman Dar/);
     assert.match(t, /EXPERIENCE: Senior Software Engineer, Qureos/);
     assert.match(t, /SKILLS: .*Laravel/);
+  });
+
+  it('cvText is cached per master file and mtime, so concurrent scoring workers do not re-read it', () => {
+    const file = join(mkdtempSync(join(tmpdir(), 'jobbot-master-')), 'master.json');
+    const original = readFileSync(join(import.meta.dirname, '..', 'cv', 'master.json'), 'utf8');
+    const stamp = new Date('2026-01-01T00:00:00Z');
+    writeFileSync(file, original);
+    utimesSync(file, stamp, stamp);
+    process.env.JOB_BOT_MASTER = file;
+    try {
+      const first = cvText();
+      writeFileSync(file, JSON.stringify({ ...JSON.parse(original), title: 'Changed Title For The Cache Test' }));
+      utimesSync(file, stamp, stamp); // same mtime: the cache answers without reading the file again
+      assert.equal(cvText(), first);
+      const later = new Date('2026-01-02T00:00:00Z'); // a new mtime invalidates the cache
+      utimesSync(file, later, later);
+      assert.match(cvText(), /Changed Title For The Cache Test/);
+    } finally {
+      delete process.env.JOB_BOT_MASTER;
+    }
   });
 
   it('applicantFacts never sends the help text and keeps unknowns null', () => {

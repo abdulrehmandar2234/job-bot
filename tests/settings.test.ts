@@ -68,6 +68,32 @@ describe('config validation', () => {
     );
   });
 
+  it('rejects unknown remote board names with a message naming the valid ones', () => {
+    const c = realConfig();
+    c.remote.boards = ['himalayas', 'remotve'];
+    const errors = errorsOf(validateConfig(c));
+    assert.deepEqual(
+      errors.map((e) => e.path),
+      ['remote.boards[1]'],
+    );
+    assert.match(errors[0].message, /himalayas.*remotive.*remoteok.*arbeitnow.*adzuna/);
+    c.remote.boards = ['himalayas', 'remotive', 'remoteok', 'arbeitnow', 'adzuna'];
+    assert.ok(validateConfig(c).ok);
+  });
+
+  it('warns about unknown top-level config keys but keeps them', () => {
+    const r = validateConfig({ ...realConfig(), minscore: 10 });
+    assert.ok(r.ok);
+    assert.deepEqual(
+      r.warnings.map((w) => w.path),
+      ['minscore'],
+    );
+    assert.match(r.warnings[0].message, /unknown setting/);
+    const clean = validateConfig(realConfig());
+    assert.ok(clean.ok);
+    assert.deepEqual(clean.warnings, []);
+  });
+
   it('rejects something that is not an object', () => {
     assert.deepEqual(
       errorsOf(validateConfig([])).map((e) => e.path),
@@ -101,7 +127,9 @@ describe('applicant validation', () => {
   it('accepts the example file and an empty object (everything unknown)', () => {
     assert.ok(validateApplicant(example()).ok);
     assert.ok(validateApplicant({}).ok);
-    assert.ok(validateApplicant({ noticePeriod: '1 month', expectedSalary: { AE: 25000, remote: null }, petName: 'x' }).ok);
+    const r = validateApplicant({ noticePeriod: '1 month', expectedSalary: { AE: 25000, remote: null }, petName: 'x' });
+    assert.ok(r.ok);
+    assert.deepEqual(r.warnings, []); // extra applicant keys are facts for the AI, not typos
   });
 
   it('names the path of bad facts', () => {

@@ -7,9 +7,15 @@ import { applyFill, describeFields, listFrameUrls } from '../../../extension/lib
 import { planFill } from '../../../extension/lib/fill.js';
 import { fillProfile } from '@/lib/extension';
 
-// extension/lib/page-fill.js runs inside the job page. jsdom has no layout, so every element counts as visible.
+// extension/lib/page-fill.js runs inside the job page. jsdom has no layout, so fake it: every element has client
+// rects and a normal on-page box, and a test puts an element elsewhere with data-test-rect (merged over the default).
+const RECT = { x: 10, y: 10, left: 10, top: 10, right: 210, bottom: 34, width: 200, height: 24 };
 beforeEach(() => {
   vi.spyOn(Element.prototype, 'getClientRects').mockReturnValue([{}] as unknown as DOMRectList);
+  vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+    const over = this instanceof HTMLElement ? this.dataset.testRect : undefined;
+    return { ...RECT, ...(over ? JSON.parse(over) : {}), toJSON: () => ({}) } as DOMRect;
+  });
 });
 
 const FORM = `
@@ -201,6 +207,69 @@ describe('never overwriting', () => {
       <label for="s2">Years of PHP</label><select id="s2"><option value="" disabled selected>Select…</option><option value="7">7</option></select>`;
     const fields = describeFields();
     expect(fields.map((f: { empty: boolean }) => f.empty)).toEqual([false, true]);
+  });
+});
+
+// A hostile page could plant invisible fields labeled email/phone/CV and harvest them from one honest click.
+describe('hidden fields', () => {
+  const profile = { name: 'Sara Khan', email: 'sara@example.com', phone: '+971', linkedin: 'https://l.example/s', location: 'Dubai' };
+
+  it('never lists or fills fields hidden with opacity, zero size or an off-screen position', () => {
+    document.body.innerHTML = `
+      <label for="a">First name</label><input id="a">
+      <label for="b">Email</label><input id="b" style="opacity:0">
+      <div style="opacity:0.05"><label for="c">Phone</label><input id="c"></div>
+      <label for="d">LinkedIn</label><input id="d" data-test-rect='{"left":-9999}'>
+      <label for="e">Location</label><input id="e" data-test-rect='{"width":0,"height":0}'>`;
+    const fields = describeFields();
+    expect(fields.map((f: { id: string }) => f.id)).toEqual(['a']);
+    applyFill(planFill(fields, { profile, answers: [] }).fills, null);
+    expect((document.getElementById('a') as HTMLInputElement).value).toBe('Sara');
+    for (const id of ['b', 'c', 'd', 'e']) expect((document.getElementById(id) as HTMLInputElement).value).toBe('');
+  });
+
+  it('fills a hidden CV input behind a visible "Upload" label, but never one with no visible trigger', () => {
+    document.body.innerHTML = `
+      <label for="cv">Resume</label><input id="cv" type="file" style="display:none">
+      <input id="trap1" type="file" aria-label="Resume" style="display:none">
+      <label for="trap2" style="display:none">CV</label><input id="trap2" type="file" style="display:none">`;
+    class FakeDataTransfer {
+      list: File[] = [];
+      items = { add: (f: File) => this.list.push(f) };
+      get files() {
+        return this.list as unknown as FileList;
+      }
+    }
+    vi.stubGlobal('DataTransfer', FakeDataTransfer);
+    const input = document.getElementById('cv') as HTMLInputElement;
+    Object.defineProperty(input, 'files', { value: [] as unknown as FileList, writable: true });
+    const fields = describeFields();
+    expect(fields.map((f: { id: string }) => f.id)).toEqual(['cv']); // both traps have no visible label
+    const cv = { name: 'Sara_CV.pdf', type: 'application/pdf', base64: btoa('%PDF-') };
+    expect(applyFill(planFill(fields, { profile: {}, answers: [], cv }).fills, cv)).toBe(1);
+    expect(input.files![0].name).toBe('Sara_CV.pdf');
+    vi.unstubAllGlobals();
+  });
+
+  it('skips a select or file input hidden after the plan was made', () => {
+    document.body.innerHTML = `
+      <label for="s">Years of Laravel</label><select id="s"><option value="">Select</option><option value="7">7</option></select>
+      <label for="cv" id="cvl">Resume</label><input id="cv" type="file">`;
+    const input = document.getElementById('cv') as HTMLInputElement;
+    Object.defineProperty(input, 'files', { value: [] as unknown as FileList, writable: true });
+    const cv = { name: 'Sara_CV.pdf', type: 'application/pdf', base64: btoa('%PDF-') };
+    const plan = planFill(describeFields(), {
+      profile: {},
+      answers: [{ question: 'Years of Laravel', answer: '7', needs_input: false, note: '' }],
+      cv,
+    });
+    expect(plan.fills).toHaveLength(2);
+    (document.getElementById('s') as HTMLElement).style.display = 'none';
+    (document.getElementById('cv') as HTMLElement).style.display = 'none';
+    (document.getElementById('cvl') as HTMLElement).style.display = 'none'; // the CV input's visible trigger too
+    expect(applyFill(plan.fills, cv)).toBe(0);
+    expect((document.getElementById('s') as HTMLSelectElement).value).toBe('');
+    expect(input.files).toHaveLength(0);
   });
 });
 

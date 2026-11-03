@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { deleteContact } from '@/app/jobs/[id]/contact-actions';
 import { contactsFor, referralReminder, type CompanyContact } from '@/lib/contacts';
 import type { Status } from '@/lib/db';
-import { SubmitButton } from './client';
+import { ActionForm } from './action-form';
 import { ContactForm } from './contact-form';
 
 type JobRef = { id: string; company: string; status: Status };
@@ -90,11 +90,7 @@ export function Contacts({ job, contacts }: { job: JobRef; contacts: CompanyCont
             <li key={c.id} className="space-y-2 rounded-xl border border-zinc-200 p-3 text-sm dark:border-zinc-800">
               <div className="flex items-start justify-between gap-3">
                 <ContactLine c={c} />
-                <form action={deleteContact}>
-                  <input type="hidden" name="id" value={job.id} />
-                  <input type="hidden" name="contact_id" value={c.id} />
-                  <SubmitButton pendingText="Deleting…">Delete</SubmitButton>
-                </form>
+                <ActionForm action={deleteContact} fields={{ id: job.id, contact_id: c.id }} pendingText="Deleting…" label="Delete" />
               </div>
               <details>
                 <summary className="cursor-pointer text-xs text-zinc-500">Edit</summary>

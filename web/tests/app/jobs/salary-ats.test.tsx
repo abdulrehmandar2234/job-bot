@@ -39,8 +39,10 @@ const suspenseChild = (nodes: ReactNode) =>
     (c): c is ReactElement<{ children: AsyncEl }> => isValidElement(c) && (c.props as { fallback?: unknown }).fallback !== undefined,
   )!.props.children;
 
+type AtsProps = { jobId: string; cvVersion?: string | null };
+
 /** The <AtsCheck> element, wherever the layout nests it among the page's own elements. */
-function findAts(node: ReactNode): ReactElement<{ jobId: string }> | undefined {
+function findAts(node: ReactNode): ReactElement<AtsProps> | undefined {
   if (Array.isArray(node)) {
     for (const c of node) {
       const hit = findAts(c);
@@ -50,7 +52,7 @@ function findAts(node: ReactNode): ReactElement<{ jobId: string }> | undefined {
   }
   if (!isValidElement(node)) return undefined;
   const props = node.props as { jobId?: string; children?: ReactNode };
-  if (props.jobId !== undefined) return node as ReactElement<{ jobId: string }>;
+  if (props.jobId !== undefined) return node as ReactElement<AtsProps>;
   return typeof node.type === 'string' ? findAts(props.children) : undefined;
 }
 
@@ -69,6 +71,7 @@ async function renderJob(id: string) {
       {await loader.type(loader.props)}
     </>,
   );
+  return ats.props;
 }
 
 const id = PREFIX + 'sal-ats';
@@ -86,6 +89,7 @@ describe('job page: salary and CV keyword check', () => {
       salary_max: 25_000,
       salary_currency: 'AED',
       salary_period: 'month',
+      cv_version: 'laravel-v2',
     });
     vi.mocked(runBot).mockResolvedValue(
       JSON.stringify({
@@ -98,9 +102,11 @@ describe('job page: salary and CV keyword check', () => {
         suggestion: null,
       }),
     );
-    await renderJob(id);
+    const atsProps = await renderJob(id);
     expect(screen.getAllByText('💰 AED 20k–25k / month').length).toBeGreaterThan(0);
     expect(runBot).toHaveBeenCalledWith(['ats', id, '--json']);
+    // The page hands the check the job's prepared CV version: part of the report cache key (web/lib/ats-cache.ts).
+    expect(atsProps).toMatchObject({ jobId: id, cvVersion: 'laravel-v2' });
     const heading = screen.getAllByRole('heading', { name: /CV keyword check/ }).at(-1)!;
     expect(heading).toHaveTextContent('laravel (suggested) shows 1 of 3 job keywords');
     // Folded behind that count.

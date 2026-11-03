@@ -116,6 +116,38 @@ describe('setStatus expectFrom', () => {
   });
 });
 
+describe('setStatus extra columns (set)', () => {
+  it('carries filter_reason in the same transaction as the status change, and clears it the same way', async () => {
+    await upsertJob(job());
+    assert.equal(
+      await setStatus('test:db1', 'filtered', 'location (AI): US only', undefined, {
+        expectFrom: ['new'],
+        set: { filter_reason: 'location (AI): US only' },
+      }),
+      true,
+    );
+    let j = await getJob('test:db1');
+    assert.deepEqual([j.status, j.filter_reason], ['filtered', 'location (AI): US only']);
+    assert.equal(
+      await setStatus('test:db1', 'new', 'location (AI) passed', undefined, { expectFrom: ['filtered'], set: { filter_reason: null } }),
+      true,
+    );
+    j = await getJob('test:db1');
+    assert.deepEqual([j.status, j.filter_reason], ['new', null]);
+  });
+
+  it('a change refused by expectFrom touches neither the status nor the extra columns', async () => {
+    await upsertJob(job());
+    await setStatus('test:db1', 'applied');
+    assert.equal(
+      await setStatus('test:db1', 'filtered', 'x', undefined, { expectFrom: ['new'], set: { filter_reason: 'location (AI): x' } }),
+      false,
+    );
+    const j = await getJob('test:db1');
+    assert.deepEqual([j.status, j.filter_reason], ['applied', null]);
+  });
+});
+
 describe('fetch', () => {
   const saved = { companies: config.companies, remote: config.remote.enabled, linkedin: config.linkedin.enabled };
   let net: ReturnType<typeof mockFetch> | undefined;
@@ -199,6 +231,17 @@ describe('dedupe', () => {
     await upsertJob(job({ id: 'gh:1' }));
     await upsertJob(job({ id: 'li:1', source: 'linkedin', status: 'filtered', filter_reason: 'x' }));
     assert.equal(await dedupe(), 0);
+  });
+
+  it('unlinks and relinks in one transaction: two dedupes at once leave every duplicate grouped', async () => {
+    await upsertJob(job({ id: 'gh:1' }));
+    await upsertJob(job({ id: 'li:1', source: 'linkedin' }));
+    await upsertJob(job({ id: 'bayt:1', source: 'bayt' }));
+    await dedupe(); // links exist, so the concurrent runs both unlink and relink the same rows
+    const [a, b] = await Promise.all([dedupe(), dedupe()]);
+    assert.deepEqual([a, b], [2, 2]);
+    assert.equal((await getJob('li:1')).duplicate_of, 'gh:1');
+    assert.equal((await getJob('bayt:1')).duplicate_of, 'gh:1');
   });
 });
 

@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
+import { setStatus } from '@/app/actions';
 import { CvAction, JobActions, OpenJobLink, StatusActions } from '@/components/job-actions';
 import type { Job, Status } from '@/lib/db';
 
@@ -155,6 +157,18 @@ describe('JobActions', () => {
     render(<JobActions job={job({ status: 'interview' })} />);
     expect(screen.getByRole('button', { name: 'Offer 🎉' })).toHaveClass('btn-good');
     expect(screen.getByRole('button', { name: 'Rejected' })).not.toHaveClass('btn-good');
+  });
+
+  it('a refused move shows the error next to the button instead of replacing the page (app/error.tsx)', async () => {
+    // E.g. the job was deleted by dedupe between render and click: the action answers, nothing throws.
+    vi.mocked(setStatus).mockResolvedValue({ ok: false, message: 'Unknown job' });
+    const user = userEvent.setup();
+    render(<JobActions job={job()} />);
+    await user.click(screen.getByRole('button', { name: 'Mark applied ✓' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Unknown job');
+    // The rest of the card is untouched and the button can be clicked again.
+    expect(screen.getByRole('button', { name: 'Mark applied ✓' })).toBeEnabled();
+    expect(screen.getByRole('link', { name: 'Open job ↗' })).toBeInTheDocument();
   });
 });
 

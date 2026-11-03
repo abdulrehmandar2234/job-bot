@@ -1,13 +1,11 @@
 import { setStatus } from '@/app/actions';
 import { SKIP_LABEL, SKIP_REASONS } from '@/lib/skips';
-import { SubmitButton } from './client';
+import { ActionForm } from './action-form';
 
 /** Skip stays one click; the optional "why?" next to it feeds the skip patterns on /analytics. */
 export function SkipButton({ id }: { id: string }) {
   return (
-    <form action={setStatus} className="flex items-center gap-1">
-      <input type="hidden" name="id" value={id} />
-      <input type="hidden" name="status" value="skipped" />
+    <ActionForm action={setStatus} fields={{ id, status: 'skipped' }} className="flex items-center gap-1" label="Skip">
       <select
         name="reason"
         defaultValue=""
@@ -22,7 +20,6 @@ export function SkipButton({ id }: { id: string }) {
           </option>
         ))}
       </select>
-      <SubmitButton>Skip</SubmitButton>
-    </form>
+    </ActionForm>
   );
 }

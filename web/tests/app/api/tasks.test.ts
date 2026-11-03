@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { GET } from '@/app/api/tasks/route';
 import { pool } from '@/lib/db';
+import { resetExpireThrottle } from '@/lib/tasks';
 import { cleanupDb, closeDb, ensureSchema, insertJob } from '../../helpers/db';
 
 const get = async (job?: string) => {
@@ -17,7 +18,10 @@ const addTask = async (kind: string, jobId: string | null, status = 'queued', ex
   ).rows[0].id;
 
 beforeAll(ensureSchema);
-beforeEach(cleanupDb);
+beforeEach(async () => {
+  await cleanupDb();
+  resetExpireThrottle(); // the stale check is throttled (lib/tasks.ts): each test sees it run again
+});
 afterAll(closeDb);
 
 describe('GET /api/tasks', () => {

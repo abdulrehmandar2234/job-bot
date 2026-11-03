@@ -10,6 +10,12 @@ import { DEFAULT_TEMPLATE, isTemplate, type TemplateId } from './cv-template-lis
 export { DEFAULT_TEMPLATE, isTemplate, TEMPLATES, templateName, type TemplateId } from './cv-template-list';
 
 /**
+ * A CV version name, the one rule for every dashboard path that takes one (prepare's `cv`, /api/cv/[version],
+ * versionInfo), as CV_VERSION in src/tasks.ts (the bot checks it again; parity in tests/lib/cv-templates.test.ts).
+ */
+export const CV_VERSION = /^[a-z0-9][a-z0-9-]*$/;
+
+/**
  * config.json cvFileName, from the file the bot uses (JOB_BOT_CONFIG when set). It lives here, not in bot.ts, because
  * settings.ts imports bot.ts.
  */
@@ -34,7 +40,7 @@ export function defaultTemplate(): TemplateId {
  */
 export function versionInfo(version: string): { template: TemplateId; feedbackNote: string[] } {
   const none = { template: DEFAULT_TEMPLATE, feedbackNote: [] };
-  if (!/^[a-z0-9][a-z0-9-]*$/.test(version) || version === 'default') return none;
+  if (!CV_VERSION.test(version) || version === 'default') return none;
   const file = join(BOT_ROOT, 'cv', 'versions', version, 'meta.json');
   try {
     const meta = existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : {};

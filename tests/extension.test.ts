@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { describeResult, fetchCv, lookupJob, missingFields, OFFLINE, sendJob } from '../extension/lib/api.js';
-import { pickOption, planFill, similarity, splitName } from '../extension/lib/fill.js';
+import { pickOption, planFill, planFrameFills, similarity, splitName } from '../extension/lib/fill.js';
 import { findJobPosting, guessFromTitle, jobFromPage, jobFromPosting, postingLocation } from '../extension/lib/jobposting.js';
 import { cleanText, decodeEntities, htmlToText } from '../extension/lib/text.js';
 import { frameOrigins, isHttpUrl, normalizeUrl, sameTab, sourceFromUrl } from '../extension/lib/url.js';
@@ -311,7 +311,7 @@ describe('auto-fill plan', () => {
   };
 
   it('splits a full name into first and last', () => {
-    assert.deepEqual(splitName('Abdul Rehman Dar'), { first: 'Abdul Rehman', last: 'Dar' });
+    assert.deepEqual(splitName('Sara Ann Khan'), { first: 'Sara Ann', last: 'Khan' });
     assert.deepEqual(splitName('  Cher '), { first: 'Cher', last: '' });
     assert.deepEqual(splitName(undefined), { first: '', last: '' });
   });
@@ -467,6 +467,44 @@ describe('auto-fill plan', () => {
     assert.equal(pickOption(yesNo, 'Now'), null);
     assert.equal(pickOption(yesNo, 'Yes, I can relocate within a month'), 'y');
     assert.equal(pickOption(yesNo, 'No'), 'n');
+  });
+
+  it('a loose option match needs whole words and 3+ characters: "No" never picks "Norway"', () => {
+    const countries = [
+      { value: '1', text: 'Netherlands' },
+      { value: '2', text: 'Norway' },
+    ];
+    assert.equal(pickOption(countries, 'No'), null); // too short for the contains rule
+    assert.equal(pickOption(countries, 'Norway'), '2'); // exact still wins
+    assert.equal(pickOption([{ value: 'ae', text: 'United Arab Emirates (UAE)' }], 'United Arab Emirates'), 'ae'); // whole words
+    assert.equal(pickOption([{ value: '1', text: 'Southampton' }], 'ham'), null); // never inside a word
+    assert.equal(
+      pickOption(
+        [
+          { value: 'y', text: 'Yes' },
+          { value: 'n', text: 'No' },
+        ],
+        'no',
+      ),
+      'n', // a short answer still matches an option exactly
+    );
+  });
+
+  it('plans all frames in one pass, so a drafted answer fills one field across frames', () => {
+    const why = { tag: 'textarea', type: 'textarea', label: 'Why do you want to work at Acme?' };
+    const plans = planFrameFills([[field(0, why)], null, [field(0, why), field(1, { label: 'First name' })]], data);
+    assert.equal(plans.length, 3);
+    assert.deepEqual(
+      plans[0].fills.map((f) => [f.index, f.source]),
+      [[0, 'answer']],
+    );
+    assert.deepEqual(plans[1], { fills: [], skipped: [] });
+    // The answer is already used in frame 0; profile values are not single-use and still fill.
+    assert.deepEqual(
+      plans[2].fills.map((f) => [f.index, f.source]),
+      [[1, 'profile']],
+    );
+    assert.deepEqual(plans[2].skipped, ['Why do you want to work at Acme?']);
   });
 
   it('on equal scores the first drafted answer wins', () => {

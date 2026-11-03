@@ -8,7 +8,9 @@ import type { Job } from './types.ts';
 // JOB_BOT_NOTIFY=off sends nothing; JOB_BOT_NOTIFY=<path> runs that program with (title, message, url) instead
 // (tests use tests/fixtures/fake-notify.mjs, so they never show a real notification).
 
-export const DASHBOARD_URL = 'http://localhost:3100';
+/** Links in notifications point here. JOB_BOT_DASHBOARD_URL overrides it when the dashboard runs on another port. */
+export const dashboardUrl = () => process.env.JOB_BOT_DASHBOARD_URL || 'http://localhost:3100';
+export const DASHBOARD_URL = dashboardUrl();
 
 export type Note = { title: string; message: string; url: string };
 export type AlertJob = Pick<Job, 'id' | 'title' | 'company' | 'country'>;
@@ -32,12 +34,12 @@ export function strongAlerts(jobs: AlertJob[], countryName: (code: string | null
       .slice(0, GROUP_ABOVE)
       .map((j) => clean(`${j.title} at ${j.company}`, 60))
       .join(', ');
-    return [{ title: 'Job Bot', message: clean(`${jobs.length} strong matches: ${names}…`, 240), url: DASHBOARD_URL }];
+    return [{ title: 'Job Bot', message: clean(`${jobs.length} strong matches: ${names}…`, 240), url: dashboardUrl() }];
   }
   return jobs.map((j) => ({
     title: 'Job Bot',
     message: clean(`Strong match: ${j.title} at ${j.company} (${countryName(j.country)})`, 240),
-    url: `${DASHBOARD_URL}/jobs/${encodeURIComponent(j.id)}`,
+    url: `${dashboardUrl()}/jobs/${encodeURIComponent(j.id)}`,
   }));
 }
 

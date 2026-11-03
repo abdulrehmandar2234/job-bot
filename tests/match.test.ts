@@ -1,8 +1,11 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { daysAgo, raw } from './helpers.ts'; // first: it points the bot at a temp config before src/ loads one
 import { isIndSponsor } from '../src/sponsors.ts';
-import { pickCluster, scoreJob } from '../src/match.ts';
+import { languageRules, pickCluster, scoreJob } from '../src/match.ts';
 import { config } from '../src/config.ts';
 
 describe('scoreJob: location', () => {
@@ -213,6 +216,55 @@ describe('pickCluster', () => {
   });
   it('falls back to default', () => {
     assert.equal(pickCluster('COBOL'), 'default');
+  });
+});
+
+describe('scoreJob: a missing or corrupt master CV fails loudly', () => {
+  // A fresh module instance per test (the ?query busts the ESM cache), so the lazy skill list is not loaded yet.
+  const freshMatch = (name: string) => import(`../src/match.ts?${name}`) as Promise<typeof import('../src/match.ts')>;
+  const withMaster = async (file: string, fn: () => void) => {
+    const saved = process.env.JOB_BOT_MASTER;
+    process.env.JOB_BOT_MASTER = file;
+    try {
+      fn();
+    } finally {
+      if (saved === undefined) delete process.env.JOB_BOT_MASTER;
+      else process.env.JOB_BOT_MASTER = saved;
+    }
+  };
+
+  it('throws a clear error when cv/master.json is missing, instead of scoring everything 0', async () => {
+    const m = await freshMatch('missing-cv');
+    await withMaster(join(tmpdir(), 'job-bot-no-such-cv.json'), () => {
+      assert.throws(() => m.scoreJob(raw()), /Cannot read the master CV at .*job-bot-no-such-cv\.json.*JOB_BOT_MASTER/);
+    });
+  });
+
+  it('throws a clear error when cv/master.json is not valid JSON', async () => {
+    const m = await freshMatch('corrupt-cv');
+    const f = join(mkdtempSync(join(tmpdir(), 'job-bot-cv-')), 'master.json');
+    writeFileSync(f, '{ "skills": ');
+    await withMaster(f, () => {
+      assert.throws(() => m.scoreJob(raw()), /Cannot parse the master CV at .*master\.json as JSON/);
+    });
+  });
+});
+
+describe('compiled matchers', () => {
+  it('cached config patterns still follow config changes (the cache is keyed on the pattern text)', () => {
+    const was = config.roleExclude;
+    try {
+      config.roleExclude = 'full stack';
+      assert.match(scoreJob(raw()).filterReason!, /title excluded/);
+    } finally {
+      config.roleExclude = was;
+    }
+    assert.equal(scoreJob(raw()).filterReason, null);
+  });
+
+  it('languageRules is built once per spoken-language set', () => {
+    assert.equal(languageRules(['English']), languageRules(['english']));
+    assert.notEqual(languageRules(['English']), languageRules(['English', 'Dutch']));
   });
 });
 

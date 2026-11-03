@@ -32,7 +32,7 @@ afterAll(closeDb);
 
 describe('prepareInterview', () => {
   it('queues a prep task, starts its worker and refreshes at once', async () => {
-    await prepareInterview(form({ id }));
+    expect(await prepareInterview(null, form({ id }))).toBeNull();
     const [task] = await tasks();
     expect(task).toMatchObject({ kind: 'prep', job_id: id, status: 'queued', args: {} });
     expect(spawn).toHaveBeenCalledExactlyOnceWith(['task:run', String(task.id)]);
@@ -40,15 +40,15 @@ describe('prepareInterview', () => {
   });
 
   it('does not start a second prep while one is queued or running', async () => {
-    await prepareInterview(form({ id }));
-    await prepareInterview(form({ id }));
+    await prepareInterview(null, form({ id }));
+    await prepareInterview(null, form({ id }));
     expect(await tasks()).toHaveLength(1);
     expect(spawn).toHaveBeenCalledOnce();
   });
 
-  it('rejects a missing or unknown job without queueing anything', async () => {
-    await expect(prepareInterview(form({}))).rejects.toThrow('Missing job id');
-    await expect(prepareInterview(form({ id: PREFIX + 'nope' }))).rejects.toThrow('Unknown job');
+  it('answers a missing or unknown job with an error state, without queueing anything', async () => {
+    expect(await prepareInterview(null, form({}))).toEqual({ ok: false, message: 'Missing job id' });
+    expect(await prepareInterview(null, form({ id: PREFIX + 'nope' }))).toEqual({ ok: false, message: 'Unknown job' });
     expect(await tasks()).toEqual([]);
     expect(spawn).not.toHaveBeenCalled();
     expect(refresh).not.toHaveBeenCalled();

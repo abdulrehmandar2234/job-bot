@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { daysAgo, mockFetch } from './helpers.ts';
 import { timing } from '../src/sources/http.ts';
-import { fetchCompany, workdayAgeDays, workdaySite } from '../src/sources/index.ts';
+import { fetchCompany, workdayAgeDays, workdayList, workdaySite } from '../src/sources/index.ts';
 import { BOARDS } from '../src/sources/boards.ts';
 import { linkedin } from '../src/sources/linkedin.ts';
 import { discover, workdayToken } from '../src/discover.ts';
@@ -171,6 +171,26 @@ describe('company job boards (ATS)', () => {
     assert.ok(!net.calls.some((u) => u.includes('/p2') || u.includes('/p3')));
   });
 
+  it('smartrecruiters: remote and "N Locations" postings pass the prefilter, as for Workday', async () => {
+    net = mockFetch({
+      'postings?limit=100': {
+        totalFound: 2,
+        content: [
+          { id: 'r1', name: 'Backend Engineer', location: { fullLocation: 'Remote' }, releasedDate: daysAgo(1) },
+          { id: 'r2', name: 'Backend Engineer', location: { fullLocation: '3 Locations' }, releasedDate: daysAgo(1) },
+        ],
+      },
+      'postings/r1': { postingUrl: 'https://s/r1', jobAd: { sections: { a: { text: 'Node' } } } },
+      'postings/r2': { postingUrl: 'https://s/r2', jobAd: { sections: {} } },
+    });
+    const jobs = await fetchCompany(co('smartrecruiters'));
+    assert.deepEqual(
+      jobs.map((j) => j.id),
+      ['smartrecruiters:acme:r1', 'smartrecruiters:acme:r2'],
+    );
+    assert.equal(jobs.partialError, undefined);
+  });
+
   it('smartrecruiters: a failed detail call skips that posting and keeps the rest, as a partial error', async () => {
     const p = (id: string) => ({
       id,
@@ -306,6 +326,18 @@ describe('workday', () => {
     assert.equal(j.url, 'https://acme.wd3.myworkdayjobs.com/AcmeCareers/job/Dubai/Backend-Engineer_R0');
   });
 
+  it('keeps paging when the response has no total, until a short page', async () => {
+    net = mockFetch({
+      [`${api}/jobs`]: (_u: string, init?: RequestInit) => {
+        const { offset } = JSON.parse(String(init?.body));
+        return { jobPostings: offset < 40 ? Array.from({ length: 20 }, (_, i) => posting(offset + i)) : [posting(40)] };
+      },
+    });
+    const list = await workdayList(wd.token);
+    assert.equal(list.length, 41);
+    assert.equal(net.calls.length, 3);
+  });
+
   it('stops at the page cap even when the total is larger', async () => {
     net = mockFetch({
       [`${api}/jobs`]: { total: 5000, jobPostings: Array.from({ length: 20 }, (_, i) => posting(i, { title: 'Sales' })) },
@@ -381,6 +413,31 @@ describe('remote boards', () => {
     assert.ok(!net.calls.some((u) => u.includes('q=php')));
   });
 
+  it('himalayas: a job with a missing or non-numeric pubDate is kept without a date, not a crash', async () => {
+    const now = Math.floor(Date.now() / 1000);
+    net = mockFetch({
+      'himalayas.app/jobs/api/search': (url: string) =>
+        url.includes('page=1') && url.includes('q=laravel')
+          ? {
+              jobs: [
+                { guid: 'https://himalayas.app/companies/a/jobs/x', companyName: 'A', title: 'Dev', pubDate: now - 3600 },
+                { guid: 'https://himalayas.app/companies/b/jobs/y', companyName: 'B', title: 'Dev' },
+                { guid: 'https://himalayas.app/companies/c/jobs/z', companyName: 'C', title: 'Dev', pubDate: 'soon' },
+              ],
+            }
+          : { jobs: [] },
+    });
+    const jobs = await BOARDS.himalayas();
+    assert.deepEqual(
+      jobs.map((j) => [j.id, j.posted_at]),
+      [
+        ['himalayas:a/jobs/x', new Date((now - 3600) * 1000).toISOString()],
+        ['himalayas:b/jobs/y', null],
+        ['himalayas:c/jobs/z', null],
+      ],
+    );
+  });
+
   it('himalayas: a 429 on the very first page is still an error', async () => {
     net = mockFetch({ 'himalayas.app': () => new Response('', { status: 429 }) });
     await assert.rejects(BOARDS.himalayas(), /429/);
@@ -405,6 +462,23 @@ describe('remote boards', () => {
     const [j] = await BOARDS.remotive();
     assert.equal(j.location, 'Remote — not stated');
     assert.equal(j.posted_at, '2026-10-27T10:00:00.000Z');
+  });
+
+  it('remotive: an already-zoned or unparseable publication_date does not crash the board', async () => {
+    net = mockFetch({
+      'remotive.com': {
+        jobs: [
+          { id: 1, company_name: 'A', title: 'Dev', url: 'u', publication_date: '2026-10-27T10:00:00Z' },
+          { id: 2, company_name: 'B', title: 'Dev', url: 'u', publication_date: 'not a date' },
+          { id: 3, company_name: 'C', title: 'Dev', url: 'u' },
+        ],
+      },
+    });
+    const jobs = await BOARDS.remotive();
+    assert.deepEqual(
+      jobs.map((j) => j.posted_at),
+      ['2026-10-27T10:00:00.000Z', null, null],
+    );
   });
 
   it('remoteok: skips the legal notice row and adds tags to the description', async () => {
@@ -470,6 +544,23 @@ describe('arbeitnow', () => {
     assert.equal(jobs[0].source, 'arbeitnow');
     assert.equal(jobs[0].posted_at, new Date((now - 3600) * 1000).toISOString());
     assert.equal(net.calls.length, 2);
+  });
+
+  it('a job with a missing created_at is kept without a date, not a crash', async () => {
+    net = mockFetch({
+      'arbeitnow.com/api/job-board-api': {
+        data: [job('no-date', { location: 'Amsterdam', created_at: undefined }), job('dated', { location: 'Amsterdam' })],
+        links: { next: null },
+      },
+    });
+    const jobs = await BOARDS.arbeitnow();
+    assert.deepEqual(
+      jobs.map((j) => [j.id, j.posted_at]),
+      [
+        ['arbeitnow:no-date', null],
+        ['arbeitnow:dated', new Date((now - 3600) * 1000).toISOString()],
+      ],
+    );
   });
 
   it('a failed later page keeps the earlier pages as a partial result', async () => {
@@ -652,6 +743,43 @@ describe('linkedin (guest search)', () => {
     assert.match(jobs.partialError ?? '', /429 LinkedIn rate limit: stopping LinkedIn for today/);
     assert.equal(net.calls.filter((u) => u.includes('jobPosting/333')).length, 1); // no retry
     assert.ok(!net.calls.some((u) => u.includes('jobPosting/444')));
+  });
+
+  it('a 429 mid-search keeps the cards already collected and still fetches their details', async () => {
+    net = mockFetch({
+      'seeMoreJobPostings/search': (url: string) =>
+        new URL(url).searchParams.get('keywords') === 'laravel' ? card('111', 'Laravel Developer') : new Response('', { status: 429 }),
+      'jobPosting/111': '<div class="show-more-less-html__markup">Laravel</div>\n<button>',
+    });
+    const jobs = await linkedin();
+    assert.deepEqual(
+      jobs.map((j) => j.id),
+      ['linkedin:111'],
+    );
+    assert.match(jobs.partialError ?? '', /search stopped: 429 LinkedIn rate limit: stopping LinkedIn for today/);
+    // The search stopped at the throttled page: only the first keyword's search and the one 429 went out.
+    assert.equal(net.calls.filter((u) => u.includes('seeMoreJobPostings')).length, 2);
+  });
+
+  it('a non-empty search page in which no card parses is reported, not a quiet success', async () => {
+    net = mockFetch({
+      'seeMoreJobPostings/search': (url: string) =>
+        new URL(url).searchParams.get('keywords') === 'laravel'
+          ? card('111', 'Laravel Developer')
+          : '<ul><li class="renamed-card"><div>markup changed</div></li></ul>',
+      'jobPosting/111': '<div class="show-more-less-html__markup">Laravel</div>\n<button>',
+    });
+    const jobs = await linkedin();
+    assert.deepEqual(
+      jobs.map((j) => j.id),
+      ['linkedin:111'],
+    );
+    assert.match(jobs.partialError ?? '', /no parsable cards \(markup change\? first: "php" in United Arab Emirates\)/);
+  });
+
+  it('rejects when every search page has unparsable markup, so the breakage shows in fetch_runs', async () => {
+    net = mockFetch({ 'seeMoreJobPostings/search': '<ul><li class="renamed-card">x</li></ul>' });
+    await assert.rejects(linkedin(), /no parsable cards \(markup change\?/);
   });
 
   it('a detail that fails otherwise is skipped; the others are still fetched', async () => {

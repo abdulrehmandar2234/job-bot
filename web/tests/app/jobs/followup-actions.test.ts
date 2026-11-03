@@ -35,7 +35,7 @@ afterAll(closeDb);
 
 describe('draftFollowUp', () => {
   it('queues a follow_up task, starts its worker and refreshes at once', async () => {
-    await draftFollowUp(form({ id }));
+    expect(await draftFollowUp(null, form({ id }))).toBeNull();
     const [task] = await tasks();
     expect(task).toMatchObject({ kind: 'follow_up', job_id: id, status: 'queued', args: {} });
     expect(spawn).toHaveBeenCalledExactlyOnceWith(['task:run', String(task.id)]);
@@ -43,8 +43,8 @@ describe('draftFollowUp', () => {
   });
 
   it('does not start a second draft while one is queued', async () => {
-    await draftFollowUp(form({ id }));
-    await draftFollowUp(form({ id }));
+    await draftFollowUp(null, form({ id }));
+    await draftFollowUp(null, form({ id }));
     expect(await tasks()).toHaveLength(1);
     expect(spawn).toHaveBeenCalledOnce();
   });
@@ -52,23 +52,33 @@ describe('draftFollowUp', () => {
 
 describe('markFollowedUp', () => {
   it('runs `bot followed-up <id>` with a 30s timeout, then refreshes', async () => {
-    await markFollowedUp(form({ id }));
+    expect(await markFollowedUp(null, form({ id }))).toBeNull();
     expect(bot).toHaveBeenCalledExactlyOnceWith(['followed-up', id], 30_000);
     expect(refresh).toHaveBeenCalledOnce();
   });
 
-  it('does not refresh when the bot fails', async () => {
-    bot.mockRejectedValue(new Error('Command failed'));
-    await expect(markFollowedUp(form({ id }))).rejects.toThrow(/Command failed/);
+  it('answers a failed bot run with an error state (no refresh), not a throw into app/error.tsx', async () => {
+    // What execFile rejects with on a non-zero exit: the thrown error is on stderr, after Node's noise.
+    bot.mockRejectedValue(Object.assign(new Error('Command failed'), { stderr: 'file:///x\nError: No DB\n    at main' }));
+    expect(await markFollowedUp(null, form({ id }))).toEqual({ ok: false, message: 'The bot failed: No DB' });
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it('says so when the bot run timed out', async () => {
+    bot.mockRejectedValue(Object.assign(new Error('Command failed'), { killed: true, signal: 'SIGTERM' }));
+    expect(await markFollowedUp(null, form({ id }))).toEqual({
+      ok: false,
+      message: 'The bot took too long and was stopped. Try again.',
+    });
     expect(refresh).not.toHaveBeenCalled();
   });
 });
 
 describe('both actions', () => {
-  it('reject a missing or unknown job without doing anything', async () => {
+  it('answer a missing or unknown job with an error state, without doing anything', async () => {
     for (const action of [draftFollowUp, markFollowedUp]) {
-      await expect(action(form({}))).rejects.toThrow('Missing job id');
-      await expect(action(form({ id: PREFIX + 'nope' }))).rejects.toThrow('Unknown job');
+      expect(await action(null, form({}))).toEqual({ ok: false, message: 'Missing job id' });
+      expect(await action(null, form({ id: PREFIX + 'nope' }))).toEqual({ ok: false, message: 'Unknown job' });
     }
     expect(await tasks()).toEqual([]);
     expect(spawn).not.toHaveBeenCalled();

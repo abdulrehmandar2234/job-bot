@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readdirSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -74,6 +74,35 @@ function readCache(url: string): Cached | null {
   }
 }
 
+/** Cache entries not re-fetched for this long are deleted by pruneCache (the daily run calls it). */
+export const CACHE_MAX_AGE_DAYS = 30;
+
+/** Deletes cache entries last written more than `maxAgeDays` ago, so the on-disk ETag cache
+ * (one file per URL, no eviction otherwise) does not grow forever. Returns how many were removed. */
+export function pruneCache(maxAgeDays = CACHE_MAX_AGE_DAYS): number {
+  let names: string[];
+  try {
+    names = readdirSync(cacheDir());
+  } catch {
+    return 0; // no cache directory yet
+  }
+  const cutoff = Date.now() - maxAgeDays * 86_400_000;
+  let removed = 0;
+  for (const name of names) {
+    if (!name.endsWith('.json')) continue;
+    try {
+      const file = join(cacheDir(), name);
+      if (statSync(file).mtimeMs < cutoff) {
+        unlinkSync(file);
+        removed++;
+      }
+    } catch {
+      // a parallel run removed it first
+    }
+  }
+  return removed;
+}
+
 function writeCache(entry: Cached) {
   const file = cacheFile(entry.url);
   mkdirSync(dirname(file), { recursive: true });
@@ -136,8 +165,23 @@ export async function request(
   throw new Error(`${host}: gave up after ${attempts} attempts (last: ${last}) ${url}`);
 }
 
+/** `url` with its query string hidden: an API key may live there (e.g. Adzuna), and parse errors end up in fetch_runs. */
+const stripQuery = (url: string) => {
+  const i = url.indexOf('?');
+  return i === -1 ? url : `${url.slice(0, i)}?…`;
+};
+
+/** JSON.parse that names the (query-stripped) URL, so "Unexpected token …" says which site answered with non-JSON. */
+function parseJson<T>(body: string, url: string): T {
+  try {
+    return JSON.parse(body);
+  } catch (e) {
+    throw new Error(`invalid JSON from ${stripQuery(url)}: ${(e as Error).message}`);
+  }
+}
+
 export const getText = async (url: string, opts?: RequestOptions) => (await request(url, opts)).body;
-export const getJson = async <T = any>(url: string, opts?: RequestOptions): Promise<T> => JSON.parse((await request(url, opts)).body);
+export const getJson = async <T = any>(url: string, opts?: RequestOptions): Promise<T> => parseJson((await request(url, opts)).body, url);
 /** POST a JSON body and parse the JSON answer. Retried like a GET, never cached. */
 export const postJson = async <T = any>(url: string, body: unknown, opts?: Omit<RequestOptions, 'method' | 'body'>): Promise<T> =>
-  JSON.parse((await request(url, { ...opts, method: 'POST', body })).body);
+  parseJson((await request(url, { ...opts, method: 'POST', body })).body, url);

@@ -9,7 +9,7 @@ import Page from '@/app/analytics/page';
 import { funnel } from '@/lib/analytics';
 import { pool } from '@/lib/db';
 import { MIN_SKIPS } from '@/lib/skip-insights';
-import { cleanupDb, closeDb, daysAgo, ensureSchema, insertFetchRun, insertJob } from '../helpers/db';
+import { cleanupDb, closeDb, dateDaysAgo, ensureSchema, insertFetchRun, insertJob } from '../helpers/db';
 
 // Real queries, but funnel() can be overridden to show the empty state whatever else is in the test database.
 vi.mock('@/lib/analytics', async (importOriginal) => {
@@ -45,9 +45,9 @@ describe('analytics page', () => {
     await pool.query(
       `INSERT INTO job_events (job_id, from_status, to_status, at) VALUES
       ($1, 'new', 'applied', $2), ($1, 'applied', 'interview', $3), ($1, 'interview', 'rejected', $4)`,
-      [a, daysAgo(10), daysAgo(7), daysAgo(1)],
+      [a, dateDaysAgo(10), dateDaysAgo(7), dateDaysAgo(1)],
     );
-    await insertJob({ id: 'pa-2', source: 'webtest-pg', status: 'applied', applied_at: daysAgo(2) });
+    await insertJob({ id: 'pa-2', source: 'webtest-pg', status: 'applied', applied_at: dateDaysAgo(2) });
 
     await renderAnalytics();
     expect(screen.queryByText('No applications yet')).not.toBeInTheDocument();

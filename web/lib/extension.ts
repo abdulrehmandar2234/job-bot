@@ -1,4 +1,7 @@
-import { readFileSync } from 'node:fs';
+import { randomBytes, timingSafeEqual } from 'node:crypto';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { BOT_ROOT } from '@/lib/bot';
 import { type Job, pool } from '@/lib/db';
 import { applicantFile, masterFile } from '@/lib/settings';
 
@@ -11,6 +14,35 @@ const extensionId = () => process.env.JOB_BOT_EXTENSION_ID?.trim() || EXTENSION_
 
 export const isExtensionOrigin = (origin: string | null): origin is string =>
   /^[a-p]{32}$/.test(extensionId()) && origin === `chrome-extension://${extensionId()}`;
+
+// POST /api/import from a job-site origin must also carry this token (header `x-import-token`). The CORS origin
+// check alone lets any script that runs on an allowed job site (ads, trackers) import jobs; the token is known only
+// to the collector script the dashboard itself serves (/api/bayt-script embeds it), so other scripts cannot send it.
+// The extension origin needs no token: web pages cannot forge a chrome-extension:// Origin header.
+// The token is random, generated on first use and kept in data/import-token (data/ is gitignored). Never put it in a URL.
+const tokenFile = () => join(BOT_ROOT, 'data', 'import-token');
+
+/** The local import token, creating data/import-token on first use (or when its content is not a token). */
+export function importToken(): string {
+  try {
+    const token = readFileSync(tokenFile(), 'utf8').trim();
+    if (/^[0-9a-f]{64}$/.test(token)) return token;
+  } catch {
+    // Missing file: generate one below.
+  }
+  const token = randomBytes(32).toString('hex');
+  mkdirSync(join(BOT_ROOT, 'data'), { recursive: true });
+  writeFileSync(tokenFile(), `${token}\n`, { mode: 0o600 });
+  return token;
+}
+
+/** Whether `value` (the x-import-token header) is the local import token. Compares in constant time. */
+export function isImportToken(value: string | null): boolean {
+  if (typeof value !== 'string' || !value) return false;
+  const token = Buffer.from(importToken());
+  const given = Buffer.from(value);
+  return given.length === token.length && timingSafeEqual(given, token);
+}
 
 export function isHttpUrl(url: unknown): url is string {
   if (typeof url !== 'string') return false;

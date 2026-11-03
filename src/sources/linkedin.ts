@@ -69,12 +69,26 @@ export async function linkedin(): Promise<Fetched> {
   ];
 
   const cards = new Map<string, Card & { remote: boolean }>();
-  for (const s of searches) {
+  let searchError: Error | undefined;
+  const unparsed: string[] = [];
+  search: for (const s of searches) {
     for (const keywords of li.keywords) {
       for (let start = 0; start < li.pagesPerSearch * 10; start += 10) {
         const q = new URLSearchParams({ keywords, location: s.location, f_TPR: `r${days * 86400}`, start: String(start) });
         if (s.remote) q.set('f_WT', '2');
-        const page = parseCards(await get(`${BASE}/seeMoreJobPostings/search?${q}`));
+        let html: string;
+        try {
+          html = await get(`${BASE}/seeMoreJobPostings/search?${q}`);
+        } catch (e) {
+          // A 429 (or a search page that kept failing) mid-search must not discard the cards already
+          // collected: stop searching and go on to their details, carrying the error as a partial result.
+          searchError = e as Error;
+          break search;
+        }
+        const page = parseCards(html);
+        // A non-empty answer in which no card parses means LinkedIn changed its markup: record it,
+        // otherwise the breakage would look like a quiet "0 postings" success.
+        if (!page.length && html.trim()) unparsed.push(`"${keywords}" in ${s.location}`);
         for (const c of page) if (!cards.has(c.id)) cards.set(c.id, { ...c, remote: s.remote });
         await sleep(1200);
         if (page.length < 10) break;
@@ -116,6 +130,11 @@ export async function linkedin(): Promise<Fetched> {
     });
     await sleep(1200);
   }
-  if (failed.length) return partial(out, new Error(`${failed.length} details failed (first: ${failed[0]})`));
+  const problems = [
+    ...(searchError ? [`search stopped: ${searchError.message}`] : []),
+    ...(unparsed.length ? [`${unparsed.length} searches had pages with no parsable cards (markup change? first: ${unparsed[0]})`] : []),
+    ...(failed.length ? [`${failed.length} details failed (first: ${failed[0]})`] : []),
+  ];
+  if (problems.length) return partial(out, new Error(problems.join('; ')));
   return out;
 }

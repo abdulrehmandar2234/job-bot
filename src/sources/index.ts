@@ -155,11 +155,10 @@ async function smartrecruiters(c: Company): Promise<RawJob[]> {
     list.push(...page.content);
     if (offset + 100 >= page.totalFound || offset >= 1000) break;
   }
-  const { countries, roleOk } = prefilter();
+  // `where` also accepts remote postings, as for Workday: fullLocation is "Remote" for those.
+  const { roleOk, where } = prefilter();
   const maxAge = Date.now() - config.maxAgeDays * 86_400_000;
-  const candidates = list.filter(
-    (j) => countries.test(j.location?.fullLocation ?? '') && roleOk(j.name) && new Date(j.releasedDate).getTime() > maxAge,
-  );
+  const candidates = list.filter((j) => where(j.location?.fullLocation) && roleOk(j.name) && new Date(j.releasedDate).getTime() > maxAge);
   const out: Fetched = [];
   const failed: string[] = [];
   for (const j of candidates) {
@@ -207,7 +206,9 @@ function prefilter() {
   );
   const include = new RegExp(config.roleInclude, 'i');
   const exclude = new RegExp(config.roleExclude, 'i');
-  return { countries, roleOk: (title: string) => include.test(title) && !exclude.test(title) };
+  // Target countries, remote postings, and Workday's "3 Locations" (which hides where the job is).
+  const where = (l = '') => countries.test(l) || /\bremote\b/i.test(l) || /^\d+ locations$/i.test(l.trim());
+  return { countries, roleOk: (title: string) => include.test(title) && !exclude.test(title), where };
 }
 
 // Workday career sites (myworkdayjobs.com) have a public JSON API ("CXS") behind every site: a POST search
@@ -227,17 +228,18 @@ export function workdaySite(token: string) {
 
 type WorkdayPosting = { title: string; externalPath: string; locationsText?: string; postedOn?: string };
 
-/** Lists a Workday site's postings, newest first, page by page. `total` is only reliable on the first page. */
+/** Lists a Workday site's postings, newest first, page by page. `total` is only reliable on the first page;
+ * a response without one means the total is unknown, so paging goes on until a short page or the page cap. */
 export async function workdayList(token: string, maxPages = WORKDAY_MAX_PAGES): Promise<WorkdayPosting[]> {
   const { api } = workdaySite(token);
   const list: WorkdayPosting[] = [];
-  let total = 0;
+  let total: number | null = null;
   for (let page = 0; page < maxPages; page++) {
     const data = await postJson(`${api}/jobs`, { limit: WORKDAY_PAGE, offset: page * WORKDAY_PAGE, searchText: '', appliedFacets: {} });
-    if (page === 0) total = data.total ?? 0;
+    if (page === 0) total = typeof data.total === 'number' && Number.isFinite(data.total) ? data.total : null;
     const items: WorkdayPosting[] = data.jobPostings ?? [];
     list.push(...items);
-    if (items.length < WORKDAY_PAGE || list.length >= total) break;
+    if (items.length < WORKDAY_PAGE || (total !== null && list.length >= total)) break;
     await sleep(500);
   }
   return list;
@@ -253,9 +255,7 @@ export function workdayAgeDays(postedOn = ''): number | null {
 
 async function workday(c: Company): Promise<RawJob[]> {
   const { tenant, api, site } = workdaySite(c.token);
-  const { countries, roleOk } = prefilter();
-  // "3 Locations" hides where the job is, so those are checked on the detail page.
-  const where = (l = '') => countries.test(l) || /\bremote\b/i.test(l) || /^\d+ locations$/i.test(l.trim());
+  const { roleOk, where } = prefilter();
   const fresh = (p: WorkdayPosting) => (workdayAgeDays(p.postedOn) ?? 0) <= config.maxAgeDays;
   const candidates = (await workdayList(c.token))
     .filter((p) => roleOk(p.title) && where(p.locationsText) && fresh(p))
@@ -286,11 +286,20 @@ async function workday(c: Company): Promise<RawJob[]> {
   return out;
 }
 
-// Recruitee/Workable send "2026-10-08 10:28:31 UTC" or plain dates.
-const toIso = (s: string | null | undefined) => {
+// Null-safe date helpers, shared with the boards (src/sources/boards.ts): a posting with a missing or
+// unparseable date keeps a null posted_at instead of crashing the whole source.
+
+/** Recruitee/Workable-style "2026-10-08 10:28:31 UTC", plain or ISO dates as ISO, or null. */
+export const toIso = (s: string | null | undefined) => {
   if (!s) return null;
   const d = new Date(s.replace(' UTC', 'Z').replace(' ', 'T'));
   return Number.isNaN(d.getTime()) ? null : d.toISOString();
+};
+
+/** Epoch seconds (Himalayas pubDate, Arbeitnow created_at) as milliseconds, or null when missing or not a number. */
+export const epochMs = (secs: unknown): number | null => {
+  const n = Number(secs);
+  return Number.isFinite(n) && n > 0 ? n * 1000 : null;
 };
 
 const fetchers = { greenhouse, lever, ashby, recruitee, workable, smartrecruiters, workday };

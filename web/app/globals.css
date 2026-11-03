@@ -76,4 +76,17 @@ body {
   .toggle input {
     @apply accent-emerald-600;
   }
+  /* A sideways-scrolling strip (the status tabs) hides its scrollbar, so hint at off-screen items with an edge
+     shadow. Four background layers: two theme-coloured covers that move with the content (background-attachment:
+     local) and two shadows fixed at the ends. At an edge the cover sits exactly over that end's shadow and hides it,
+     so a shadow only shows on a side with more content — and never when everything fits. */
+  .scroll-x-hint {
+    background:
+      linear-gradient(to right, var(--background) 50%, transparent) left / 2.5rem 100% no-repeat local,
+      linear-gradient(to left, var(--background) 50%, transparent) right / 2.5rem 100% no-repeat local,
+      radial-gradient(farthest-side at 0 50%, color-mix(in srgb, var(--foreground) 35%, transparent), transparent) left / 0.75rem 100%
+      no-repeat scroll,
+      radial-gradient(farthest-side at 100% 50%, color-mix(in srgb, var(--foreground) 35%, transparent), transparent) right / 0.75rem 100%
+      no-repeat scroll;
+  }
 }

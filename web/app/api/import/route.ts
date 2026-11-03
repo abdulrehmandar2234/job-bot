@@ -1,21 +1,25 @@
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { NextRequest } from 'next/server';
 import { BOT_ROOT, runBot } from '@/lib/bot';
-import { findJobByUrl, isExtensionOrigin, isHttpUrl } from '@/lib/extension';
+import { findJobByUrl, isExtensionOrigin, isHttpUrl, isImportToken } from '@/lib/extension';
 
 // Receives jobs collected in the browser and runs them through `bot add`, so the same filters and scoring apply:
-// - from the Bayt bookmarklet (and the job sites below): only urls on the posting site itself;
-// - from the job-bot Chrome extension (chrome-extension:// origin): any http(s) job url.
+// - from the Bayt bookmarklet (and the job sites below): only urls on the posting site itself, and only with the
+//   import token (header `x-import-token`, embedded in the collector that /api/bayt-script serves) — the origin
+//   alone is not enough, since any third-party script running on these sites shares their origin;
+// - from the job-bot Chrome extension (chrome-extension:// origin): any http(s) job url, no token needed.
 // Every other origin is rejected. Browsers do not let web pages forge Origin, which is why this check works.
 const ALLOWED = ['https://www.bayt.com', 'https://www.linkedin.com', 'https://www.gulftalent.com', 'https://www.naukrigulf.com'];
 
 const allowed = (origin: string | null): origin is string => !!origin && (ALLOWED.includes(origin) || isExtensionOrigin(origin));
 
+// No allow-origin header at all for a disallowed origin: the literal value "null" would match the "null" origin
+// of sandboxed iframes and local files.
 const cors = (origin: string | null) => ({
-  'access-control-allow-origin': allowed(origin) ? origin : 'null',
+  ...(allowed(origin) ? { 'access-control-allow-origin': origin } : {}),
   'access-control-allow-methods': 'POST',
-  'access-control-allow-headers': 'content-type',
+  'access-control-allow-headers': 'content-type, x-import-token',
   'access-control-allow-private-network': 'true',
 });
 
@@ -66,6 +70,13 @@ const result = (url: string, outcome: ImportResult['outcome'], j?: Awaited<Retur
 export async function POST(req: NextRequest) {
   const origin = req.headers.get('origin');
   if (!allowed(origin)) return new Response('Forbidden origin', { status: 403 });
+  if (!isExtensionOrigin(origin) && !isImportToken(req.headers.get('x-import-token'))) {
+    // JSON plus CORS headers, so the collector can tell the user (a stale tab, or a script not served by this dashboard).
+    return Response.json(
+      { error: 'Missing or wrong import token: load the collector through the dashboard bookmarklet and try again.' },
+      { status: 403, headers: cors(origin) },
+    );
+  }
   try {
     return await importJobs(req, origin);
   } catch (e) {
@@ -123,13 +134,33 @@ async function importJobs(req: NextRequest, origin: string) {
   return Response.json({ ...out, received: valid.length, results: valid.map((j) => results.get(j)) }, { headers: cors(origin) });
 }
 
-/** Writes the jobs to an import file and runs `bot add --file` on it. */
+/** A failed import's file is kept this long for debugging, then prune() removes it. */
+const KEEP_FAILED_MS = 14 * 86_400_000;
+
+/**
+ * Writes the jobs to an import file and runs `bot add --file` on it. The file is deleted once `bot add`
+ * succeeded; a failed run keeps it for debugging, and prune() clears such leftovers after two weeks.
+ */
 async function add(jobs: Valid[]) {
   const dir = join(BOT_ROOT, 'data', 'imports');
   await mkdir(dir, { recursive: true });
+  await prune(dir).catch(() => {}); // best effort: a prune problem must not fail the import
   const file = join(dir, `${new Date().toISOString().replace(/[:.]/g, '-')}.json`);
   await writeFile(file, JSON.stringify(jobs));
   const out = await runBot(['add', '--file', file], 120_000);
+  await rm(file, { force: true }).catch(() => {});
   const matched = out.split('\n').filter((l) => /^\s*\d+\s/.test(l)).length;
   return { received: jobs.length, matched, log: out.slice(0, 4000) };
+}
+
+/** Removes import files older than KEEP_FAILED_MS (leftovers of failed `bot add` runs). */
+async function prune(dir: string) {
+  for (const name of await readdir(dir)) {
+    if (!name.endsWith('.json')) continue;
+    const file = join(dir, name);
+    const old = await stat(file)
+      .then((s) => Date.now() - s.mtimeMs > KEEP_FAILED_MS)
+      .catch(() => false);
+    if (old) await rm(file, { force: true }).catch(() => {});
+  }
 }

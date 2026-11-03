@@ -38,6 +38,9 @@ export const APPLICANT_EXAMPLE_FILE = path('cv', 'applicant.example.json');
 // workday: token is "<tenant>/<wdN>/<site>", e.g. "acme/wd3/AcmeCareers".
 export const ATS = ['greenhouse', 'lever', 'ashby', 'recruitee', 'workable', 'smartrecruiters', 'workday'] as const;
 
+// The remote job boards the bot can fetch (BOARDS in src/sources/boards.ts); mirrored in web/lib/settings-form.ts.
+export const REMOTE_BOARDS = ['himalayas', 'remotive', 'remoteok', 'arbeitnow', 'adzuna'] as const;
+
 const text = z.string().min(1);
 const regex = z.string().refine((s) => {
   try {
@@ -117,7 +120,7 @@ export const configSchema = z.object({
   }),
   remote: z.object({
     enabled: z.boolean(),
-    boards: z.array(text), // himalayas | remotive | remoteok | arbeitnow | adzuna
+    boards: z.array(z.enum(REMOTE_BOARDS)), // a typo here used to disable a board silently; now it fails validation
     himalayasQueries: z.array(text),
     // Missing or empty = computed from the remote-from country (src/regions.ts); set = used as written.
     allow: regex.optional(), // remote regions that include the candidate's country
@@ -197,7 +200,7 @@ export type Applicant = z.infer<typeof applicantSchema>;
 
 export type SettingsKind = 'config' | 'applicant';
 export type SettingsError = { path: string; message: string };
-export type Validation<T> = { ok: true; value: T } | { ok: false; errors: SettingsError[] };
+export type Validation<T> = { ok: true; value: T; warnings: SettingsError[] } | { ok: false; errors: SettingsError[] };
 
 const SCHEMAS = { config: configSchema, applicant: applicantSchema };
 
@@ -205,10 +208,27 @@ const SCHEMAS = { config: configSchema, applicant: applicantSchema };
 const issuePath = (p: PropertyKey[]) =>
   p.map((k, i) => (typeof k === 'number' ? `[${k}]` : `${i ? '.' : ''}${String(k)}`)).join('') || '(root)';
 
-/** Checks a parsed settings object. The value returned is the input itself (unknown keys kept). */
+const KNOWN_CONFIG_KEYS = new Set(Object.keys(configSchema.shape));
+
+/**
+ * Unknown top-level config keys are kept (forward compatibility) but worth a warning: a misspelled key ("minscore")
+ * would otherwise be ignored silently while the real setting keeps its default. Applicant files are not checked:
+ * extra keys there are facts passed to the AI on purpose.
+ */
+function configWarnings(kind: SettingsKind, obj: unknown): SettingsError[] {
+  if (kind !== 'config' || !obj || typeof obj !== 'object' || Array.isArray(obj)) return [];
+  return Object.keys(obj)
+    .filter((k) => !KNOWN_CONFIG_KEYS.has(k))
+    .map((k) => ({
+      path: k,
+      message: 'unknown setting (job-bot does not read this key — if it is a misspelling, the real setting keeps its default)',
+    }));
+}
+
+/** Checks a parsed settings object. The value returned is the input itself (unknown keys kept, with a warning). */
 export function validate<K extends SettingsKind>(kind: K, obj: unknown): Validation<K extends 'config' ? Config : Applicant> {
   const res = SCHEMAS[kind].safeParse(obj);
-  if (res.success) return { ok: true, value: obj as K extends 'config' ? Config : Applicant };
+  if (res.success) return { ok: true, value: obj as K extends 'config' ? Config : Applicant, warnings: configWarnings(kind, obj) };
   return { ok: false, errors: res.error.issues.map((i) => ({ path: issuePath(i.path), message: i.message })) };
 }
 
@@ -248,10 +268,11 @@ export function writeSettingsFile(file: string, obj: unknown) {
   renameSync(tmp, file);
 }
 
-/** Reads and validates a settings file, or throws InvalidSettingsError. */
+/** Reads and validates a settings file, or throws InvalidSettingsError. Unknown top-level keys are warned about. */
 export function loadSettings<K extends SettingsKind>(kind: K, file: string) {
   if (!existsSync(file)) throw new InvalidSettingsError(file, [{ path: '(root)', message: 'file not found' }]);
   const res = validateText(kind, readFileSync(file, 'utf8'));
   if (!res.ok) throw new InvalidSettingsError(file, res.errors);
+  for (const w of res.warnings) console.warn(`Warning: ${file}: ${w.path}: ${w.message}`);
   return res.value;
 }

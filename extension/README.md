@@ -9,7 +9,7 @@ Sends the job you are looking at to your local job-bot, and shows what job-bot p
   - else from the page title plus the text you selected (or the page's main text). Select the job description before clicking to send only that.
 
   You can fix the title, company and location, then press **Send to job-bot**. The dashboard runs it through `bot add` (same filters and scoring as fetched jobs) and the popup shows the result: added with its score, filtered with the reason, or already in job-bot.
-- **Apply helper** (side panel, opened from the popup). For the job in the active tab it shows the status, the scores and AI verdict, a link to download the prepared CV, the cover letter and every drafted form answer, each with a **Copy** button. It follows you when you switch tabs. **Open in dashboard** and **Mark applied (in dashboard)** open the job's page on the dashboard, where you record the application. If the job is not in job-bot yet, the panel offers **Read this page** and the same send form (Chrome asks once per site to let the panel read pages there).
+- **Apply helper** (side panel, opened from the popup). For the job in the active tab it shows the status, the scores and AI verdict, a link to download the prepared CV, the cover letter and every drafted form answer, each with a **Copy** button. It follows you when you switch tabs: while the panel is open, the active tab's URL is looked up against your local dashboard to find a matching job — on every site you visit, not only job boards. The URL goes only to `http://localhost:3100`. **Open in dashboard** and **Mark applied (in dashboard)** open the job's page on the dashboard, where you record the application. If the job is not in job-bot yet, the panel offers **Read this page** and the same send form (Chrome asks once per site to let the panel read pages there).
 - **Fill this form** (side panel). Types into the form's **empty** fields, in the page and in its iframes (Greenhouse and Workday embed their forms):
   - your name (first, last or full), email, phone, LinkedIn and location, from `cv/master.json` (`cv/applicant.json` `currentLocation` wins for the location);
   - the cover letter, into a "Cover letter" text box;
@@ -22,6 +22,9 @@ Sends the job you are looking at to your local job-bot, and shows what job-bot p
 
 - It never clicks a button, ticks a checkbox or radio, or submits a form, and never logs in anywhere. You check the filled form and submit every application yourself.
 - It never overwrites a field that already has a value, and never fills answers that need your input (`[FILL: ...]`), passwords, checkboxes or radios.
+- It never fills hidden fields: a field hidden with `display:none`, `visibility:hidden`, near-zero opacity, zero size or an off-screen position is skipped, so a page cannot harvest your details through invisible inputs. The one exception is a CV file input hidden behind a visible "Upload" label, the usual styled-upload pattern.
+- It fills plain inputs, textareas, selects and file inputs only. Rich-text boxes (`contenteditable`) and custom ARIA dropdowns — much of Workday's own UI — are not filled, by design.
+- It types values in through normal `input`/`change` events, so the page's own scripts see them and may react on their own (validate, or auto-advance a step, as some ATS widgets do). The extension itself never clicks or submits, but what the page's own handlers do with a change is outside its control.
 - It only types into a page when you click **Fill this form**.
 - It does not run in the background or read pages you do not click it on.
 - It talks only to your local dashboard at `http://localhost:3100`. Nothing is sent anywhere else.

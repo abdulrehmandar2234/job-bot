@@ -33,24 +33,27 @@ beforeEach(async () => {
 afterAll(closeDb);
 
 describe('applyCvTemplate', () => {
-  it('queues `cv:template` with the chosen template and starts its worker', async () => {
-    await applyCvTemplate(form({ id, template: 'compact' }));
+  it('queues `cv:template` with the chosen template, starts its worker and says so', async () => {
+    expect(await applyCvTemplate(null, form({ id, template: 'compact' }))).toEqual({ ok: true, message: 'Applying the template…' });
     const [t] = await tasks();
     expect(t).toMatchObject({ kind: 'cv_template', status: 'queued', args: { template: 'compact' } });
     expect(spawn).toHaveBeenCalledExactlyOnceWith(['task:run', String(t.id)]);
     expect(refresh).toHaveBeenCalled();
   });
 
-  it('refuses a template that is not in the list, and an unknown job', async () => {
+  it('refuses a template that is not in the list, and an unknown job, with an error state (not a throw)', async () => {
     for (const template of ['fancy', '', 'Modern'])
-      await expect(applyCvTemplate(form({ id, template }))).rejects.toThrow('Unknown CV template');
-    await expect(applyCvTemplate(form({ id: PREFIX + 'nope', template: 'modern' }))).rejects.toThrow('Unknown job');
+      expect(await applyCvTemplate(null, form({ id, template }))).toEqual({ ok: false, message: 'Unknown CV template' });
+    expect(await applyCvTemplate(null, form({ id: PREFIX + 'nope', template: 'modern' }))).toEqual({ ok: false, message: 'Unknown job' });
     expect(await tasks()).toEqual([]);
   });
 
-  it('queues nothing while another task changes the CV', async () => {
+  it('answers with the refusal (instead of dropping the click) while another task changes the CV', async () => {
     await pool.query(`INSERT INTO tasks (kind, job_id) VALUES ('cv_feedback', $1)`, [id]);
-    await applyCvTemplate(form({ id, template: 'modern' }));
+    expect(await applyCvTemplate(null, form({ id, template: 'modern' }))).toEqual({
+      ok: false,
+      message: 'The CV is being changed right now. Try again when it is done.',
+    });
     expect((await tasks()).map((t) => t.kind)).toEqual(['cv_feedback']);
     expect(spawn).not.toHaveBeenCalled();
   });
@@ -120,14 +123,14 @@ describe('addSkillsToCv', () => {
       message: 'The CV is being changed right now. Try again when it is done.',
     });
     expect((await tasks()).map((t) => t.kind)).toEqual(['prepare']);
-    await expect(addSkillsToCv(null, form({ id: PREFIX + 'nope' }))).rejects.toThrow('Unknown job');
+    expect(await addSkillsToCv(null, form({ id: PREFIX + 'nope' }))).toEqual({ ok: false, message: 'Unknown job' });
   });
 });
 
 describe('reviewCv', () => {
   it('queues `cv:review`, once while it runs', async () => {
-    await reviewCv(form({ id }));
-    await reviewCv(form({ id }));
+    expect(await reviewCv(null, form({ id }))).toBeNull();
+    await reviewCv(null, form({ id }));
     const all = await tasks();
     expect(all.map((t) => [t.kind, t.status])).toEqual([['cv_review', 'queued']]);
     expect(spawn).toHaveBeenCalledOnce();
