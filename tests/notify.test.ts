@@ -4,6 +4,7 @@ import { execFile } from 'node:child_process';
 import { posix, win32 } from 'node:path';
 import { promisify } from 'node:util';
 import {
+  dashboardUrl,
   notify,
   notifyCommand,
   onPath,
@@ -43,6 +44,21 @@ describe('strongAlerts', () => {
     const [note] = strongAlerts([job(1, { title: 'Dev\nline\ttwo\u0007', company: 'x'.repeat(400) })], name);
     assert.match(note.message, /^Strong match: Dev line two at x+…$/);
     assert.equal(note.message.length, 240);
+  });
+
+  it('JOB_BOT_DASHBOARD_URL overrides the dashboard address in notification links', () => {
+    const saved = process.env.JOB_BOT_DASHBOARD_URL;
+    try {
+      delete process.env.JOB_BOT_DASHBOARD_URL;
+      assert.equal(dashboardUrl(), 'http://localhost:3100');
+      process.env.JOB_BOT_DASHBOARD_URL = 'http://localhost:4000';
+      assert.equal(dashboardUrl(), 'http://localhost:4000');
+      assert.equal(strongAlerts([job(1)], name)[0].url, 'http://localhost:4000/jobs/x%3A1');
+      assert.equal(strongAlerts([job(1), job(2), job(3), job(4)], name)[0].url, 'http://localhost:4000');
+    } finally {
+      if (saved === undefined) delete process.env.JOB_BOT_DASHBOARD_URL;
+      else process.env.JOB_BOT_DASHBOARD_URL = saved;
+    }
   });
 });
 

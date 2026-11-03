@@ -2,13 +2,14 @@ import { readFileSync } from 'node:fs';
 import { APPLICANT_FILE, CONFIG_FILE, validateText, writeSettingsFile, type SettingsError, type SettingsKind } from '../settings.ts';
 import type { Flags } from './shared.ts';
 
-// For the dashboard's settings page (via runBot): both print one JSON line, {"ok":true} or {"ok":false,"errors":[...]},
-// and exit non-zero on error. They need no database and work even while the current config.json is invalid.
+// For the dashboard's settings page (via runBot): both print one JSON line, {"ok":true} (with "warnings" for unknown
+// config keys) or {"ok":false,"errors":[...]}, and exit non-zero on error. They need no database and work even while
+// the current config.json is invalid.
 
 const TARGET: Record<SettingsKind, string> = { config: CONFIG_FILE, applicant: APPLICANT_FILE };
 
 /** Reads --file (or stdin) as settings of --kind and validates it. */
-function check(flags: Flags): { kind: SettingsKind; obj: unknown } | { errors: SettingsError[] } {
+function check(flags: Flags): { kind: SettingsKind; obj: unknown; warnings: SettingsError[] } | { errors: SettingsError[] } {
   const kind = flags.kind;
   if (kind !== 'config' && kind !== 'applicant') return { errors: [{ path: '--kind', message: 'must be config or applicant' }] };
   let text: string;
@@ -18,15 +19,15 @@ function check(flags: Flags): { kind: SettingsKind; obj: unknown } | { errors: S
     return { errors: [{ path: '--file', message: (e as Error).message }] };
   }
   const res = validateText(kind, text);
-  return res.ok ? { kind, obj: JSON.parse(text) } : { errors: res.errors };
+  return res.ok ? { kind, obj: JSON.parse(text), warnings: res.warnings } : { errors: res.errors };
 }
 
-function report(r: { errors: SettingsError[] } | object) {
+function report(r: { errors: SettingsError[] } | { warnings: SettingsError[] }) {
   if ('errors' in r) {
     console.log(JSON.stringify({ ok: false, errors: r.errors }));
     process.exitCode = 1;
   } else {
-    console.log(JSON.stringify({ ok: true }));
+    console.log(JSON.stringify(r.warnings.length ? { ok: true, warnings: r.warnings } : { ok: true }));
   }
 }
 
