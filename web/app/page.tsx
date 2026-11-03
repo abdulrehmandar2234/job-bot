@@ -16,8 +16,9 @@ import {
   weekStats,
   type Status,
 } from '@/lib/db';
+import { ActionForm } from '@/components/action-form';
 import { FetchWarning } from '@/components/analytics';
-import { BaytBookmarklet, SubmitButton } from '@/components/client';
+import { BaytBookmarklet } from '@/components/client';
 import { JobActions } from '@/components/job-actions';
 import { TaskBar } from '@/components/tasks';
 import { isActive, openTasks } from '@/lib/tasks';
@@ -55,11 +56,7 @@ export default function Page(props: PageProps<'/'>) {
           <Link href="/settings" className="btn">
             Settings
           </Link>
-          <form action={fetchNow}>
-            <SubmitButton pendingText="Starting…" className="btn-primary">
-              Fetch new jobs
-            </SubmitButton>
-          </form>
+          <ActionForm action={fetchNow} pendingText="Starting…" buttonClass="btn-primary" label="Fetch new jobs" />
         </div>
       </header>
       <Suspense fallback={null}>

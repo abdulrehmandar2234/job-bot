@@ -1,6 +1,7 @@
 import { dismissTask } from '@/app/actions';
 import { isActive, TASK_LABEL, type TaskView } from '@/lib/tasks';
-import { SubmitButton, TaskWatcher } from './client';
+import { ActionForm } from './action-form';
+import { TaskWatcher } from './client';
 
 /**
  * Background tasks on a page: a "Working…" line for running ones, each failure with its error and a Dismiss
@@ -28,10 +29,7 @@ export function TaskBar({ tasks, job }: { tasks: TaskView[]; job?: string }) {
           className="mb-3 flex items-start justify-between gap-3 rounded-xl border border-emerald-300 bg-emerald-50 p-3 text-sm dark:border-emerald-900 dark:bg-emerald-950/30"
         >
           <p className="font-medium text-emerald-800 dark:text-emerald-300">{label(finished)} finished</p>
-          <form action={dismissTask}>
-            <input type="hidden" name="task" value={finished.id} />
-            <SubmitButton pendingText="…">Dismiss</SubmitButton>
-          </form>
+          <ActionForm action={dismissTask} fields={{ task: finished.id }} pendingText="…" label="Dismiss" />
         </div>
       )}
       {failed.map((t) => (
@@ -46,10 +44,7 @@ export function TaskBar({ tasks, job }: { tasks: TaskView[]; job?: string }) {
               <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap font-sans text-rose-700 dark:text-rose-400">{t.error}</pre>
             )}
           </div>
-          <form action={dismissTask}>
-            <input type="hidden" name="task" value={t.id} />
-            <SubmitButton pendingText="…">Dismiss</SubmitButton>
-          </form>
+          <ActionForm action={dismissTask} fields={{ task: t.id }} pendingText="…" label="Dismiss" />
         </div>
       ))}
     </>

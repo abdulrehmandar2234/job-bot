@@ -2,8 +2,8 @@ import { improveCv, reviewCv } from '@/app/actions';
 import { defaultTemplate, TEMPLATES, templateName, versionInfo } from '@/lib/cv-templates';
 import type { Job } from '@/lib/db';
 import { CV_CHANGES, type TaskKind } from '@/lib/tasks';
+import { ActionForm } from './action-form';
 import { ApplyTemplateForm } from './apply-template';
-import { SubmitButton } from './client';
 import { CvFeedback } from './cv-feedback';
 import { AiOffNote } from './ai-off';
 import { Busy } from './tasks';
@@ -71,13 +71,17 @@ export function CvPanel({ job, busy = [], ai = true }: { job: Job; busy?: readon
           {busy.includes('cv_review') ? (
             <Busy>Reviewing CV…</Busy>
           ) : (
-            <form action={reviewCv} className="flex flex-wrap items-center gap-2">
-              <input type="hidden" name="id" value={job.id} />
-              <SubmitButton pendingText="Starting…">{job.cv_review ? 'Suggest again' : 'Suggest improvements'}</SubmitButton>
+            <div className="flex flex-wrap items-center gap-2">
+              <ActionForm
+                action={reviewCv}
+                fields={{ id: job.id }}
+                pendingText="Starting…"
+                label={job.cv_review ? 'Suggest again' : 'Suggest improvements'}
+              />
               <span className="text-xs text-zinc-500">
                 The AI reviews this CV against the job: what is weak or missing, and what to put first.
               </span>
-            </form>
+            </div>
           )}
         </>
       ) : (

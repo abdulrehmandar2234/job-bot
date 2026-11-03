@@ -1,6 +1,7 @@
 'use server';
 
 import { refresh } from 'next/cache';
+import { ActionError, guarded } from '@/lib/action-state';
 import { pool, STATUSES, type Status } from '@/lib/db';
 import { CvBusyError, dismissTask as dismissFailedTask, enqueueTask, type TaskKind } from '@/lib/tasks';
 import { checkFeedback, checkText, type TextFormState, type WrittenKind } from '@/lib/written-text';
@@ -8,52 +9,58 @@ import { skipReason } from '@/lib/skips';
 import { CV_VERSION, isTemplate } from '@/lib/cv-templates';
 
 // Server actions are reachable by POST, so every input is validated here.
+// Expected failures (unknown job, DB hiccup, a busy CV) come back as a TextFormState for the button's form
+// (components/action-form.tsx) instead of throwing, which would replace the page with app/error.tsx.
 const USER_STATUSES: readonly Status[] = STATUSES.filter((s) => s !== 'filtered');
 
 async function assertJob(id: unknown): Promise<string> {
-  if (typeof id !== 'string' || !id) throw new Error('Missing job id');
+  if (typeof id !== 'string' || !id) throw new ActionError('Missing job id');
   const { rowCount } = await pool.query('SELECT 1 FROM jobs WHERE id = $1', [id]);
-  if (!rowCount) throw new Error('Unknown job');
+  if (!rowCount) throw new ActionError('Unknown job');
   return id;
 }
 
-export async function setStatus(formData: FormData) {
-  const id = await assertJob(formData.get('id'));
-  const status = formData.get('status') as Status;
-  if (!USER_STATUSES.includes(status)) throw new Error('Invalid status');
-  const note = (formData.get('note') as string | null)?.trim() || null;
-  const reason = status === 'skipped' ? skipReason(formData.get('reason')) : null; // optional, see SkipButton
+export async function setStatus(_prev: TextFormState, formData: FormData): Promise<TextFormState> {
+  return guarded(async () => {
+    const id = await assertJob(formData.get('id'));
+    const status = formData.get('status') as Status;
+    if (!USER_STATUSES.includes(status)) throw new ActionError('Invalid status');
+    const note = (formData.get('note') as string | null)?.trim() || null;
+    const reason = status === 'skipped' ? skipReason(formData.get('reason')) : null; // optional, see SkipButton
 
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    const { rows } = await client.query<{ status: string }>('SELECT status FROM jobs WHERE id = $1 FOR UPDATE', [id]);
-    await client.query(`UPDATE jobs SET status = $2, applied_at = CASE WHEN $2 = 'applied' THEN now() ELSE applied_at END WHERE id = $1`, [
-      id,
-      status,
-    ]);
-    await client.query('INSERT INTO job_events (job_id, from_status, to_status, note, reason) VALUES ($1, $2, $3, $4, $5)', [
-      id,
-      rows[0].status,
-      status,
-      note,
-      reason,
-    ]);
-    await client.query('COMMIT');
-  } catch (e) {
-    await client.query('ROLLBACK');
-    throw e;
-  } finally {
-    client.release();
-  }
-  refresh();
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const { rows } = await client.query<{ status: string }>('SELECT status FROM jobs WHERE id = $1 FOR UPDATE', [id]);
+      await client.query(
+        `UPDATE jobs SET status = $2, applied_at = CASE WHEN $2 = 'applied' THEN now() ELSE applied_at END WHERE id = $1`,
+        [id, status],
+      );
+      await client.query('INSERT INTO job_events (job_id, from_status, to_status, note, reason) VALUES ($1, $2, $3, $4, $5)', [
+        id,
+        rows[0].status,
+        status,
+        note,
+        reason,
+      ]);
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+    refresh();
+  });
 }
 
-export async function saveNotes(formData: FormData) {
-  const id = await assertJob(formData.get('id'));
-  const notes = String(formData.get('notes') ?? '').slice(0, 5000);
-  await pool.query('UPDATE jobs SET notes = $2 WHERE id = $1', [id, notes || null]);
-  refresh();
+export async function saveNotes(_prev: TextFormState, formData: FormData): Promise<TextFormState> {
+  return guarded(async () => {
+    const id = await assertJob(formData.get('id'));
+    const notes = String(formData.get('notes') ?? '').slice(0, 5000);
+    await pool.query('UPDATE jobs SET notes = $2 WHERE id = $1', [id, notes || null]);
+    refresh();
+  });
 }
 
 // Long bot commands run as background tasks (lib/tasks.ts): these actions queue one and return at once.
@@ -63,39 +70,49 @@ export async function saveNotes(formData: FormData) {
  * Picks or builds the CV (same as `npm run bot -- prepare <id>`); the cover letter is written only with writeLetter. `force=true` ("Prepare anyway" on an expired
  * job) skips the check that the posting is still open (`prepare --force`).
  */
-export async function prepare(formData: FormData) {
-  const id = await assertJob(formData.get('id'));
-  const cv = formData.get('cv');
-  const args: Record<string, string> = typeof cv === 'string' && CV_VERSION.test(cv) ? { cv } : {};
-  if (formData.get('force') === 'true') args.force = 'true';
-  await enqueueCvChange('prepare', id, args);
-  refresh();
+export async function prepare(_prev: TextFormState, formData: FormData): Promise<TextFormState> {
+  return guarded(async () => {
+    const id = await assertJob(formData.get('id'));
+    const cv = formData.get('cv');
+    const args: Record<string, string> = typeof cv === 'string' && CV_VERSION.test(cv) ? { cv } : {};
+    if (formData.get('force') === 'true') args.force = 'true';
+    const busy = await enqueueCvChange('prepare', id, args);
+    if (busy) return busy;
+    refresh();
+  });
 }
 
 /** Writes or rewrites the cover letter (`bot letter <id>`), only when the user asks for it. */
-export async function writeLetter(formData: FormData) {
-  const id = await assertJob(formData.get('id'));
-  await enqueueTask('letter', id);
-  refresh();
+export async function writeLetter(_prev: TextFormState, formData: FormData): Promise<TextFormState> {
+  return guarded(async () => {
+    const id = await assertJob(formData.get('id'));
+    await enqueueTask('letter', id);
+    refresh();
+  });
 }
 
 /** Writes or rewrites the CV summary for this job (`bot summary <id>`). */
-export async function writeSummary(formData: FormData) {
-  const id = await assertJob(formData.get('id'));
-  await enqueueTask('summary', id);
-  refresh();
+export async function writeSummary(_prev: TextFormState, formData: FormData): Promise<TextFormState> {
+  return guarded(async () => {
+    const id = await assertJob(formData.get('id'));
+    await enqueueTask('summary', id);
+    refresh();
+  });
 }
 
 /** Builds a one-off CV with the job's CV summary and makes it the job's CV (`bot cv:tailor <id>`). */
-export async function tailorCv(formData: FormData) {
-  const id = formData.get('id');
-  if (typeof id !== 'string' || !id) throw new Error('Missing job id');
-  // One query for the job and its summary, so a job deleted after a separate existence check cannot crash this.
-  const { rows } = await pool.query<{ cv_summary: string | null }>('SELECT cv_summary FROM jobs WHERE id = $1', [id]);
-  if (!rows.length) throw new Error('Unknown job');
-  if (!rows[0].cv_summary) throw new Error('Write the CV summary for this job first');
-  await enqueueCvChange('tailored_cv', id);
-  refresh();
+export async function tailorCv(_prev: TextFormState, formData: FormData): Promise<TextFormState> {
+  return guarded(async () => {
+    const id = formData.get('id');
+    if (typeof id !== 'string' || !id) throw new ActionError('Missing job id');
+    // One query for the job and its summary, so a job deleted after a separate existence check cannot crash this.
+    const { rows } = await pool.query<{ cv_summary: string | null }>('SELECT cv_summary FROM jobs WHERE id = $1', [id]);
+    if (!rows.length) throw new ActionError('Unknown job');
+    if (!rows[0].cv_summary) throw new ActionError('Write the CV summary for this job first');
+    const busy = await enqueueCvChange('tailored_cv', id);
+    if (busy) return busy;
+    refresh();
+  });
 }
 
 const TASK_FOR: Record<WrittenKind, TaskKind> = { letter: 'letter', summary: 'summary' };
@@ -111,11 +128,11 @@ async function rewrite(kind: WrittenKind, formData: FormData): Promise<TextFormS
 }
 
 export async function rewriteLetter(_prev: TextFormState, formData: FormData) {
-  return rewrite('letter', formData);
+  return guarded(() => rewrite('letter', formData));
 }
 
 export async function rewriteSummary(_prev: TextFormState, formData: FormData) {
-  return rewrite('summary', formData);
+  return guarded(() => rewrite('summary', formData));
 }
 
 const SAVE_SQL: Record<WrittenKind, string> = {
@@ -139,11 +156,11 @@ async function saveText(kind: WrittenKind, formData: FormData): Promise<TextForm
 }
 
 export async function saveLetter(_prev: TextFormState, formData: FormData) {
-  return saveText('letter', formData);
+  return guarded(() => saveText('letter', formData));
 }
 
 export async function saveSummary(_prev: TextFormState, formData: FormData) {
-  return saveText('summary', formData);
+  return guarded(() => saveText('summary', formData));
 }
 
 /**
@@ -165,24 +182,28 @@ async function enqueueCvChange(kind: TaskKind, id: string, args: Record<string, 
  * While the job's CV is being changed by another task, answers with the refusal instead of queueing.
  */
 export async function applyCvTemplate(_prev: TextFormState, formData: FormData): Promise<TextFormState> {
-  const id = await assertJob(formData.get('id'));
-  const template = formData.get('template');
-  if (!isTemplate(template)) throw new Error('Unknown CV template');
-  const busy = await enqueueCvChange('cv_template', id, { template });
-  if (busy) return busy;
-  refresh();
-  return { ok: true, message: 'Applying the template…' };
+  return guarded(async () => {
+    const id = await assertJob(formData.get('id'));
+    const template = formData.get('template');
+    if (!isTemplate(template)) throw new ActionError('Unknown CV template');
+    const busy = await enqueueCvChange('cv_template', id, { template });
+    if (busy) return busy;
+    refresh();
+    return { ok: true, message: 'Applying the template…' };
+  });
 }
 
 /** Queues the AI revision of the job's CV with the user's feedback (`bot cv:feedback <id> --feedback`). */
 export async function improveCv(_prev: TextFormState, formData: FormData): Promise<TextFormState> {
-  const id = await assertJob(formData.get('id'));
-  const checked = checkFeedback(formData.get('feedback'));
-  if ('error' in checked) return { ok: false, message: checked.error };
-  const busy = await enqueueCvChange('cv_feedback', id, { feedback: checked.feedback });
-  if (busy) return busy;
-  refresh();
-  return { ok: true, message: 'Improving your CV with your feedback…' };
+  return guarded(async () => {
+    const id = await assertJob(formData.get('id'));
+    const checked = checkFeedback(formData.get('feedback'));
+    if ('error' in checked) return { ok: false, message: checked.error };
+    const busy = await enqueueCvChange('cv_feedback', id, { feedback: checked.feedback });
+    if (busy) return busy;
+    refresh();
+    return { ok: true, message: 'Improving your CV with your feedback…' };
+  });
 }
 
 /** A skill name as the bot's job keyword list writes them (src/match.ts SKILLS); the bot checks the names again. */
@@ -193,68 +214,82 @@ const SKILL_NAME = /^[A-Za-z0-9][A-Za-z0-9 .#/+-]{0,29}$/;
  * CV with them and the optional note (`bot cv:feedback <id> --add-skills … [--feedback …]`).
  */
 export async function addSkillsToCv(_prev: TextFormState, formData: FormData): Promise<TextFormState> {
-  const id = await assertJob(formData.get('id'));
-  const skills = formData.getAll('skill');
-  if (!skills.length) return { ok: false, message: 'Tick the skills you have first.' };
-  if (skills.length > 50 || skills.some((s) => typeof s !== 'string' || !SKILL_NAME.test(s)))
-    return { ok: false, message: 'Unknown skill name.' };
-  const note = formData.get('feedback');
-  let feedback = '';
-  if (typeof note === 'string' && note.trim()) {
-    const checked = checkFeedback(note);
-    if ('error' in checked) return { ok: false, message: checked.error };
-    feedback = checked.feedback;
-  }
-  const busy = await enqueueCvChange('cv_feedback', id, { skills: skills.join(','), ...(feedback ? { feedback } : {}) });
-  if (busy) return busy;
-  refresh();
-  return { ok: true, message: 'Adding the skills to your master CV and improving this CV…' };
+  return guarded(async () => {
+    const id = await assertJob(formData.get('id'));
+    const skills = formData.getAll('skill');
+    if (!skills.length) return { ok: false, message: 'Tick the skills you have first.' };
+    if (skills.length > 50 || skills.some((s) => typeof s !== 'string' || !SKILL_NAME.test(s)))
+      return { ok: false, message: 'Unknown skill name.' };
+    const note = formData.get('feedback');
+    let feedback = '';
+    if (typeof note === 'string' && note.trim()) {
+      const checked = checkFeedback(note);
+      if ('error' in checked) return { ok: false, message: checked.error };
+      feedback = checked.feedback;
+    }
+    const busy = await enqueueCvChange('cv_feedback', id, { skills: skills.join(','), ...(feedback ? { feedback } : {}) });
+    if (busy) return busy;
+    refresh();
+    return { ok: true, message: 'Adding the skills to your master CV and improving this CV…' };
+  });
 }
 
 /** The AI's short review of the job's CV against the job (`bot cv:review <id>`), stored on the job. */
-export async function reviewCv(formData: FormData) {
-  const id = await assertJob(formData.get('id'));
-  await enqueueTask('cv_review', id);
-  refresh();
+export async function reviewCv(_prev: TextFormState, formData: FormData): Promise<TextFormState> {
+  return guarded(async () => {
+    const id = await assertJob(formData.get('id'));
+    await enqueueTask('cv_review', id);
+    refresh();
+  });
 }
 
 /** AI fit review of one job via the configured AI provider (`bot ai:score --id`). */
-export async function aiReview(formData: FormData) {
-  const id = await assertJob(formData.get('id'));
-  await enqueueTask('ai_review', id);
-  refresh();
+export async function aiReview(_prev: TextFormState, formData: FormData): Promise<TextFormState> {
+  return guarded(async () => {
+    const id = await assertJob(formData.get('id'));
+    await enqueueTask('ai_review', id);
+    refresh();
+  });
 }
 
 /**
  * AI drafts answers to questions pasted from an application form (`bot answer`). Nothing is submitted anywhere.
  * The questions travel in the task's args; the worker writes them to a temp file for `answer --file`.
  */
-export async function draftAnswers(formData: FormData) {
-  const id = await assertJob(formData.get('id'));
-  const questions = String(formData.get('questions') ?? '')
-    .trim()
-    .slice(0, 8000);
-  if (!questions) return;
-  await enqueueTask('answers', id, { questions });
-  refresh();
+export async function draftAnswers(_prev: TextFormState, formData: FormData): Promise<TextFormState> {
+  return guarded(async () => {
+    const id = await assertJob(formData.get('id'));
+    const questions = String(formData.get('questions') ?? '')
+      .trim()
+      .slice(0, 8000);
+    if (!questions) return;
+    await enqueueTask('answers', id, { questions });
+    refresh();
+  });
 }
 
-export async function clearAnswers(formData: FormData) {
-  const id = await assertJob(formData.get('id'));
-  await pool.query(`UPDATE jobs SET form_answers = '[]' WHERE id = $1`, [id]);
-  refresh();
+export async function clearAnswers(_prev: TextFormState, formData: FormData): Promise<TextFormState> {
+  return guarded(async () => {
+    const id = await assertJob(formData.get('id'));
+    await pool.query(`UPDATE jobs SET form_answers = '[]' WHERE id = $1`, [id]);
+    refresh();
+  });
 }
 
 /** Pulls fresh postings from every source in the background; LinkedIn is paced slowly, so a full run takes ~10 minutes. */
-export async function fetchNow() {
-  await enqueueTask('fetch', null);
-  refresh();
+export async function fetchNow(_prev?: TextFormState, _formData?: FormData): Promise<TextFormState> {
+  return guarded(async () => {
+    await enqueueTask('fetch', null);
+    refresh();
+  });
 }
 
 /** Hides a failed task's error from the dashboard. */
-export async function dismissTask(formData: FormData) {
-  const id = Number(formData.get('task'));
-  if (!Number.isInteger(id) || id <= 0) throw new Error('Invalid task');
-  await dismissFailedTask(id);
-  refresh();
+export async function dismissTask(_prev: TextFormState, formData: FormData): Promise<TextFormState> {
+  return guarded(async () => {
+    const id = Number(formData.get('task'));
+    if (!Number.isInteger(id) || id <= 0) throw new ActionError('Invalid task');
+    await dismissFailedTask(id);
+    refresh();
+  });
 }

@@ -1,6 +1,6 @@
 import { checkStillOpen } from '@/app/jobs/[id]/open-actions';
 import type { Job } from '@/lib/db';
-import { SubmitButton } from './client';
+import { ActionForm } from './action-form';
 import { ago, fmtDate } from './ui';
 
 type OpenInfo = Pick<Job, 'status'> & Partial<Pick<Job, 'closed_at'>>;
@@ -22,10 +22,7 @@ export function ExpiredBadge({ job }: { job: OpenInfo }) {
 export function OpenCheck({ job }: { job: Pick<Job, 'id'> & Partial<Pick<Job, 'checked_open_at'>> }) {
   return (
     <div className="flex flex-wrap items-center gap-2 text-sm text-zinc-500">
-      <form action={checkStillOpen}>
-        <input type="hidden" name="id" value={job.id} />
-        <SubmitButton pendingText="Checking…">Check if still open</SubmitButton>
-      </form>
+      <ActionForm action={checkStillOpen} fields={{ id: job.id }} pendingText="Checking…" label="Check if still open" />
       <span>{job.checked_open_at ? `Posting last checked ${ago(job.checked_open_at)}` : 'Posting not checked yet'}</span>
     </div>
   );

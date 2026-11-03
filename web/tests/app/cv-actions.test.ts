@@ -41,10 +41,10 @@ describe('applyCvTemplate', () => {
     expect(refresh).toHaveBeenCalled();
   });
 
-  it('refuses a template that is not in the list, and an unknown job', async () => {
+  it('refuses a template that is not in the list, and an unknown job, with an error state (not a throw)', async () => {
     for (const template of ['fancy', '', 'Modern'])
-      await expect(applyCvTemplate(null, form({ id, template }))).rejects.toThrow('Unknown CV template');
-    await expect(applyCvTemplate(null, form({ id: PREFIX + 'nope', template: 'modern' }))).rejects.toThrow('Unknown job');
+      expect(await applyCvTemplate(null, form({ id, template }))).toEqual({ ok: false, message: 'Unknown CV template' });
+    expect(await applyCvTemplate(null, form({ id: PREFIX + 'nope', template: 'modern' }))).toEqual({ ok: false, message: 'Unknown job' });
     expect(await tasks()).toEqual([]);
   });
 
@@ -123,14 +123,14 @@ describe('addSkillsToCv', () => {
       message: 'The CV is being changed right now. Try again when it is done.',
     });
     expect((await tasks()).map((t) => t.kind)).toEqual(['prepare']);
-    await expect(addSkillsToCv(null, form({ id: PREFIX + 'nope' }))).rejects.toThrow('Unknown job');
+    expect(await addSkillsToCv(null, form({ id: PREFIX + 'nope' }))).toEqual({ ok: false, message: 'Unknown job' });
   });
 });
 
 describe('reviewCv', () => {
   it('queues `cv:review`, once while it runs', async () => {
-    await reviewCv(form({ id }));
-    await reviewCv(form({ id }));
+    expect(await reviewCv(null, form({ id }))).toBeNull();
+    await reviewCv(null, form({ id }));
     const all = await tasks();
     expect(all.map((t) => [t.kind, t.status])).toEqual([['cv_review', 'queued']]);
     expect(spawn).toHaveBeenCalledOnce();

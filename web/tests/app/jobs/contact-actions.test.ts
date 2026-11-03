@@ -77,29 +77,32 @@ describe('saveContact', () => {
     expect(await rows()).toEqual([expect.objectContaining({ id: c.id, name: 'Jane D', role: 'referral', referral_status: 'asked' })]);
   });
 
-  it('checks the job id and that the contact belongs to the job', async () => {
-    await expect(saveContact(null, form({ name: 'J' }))).rejects.toThrow('Missing job id');
-    await expect(saveContact(null, form({ id: PREFIX + 'nope', name: 'J' }))).rejects.toThrow('Unknown job');
+  it('checks the job id and that the contact belongs to the job, answering the form instead of throwing', async () => {
+    expect(await saveContact(null, form({ name: 'J' }))).toEqual({ ok: false, errors: ['Missing job id'] });
+    expect(await saveContact(null, form({ id: PREFIX + 'nope', name: 'J' }))).toEqual({ ok: false, errors: ['Unknown job'] });
     await saveContact(null, form({ id: other, name: 'Theirs' }));
     const [c] = await rows();
-    await expect(saveContact(null, form({ id, contact_id: String(c.id), name: 'Mine' }))).rejects.toThrow('Unknown contact');
+    expect(await saveContact(null, form({ id, contact_id: String(c.id), name: 'Mine' }))).toEqual({
+      ok: false,
+      errors: ['Unknown contact'],
+    });
     for (const bad of ['abc', '1.5', '-1', '0', '1e3']) {
-      await expect(saveContact(null, form({ id, contact_id: bad, name: 'J' })), bad).rejects.toThrow('Invalid contact id');
+      expect(await saveContact(null, form({ id, contact_id: bad, name: 'J' })), bad).toEqual({ ok: false, errors: ['Invalid contact id'] });
     }
     expect((await rows()).map((r) => r.name)).toEqual(['Theirs']);
   });
 });
 
 describe('deleteContact', () => {
-  it('deletes only a contact of the given job', async () => {
+  it('deletes only a contact of the given job, answering bad ids with an error state (not a throw)', async () => {
     await saveContact(null, form({ id, name: 'Mine' }));
     await saveContact(null, form({ id: other, name: 'Theirs' }));
     const [mine, theirs] = await rows();
-    await expect(deleteContact(form({ id, contact_id: String(theirs.id) }))).rejects.toThrow('Unknown contact');
-    await expect(deleteContact(form({ id }))).rejects.toThrow('Invalid contact id');
-    await expect(deleteContact(form({ contact_id: String(mine.id) }))).rejects.toThrow('Missing job id');
+    expect(await deleteContact(null, form({ id, contact_id: String(theirs.id) }))).toEqual({ ok: false, message: 'Unknown contact' });
+    expect(await deleteContact(null, form({ id }))).toEqual({ ok: false, message: 'Invalid contact id' });
+    expect(await deleteContact(null, form({ contact_id: String(mine.id) }))).toEqual({ ok: false, message: 'Missing job id' });
     vi.clearAllMocks();
-    await deleteContact(form({ id, contact_id: String(mine.id) }));
+    expect(await deleteContact(null, form({ id, contact_id: String(mine.id) }))).toBeNull();
     expect((await rows()).map((r) => r.name)).toEqual(['Theirs']);
     expect(refresh).toHaveBeenCalledOnce();
   });

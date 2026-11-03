@@ -34,6 +34,8 @@ beforeEach(async () => {
 afterAll(closeDb);
 
 describe('job id validation (shared by every action)', () => {
+  // A missing or deleted job (dedupe can remove one mid-click) answers the form instead of throwing,
+  // which would replace the whole page with app/error.tsx.
   it.each([
     ['setStatus', setStatus],
     ['saveNotes', saveNotes],
@@ -41,9 +43,12 @@ describe('job id validation (shared by every action)', () => {
     ['aiReview', aiReview],
     ['draftAnswers', draftAnswers],
     ['clearAnswers', clearAnswers],
-  ] as const)('%s rejects a missing or unknown job', async (_, action) => {
-    await expect(action(form({ status: 'applied', questions: 'Q?' }))).rejects.toThrow('Missing job id');
-    await expect(action(form({ id: PREFIX + 'nope', status: 'applied', questions: 'Q?' }))).rejects.toThrow('Unknown job');
+  ] as const)('%s answers a missing or unknown job with an error state, not a throw', async (_, action) => {
+    expect(await action(null, form({ status: 'applied', questions: 'Q?' }))).toEqual({ ok: false, message: 'Missing job id' });
+    expect(await action(null, form({ id: PREFIX + 'nope', status: 'applied', questions: 'Q?' }))).toEqual({
+      ok: false,
+      message: 'Unknown job',
+    });
     expect(spawn).not.toHaveBeenCalled();
     expect(await tasks()).toEqual([]);
     expect(refresh).not.toHaveBeenCalled();
@@ -52,7 +57,7 @@ describe('job id validation (shared by every action)', () => {
 
 describe('setStatus', () => {
   it('moves the job, logs the change with a trimmed note and refreshes', async () => {
-    await setStatus(form({ id, status: 'skipped', note: '  too junior  ' }));
+    expect(await setStatus(null, form({ id, status: 'skipped', note: '  too junior  ' }))).toBeNull();
     const job = await getJob(id);
     expect(job!.status).toBe('skipped');
     expect(job!.applied_at).toBeNull();
@@ -63,15 +68,15 @@ describe('setStatus', () => {
   });
 
   it('stores the optional skip reason in the same history row, and ignores it for other moves', async () => {
-    await setStatus(form({ id, status: 'skipped', reason: 'seniority' }));
+    await setStatus(null, form({ id, status: 'skipped', reason: 'seniority' }));
     expect((await jobEvents(id))[0]).toMatchObject({ to_status: 'skipped', reason: 'seniority' });
-    await setStatus(form({ id, status: 'new', reason: 'stack' }));
-    await setStatus(form({ id, status: 'skipped', reason: 'boredom' }));
+    await setStatus(null, form({ id, status: 'new', reason: 'stack' }));
+    await setStatus(null, form({ id, status: 'skipped', reason: 'boredom' }));
     expect((await jobEvents(id)).map((e) => e.reason)).toEqual([null, null, 'seniority']);
   });
 
   it('stamps applied_at when marked applied, and stores an empty note as null', async () => {
-    await setStatus(form({ id, status: 'applied', note: '   ' }));
+    await setStatus(null, form({ id, status: 'applied', note: '   ' }));
     const job = await getJob(id);
     expect(job!.status).toBe('applied');
     expect(Date.now() - job!.applied_at!.getTime()).toBeLessThan(60_000);
@@ -79,15 +84,15 @@ describe('setStatus', () => {
   });
 
   it('keeps applied_at on later moves', async () => {
-    await setStatus(form({ id, status: 'applied' }));
+    await setStatus(null, form({ id, status: 'applied' }));
     const appliedAt = (await getJob(id))!.applied_at;
-    await setStatus(form({ id, status: 'interview' }));
+    await setStatus(null, form({ id, status: 'interview' }));
     expect((await getJob(id))!.applied_at).toEqual(appliedAt);
     expect((await jobEvents(id)).map((e) => `${e.from_status}->${e.to_status}`)).toEqual(['applied->interview', 'new->applied']);
   });
 
-  it.each(['filtered', 'bogus', ''])('rejects status %j without changing anything', async (status) => {
-    await expect(setStatus(form({ id, status }))).rejects.toThrow('Invalid status');
+  it.each(['filtered', 'bogus', ''])('refuses status %j without changing anything', async (status) => {
+    expect(await setStatus(null, form({ id, status }))).toEqual({ ok: false, message: 'Invalid status' });
     expect((await getJob(id))!.status).toBe('new');
     expect(await jobEvents(id)).toEqual([]);
     expect(refresh).not.toHaveBeenCalled();
@@ -96,22 +101,22 @@ describe('setStatus', () => {
 
 describe('saveNotes', () => {
   it('saves notes, capped at 5000 characters', async () => {
-    await saveNotes(form({ id, notes: 'x'.repeat(6000) }));
+    expect(await saveNotes(null, form({ id, notes: 'x'.repeat(6000) }))).toBeNull();
     expect((await getJob(id))!.notes).toHaveLength(5000);
     expect(refresh).toHaveBeenCalledOnce();
   });
 
   it('clears notes when empty', async () => {
-    await saveNotes(form({ id, notes: 'Recruiter: Sam' }));
+    await saveNotes(null, form({ id, notes: 'Recruiter: Sam' }));
     expect((await getJob(id))!.notes).toBe('Recruiter: Sam');
-    await saveNotes(form({ id, notes: '' }));
+    await saveNotes(null, form({ id, notes: '' }));
     expect((await getJob(id))!.notes).toBeNull();
   });
 });
 
 describe('prepare', () => {
   it('queues a prepare task, starts its worker and refreshes at once', async () => {
-    await prepare(form({ id }));
+    expect(await prepare(null, form({ id }))).toBeNull();
     const [t] = await tasks();
     expect(t).toMatchObject({ kind: 'prepare', job_id: id, args: {}, status: 'queued' });
     expect(spawn).toHaveBeenCalledExactlyOnceWith(spawnedFor(t));
@@ -119,38 +124,48 @@ describe('prepare', () => {
   });
 
   it('passes a valid CV version', async () => {
-    await prepare(form({ id, cv: 'backend-lead-2' }));
+    await prepare(null, form({ id, cv: 'backend-lead-2' }));
     expect((await tasks())[0].args).toEqual({ cv: 'backend-lead-2' });
   });
 
   it('carries force for "Prepare anyway" on an expired job, with or without a CV version', async () => {
-    await prepare(form({ id, force: 'true', cv: 'laravel' }));
+    await prepare(null, form({ id, force: 'true', cv: 'laravel' }));
     expect((await tasks())[0].args).toEqual({ cv: 'laravel', force: 'true' });
   });
 
   it.each(['1', 'on', 'false', ''])('ignores force=%j', async (force) => {
-    await prepare(form({ id, force }));
+    await prepare(null, form({ id, force }));
     expect((await tasks())[0].args).toEqual({});
   });
 
   it.each(['../../etc', 'Backend', 'a b', 'x;rm', '', '--help', '-x'])('ignores an invalid CV version %j', async (cv) => {
-    await prepare(form({ id, cv }));
+    await prepare(null, form({ id, cv }));
     expect((await tasks())[0].args).toEqual({});
   });
 
   it('returns the running task on a second click instead of starting another', async () => {
-    await prepare(form({ id }));
+    await prepare(null, form({ id }));
     await pool.query(`UPDATE tasks SET status = 'running' WHERE job_id = $1`, [id]);
-    await prepare(form({ id }));
+    expect(await prepare(null, form({ id }))).toBeNull();
     expect(await tasks()).toHaveLength(1);
     expect(spawn).toHaveBeenCalledOnce();
     expect(refresh).toHaveBeenCalledTimes(2);
   });
 
+  it('answers with the refusal (instead of dropping the click) while another task changes the CV', async () => {
+    await pool.query(`INSERT INTO tasks (kind, job_id) VALUES ('cv_template', $1)`, [id]);
+    expect(await prepare(null, form({ id }))).toEqual({
+      ok: false,
+      message: 'The CV is being changed right now. Try again when it is done.',
+    });
+    expect((await tasks()).map((t) => t.kind)).toEqual(['cv_template']);
+    expect(spawn).not.toHaveBeenCalled();
+  });
+
   it('starts again after the previous task finished', async () => {
-    await prepare(form({ id }));
+    await prepare(null, form({ id }));
     await pool.query(`UPDATE tasks SET status = 'done' WHERE job_id = $1`, [id]);
-    await prepare(form({ id }));
+    await prepare(null, form({ id }));
     expect((await tasks()).map((t) => t.status)).toEqual(['done', 'queued']);
     expect(spawn).toHaveBeenCalledTimes(2);
   });
@@ -158,7 +173,7 @@ describe('prepare', () => {
 
 describe('aiReview', () => {
   it('queues an ai_review task and refreshes', async () => {
-    await aiReview(form({ id }));
+    await aiReview(null, form({ id }));
     const [t] = await tasks();
     expect(t).toMatchObject({ kind: 'ai_review', job_id: id, status: 'queued' });
     expect(spawn).toHaveBeenCalledExactlyOnceWith(spawnedFor(t));
@@ -166,15 +181,15 @@ describe('aiReview', () => {
   });
 
   it('runs alongside a prepare task for the same job', async () => {
-    await prepare(form({ id }));
-    await aiReview(form({ id }));
+    await prepare(null, form({ id }));
+    await aiReview(null, form({ id }));
     expect((await tasks()).map((t) => t.kind)).toEqual(['prepare', 'ai_review']);
   });
 });
 
 describe('draftAnswers', () => {
   it('queues an answers task with the trimmed questions in its args', async () => {
-    await draftAnswers(form({ id, questions: '  Why us?\nVisa needed?  ' }));
+    await draftAnswers(null, form({ id, questions: '  Why us?\nVisa needed?  ' }));
     const [t] = await tasks();
     expect(t).toMatchObject({ kind: 'answers', job_id: id, args: { questions: 'Why us?\nVisa needed?' } });
     expect(spawn).toHaveBeenCalledExactlyOnceWith(spawnedFor(t));
@@ -182,19 +197,19 @@ describe('draftAnswers', () => {
   });
 
   it('caps the questions at 8000 characters', async () => {
-    await draftAnswers(form({ id, questions: 'q'.repeat(9000) }));
+    await draftAnswers(null, form({ id, questions: 'q'.repeat(9000) }));
     expect((await tasks())[0].args.questions).toHaveLength(8000);
   });
 
   it.each(['', '   \n  '])('does nothing for empty questions %j', async (questions) => {
-    await draftAnswers(form({ id, questions }));
+    expect(await draftAnswers(null, form({ id, questions }))).toBeNull();
     expect(await tasks()).toEqual([]);
     expect(spawn).not.toHaveBeenCalled();
     expect(refresh).not.toHaveBeenCalled();
   });
 
   it('does nothing when the questions field is absent', async () => {
-    await draftAnswers(form({ id }));
+    await draftAnswers(null, form({ id }));
     expect(await tasks()).toEqual([]);
   });
 });
@@ -202,7 +217,7 @@ describe('draftAnswers', () => {
 describe('clearAnswers', () => {
   it('empties the drafted answers', async () => {
     await insertJob({ id: 'with-answers', form_answers: [{ question: 'Q', answer: 'A', needs_input: false, note: '' }] });
-    await clearAnswers(form({ id: PREFIX + 'with-answers' }));
+    await clearAnswers(null, form({ id: PREFIX + 'with-answers' }));
     expect((await getJob(PREFIX + 'with-answers'))!.form_answers).toEqual([]);
     expect(refresh).toHaveBeenCalledOnce();
   });
@@ -210,7 +225,7 @@ describe('clearAnswers', () => {
 
 describe('fetchNow', () => {
   it('queues one fetch task and returns at once', async () => {
-    await fetchNow();
+    expect(await fetchNow()).toBeNull();
     const [t] = await tasks();
     expect(t).toMatchObject({ kind: 'fetch', job_id: null, status: 'queued' });
     expect(spawn).toHaveBeenCalledExactlyOnceWith(spawnedFor(t));
@@ -237,21 +252,21 @@ describe('fetchNow', () => {
 
 describe('dismissTask', () => {
   it('hides a failed task', async () => {
-    await prepare(form({ id }));
+    await prepare(null, form({ id }));
     const [t] = await tasks();
     await pool.query(`UPDATE tasks SET status = 'failed', error = 'boom' WHERE id = $1`, [t.id]);
-    await dismissTask(form({ task: String(t.id) }));
+    expect(await dismissTask(null, form({ task: String(t.id) }))).toBeNull();
     expect((await tasks())[0].dismissed).toBe(true);
     expect(refresh).toHaveBeenCalledTimes(2);
   });
 
   it('does not touch a running task', async () => {
-    await prepare(form({ id }));
-    await dismissTask(form({ task: String((await tasks())[0].id) }));
+    await prepare(null, form({ id }));
+    await dismissTask(null, form({ task: String((await tasks())[0].id) }));
     expect((await tasks())[0]).toMatchObject({ status: 'queued', dismissed: false });
   });
 
-  it.each(['', 'abc', '-1', '1.5', '0'])('rejects task id %j', async (task) => {
-    await expect(dismissTask(form({ task }))).rejects.toThrow('Invalid task');
+  it.each(['', 'abc', '-1', '1.5', '0'])('refuses task id %j with an error state, not a throw', async (task) => {
+    expect(await dismissTask(null, form({ task }))).toEqual({ ok: false, message: 'Invalid task' });
   });
 });
