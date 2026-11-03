@@ -25,7 +25,8 @@ import {
   pruneFinished,
   TASK_TIMEOUT_MS,
 } from '../src/tasks.ts';
-import type { Task } from '../src/types.ts';
+import type { Task, TaskKind } from '../src/types.ts';
+import { AI_BUDGET } from '../src/ai-providers.ts';
 
 const FAKE = join(import.meta.dirname, 'fixtures', 'fake-claude.mjs');
 const run = promisify(execFile);
@@ -96,23 +97,28 @@ describe('task queue', () => {
     assert.equal(t.deadline!.getTime() - t.started_at!.getTime(), TASK_TIMEOUT_MS.fetch + DEADLINE_GRACE_MS);
   });
 
-  it('interview prep is a task kind with a 4 minute timeout (migration 007)', async () => {
-    assert.equal(TASK_TIMEOUT_MS.prep, 4 * 60_000);
+  it('every kind that calls the AI outlives the overall AI budget with margin, so the real error is recorded', () => {
+    const aiKinds: TaskKind[] = ['ai_review', 'answers', 'prep', 'follow_up', 'letter', 'summary', 'cv_feedback', 'cv_review'];
+    for (const kind of aiKinds) assert.ok(TASK_TIMEOUT_MS[kind] >= AI_BUDGET.ms + 60_000, `${kind} must exceed the AI budget with margin`);
+  });
+
+  it('interview prep is a task kind with a 6 minute timeout (migration 007)', async () => {
+    assert.equal(TASK_TIMEOUT_MS.prep, 6 * 60_000);
     const { task } = await enqueue('prep', JOB);
     const t = (await claim(task.id))!;
     assert.equal(t.deadline!.getTime() - t.started_at!.getTime(), TASK_TIMEOUT_MS.prep + DEADLINE_GRACE_MS);
   });
 
-  it('drafting a follow-up is a task kind with a 4 minute timeout (migration 008)', async () => {
-    assert.equal(TASK_TIMEOUT_MS.follow_up, 4 * 60_000);
+  it('drafting a follow-up is a task kind with a 6 minute timeout (migration 008)', async () => {
+    assert.equal(TASK_TIMEOUT_MS.follow_up, 6 * 60_000);
     const { task, created } = await enqueue('follow_up', JOB);
     assert.equal(created, true);
     assert.equal(task.kind, 'follow_up');
   });
 
-  it('a CV summary and a tailored CV are task kinds with a 4 minute timeout (migration 013)', async () => {
+  it('a CV summary and a tailored CV are task kinds (migration 013)', async () => {
+    assert.deepEqual([TASK_TIMEOUT_MS.summary, TASK_TIMEOUT_MS.tailored_cv], [6 * 60_000, 4 * 60_000]);
     for (const kind of ['summary', 'tailored_cv'] as const) {
-      assert.equal(TASK_TIMEOUT_MS[kind], 4 * 60_000);
       const { task, created } = await enqueue(kind, JOB, kind === 'summary' ? { feedback: 'shorter' } : {});
       assert.equal(created, true);
       assert.equal(task.kind, kind);
@@ -122,7 +128,7 @@ describe('task queue', () => {
   it('applying a CV template, improving the CV with feedback and a CV review are task kinds (migration 014)', async () => {
     assert.deepEqual(
       [TASK_TIMEOUT_MS.cv_template, TASK_TIMEOUT_MS.cv_feedback, TASK_TIMEOUT_MS.cv_review],
-      [4 * 60_000, 5 * 60_000, 4 * 60_000],
+      [4 * 60_000, 6 * 60_000, 6 * 60_000],
     );
     const args = { cv_template: { template: 'modern' }, cv_feedback: { feedback: 'shorter' }, cv_review: {} };
     for (const kind of ['cv_template', 'cv_feedback', 'cv_review'] as const) {
@@ -415,7 +421,7 @@ describe('task:run (CLI worker)', () => {
     const dir = done.output!.match(/Cover {6}: (\S+)\/cover-letter\.txt/)![1];
     rmSync(dir, { recursive: true, force: true });
     assert.equal((await getJob(JOB))!.cover_letter, `${letter}\n`);
-    assert.equal(TASK_TIMEOUT_MS.letter, 4 * 60_000);
+    assert.equal(TASK_TIMEOUT_MS.letter, 6 * 60_000);
   });
 
   it('runs a summary task with feedback through the worker; feedback starting with "--" stays the text', async () => {

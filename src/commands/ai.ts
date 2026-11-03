@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { config } from '../config.ts';
-import { getJob, pool, setStatus, type Job } from '../db.ts';
+import { getJob, pool, setStatus, withLock, type Job } from '../db.ts';
 import { aiAnswers, aiScore as review } from '../ai.ts';
 import { aiLabel } from '../ai-providers.ts';
 import { notify, strongAlerts, type AlertJob } from '../notify.ts';
@@ -10,6 +10,13 @@ import { AI_OFF, type Flags } from './shared.ts';
 export async function aiScore(_args: string[], flags: Flags) {
   // Not an error: `bot daily` runs this every morning, and with the AI off there is simply nothing to do.
   if (!config.ai.enabled) return console.log(`${AI_OFF}, so no jobs were AI-reviewed.`);
+  // Only one bulk review at a time (like fetch): the daily run and a dashboard task would otherwise both read the
+  // same unscored queue and spend AI calls on every job twice. A single job (--id) is guarded by the task queue.
+  if (flags.id) return scoreQueue(flags);
+  if (!(await withLock('ai:score', () => scoreQueue(flags)))) console.log('An ai:score is already running; skipping.');
+}
+
+async function scoreQueue(flags: Flags) {
   const params: (string | number)[] = [];
   let where = `status = 'new' AND duplicate_of IS NULL AND ai_scored_at IS NULL`;
   if (flags.id) {
@@ -85,9 +92,8 @@ async function excludeForLocation(id: string, why: string | null) {
     id,
     locationReason(why),
   ]);
-  if (!(await setStatus(id, 'filtered', locationReason(why), undefined, { expectFrom: ['new'] }))) return false;
-  await pool.query('UPDATE jobs SET filter_reason = $2 WHERE id = $1', [id, locationReason(why)]);
-  return true;
+  // Status and reason change in one transaction (setStatus `set`): a crash never leaves one without the other.
+  return setStatus(id, 'filtered', locationReason(why), undefined, { expectFrom: ['new'], set: { filter_reason: locationReason(why) } });
 }
 
 /**
@@ -96,9 +102,11 @@ async function excludeForLocation(id: string, why: string | null) {
  */
 async function restoreLocationFiltered(j: Job, why: string | null) {
   if (j.status !== 'filtered' || !j.filter_reason?.startsWith('location (AI):')) return false;
-  if (!(await setStatus(j.id, 'new', `location (AI) passed: ${why ?? ''}`.trim(), undefined, { expectFrom: ['filtered'] }))) return false;
-  await pool.query(`UPDATE jobs SET filter_reason = NULL WHERE id = $1 AND filter_reason LIKE 'location (AI):%'`, [j.id]);
-  return true;
+  // Status and reason change in one transaction (setStatus `set`): a crash never leaves one without the other.
+  return setStatus(j.id, 'new', `location (AI) passed: ${why ?? ''}`.trim(), undefined, {
+    expectFrom: ['filtered'],
+    set: { filter_reason: null },
+  });
 }
 
 const countryName = (c: string | null) => (c === 'RM' ? 'Remote' : c && config.countries[c]?.name) || c || 'unknown country';

@@ -1,4 +1,6 @@
+import { statSync } from 'node:fs';
 import { config } from './config.ts';
+import { masterFile } from './settings.ts';
 import { listText, loadProfile, onsiteSituation, readApplicant, remoteFrom, signature, whereText, type Profile } from './profile.ts';
 import type { AiLocation, FormAnswer, InterviewPrep, Job } from './types.ts';
 import { masterRaw } from './cv/versions.ts';
@@ -9,17 +11,29 @@ import { askAi } from './ai-providers.ts';
 // The AI features: prompts and output schemas. Which AI runs them (the local Claude CLI, or an OpenAI-compatible API with one key) is
 // config.json → ai.provider; see src/ai-providers.ts.
 
-/** The master CV as plain text: the only facts the AI may use about the candidate. */
+let cvCache: { key: string; text: string } | null = null;
+
+/**
+ * The master CV as plain text: the only facts the AI may use about the candidate. Cached per file and mtime (like
+ * loadProfile in src/profile.ts): aiScore runs several workers, each building a prompt per job, and the file does
+ * not change mid-run.
+ */
 export function cvText(): string {
-  const cv = JSON.parse(masterRaw()) as Cv;
-  return [
-    `${cv.name} — ${cv.title} — ${cv.contact.location}`,
-    `SUMMARY: ${cv.summary}`,
-    `SKILLS: ${cv.skills.map((g) => `${g.group}: ${g.items.join(', ')}`).join(' | ')}`,
-    ...cv.experience.map((e) => `EXPERIENCE: ${e.role}, ${e.company} (${e.dates})\n- ${e.bullets.join('\n- ')}`),
-    `PROJECTS: ${cv.projects.map((p) => `${p.name}: ${p.text}`).join(' | ')}`,
-    `EDUCATION: ${cv.education.map((e) => `${e.degree}, ${e.school} (${e.dates})`).join(' | ')}`,
-  ].join('\n');
+  const file = masterFile();
+  const key = `${file}|${statSync(file).mtimeMs}`;
+  if (cvCache?.key !== key) {
+    const cv = JSON.parse(masterRaw()) as Cv;
+    const text = [
+      `${cv.name} — ${cv.title} — ${cv.contact.location}`,
+      `SUMMARY: ${cv.summary}`,
+      `SKILLS: ${cv.skills.map((g) => `${g.group}: ${g.items.join(', ')}`).join(' | ')}`,
+      ...cv.experience.map((e) => `EXPERIENCE: ${e.role}, ${e.company} (${e.dates})\n- ${e.bullets.join('\n- ')}`),
+      `PROJECTS: ${cv.projects.map((p) => `${p.name}: ${p.text}`).join(' | ')}`,
+      `EDUCATION: ${cv.education.map((e) => `${e.degree}, ${e.school} (${e.dates})`).join(' | ')}`,
+    ].join('\n');
+    cvCache = { key, text };
+  }
+  return cvCache.text;
 }
 
 /** "(remote; candidate would work from Portugal)" for remote jobs. */
