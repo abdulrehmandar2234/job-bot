@@ -1,6 +1,6 @@
 import { getJson, sleep } from './http.ts';
 import { config } from '../config.ts';
-import { partial, stripHtml, type Fetched, type RawJob } from './index.ts';
+import { epochMs, partial, stripHtml, toIso, type Fetched, type RawJob } from './index.ts';
 import { structuredSalary } from '../salary.ts';
 import { currencyOf } from '../currencies.ts';
 import { loadProfile, remoteFromCode } from '../profile.ts';
@@ -65,8 +65,9 @@ async function himalayas(): Promise<Fetched> {
       }
       if (!data.jobs?.length) break;
       for (const j of data.jobs) {
-        const posted = j.pubDate * 1000;
-        if (posted < cutoff) continue;
+        // A missing or non-numeric pubDate must not kill the board: the job is kept without a date.
+        const posted = epochMs(j.pubDate);
+        if (posted !== null && posted < cutoff) continue;
         const where = himalayasRegion(j.locationRestrictions, j.timezoneRestrictions, home);
         out.set(j.guid, {
           id: `himalayas:${j.guid.replace(/^https:\/\/himalayas\.app\/companies\//, '')}`,
@@ -76,7 +77,7 @@ async function himalayas(): Promise<Fetched> {
           location: `Remote — ${where}`,
           url: j.applicationLink ?? j.guid,
           description: strip(j.description ?? ''),
-          posted_at: new Date(posted).toISOString(),
+          posted_at: posted === null ? null : new Date(posted).toISOString(),
           salary: structuredSalary(
             j.minSalary,
             j.maxSalary,
@@ -101,7 +102,9 @@ async function remotive(): Promise<RawJob[]> {
     location: `Remote — ${j.candidate_required_location || 'not stated'}`,
     url: j.url,
     description: strip(j.description ?? ''),
-    posted_at: j.publication_date ? new Date(`${j.publication_date}Z`).toISOString() : null,
+    // publication_date is usually zoneless UTC ("2026-10-27T10:00:00"); one that is already zoned,
+    // or unparseable, must not throw and kill the board.
+    posted_at: j.publication_date ? (toIso(`${j.publication_date}Z`) ?? toIso(j.publication_date)) : null,
   }));
 }
 
@@ -140,8 +143,9 @@ async function arbeitnow(): Promise<Fetched> {
     }
     const jobs: any[] = data.data ?? [];
     for (const j of jobs) {
-      const posted = j.created_at * 1000;
-      if (posted < cutoff || !(j.remote || nl.test(j.location ?? ''))) continue;
+      // As for Himalayas: a missing or non-numeric created_at keeps the job (without a date), not the crash.
+      const posted = epochMs(j.created_at);
+      if ((posted !== null && posted < cutoff) || !(j.remote || nl.test(j.location ?? ''))) continue;
       out.push({
         id: `arbeitnow:${j.slug}`,
         source: 'arbeitnow',
@@ -150,10 +154,10 @@ async function arbeitnow(): Promise<Fetched> {
         location: j.remote ? `Remote — ${j.location || 'not stated'}` : j.location,
         url: j.url,
         description: stripHtml(j.description ?? ''), // escaped HTML, which stripHtml decodes
-        posted_at: new Date(posted).toISOString(),
+        posted_at: posted === null ? null : new Date(posted).toISOString(),
       });
     }
-    if (!data.links?.next || !jobs.length || jobs.at(-1).created_at * 1000 < cutoff) break;
+    if (!data.links?.next || !jobs.length || (epochMs(jobs.at(-1)?.created_at) ?? Number.POSITIVE_INFINITY) < cutoff) break;
     await sleep(1000);
   }
   return out;

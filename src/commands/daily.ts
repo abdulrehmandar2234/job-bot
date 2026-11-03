@@ -3,6 +3,7 @@ import { appendFileSync, existsSync, mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { DASHBOARD_URL, notify, type Note } from '../notify.ts';
 import { path, ROOT } from '../settings.ts';
+import { CACHE_MAX_AGE_DAYS, pruneCache } from '../sources/http.ts';
 
 // daily: the scheduled morning run, the same on macOS, Linux and Windows (launchd runs it through
 // scripts/daily-fetch.sh; cron, a systemd timer or Task Scheduler run it directly, see `bot schedule:print`).
@@ -16,6 +17,8 @@ export type DailyDeps = {
   notify: (n: Note) => Promise<void>;
   /** Appends text to the log. */
   log: (text: string) => void;
+  /** Deletes stale http-cache entries; returns how many (default: pruneCache). */
+  prune?: () => number;
   now?: Date;
 };
 
@@ -35,7 +38,8 @@ const lastLine = (output: string, re: RegExp) =>
 
 /**
  * The steps, in order: fetch; then (only if it worked) check:open and ai:score, each best-effort; a notification with
- * the result; and the backup, after the notification, so a failed backup only shows in the log.
+ * the result; the backup, after the notification, so a failed backup only shows in the log; and the http-cache prune,
+ * whose result also only shows in the log.
  */
 export async function runDaily(d: DailyDeps): Promise<void> {
   d.log(`\n===== ${stamp(d.now ?? new Date())} =====\n`);
@@ -56,6 +60,12 @@ export async function runDaily(d: DailyDeps): Promise<void> {
   await d.notify(note);
   // Daily database backup (keeps 14).
   if ((await d.run(['backup'])).code !== 0) d.log('backup failed (see above)\n');
+  // Housekeeping: the on-disk ETag cache (data/http-cache) has no other eviction and would grow forever.
+  try {
+    d.log(`http-cache: removed ${(d.prune ?? pruneCache)()} entries older than ${CACHE_MAX_AGE_DAYS} days\n`);
+  } catch (e) {
+    d.log(`http-cache prune failed: ${(e as Error).message}\n`);
+  }
 }
 
 /** PATH for the child commands, with ~/.local/bin first (where the Claude CLI installs itself on every OS). */

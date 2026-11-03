@@ -17,7 +17,7 @@ const root = mkdtempSync(join(tmpdir(), 'job-bot-daily-'));
 after(() => rmSync(root, { recursive: true, force: true }));
 
 /** runDaily with fake steps: `results` maps a command name to its exit code and output. */
-async function fakeDaily(results: Record<string, Partial<StepResult>> = {}) {
+async function fakeDaily(results: Record<string, Partial<StepResult>> = {}, prune: () => number = () => 0) {
   const calls: string[] = [];
   const notes: Note[] = [];
   let log = '';
@@ -35,6 +35,10 @@ async function fakeDaily(results: Record<string, Partial<StepResult>> = {}) {
     log: (t) => {
       log += t;
     },
+    prune: () => {
+      calls.push('prune');
+      return prune();
+    },
     now: new Date(2026, 9, 30, 9, 5),
   });
   return { calls, notes, log };
@@ -46,7 +50,7 @@ describe('runDaily', () => {
       fetch: { output: 'old line\n10 postings checked, 1 new.\n' },
       'ai:score': { output: '3 jobs scored, 0 failed.\n' },
     });
-    assert.deepEqual(calls, ['fetch', 'check:open --limit 100', 'ai:score', 'notify', 'backup']);
+    assert.deepEqual(calls, ['fetch', 'check:open --limit 100', 'ai:score', 'notify', 'backup', 'prune']);
     assert.deepEqual(notes, [
       { title: 'Job Bot', message: '10 postings checked, 1 new. 3 jobs scored, 0 failed.', url: 'http://localhost:3100' },
     ]);
@@ -57,7 +61,7 @@ describe('runDaily', () => {
 
   it('a failing check:open is logged and still notifies (the old daily-fetch.sh test)', async () => {
     const { calls, notes, log } = await fakeDaily({ fetch: { output: '10 postings checked, 1 new.' }, 'check:open': { code: 1 } });
-    assert.deepEqual(calls, ['fetch', 'check:open --limit 100', 'ai:score', 'notify', 'backup']);
+    assert.deepEqual(calls, ['fetch', 'check:open --limit 100', 'ai:score', 'notify', 'backup', 'prune']);
     assert.match(notes[0].message, /^10 postings checked/);
     assert.match(log, /check:open failed \(see above\)/);
   });
@@ -69,14 +73,28 @@ describe('runDaily', () => {
 
   it('a failed fetch skips check:open and ai:score, says so, and still backs up', async () => {
     const { calls, notes } = await fakeDaily({ fetch: { code: 1, output: 'ECONNREFUSED' } });
-    assert.deepEqual(calls, ['fetch', 'notify', 'backup']);
+    assert.deepEqual(calls, ['fetch', 'notify', 'backup', 'prune']);
     assert.equal(notes[0].message, FETCH_FAILED);
   });
 
   it('a failed backup only shows in the log', async () => {
     const { calls, log } = await fakeDaily({ backup: { code: 1 } });
-    assert.equal(calls.at(-1), 'backup');
-    assert.match(log, /backup failed \(see above\)\n$/);
+    assert.deepEqual(calls.slice(-2), ['backup', 'prune']);
+    assert.match(log, /backup failed \(see above\)\n/);
+  });
+
+  it('prunes the http cache last and logs how many entries went', async () => {
+    const { calls, log } = await fakeDaily({}, () => 3);
+    assert.equal(calls.at(-1), 'prune');
+    assert.match(log, /http-cache: removed 3 entries older than 30 days\n$/);
+  });
+
+  it('a failing prune only shows in the log', async () => {
+    const { notes, log } = await fakeDaily({}, () => {
+      throw new Error('disk gone');
+    });
+    assert.match(log, /http-cache prune failed: disk gone\n$/);
+    assert.equal(notes.length, 1); // the notification already went out
   });
 });
 
