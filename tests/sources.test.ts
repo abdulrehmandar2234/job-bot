@@ -745,10 +745,23 @@ describe('linkedin (guest search)', () => {
     assert.ok(!net.calls.some((u) => u.includes('jobPosting/444')));
   });
 
-  it('a 429 mid-search keeps the cards already collected and still fetches their details', async () => {
+  it('a 429 mid-search stops LinkedIn at once: no detail requests, the error is reported', async () => {
     net = mockFetch({
       'seeMoreJobPostings/search': (url: string) =>
         new URL(url).searchParams.get('keywords') === 'laravel' ? card('111', 'Laravel Developer') : new Response('', { status: 429 }),
+      'jobPosting/111': '<div class="show-more-less-html__markup">Laravel</div>\n<button>',
+    });
+    // Nothing has details yet, so the source fails with the 429 (fetch_runs records it).
+    await assert.rejects(linkedin(), /429 LinkedIn rate limit: stopping LinkedIn for today/);
+    // The search stopped at the throttled page, and nothing more was asked of the rate-limited site.
+    assert.equal(net.calls.filter((u) => u.includes('seeMoreJobPostings')).length, 2);
+    assert.ok(!net.calls.some((u) => u.includes('jobPosting/')));
+  });
+
+  it('a non-429 search failure keeps the cards already collected and fetches their details', async () => {
+    net = mockFetch({
+      'seeMoreJobPostings/search': (url: string) =>
+        new URL(url).searchParams.get('keywords') === 'laravel' ? card('111', 'Laravel Developer') : new Response('', { status: 404 }),
       'jobPosting/111': '<div class="show-more-less-html__markup">Laravel</div>\n<button>',
     });
     const jobs = await linkedin();
@@ -756,9 +769,7 @@ describe('linkedin (guest search)', () => {
       jobs.map((j) => j.id),
       ['linkedin:111'],
     );
-    assert.match(jobs.partialError ?? '', /search stopped: 429 LinkedIn rate limit: stopping LinkedIn for today/);
-    // The search stopped at the throttled page: only the first keyword's search and the one 429 went out.
-    assert.equal(net.calls.filter((u) => u.includes('seeMoreJobPostings')).length, 2);
+    assert.match(jobs.partialError ?? '', /search stopped: /);
   });
 
   it('a non-empty search page in which no card parses is reported, not a quiet success', async () => {

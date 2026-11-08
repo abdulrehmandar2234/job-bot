@@ -29,6 +29,7 @@ export type Job = Omit<
   | 'checked_open_at'
   | 'closed_at'
   | 'cover_letter_edited_at'
+  | 'cover_letter_ai_error'
   | 'cv_summary'
   | 'cv_summary_at'
   | 'cv_summary_edited_at'
@@ -48,6 +49,7 @@ export type Job = Omit<
       | 'checked_open_at'
       | 'closed_at'
       | 'cover_letter_edited_at'
+      | 'cover_letter_ai_error'
       | 'cv_summary'
       | 'cv_summary_at'
       | 'cv_summary_edited_at'
@@ -86,7 +88,7 @@ export type JobFilter = {
 }; // minSalary: euros per year
 
 /** Jobs per page on the dashboard list: the default, and the choices offered (`?size=`). */
-export const PAGE_SIZE = 25;
+export const PAGE_SIZE = 10;
 export const PAGE_SIZES = [10, 25, 50, 100] as const;
 
 /** A `?size=` value if it is one of PAGE_SIZES, else the default. */

@@ -50,13 +50,14 @@ export function feedbackFlag(flags: Flags): string | null {
  * Writes the cover letter: AI from the job description, else the template (AI off, --template, or the AI failing).
  * With `feedback`, the AI rewrites the current letter instead; that needs the AI, so it never falls back to the
  * template (which would throw the current letter away) and throws instead.
- * Stores it on the job and in the job's applications/ folder. Returns where it went, whether the AI wrote it and
- * the AI's note on feedback it did not follow.
+ * Stores it on the job and in the job's applications/ folder. Returns where it went, whether the AI wrote it, the
+ * AI's note on feedback it did not follow, and why the AI failed when the template was used (also stored on the job).
  */
 export async function writeLetter(j: Job, flags: Flags = {}, feedback = '') {
   let letter = coverLetter(j);
   let ai = false;
   let note = '';
+  let aiError: string | null = null;
   if (feedback) {
     if (!config.ai.enabled) throw new Error('Rewriting with feedback needs the AI, and it is off (config.json ai.enabled).');
     ({ letter, note } = await aiCoverLetter(j, feedback));
@@ -66,17 +67,17 @@ export async function writeLetter(j: Job, flags: Flags = {}, feedback = '') {
       letter = (await aiCoverLetter(j)).letter;
       ai = true;
     } catch (e) {
-      console.log(`AI cover letter failed, using template: ${(e as Error).message}`);
+      aiError = (e as Error).message;
+      console.log(`AI cover letter failed, using template: ${aiError}`);
     }
   }
   const file = `${applicationDir(j)}/cover-letter.txt`;
   writeFileSync(file, letter);
-  await pool.query('UPDATE jobs SET cover_letter = $2, cover_letter_ai = $3, cover_letter_edited_at = NULL WHERE id = $1', [
-    j.id,
-    letter,
-    ai,
-  ]);
-  return { file, ai, note };
+  await pool.query(
+    'UPDATE jobs SET cover_letter = $2, cover_letter_ai = $3, cover_letter_ai_error = $4, cover_letter_edited_at = NULL WHERE id = $1',
+    [j.id, letter, ai, aiError],
+  );
+  return { file, ai, note, aiError };
 }
 
 /**

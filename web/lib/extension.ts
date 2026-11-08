@@ -17,7 +17,9 @@ export const isExtensionOrigin = (origin: string | null): origin is string =>
 
 // POST /api/import from a job-site origin must also carry this token (header `x-import-token`). The CORS origin
 // check alone lets any script that runs on an allowed job site (ads, trackers) import jobs; the token is known only
-// to the collector script the dashboard itself serves (/api/bayt-script embeds it), so other scripts cannot send it.
+// to the collector script the dashboard itself serves (/api/bayt-script embeds it), so other scripts cannot send it
+// blindly. A script on that site written to attack job-bot could load the collector and capture the token: the
+// token raises the bar for drive-by posts, it is not authentication.
 // The extension origin needs no token: web pages cannot forge a chrome-extension:// Origin header.
 // The token is random, generated on first use and kept in data/import-token (data/ is gitignored). Never put it in a URL.
 const tokenFile = () => join(BOT_ROOT, 'data', 'import-token');

@@ -105,6 +105,14 @@ export async function openTasks(jobId?: string): Promise<TaskView[]> {
 
 /** Hides a failed task's error or a finished task's notice from the dashboard. Returns false if there is no such task. */
 export async function dismissTask(id: number) {
-  const { rowCount } = await pool.query(`UPDATE tasks SET dismissed = true WHERE id = $1 AND status IN ('done', 'failed')`, [id]);
-  return rowCount === 1;
+  // The task bar shows only the newest finished task, so dismissing it also dismisses the done tasks that finished
+  // before it: otherwise each Dismiss would uncover the next older "finished" notice.
+  const { rowCount } = await pool.query(
+    `WITH t AS (SELECT id, status, finished_at FROM tasks WHERE id = $1 AND status IN ('done', 'failed'))
+     UPDATE tasks SET dismissed = true
+     WHERE id IN (SELECT id FROM t)
+        OR (status = 'done' AND NOT dismissed AND finished_at <= (SELECT finished_at FROM t WHERE status = 'done'))`,
+    [id],
+  );
+  return (rowCount ?? 0) > 0;
 }

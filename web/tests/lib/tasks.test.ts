@@ -181,6 +181,18 @@ describe('finished notice', () => {
     expect(ids).not.toContain(done.id);
   });
 
+  it('dismissing the shown notice also dismisses older finished tasks, so the next one does not pop up', async () => {
+    const older = await addTask('letter', 'done');
+    const newer = await addTask('summary', 'done');
+    await pool.query(`UPDATE tasks SET finished_at = now() - interval '10 minutes' WHERE id = $1`, [older.id]);
+    const failed = await addTask('prep', 'failed');
+    expect(await dismissTask(newer.id)).toBe(true);
+    const ids = (await openTasks(id)).map((t) => t.id);
+    expect(ids).not.toContain(newer.id);
+    expect(ids).not.toContain(older.id);
+    expect(ids).toContain(failed.id); // failures keep their own Dismiss
+  });
+
   it('dismissTask hides done and failed tasks, never active ones', async () => {
     const queued = await addTask('letter', 'queued');
     expect(await dismissTask(queued.id)).toBe(false);

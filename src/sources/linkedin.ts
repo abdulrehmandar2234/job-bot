@@ -98,6 +98,8 @@ export async function linkedin(): Promise<Fetched> {
 
   const out: RawJob[] = [];
   const failed: string[] = [];
+  // A 429 stops LinkedIn for this fetch: no detail requests after it, or the site would block the bot.
+  if (searchError instanceof RateLimited) return partial(out, searchError);
   for (const c of cards.values()) {
     // Same title rules as scoring, applied before the (slower) detail request.
     if (!include.test(c.title) || exclude.test(c.title)) continue;

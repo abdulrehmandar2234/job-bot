@@ -187,8 +187,21 @@ describe('migration 014 (CV templates)', () => {
     await runMigrations(db, d);
     await db.query(`INSERT INTO jobs (id, source, company, title, url, cv_summary) VALUES ('a', 's', 'c', 't', 'u', 'Kept.')`);
     await db.query(`INSERT INTO tasks (kind, job_id) VALUES ('tailored_cv', 'a')`);
-    assert.deepEqual(await runMigrations(db), ['014_cv_templates']);
+    assert.deepEqual(await runMigrations(db), ['014_cv_templates', '015_cover_letter_ai_error']);
     assert.deepEqual((await db.query('SELECT kind FROM tasks')).rows, [{ kind: 'tailored_cv' }]);
     assert.deepEqual((await db.query('SELECT cv_summary FROM jobs')).rows, [{ cv_summary: 'Kept.' }]);
+  });
+});
+
+describe('migration 015 (why the AI letter failed)', () => {
+  it('adds an empty cover_letter_ai_error to a database at 014 and keeps its letters', async () => {
+    const d = dir({});
+    for (const f of migrationFiles().filter((f) => f < '015')) writeFileSync(join(d, f), readFileSync(join(MIGRATIONS_DIR, f), 'utf8'));
+    await runMigrations(db, d);
+    await db.query(`INSERT INTO jobs (id, source, company, title, url, cover_letter) VALUES ('a', 's', 'c', 't', 'u', 'Dear c')`);
+    assert.deepEqual(await runMigrations(db), ['015_cover_letter_ai_error']);
+    assert.deepEqual((await db.query('SELECT cover_letter, cover_letter_ai_error FROM jobs')).rows, [
+      { cover_letter: 'Dear c', cover_letter_ai_error: null },
+    ]);
   });
 });
