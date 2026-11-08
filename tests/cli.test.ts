@@ -435,10 +435,13 @@ describe('CLI AI errors', () => {
       OPENAI_API_KEY: '',
     });
     assert.equal(res.code, 1);
+    // Without a .env (as in CI) Node first warns about it on stderr; the error is the last line, with no stack.
+    const lines = res.stderr.trim().split('\n');
     assert.equal(
-      res.stderr.trim(),
+      lines.at(-1),
       'DeepSeek needs an API key: set AI_API_KEY in .env (in the job-bot folder), or set ai.provider to "claude-cli"',
     );
+    assert.ok(!lines.some((l) => /^\s+at /.test(l)), res.stderr);
   });
 });
 
