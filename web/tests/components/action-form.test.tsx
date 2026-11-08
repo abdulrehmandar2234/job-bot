@@ -30,6 +30,14 @@ describe('ActionForm', () => {
     await user.click(screen.getByRole('button', { name: 'Skip' }));
     const fd = lastForm();
     expect([fd.get('id'), fd.get('status'), fd.get('reason')]).toEqual(['job:1', 'skipped', 'seniority']);
+    // onSubmit dispatches; the form's own action (there for submits before hydration) must not run a second time.
+    expect(action).toHaveBeenCalledTimes(1);
+  });
+
+  it('gives the form an action, so a submit before hydration still reaches the server action', async () => {
+    const { renderToString } = await import('react-dom/server');
+    const html = renderToString(<ActionForm action={action} fields={{ id: 'job:1' }} label="Skip" />);
+    expect(html).toMatch(/<form[^>]*\saction=/);
   });
 
   it('shows nothing extra on success', async () => {

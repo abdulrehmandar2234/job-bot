@@ -34,9 +34,9 @@ export function ActionForm({
   /** Rendered in place of the submit button, e.g. <Busy> while the matching background task runs. */
   busy?: ReactNode;
 }) {
-  const { state, pending, onSubmit } = useTextForm(action);
+  const { state, pending, onSubmit, action: formAction } = useTextForm(action);
   return (
-    <form onSubmit={onSubmit} className={className}>
+    <form action={formAction} onSubmit={onSubmit} className={className}>
       {Object.entries(fields).map(([name, value]) => (
         <input key={name} type="hidden" name={name} value={value} />
       ))}
