@@ -1,7 +1,8 @@
 import { aiFollowUp } from '../ai.ts';
 import { config } from '../config.ts';
-import { getJob, pool } from '../db.ts';
-import { addressee, daysWaiting, dueFollowUps, FOLLOW_UP_DAYS, markFollowedUp, MAX_FOLLOW_UPS, templateFollowUp } from '../followup.ts';
+import { dueFollowUps, getJob, markFollowedUp, pool } from '../db.ts';
+import { addressee, daysWaiting, FOLLOW_UP_DAYS, MAX_FOLLOW_UPS, templateFollowUp } from '../followup.ts';
+import { loadProfile } from '../profile.ts';
 import type { Contact } from '../types.ts';
 import type { Flags } from './shared.ts';
 
@@ -25,7 +26,7 @@ export async function followUp(args: string[], flags: Flags = {}) {
   if (j.status !== 'applied' && j.status !== 'interview') return console.log(`${j.id} is ${j.status}; follow-ups are for applied jobs.`);
   const { rows } = await pool.query<Contact>('SELECT * FROM contacts WHERE job_id = $1 ORDER BY created_at, id', [j.id]);
   const name = addressee(rows);
-  let text = templateFollowUp(j, name);
+  let text = templateFollowUp(j, name, loadProfile().fullName);
   if (config.ai.enabled && !flags.template) {
     try {
       text = await aiFollowUp(j, name);

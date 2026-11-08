@@ -1,4 +1,4 @@
-import type { Task, TaskKind } from '../../src/types';
+import { KEEP_FINISHED_DAYS, type Task, type TaskKind } from '../../src/types.ts';
 import { spawnBot } from './bot';
 import { pool } from './db';
 
@@ -42,8 +42,8 @@ export class CvBusyError extends Error {
   }
 }
 
-/** Done and failed tasks are deleted this long after they finished (on enqueue), as in src/tasks.ts. */
-export const KEEP_FINISHED_DAYS = 30;
+/** Done and failed tasks are deleted this long after they finished (on enqueue): the bot's rule (src/types.ts). */
+export { KEEP_FINISHED_DAYS };
 export const DEAD_WORKER_ERROR = 'The worker process exited without recording a result (see data/logs/tasks.log).';
 
 /** Whether a process exists. Signal 0 only checks: ESRCH = no such process, EPERM = it exists but is not ours. */

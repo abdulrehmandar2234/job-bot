@@ -1,16 +1,17 @@
-import { readFileSync } from 'node:fs';
+import TABLE_JSON from './currencies.json' with { type: 'json' };
 import type { SalaryCurrency, SalaryPeriod } from './types.ts';
 
 // Salary currencies, driven by country. src/currencies.json maps each country (ISO 3166-1 alpha-2) to its currency
 // (ISO 4217) and gives every currency an approximate EUR rate, the symbols and words postings write it with, and, where
 // they were tuned, plausible pay bands. Adding a country is one line under "countries"; a new currency also needs an
-// entry under "currencies". The dashboard reads the same file (web/lib/currencies.ts) for its rates and default.
+// entry under "currencies". The dashboard imports this module (web/lib/currencies.ts).
 
 export type Bands = Record<SalaryPeriod, [number, number]>;
 type Entry = { eur: number; symbols?: string[]; words?: string[]; hints?: string; textCode?: boolean; bands?: Bands };
 type Table = { countries: Record<string, SalaryCurrency>; currencies: Record<SalaryCurrency, Entry> };
 
-const TABLE: Table = JSON.parse(readFileSync(new URL('./currencies.json', import.meta.url), 'utf8'));
+// Imported, not read from disk, so a bundler (the dashboard's Turbopack) includes the table.
+const TABLE = TABLE_JSON as unknown as Table;
 
 /** Every known currency code, in table order (the first currency that writes a shared symbol is its default). */
 export const CURRENCY_CODES = Object.keys(TABLE.currencies);

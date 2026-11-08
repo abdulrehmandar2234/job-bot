@@ -1,8 +1,12 @@
 import pg from 'pg';
+import { normCompany } from './contacts.ts';
+import { FOLLOW_UP_DUE_SQL } from './followup.ts';
 import { runMigrations } from './migrate.ts';
 import type { Job, JobStatus, SkipReason } from './types.ts';
 
 export type { FormAnswer, Job, JobStatus, SkipReason } from './types.ts';
+export { SKIP_REASONS } from './types.ts';
+export { normCompany };
 
 /** Every job status, in pipeline order; the dashboard's STATUSES must match (tests/statuses.test.ts). */
 export const JOB_STATUSES = [
@@ -84,16 +88,6 @@ const SOURCE_RANK = [
   'manual',
 ];
 
-export const normCompany = (s: string) =>
-  s
-    .toLowerCase()
-    .replace(/\.(io|com|ai|co)\b/g, ' ')
-    .replace(/\b([a-z])\.(?=[a-z]\b)/g, '$1') // B.V. / N.V. -> bv / nv
-    .replace(
-      /\b(inc|llc|ltd|limited|co|corp|corporation|gmbh|bv|b v|nv|fze|fzco|fz llc|group|technologies|technology|tech|holding|holdings|operations|solutions|labs|software|systems|global|international)\b/g,
-      ' ',
-    )
-    .replace(/[^a-z0-9]/g, '');
 export const normTitle = (s: string) =>
   s
     .toLowerCase()
@@ -235,17 +229,6 @@ export async function getJob(id: string) {
   return rows[0];
 }
 
-/** Every skip reason; the dashboard's SKIP_REASONS must match (web/tests/lib/skips.test.ts). */
-export const SKIP_REASONS = [
-  'stack',
-  'seniority',
-  'salary',
-  'location',
-  'company',
-  'language',
-  'other',
-] as const satisfies readonly SkipReason[];
-
 /**
  * Changes a job's status and logs it in job_events, in one transaction. `reason` is kept only for skips. With `expectFrom`, the change only applies when the current
  * status (read under a row lock) is one of those statuses: bot steps pass the statuses they decided from, so a status
@@ -285,6 +268,44 @@ export async function setStatus(
     ]);
     await client.query('COMMIT');
     return true;
+  } catch (e) {
+    await client.query('ROLLBACK');
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
+// ---- Follow-ups (the rule itself is in followup.ts) ----
+
+/** Applied jobs due a follow-up, the longest wait first. */
+export async function dueFollowUps(): Promise<Job[]> {
+  const { rows } = await pool.query<Job>(
+    `SELECT * FROM jobs WHERE duplicate_of IS NULL AND ${FOLLOW_UP_DUE_SQL} ORDER BY coalesce(followed_up_at, applied_at)`,
+  );
+  return rows;
+}
+
+/** Records that the user sent a follow-up: counts it and logs it in the job's history. Returns the new count. */
+export async function markFollowedUp(id: string): Promise<number | null> {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { rows } = await client.query<{ follow_ups: number; status: string }>(
+      `UPDATE jobs SET follow_ups = follow_ups + 1, followed_up_at = now() WHERE id = $1 RETURNING follow_ups, status`,
+      [id],
+    );
+    if (!rows[0]) {
+      await client.query('ROLLBACK');
+      return null;
+    }
+    await client.query('INSERT INTO job_events (job_id, from_status, to_status, note) VALUES ($1, $2, $2, $3)', [
+      id,
+      rows[0].status,
+      `Follow-up ${rows[0].follow_ups} sent`,
+    ]);
+    await client.query('COMMIT');
+    return rows[0].follow_ups;
   } catch (e) {
     await client.query('ROLLBACK');
     throw e;

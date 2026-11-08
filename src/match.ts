@@ -1,4 +1,4 @@
-import { config } from './config.ts';
+import { config, type Config } from './config.ts';
 import { masterRaw } from './cv/versions.ts';
 import { loadProfile, needsVisa, remoteFrom, remoteFromCode } from './profile.ts';
 import { effectiveRemoteRules } from './regions.ts';
@@ -189,49 +189,60 @@ const SPONSOR =
 const REMOTE_DESC_DENY =
   /\b(us|u\.s\.|uk|eu)[- ]based (candidates|applicants|only)|must (be|reside|live)[^.\n]{0,30}\b(in|within) the (us|u\.s\.|united states|uk|united kingdom|eu|european union)\b|authori[sz]ed to work in the (us|united states|uk|united kingdom)|(only|exclusively) (hiring|accepting)[^.\n]{0,30}(us|united states|europe|latam|latin america)|us time ?zones? (only|required)/i;
 
+/** The settings scoring reads: passed in, or the CLI's config.json when scoreJob gets none. */
+export type MatchSettings = Pick<
+  Config,
+  'countries' | 'remote' | 'linkedin' | 'roleInclude' | 'roleExclude' | 'maxAgeDays' | 'minScore' | 'companies'
+>;
+
 /** The remote-from country for messages: "Pakistan", or "your country" when the profile does not say. */
-const fromName = () => remoteFrom(config, loadProfile()) ?? 'your country';
+const fromName = (cfg: MatchSettings) => remoteFrom(cfg, loadProfile()) ?? 'your country';
 
 /** 'RM' = remote job that can be done from the candidate's country. Returns a reason when it is limited to other regions. */
-function remoteCountry(location: string, description: string): { country: string | null; reason?: string; flag?: string } | null {
-  if (!config.remote.enabled || !/\bremote\b|anywhere|worldwide|work from home/i.test(location)) return null;
+function remoteCountry(
+  cfg: MatchSettings,
+  location: string,
+  description: string,
+): { country: string | null; reason?: string; flag?: string } | null {
+  if (!cfg.remote.enabled || !/\bremote\b|anywhere|worldwide|work from home/i.test(location)) return null;
   const region = location.replace(/\bremote\b|[—–\-(),:|/]/gi, ' ').trim();
   // "Remote — Dubai" means living in Dubai: treat as an on-site country, not as remote from the candidate's country.
   const profile = loadProfile();
-  const rules = effectiveRemoteRules(config.remote, remoteFromCode(config, profile), remoteFrom(config, profile));
+  const rules = effectiveRemoteRules(cfg.remote, remoteFromCode(cfg, profile), remoteFrom(cfg, profile));
   const allow = re(rules.allow);
   const deny = re(rules.deny);
   const flagRe = re(rules.flag);
-  for (const [code, c] of Object.entries(config.countries)) {
+  for (const [code, c] of Object.entries(cfg.countries)) {
     if (re(c.match).test(region) && !allow.test(region)) return { country: code };
   }
   if (region && !/not stated/i.test(region)) {
     if (!allow.test(region) && deny.test(region)) return { country: null, reason: `remote, but only for: ${region.slice(0, 80)}` };
-    if (!allow.test(region)) return { country: null, reason: `remote, region does not include ${fromName()}: ${region.slice(0, 80)}` };
+    if (!allow.test(region)) return { country: null, reason: `remote, region does not include ${fromName(cfg)}: ${region.slice(0, 80)}` };
   }
   const hit = description.match(REMOTE_DESC_DENY);
   if (hit) return { country: null, reason: `remote, but: "${hit[0].slice(0, 80)}"` };
-  const flag = !region || flagRe.test(region) ? `remote region "${region || 'not stated'}" — confirm ${fromName()} is OK` : undefined;
+  const flag = !region || flagRe.test(region) ? `remote region "${region || 'not stated'}" — confirm ${fromName(cfg)} is OK` : undefined;
   return { country: 'RM', flag };
 }
 
-function findCountry(location: string, description: string): string | null {
-  for (const [code, c] of Object.entries(config.countries)) {
+function findCountry(cfg: MatchSettings, location: string, description: string): string | null {
+  for (const [code, c] of Object.entries(cfg.countries)) {
     if (re(c.match).test(location)) return code;
   }
   // Remote / hybrid roles that name a target country only in the description.
   if (/remote|anywhere|emea|middle east|mena|gcc|europe/i.test(location)) {
-    for (const [code, c] of Object.entries(config.countries)) {
+    for (const [code, c] of Object.entries(cfg.countries)) {
       if (re(`(based|located|office|hub) in [^.\\n]{0,30}(${c.match})`).test(description)) return code;
     }
   }
   return null;
 }
 
-export function scoreJob(job: RawJob): Scored {
+/** Scores a posting against the settings (default: the CLI's config.json) and the candidate's profile and CV. */
+export function scoreJob(job: RawJob, cfg: MatchSettings = config): Scored {
   const text = `${job.title}\n${job.description}`;
-  const remote = remoteCountry(job.location, job.description);
-  const country = remote ? remote.country : findCountry(job.location, job.description);
+  const remote = remoteCountry(cfg, job.location, job.description);
+  const country = remote ? remote.country : findCountry(cfg, job.location, job.description);
   const flags: string[] = remote?.flag ? [remote.flag] : [];
   const out = (filterReason: string | null, extra: Partial<Scored> = {}): Scored => ({
     country,
@@ -248,13 +259,13 @@ export function scoreJob(job: RawJob): Scored {
 
   if (remote?.reason) return out(remote.reason);
   if (!country) return out(`location not in target countries (${job.location || 'unknown'})`);
-  if (!re(config.roleInclude).test(job.title)) return out('title is not an engineering role');
-  if (re(config.roleExclude).test(job.title)) return out('title excluded (other stack / non-dev / level)');
+  if (!re(cfg.roleInclude).test(job.title)) return out('title is not an engineering role');
+  if (re(cfg.roleExclude).test(job.title)) return out('title excluded (other stack / non-dev / level)');
 
   // Re-checked on every fetch, so a matching job drops out once it gets older than maxAgeDays.
   if (job.posted_at) {
     const days = Math.floor((Date.now() - new Date(job.posted_at).getTime()) / 86_400_000);
-    if (days > config.maxAgeDays) return out(`posted ${days} days ago (older than ${config.maxAgeDays} days)`);
+    if (days > cfg.maxAgeDays) return out(`posted ${days} days ago (older than ${cfg.maxAgeDays} days)`);
   } else {
     flags.push('posting date unknown');
   }
@@ -267,16 +278,16 @@ export function scoreJob(job: RawJob): Scored {
   // Remote from the candidate's country: no visa involved, so sponsorship wording doesn't matter.
   let visa: string | null = null;
   if (country === 'RM') {
-    const from = remoteFrom(config, loadProfile());
+    const from = remoteFrom(cfg, loadProfile());
     visa = from ? `Remote: work from ${from}, no visa needed` : 'Remote: no visa needed';
-    return skillScore(job, text, { country, visa, visaEvidence: 'not-needed', flags }, out);
+    return skillScore(cfg, job, text, { country, visa, visaEvidence: 'not-needed', flags }, out);
   }
 
   // A country the candidate may already work in (or lives in): no sponsorship needed.
-  const c = config.countries[country];
-  if (!needsVisa(config, country, loadProfile())) {
+  const c = cfg.countries[country];
+  if (!needsVisa(cfg, country, loadProfile())) {
     visa = `${c.name}: no visa needed`;
-    return skillScore(job, text, { country, visa, visaEvidence: 'not-needed', flags }, out);
+    return skillScore(cfg, job, text, { country, visa, visaEvidence: 'not-needed', flags }, out);
   }
 
   const noSponsor = text.match(NO_SPONSOR);
@@ -287,7 +298,7 @@ export function scoreJob(job: RawJob): Scored {
   const offered = SPONSOR.test(text);
   let onRegister: boolean | null = null;
   if (c.visa === 'ind-register') {
-    onRegister = isIndSponsor(job.company);
+    onRegister = isIndSponsor(job.company, cfg.companies);
     if (onRegister === null) flags.push('IND register not downloaded (run sponsors:update)');
     else if (!onRegister) flags.push('company name not found on IND register — verify manually');
   }
@@ -298,10 +309,11 @@ export function scoreJob(job: RawJob): Scored {
   if (c.visa === 'ind-register' && !offered && !onRegister) return out('NL job but company not on IND sponsor register', { visa });
   const visaEvidence: VisaEvidence = offered ? 'offered' : onRegister ? 'can-sponsor' : 'silent';
 
-  return skillScore(job, text, { country, visa, visaEvidence, flags }, out);
+  return skillScore(cfg, job, text, { country, visa, visaEvidence, flags }, out);
 }
 
 function skillScore(
+  cfg: MatchSettings,
   job: RawJob,
   text: string,
   { country, visa, visaEvidence, flags }: { country: string; visa: string | null; visaEvidence: VisaEvidence; flags: string[] },
@@ -338,8 +350,7 @@ function skillScore(
   }
   score = Math.max(0, Math.min(100, score));
 
-  if (score < config.minScore)
-    return out(`score ${score} below minScore ${config.minScore}`, { score, matched, missing, visa, visaEvidence });
+  if (score < cfg.minScore) return out(`score ${score} below minScore ${cfg.minScore}`, { score, matched, missing, visa, visaEvidence });
 
   return { country, score, cluster: pickCluster(text), matched, missing, visa, visaEvidence, flags, filterReason: null };
 }

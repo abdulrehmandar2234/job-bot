@@ -6,9 +6,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { daysAgo, TEST_DB } from './helpers.ts';
-import { getJob, migrate, pool } from '../src/db.ts';
+import { dueFollowUps, getJob, markFollowedUp, migrate, pool } from '../src/db.ts';
 import { path } from '../src/config.ts';
-import { addressee, daysWaiting, dueFollowUps, FOLLOW_UP_DAYS, markFollowedUp, MAX_FOLLOW_UPS, templateFollowUp } from '../src/followup.ts';
+import { addressee, daysWaiting, FOLLOW_UP_DAYS, isDue, MAX_FOLLOW_UPS, templateFollowUp } from '../src/followup.ts';
 
 // Follow-up reminders: which applied jobs are due, drafting the message (fake Claude) and recording a sent one.
 const FAKE_CLAUDE = join(import.meta.dirname, 'fixtures', 'fake-claude.mjs');
@@ -90,6 +90,20 @@ describe('which jobs are due', () => {
     assert.equal(daysWaiting({ applied_at: new Date('2026-10-01'), followed_up_at: new Date('2026-10-27T12:00:00Z') }, now), 2);
     assert.equal(daysWaiting({ applied_at: null, followed_up_at: null }, now), null);
   });
+
+  it('isDue: applied, waiting long enough since applying or the last follow-up, below the maximum', () => {
+    const now = new Date('2026-10-29T12:00:00Z');
+    const at = (iso: string) => new Date(iso);
+    const job = { status: 'applied' as const, applied_at: at('2026-10-20T12:00:00Z'), follow_ups: 0, followed_up_at: null };
+    assert.equal(isDue(job, now), true);
+    assert.equal(isDue({ ...job, applied_at: at('2026-10-23T12:00:00Z') }, now), false); // 6 days
+    assert.equal(isDue({ ...job, applied_at: at('2026-10-22T12:00:00Z') }, now), true); // exactly FOLLOW_UP_DAYS
+    assert.equal(isDue({ ...job, follow_ups: 1, followed_up_at: at('2026-10-27T12:00:00Z') }, now), false);
+    assert.equal(isDue({ ...job, follow_ups: MAX_FOLLOW_UPS, followed_up_at: at('2026-10-01T12:00:00Z') }, now), false);
+    assert.equal(isDue({ ...job, status: 'interview' }, now), false);
+    assert.equal(isDue({ ...job, applied_at: null }, now), false);
+    assert.equal(isDue({ status: 'applied', applied_at: job.applied_at }, now), true); // list rows without the counters
+  });
 });
 
 describe('drafting', () => {
@@ -114,11 +128,13 @@ describe('drafting', () => {
 
   it('the template names the role and date, and says "once more" on a second follow-up', () => {
     const job = { company: 'Acme', title: 'Laravel Developer', applied_at: new Date('2026-10-15T12:00:00Z'), follow_ups: 0 };
-    const t = templateFollowUp(job, null);
+    const t = templateFollowUp(job, null, 'Abdul Rehman Dar');
     assert.match(t, /^Dear Acme Hiring Team,\n/);
     assert.match(t, /applied for the Laravel Developer position on 15 October and wanted to follow up on my application/);
     assert.match(t, /Best regards,\nAbdul Rehman Dar\n$/);
-    assert.match(templateFollowUp({ ...job, follow_ups: 1 }, 'Rita'), /^Dear Rita,[\s\S]*follow up once more/);
+    assert.match(templateFollowUp({ ...job, follow_ups: 1 }, 'Rita', null), /^Dear Rita,[\s\S]*follow up once more/);
+    // Without a name the letter ends at "Best regards," (no empty signature line).
+    assert.match(templateFollowUp(job, null, null), /Best regards,\n$/);
   });
 
   it('follow-up <id> stores the AI draft, addressed to the recruiter, with the CV and the truthfulness rules', async () => {

@@ -409,7 +409,7 @@ src/
 web/
   app/              pages, server actions, API routes
   components/       UI and client components
-  lib/              DB queries, the CLI runner, settings and profile mirrors of the bot's logic
+  lib/              DB queries, the CLI runner, settings readers; the bot's rules are imported from src/
   proxy.ts          refuses requests whose Host is not localhost
 scripts/            launchd wrapper (daily-fetch.sh), test launcher, test-database creation, Bayt bookmarklet
 docs/               README.md (start here), install/{macos,linux,windows}.md, configuration, CV and profile, AI, daily use, troubleshooting, updating

@@ -1,6 +1,6 @@
 import { draftFollowUp, markFollowedUp } from '@/app/jobs/[id]/followup-actions';
 import type { Job } from '@/lib/db';
-import { daysWaiting, FOLLOW_UP_DAYS, type FollowUpInfo, isDue, MAX_FOLLOW_UPS } from '@/lib/followup';
+import { daysWaiting, FOLLOW_UP_DAYS, type FollowUpInfo, isDue, MAX_FOLLOW_UPS } from '../../src/followup.ts';
 import type { TaskKind } from '@/lib/tasks';
 import { ActionForm } from './action-form';
 import { CopyButton } from './client';

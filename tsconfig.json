@@ -11,6 +11,7 @@
     "allowImportingTsExtensions": true,
     "erasableSyntaxOnly": true,
     "skipLibCheck": true,
+    "resolveJsonModule": true, // src/currencies.ts imports its table, so the dashboard's bundler includes it
     "allowJs": true // tests import the extension's plain-JS helpers (types inferred, not checked)
   },
   "include": ["src/**/*.ts", "tests/**/*.ts"]
