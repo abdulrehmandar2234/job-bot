@@ -39,10 +39,10 @@ describe('listJobs everyTab (search across every status)', () => {
 });
 
 describe('pageSize', () => {
-  it('accepts only the offered sizes, else the default 25', () => {
+  it('accepts only the offered sizes, else the default 10', () => {
     expect(PAGE_SIZES).toEqual([10, 25, 50, 100]);
     expect([10, '50', '100', 25].map(pageSize)).toEqual([10, 50, 100, 25]);
-    expect([undefined, '', '7', '1000', 'abc', '-10', '25.5'].map(pageSize)).toEqual([25, 25, 25, 25, 25, 25, 25]);
+    expect([undefined, '', '7', '1000', 'abc', '-10', '25.5'].map(pageSize)).toEqual([10, 10, 10, 10, 10, 10, 10]);
   });
 });
 
@@ -74,7 +74,7 @@ describe('listJobs paging and countJobs', () => {
     expect(await listJobs(f, 4, 3)).toEqual([]);
     expect((await listJobs(f, 0, 3)).map((r) => r.id)).toEqual(p1.map((r) => r.id)); // bad page numbers mean page 1
     expect(await countJobs({ ...f, q: 'nothing-matches-this' })).toBe(0);
-    expect(PAGE_SIZE).toBe(25);
+    expect(PAGE_SIZE).toBe(10);
     expect(await listJobs(f)).toHaveLength(7); // default page size
   });
 });

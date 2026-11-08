@@ -70,7 +70,8 @@ describe('scoreJob: title, age and language', () => {
   });
 
   it('filters excluded stacks and roles', () => {
-    for (const title of ['Senior Java Developer', 'React Native Engineer', 'Software Engineering Intern', 'WordPress Developer']) {
+    const titles = ['Senior Java Developer', 'React Native Engineer', 'Software Engineering Intern', 'WordPress Developer'];
+    for (const title of [...titles, 'SQA Engineer - Automation (Remote - Night Shift | Pakistan)', 'QA Engineer', 'Senior SQA Engineer']) {
       assert.match(scoreJob(raw({ title })).filterReason!, /title excluded/, title);
     }
   });

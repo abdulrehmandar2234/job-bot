@@ -89,7 +89,7 @@ export type JobFilter = {
 }; // minSalary: euros per year
 
 /** Jobs per page on the dashboard list: the default, and the choices offered (`?size=`). */
-export const PAGE_SIZE = 25;
+export const PAGE_SIZE = 10;
 export const PAGE_SIZES = [10, 25, 50, 100] as const;
 
 /** A `?size=` value if it is one of PAGE_SIZES, else the default. */

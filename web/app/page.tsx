@@ -34,6 +34,7 @@ import { VisaBadge } from '@/components/visa';
 import { ago, AiReview, Chips, fmtDate, Posted, PostedOn, Score, STATUS_LABEL } from '@/components/ui';
 import { FirstRunBanner, MarketHeader } from '@/components/profile-banner';
 import { readCountryLabels } from '@/lib/profile';
+import { DEFAULT_DAYS, postedDays } from '@/lib/filter-memory';
 
 export default function Page(props: PageProps<'/'>) {
   return (
@@ -105,7 +106,8 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<'/'>['searc
   const q = one('q');
   // A search looks in every tab (each card says which), unless "only in this tab" was chosen (in=tab).
   const onlyTab = one('in') === 'tab';
-  const days = Number(one('days')) || undefined;
+  // Absent: the last 24 hours (DEFAULT_DAYS); 0 is "any time". proxy.ts keeps the chosen filters across visits.
+  const days = postedDays(Array.isArray(sp.days) ? sp.days[0] : sp.days);
   const sort = one('sort') === 'newest' ? 'newest' : 'score';
   const visaOnly = one('visa') === '1';
   const salary = salaryParams(one, defaultCurrency());
@@ -114,7 +116,10 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<'/'>['searc
   const page = Math.max(1, Math.floor(Number(one('page'))) || 1);
   const size = pageSize(one('size'));
   const everyTab = Boolean(q) && !followUp && !onlyTab;
-  const filter = { status, country, min, q, days, sort, followUp, visaOnly, everyTab, ...salary.filter } as const;
+  // "Posted within" narrows the Matching tab only: in the pipeline tabs (Applied, Interview, ...) and a search across
+  // every tab, a job's age is not a reason to hide it.
+  const postedFilter = status === 'new' && !followUp && !everyTab ? days : undefined;
+  const filter = { status, country, min, q, days: postedFilter, sort, followUp, visaOnly, everyTab, ...salary.filter } as const;
 
   const [jobs, total, counts, run, week, tasks, dueCount] = await Promise.all([
     listJobs(filter, page, size),
@@ -136,7 +141,7 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<'/'>['searc
       ...(min && { min: String(min) }),
       ...(q && { q }),
       ...(q && (scope === 'tab' || onlyTab) && { in: 'tab' }),
-      ...(days && { days: String(days) }),
+      ...(days !== DEFAULT_DAYS && { days: String(days ?? 0) }),
       ...(sort === 'newest' && { sort }),
       ...(visaOnly && { visa: '1' }),
       ...salary.query,
@@ -252,8 +257,14 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<'/'>['searc
                 </option>
               ))}
             </AutoSelect>
-            <AutoSelect name="days" defaultValue={days ?? ''} aria-label="Posted within" className="input h-9">
-              <option value="">Posted: any time</option>
+            <AutoSelect
+              name="days"
+              defaultValue={days ?? 0}
+              aria-label="Posted within"
+              title="Applies to the Matching tab"
+              className="input h-9"
+            >
+              <option value="0">Posted: any time</option>
               <option value="1">Last 24 hours</option>
               <option value="3">Last 3 days</option>
               <option value="7">Last 7 days</option>
