@@ -127,13 +127,37 @@ describe('stale-check throttle', () => {
     expect(expires()).toBe(1); // within the window: one DB pass, no extra round-trips per poll
     await enqueueTask('letter', id);
     expect(expires()).toBe(2); // enqueueing never skips it (a dead same-kind worker must fail first)
-    const later = Date.now() + EXPIRE_EVERY_MS + 1;
-    const now = vi.spyOn(Date, 'now').mockReturnValue(later);
+    const later = performance.now() + EXPIRE_EVERY_MS + 1;
+    const now = vi.spyOn(performance, 'now').mockReturnValue(later);
     try {
       await openTasks(id);
       expect(expires()).toBe(3); // the window passed: a stale task still fails eventually
     } finally {
       now.mockRestore();
+      spy.mockRestore();
+    }
+  });
+
+  it('never reads the wall clock: Next refuses Date.now() while it prerenders a page that lists tasks', async () => {
+    const clock = vi.spyOn(Date, 'now').mockImplementation(() => {
+      throw new Error('Date.now() during prerender');
+    });
+    try {
+      await expect(openTasks(id)).resolves.toEqual([]);
+      await expect(openTasks(id)).resolves.toEqual([]); // the throttled path too
+    } finally {
+      clock.mockRestore();
+    }
+  });
+
+  it('runs the stale check on the first look, however young the process is', async () => {
+    const spy = vi.spyOn(pool, 'query');
+    const young = vi.spyOn(performance, 'now').mockReturnValue(5); // 5 ms after start, inside one window from 0
+    try {
+      await openTasks(id);
+      expect(spy.mock.calls.some(([sql]) => String(sql).includes('expire_stale_tasks'))).toBe(true);
+    } finally {
+      young.mockRestore();
       spy.mockRestore();
     }
   });

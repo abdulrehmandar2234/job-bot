@@ -75,17 +75,20 @@ export async function failDeadWorkers(): Promise<number> {
 /** How often openTasks runs the stale check at most: every page render and every TaskWatcher poll (each ~3s, per
  * tab) calls it, and a task going stale a few seconds later is fine. Enqueueing always runs it (`force`). */
 export const EXPIRE_EVERY_MS = 10_000;
-let lastExpire = 0;
+// Timed with performance.now(), not Date.now(): pages that list tasks are prerendered, and Next refuses a wall-clock
+// read there. It counts from process start, so "never ran" is -Infinity, not 0.
+let lastExpire = Number.NEGATIVE_INFINITY;
 
 /** For tests: forget the last stale check, so the next openTasks runs one. */
 export function resetExpireThrottle() {
-  lastExpire = 0;
+  lastExpire = Number.NEGATIVE_INFINITY;
 }
 
 /** Fails tasks whose worker died: a dead pid, or past the deadline (expire_stale_tasks() in the migration). */
 async function expireStale(force = false) {
-  if (!force && Date.now() - lastExpire < EXPIRE_EVERY_MS) return;
-  lastExpire = Date.now();
+  const now = performance.now();
+  if (!force && now - lastExpire < EXPIRE_EVERY_MS) return;
+  lastExpire = now;
   await failDeadWorkers();
   await pool.query('SELECT expire_stale_tasks()');
 }
