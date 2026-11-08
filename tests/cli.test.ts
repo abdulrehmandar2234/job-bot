@@ -178,10 +178,12 @@ describe('CLI', () => {
       assert.match(out, /AI cover letter failed, using template/);
       assert.match((await getJob(id)).cover_letter!, /^Dear Testco Cli Hiring Team,/);
       assert.equal((await getJob(id)).cover_letter_ai, false);
+      assert.match((await getJob(id)).cover_letter_ai_error!, /offline/, 'the job page says why the AI did not write it');
       assert.match(await bot(['letter', 'nope']), /Not found/);
 
       const both = await bot(['prepare', id, '--letter', '--template']);
       assert.match(both, /CV version : default[\s\S]*Cover {6}: \S+\/cover-letter\.txt \(template\)/);
+      assert.equal((await getJob(id)).cover_letter_ai_error, null, 'a template asked for is no AI failure');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -418,6 +420,27 @@ const botExit = (args: string[], env: Record<string, string> = {}) =>
     (stdout) => ({ code: 0, stdout, stderr: '' }),
     (e: { code: number; stdout: string; stderr: string }) => ({ code: e.code, stdout: e.stdout, stderr: e.stderr }),
   );
+
+describe('CLI AI errors', () => {
+  it('prints an AI setup problem as one line, with no stack trace, and exits 1', async () => {
+    const d = mkdtempSync(join(tmp, 'ai-err-'));
+    const config = join(d, 'config.json');
+    const cfg = JSON.parse(readFileSync(path('config.default.json'), 'utf8'));
+    writeFileSync(config, JSON.stringify({ ...cfg, ai: { ...cfg.ai, enabled: true, provider: 'api', api: { preset: 'deepseek' } } }));
+    const id = idOf(await bot(['add', '--file', addFile([posting()])]));
+    const res = await botExit(['answer', id, '--file', addFile([])], {
+      JOB_BOT_CONFIG: config,
+      AI_API_KEY: '',
+      DEEPSEEK_API_KEY: '',
+      OPENAI_API_KEY: '',
+    });
+    assert.equal(res.code, 1);
+    assert.equal(
+      res.stderr.trim(),
+      'DeepSeek needs an API key: set AI_API_KEY in .env (in the job-bot folder), or set ai.provider to "claude-cli"',
+    );
+  });
+});
 
 describe('CLI settings', () => {
   // Never the worktree's own config.json / cv/applicant.json: JOB_BOT_CONFIG / JOB_BOT_APPLICANT point at temp copies.

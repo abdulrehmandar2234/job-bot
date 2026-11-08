@@ -50,6 +50,7 @@ export type Job = {
   cover_letter: string | null;
   cover_letter_ai: boolean;
   cover_letter_edited_at: Date | null; // the user edited the letter by hand on the job page
+  cover_letter_ai_error: string | null; // why the AI failed, when the letter is the template instead
   cv_summary: string | null; // the CV summary the AI wrote for this job (`bot summary`)
   cv_summary_at: Date | null;
   cv_summary_edited_at: Date | null; // the user edited the summary by hand on the job page

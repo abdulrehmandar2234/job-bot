@@ -15,6 +15,45 @@ import { HttpError, postJson } from './sources/http.ts';
 //   "openai" / "deepseek" (and OPENAI_API_KEY / DEEPSEEK_API_KEY) are the older names, still read.
 
 export type AiKind = 'score' | 'letter';
+
+/**
+ * An AI call that failed for a reason the user can fix (a rejected key, no credit, no key, a bad setting). The CLI
+ * prints only its message, never a stack trace, so the dashboard shows that message as the task's error.
+ */
+export class AiError extends Error {
+  override name = 'AiError';
+}
+
+/** Where each provider's keys and credit are managed, for the messages of a rejected key (401/403) or no credit (402). */
+export const ACCOUNT_PAGES: Partial<Record<ApiPreset, { keys: string; billing?: string }>> = {
+  openai: { keys: 'https://platform.openai.com/api-keys', billing: 'https://platform.openai.com/settings/organization/billing' },
+  deepseek: { keys: 'https://platform.deepseek.com/api_keys', billing: 'https://platform.deepseek.com/top_up' },
+  anthropic: { keys: 'https://console.anthropic.com/settings/keys', billing: 'https://console.anthropic.com/settings/billing' },
+  gemini: { keys: 'https://aistudio.google.com/apikey' },
+  groq: { keys: 'https://console.groq.com/keys' },
+  openrouter: { keys: 'https://openrouter.ai/settings/keys', billing: 'https://openrouter.ai/settings/credits' },
+  mistral: { keys: 'https://console.mistral.ai/api-keys' },
+  together: { keys: 'https://api.together.ai/settings/api-keys' },
+};
+
+/** What to do about a key the provider rejected: where to get a new one and how to paste it. */
+export function keyRejected(t: Pick<ApiTarget, 'preset' | 'name' | 'keyEnv'>, status: number, detail = ''): string {
+  const page = ACCOUNT_PAGES[t.preset]?.keys;
+  return (
+    `${t.name} rejected the API key (${t.keyEnv}): ${status}${detail ? ` ${detail}` : ''}. ` +
+    `Make a new key${page ? ` at ${page}` : ''} and put it in .env in the job-bot folder as ${t.keyEnv}=<the key>: ` +
+    'only the key, with no quotes, spaces or notes. Then restart the dashboard.'
+  );
+}
+
+/** What to do when the provider's account has no credit left (402). */
+export function noCredit(t: Pick<ApiTarget, 'preset' | 'name'>): string {
+  const page = ACCOUNT_PAGES[t.preset]?.billing;
+  return (
+    `${t.name} says the account has no credit left (402). Add credit${page ? ` at ${page}` : ' in your account'}, ` +
+    'or choose another AI on the Settings page.'
+  );
+}
 export type ProviderMode = 'claude-cli' | 'api';
 
 /** Every call, whichever provider: the same budget as the CLI path has always had. */
@@ -65,7 +104,7 @@ export function resolveApi(ai: AiSettings = config.ai, env: Env = process.env): 
   // An explicit preset or a base URL always wins over what the key looks like.
   const preset: ApiPreset | null = explicit ?? (baseOverride ? 'custom' : detected);
   if (!preset) {
-    throw new Error(
+    throw new AiError(
       key
         ? `${AI_KEY_ENV} does not look like a key of a known provider: set ai.api.preset in config.json (or ${AI_BASE_URL_ENV} in .env)`
         : `No AI API key: set ${AI_KEY_ENV} in .env (in the job-bot folder), or set ai.provider to "claude-cli" in config.json`,
@@ -77,10 +116,10 @@ export function resolveApi(ai: AiSettings = config.ai, env: Env = process.env): 
   const scoreModel = cfg.scoreModel || old.scoreModel || p.scoreModel || fallback.scoreModel;
   const letterModel = cfg.letterModel || old.letterModel || p.letterModel || fallback.letterModel;
   const base = (baseOverride || p.baseUrl).replace(/\/+$/, '');
-  if (!base) throw new Error(`${p.name} needs a base URL: set ${AI_BASE_URL_ENV} in .env or ai.api.baseUrl in config.json`);
-  if (!scoreModel || !letterModel) throw new Error(`${p.name} needs models: set ai.api.scoreModel and ai.api.letterModel in config.json`);
+  if (!base) throw new AiError(`${p.name} needs a base URL: set ${AI_BASE_URL_ENV} in .env or ai.api.baseUrl in config.json`);
+  if (!scoreModel || !letterModel) throw new AiError(`${p.name} needs models: set ai.api.scoreModel and ai.api.letterModel in config.json`);
   if (p.needsKey && !key) {
-    throw new Error(`${p.name} needs an API key: set ${AI_KEY_ENV} in .env (in the job-bot folder), or set ai.provider to "claude-cli"`);
+    throw new AiError(`${p.name} needs an API key: set ${AI_KEY_ENV} in .env (in the job-bot folder), or set ai.provider to "claude-cli"`);
   }
   return {
     preset,
@@ -271,17 +310,20 @@ export async function askApi<T>(req: ApiRequest, ai: AiSettings = config.ai, env
       reply = await postJson<ChatReply>(t.url, body, { headers, attempts: 3, timeoutMs: AI_TIMEOUT_MS });
     } catch (e) {
       if (e instanceof HttpError && (e.status === 401 || e.status === 403)) {
-        throw new Error(`${t.name} rejected the API key (${t.keyEnv}): ${e.status}`);
+        // The provider's own words help ("api key is invalid", "no access to this model"), redacted like the rest.
+        const said = apiMessage(e.body).trim();
+        throw new AiError(redact(keyRejected(t, e.status, said ? `(${said})` : ''), t.key));
       }
+      if (e instanceof HttpError && e.status === 402) throw new AiError(noCredit(t));
       const detail = e instanceof HttpError ? `${e.status} ${apiMessage(e.body)}` : (e as Error).message;
-      throw new Error(redact(`${t.name} request failed: ${detail}`, t.key));
+      throw new AiError(redact(`${t.name} request failed: ${detail}`, t.key));
     }
     try {
       return parseReply<T>(reply, req.schema);
     } catch (e) {
-      if (!(e instanceof BadReply)) throw new Error(redact(`${t.name}: ${(e as Error).message}`, t.key));
+      if (!(e instanceof BadReply)) throw new AiError(redact(`${t.name}: ${(e as Error).message}`, t.key));
       last = e.message;
     }
   }
-  throw new Error(redact(`${t.name} gave no usable answer after 2 tries: ${last}`, t.key));
+  throw new AiError(redact(`${t.name} gave no usable answer after 2 tries: ${last}`, t.key));
 }

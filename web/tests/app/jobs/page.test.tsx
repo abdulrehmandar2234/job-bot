@@ -426,6 +426,26 @@ describe('job page', () => {
       expect(within(letterSection()).queryByRole('button', { name: 'Rewrite with feedback' })).toBeNull();
     });
 
+    it("says why a template letter is not the AI's when the AI failed, and not once the letter is edited", async () => {
+      const why = 'DeepSeek rejected the API key (AI_API_KEY): 401.';
+      await insertJob({ id, cover_letter: 'Dear Acme', cover_letter_ai: false, cover_letter_ai_error: why });
+      await renderJob(id);
+      expect(within(letterSection()).getByRole('note')).toHaveTextContent(
+        `The AI could not write this letter, so this is the template letter. ${why}`,
+      );
+      await cleanupDb();
+      document.body.innerHTML = '';
+      await insertJob({
+        id,
+        cover_letter: 'Dear Acme, mine',
+        cover_letter_ai: false,
+        cover_letter_ai_error: why,
+        cover_letter_edited_at: new Date(),
+      });
+      await renderJob(id);
+      expect(within(letterSection()).queryByRole('note')).toBeNull();
+    });
+
     it('hides Edit and feedback while the letter is rewritten', async () => {
       await insertJob({ id, cover_letter: 'Dear Acme', cover_letter_ai: true });
       await addTask('letter');
