@@ -27,7 +27,7 @@ export function expectedFailure(e: unknown): string | null {
  * Runs a one-click action body and turns expected failures into a form state for the button's form.
  * The body returns its own state (a refusal) or nothing; success with nothing to say is null.
  */
-export async function guarded(work: () => Promise<TextFormState | undefined>): Promise<TextFormState> {
+export async function guarded(work: (() => Promise<TextFormState | undefined>) | (() => Promise<void>)): Promise<TextFormState> {
   try {
     return (await work()) ?? null;
   } catch (e) {

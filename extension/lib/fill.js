@@ -175,6 +175,8 @@ export function planFill(fields, data, usedAnswers = new Set()) {
  * the used-answer bookkeeping, so a drafted answer goes into one field across all frames, not once per frame.
  * Profile values are not single-use: a form split over frames may legitimately ask for the email twice.
  * Returns one { fills, skipped } plan per frame, in the same order.
+ * @param {ReadonlyArray<object[] | null>} frames one describeFields() result per frame (null: frame not readable)
+ * @param {object} data what the side panel prepared ({ profile, cover_letter, answers, cv })
  */
 export function planFrameFills(frames, data) {
   const used = new Set();

@@ -12,7 +12,7 @@ import {
   weeklyActivity,
   type Funnel,
 } from '@/lib/analytics';
-import { cleanupDb, closeDb, daysAgo, ensureSchema, insertFetchRun, insertJob, PREFIX } from '../helpers/db';
+import { cleanupDb, closeDb, dateDaysAgo, ensureSchema, insertFetchRun, insertJob, PREFIX } from '../helpers/db';
 
 beforeAll(ensureSchema);
 beforeEach(cleanupDb);
@@ -27,7 +27,7 @@ async function history(jobId: string, ...events: [string | null, string, number]
       jobId,
       from,
       to,
-      daysAgo(days),
+      dateDaysAgo(days),
     ]);
   }
 }
@@ -41,11 +41,11 @@ describe('funnel', () => {
     // Interviewed, then rejected: still counts as applied and interviewed.
     const rejected = await insertJob({ id: 'rejected', status: 'rejected' });
     await history(rejected, ['new', 'applied', 9], ['applied', 'interview', 5], ['interview', 'rejected', 1]);
-    const offer = await insertJob({ id: 'offer', status: 'offer', applied_at: daysAgo(20) });
+    const offer = await insertJob({ id: 'offer', status: 'offer', applied_at: dateDaysAgo(20) });
     await insertJob({ id: 'offer-copy', status: 'offer', source: 'linkedin', duplicate_of: offer });
     await insertJob({ id: 'skipped', status: 'skipped' });
     // Applied without any history row (e.g. set before job_events existed).
-    await insertJob({ id: 'applied', status: 'applied', applied_at: daysAgo(2) });
+    await insertJob({ id: 'applied', status: 'applied', applied_at: dateDaysAgo(2) });
 
     const after = await funnel();
     const delta = Object.fromEntries(Object.keys(after).map((k) => [k, after[k as keyof Funnel] - before[k as keyof Funnel]]));
@@ -65,7 +65,7 @@ describe('responseRates', () => {
         id: `big-${i}`,
         source: 'webtest-big',
         status: i === 0 ? 'interview' : 'applied',
-        applied_at: daysAgo(10),
+        applied_at: dateDaysAgo(10),
       });
       // Rejected after an interview is still a reply.
       if (i === 1) {
@@ -74,9 +74,9 @@ describe('responseRates', () => {
       }
     }
     await insertJob({ id: 'big-not-applied', source: 'webtest-big', status: 'prepared' });
-    const small = await insertJob({ id: 'small-1', source: 'webtest-small', status: 'offer', applied_at: daysAgo(30) });
-    await insertJob({ id: 'small-copy', source: 'webtest-small', status: 'offer', applied_at: daysAgo(30), duplicate_of: small });
-    await insertJob({ id: 'small-2', source: 'webtest-small', status: 'rejected', applied_at: daysAgo(30) });
+    const small = await insertJob({ id: 'small-1', source: 'webtest-small', status: 'offer', applied_at: dateDaysAgo(30) });
+    await insertJob({ id: 'small-copy', source: 'webtest-small', status: 'offer', applied_at: dateDaysAgo(30), duplicate_of: small });
+    await insertJob({ id: 'small-2', source: 'webtest-small', status: 'rejected', applied_at: dateDaysAgo(30) });
 
     const rows = (await responseRates('source')).filter((r) => r.key?.startsWith('webtest-'));
     expect(rows).toEqual([
@@ -94,13 +94,13 @@ describe('responseRates', () => {
       cv_version: 'webtest-cv',
       ai_verdict: 'webtest-verdict',
       status: 'interview',
-      applied_at: daysAgo(3),
+      applied_at: dateDaysAgo(3),
     });
     expect((await responseRates('country')).find((r) => r.key === 'XT')).toMatchObject({ n: 1, responded: 1, small: true });
     expect((await responseRates('cv_version')).find((r) => r.key === 'webtest-cv')).toMatchObject({ n: 1, responded: 1 });
     expect((await responseRates('ai_verdict')).find((r) => r.key === 'webtest-verdict')).toMatchObject({ n: 1 });
 
-    await insertJob({ id: 'no-cv', status: 'applied', applied_at: daysAgo(3) });
+    await insertJob({ id: 'no-cv', status: 'applied', applied_at: dateDaysAgo(3) });
     expect((await responseRates('cv_version')).find((r) => r.key === null)!.n).toBeGreaterThanOrEqual(1);
   });
 
@@ -127,12 +127,12 @@ describe('weeklyActivity', () => {
     const now = await insertJob({ id: 'w-now', status: 'applied', applied_at: new Date() });
     await history(now, ['prepared', 'applied', 0]);
     // applied_at was reset by a later status change; the history keeps the real date (3 weeks ago).
-    const old = await insertJob({ id: 'w-old', status: 'applied', applied_at: new Date(), first_seen_at: daysAgo(30) });
+    const old = await insertJob({ id: 'w-old', status: 'applied', applied_at: new Date(), first_seen_at: dateDaysAgo(30) });
     await history(old, ['new', 'applied', 21], ['interview', 'applied', 0]);
     await insertJob({ id: 'w-match', status: 'new' });
     await insertJob({ id: 'w-filtered', status: 'filtered' });
     await insertJob({ id: 'w-copy', status: 'new', duplicate_of: now });
-    await insertJob({ id: 'w-ancient', status: 'applied', applied_at: daysAgo(200), first_seen_at: daysAgo(200) });
+    await insertJob({ id: 'w-ancient', status: 'applied', applied_at: dateDaysAgo(200), first_seen_at: dateDaysAgo(200) });
 
     const after = await weeklyActivity();
     const delta = after.map((w, i) => ({ applied: w.applied - before[i].applied, matches: w.matches - before[i].matches }));
@@ -147,11 +147,11 @@ describe('responseDays and median', () => {
   it('measures applied to the first interview or rejection after it', async () => {
     const a = await insertJob({ id: 'r-interview', status: 'interview' });
     await history(a, ['new', 'applied', 10], ['applied', 'interview', 4], ['interview', 'rejected', 1]);
-    const b = await insertJob({ id: 'r-rejected', status: 'rejected', applied_at: daysAgo(5) });
+    const b = await insertJob({ id: 'r-rejected', status: 'rejected', applied_at: dateDaysAgo(5) });
     await history(b, ['applied', 'rejected', 3]);
-    const c = await insertJob({ id: 'r-waiting', status: 'applied', applied_at: daysAgo(5) });
+    const c = await insertJob({ id: 'r-waiting', status: 'applied', applied_at: dateDaysAgo(5) });
     await history(c, ['new', 'rejected', 8]); // before applying: not a reply
-    const copy = await insertJob({ id: 'r-copy', status: 'rejected', applied_at: daysAgo(5), duplicate_of: a });
+    const copy = await insertJob({ id: 'r-copy', status: 'rejected', applied_at: dateDaysAgo(5), duplicate_of: a });
     await history(copy, ['applied', 'rejected', 1]);
 
     const days = Object.fromEntries((await responseDays()).filter((r) => r.id.startsWith(PREFIX)).map((r) => [r.id, r.days]));

@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import * as bot from '../../../src/followup';
 import { followUpCount, listJobs } from '@/lib/db';
 import { daysWaiting, FOLLOW_UP_DAYS, FOLLOW_UP_DUE_SQL, isDue, MAX_FOLLOW_UPS } from '@/lib/followup';
-import { cleanupDb, closeDb, daysAgo, ensureSchema, insertJob, ours, PREFIX } from '../helpers/db';
+import { cleanupDb, closeDb, dateDaysAgo, ensureSchema, insertJob, ours, PREFIX } from '../helpers/db';
 
 beforeAll(ensureSchema);
 beforeEach(cleanupDb);
@@ -32,11 +32,11 @@ describe('follow-up rule', () => {
 describe('listJobs({ followUp }) and followUpCount', () => {
   it('lists only due applied jobs, the longest wait first, and counts them', async () => {
     const before = await followUpCount();
-    await insertJob({ id: 'fu-a', status: 'applied', applied_at: daysAgo(8) });
-    await insertJob({ id: 'fu-b', status: 'applied', applied_at: daysAgo(20) });
-    await insertJob({ id: 'fu-recent', status: 'applied', applied_at: daysAgo(2) });
-    await insertJob({ id: 'fu-max', status: 'applied', applied_at: daysAgo(30), follow_ups: 2, followed_up_at: daysAgo(10) });
-    await insertJob({ id: 'fu-interview', status: 'interview', applied_at: daysAgo(30) });
+    await insertJob({ id: 'fu-a', status: 'applied', applied_at: dateDaysAgo(8) });
+    await insertJob({ id: 'fu-b', status: 'applied', applied_at: dateDaysAgo(20) });
+    await insertJob({ id: 'fu-recent', status: 'applied', applied_at: dateDaysAgo(2) });
+    await insertJob({ id: 'fu-max', status: 'applied', applied_at: dateDaysAgo(30), follow_ups: 2, followed_up_at: dateDaysAgo(10) });
+    await insertJob({ id: 'fu-interview', status: 'interview', applied_at: dateDaysAgo(30) });
     const rows = await listJobs({ status: 'applied', followUp: true });
     expect(ours(rows)).toEqual([PREFIX + 'fu-b', PREFIX + 'fu-a']);
     expect(rows.find((r) => r.id === PREFIX + 'fu-a')).toMatchObject({ follow_ups: 0, followed_up_at: null });
