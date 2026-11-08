@@ -173,12 +173,17 @@ describe('settings files', () => {
       assert.equal(configFile(), path('config.json'));
       assert.equal(applicantFile(), path('cv', 'applicant.json'));
       assert.equal(masterFile(), path('cv', 'master.json'));
+      // Another root (the dashboard passes where it finds the bot) moves the defaults, not the overrides.
+      assert.equal(configFile(dir), join(dir, 'config.json'));
+      assert.equal(applicantFile(dir), join(dir, 'cv', 'applicant.json'));
+      assert.equal(masterFile(dir), join(dir, 'cv', 'master.json'));
       process.env.JOB_BOT_CONFIG = join(dir, 'c.json');
       process.env.JOB_BOT_APPLICANT = join(dir, 'a.json');
       process.env.JOB_BOT_MASTER = join(dir, 'm.json');
       assert.equal(configFile(), join(dir, 'c.json'));
       assert.equal(applicantFile(), join(dir, 'a.json'));
       assert.equal(masterFile(), join(dir, 'm.json'));
+      assert.equal(configFile(tmpdir()), join(dir, 'c.json'));
     } finally {
       for (const [k, v] of [
         ['JOB_BOT_CONFIG', saved.c],

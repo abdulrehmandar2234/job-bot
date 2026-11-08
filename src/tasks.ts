@@ -1,5 +1,5 @@
 import { pool } from './db.ts';
-import type { Task, TaskKind } from './types.ts';
+import { CV_VERSION, FEEDBACK_CAP, KEEP_FINISHED_DAYS, type Task, type TaskKind } from './types.ts';
 import { isTemplate } from './cv/templates/index.ts';
 import { parseSkills } from './cv/confirm-skills.ts';
 
@@ -32,16 +32,12 @@ export const TASK_TIMEOUT_MS: Record<TaskKind, number> = {
 };
 /** Extra time before a running task counts as stale, so the worker can record its own timeout first. */
 export const DEADLINE_GRACE_MS = 60_000;
+export { FEEDBACK_CAP, KEEP_FINISHED_DAYS };
 export const OUTPUT_CAP = 8000;
 export const QUESTIONS_CAP = 8000;
-export const CV_VERSION = /^[a-z0-9][a-z0-9-]*$/;
-/** Longest feedback for rewriting a letter, summary or CV ("What should change?" on the job page). */
-export const FEEDBACK_CAP = 1000;
 
 export const tail = (s: string, n = OUTPUT_CAP) => (s.length > n ? '…' + s.slice(-n) : s);
 
-/** Done and failed tasks are deleted this long after they finished (on enqueue). */
-export const KEEP_FINISHED_DAYS = 30;
 export const DEAD_WORKER_ERROR = 'The worker process exited without recording a result (see data/logs/tasks.log).';
 
 /** Whether a process exists. Signal 0 only checks: ESRCH = no such process, EPERM = it exists but is not ours. */

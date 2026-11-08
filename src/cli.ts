@@ -1,3 +1,4 @@
+import { loadConfig } from './config.ts';
 import { ensureConfigFile, InvalidSettingsError } from './settings.ts';
 import type { Command, Flags } from './commands/shared.ts';
 
@@ -14,7 +15,7 @@ for (let i = 0; i < rest.length; i++) {
 }
 
 // Each command lives in src/commands/ and is loaded only when it runs, so a command never pays for (or breaks on)
-// another one's imports. Loading one validates config.json when it needs it (see settings.ts).
+// another one's imports.
 const commands: Record<string, () => Promise<Command>> = {
   'sponsors:update': async () => (await import('./commands/sponsors.ts')).sponsorsUpdate,
   fetch: async () => (await import('./commands/fetch.ts')).fetch,
@@ -61,6 +62,21 @@ const commands: Record<string, () => Promise<Command>> = {
 };
 // Commands that only touch files: no database connection or migrations.
 const NO_DB = ['settings:check', 'settings:save', 'setup', 'backup', 'daily', 'schedule:print', 'cv:templates', 'cv:preview'];
+// Commands that run without reading config.json, so they still work while it is broken (settings:save fixes it).
+// Every other command validates it before it starts: a typo stops it with the file and field, before any work.
+const NO_CONFIG = [
+  'settings:check',
+  'settings:save',
+  'setup',
+  'backup',
+  'daily',
+  'schedule:print',
+  'dedupe',
+  'migrate',
+  'mark',
+  'contacts',
+  'contact:add',
+];
 
 // A fresh clone has config.default.json only: every command (setup and settings:check too) starts from a copy.
 ensureConfigFile();
@@ -122,6 +138,7 @@ if (!load) {
   backup                          pg_dump of the database into data/backups/<db>-YYYY-MM-DD.sql.gz (keeps 14)`);
 } else {
   try {
+    if (!NO_CONFIG.includes(cmd)) loadConfig();
     const run = await load();
     if (NO_DB.includes(cmd)) await run(args, flags);
     else {
@@ -141,7 +158,9 @@ if (!load) {
       }
     }
   } catch (e) {
-    if (!(e instanceof InvalidSettingsError)) throw e;
+    // A setting or AI problem the user can fix: its message is the whole story, a stack trace would only bury it.
+    // AiError (src/ai-providers.ts) is matched by name: importing that module here would load config.json first.
+    if (!(e instanceof InvalidSettingsError || (e instanceof Error && e.name === 'AiError'))) throw e;
     console.error(e.message);
     process.exitCode = 1;
   }

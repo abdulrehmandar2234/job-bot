@@ -1,6 +1,9 @@
-// Target markets and profile completeness for the dashboard, from config.json and cv/applicant.json. Pure: the files
-// are read by lib/profile.ts. The profile rules mirror the bot's src/profile.ts (web/tests/lib/market.test.ts checks
-// they agree), because the dashboard only imports types from the bot.
+import { buildProfile, profileGaps as gapsOf, remoteFrom, REQUIRED_PROFILE, type MasterContact } from '../../src/profile.ts';
+import type { Config } from '../../src/settings.ts';
+
+// Target markets and profile completeness for the dashboard, from config.json and cv/applicant.json. The files are
+// read by lib/profile.ts; the rules are the bot's own (src/profile.ts). The files here are unvalidated JSON, which
+// the bot's rules accept: they only read text fields.
 
 export type MarketCountry = { code: string; name: string; label: string; needsVisa: boolean };
 export type Market = { countries: MarketCountry[]; remote: boolean; remoteFrom: string | null };
@@ -27,7 +30,7 @@ export function market(config: Json | null, applicant: Json | null): Market {
       return { code, name, label: str(o.label) ?? name, needsVisa: o.needsVisa !== false };
     }),
     remote: remote.enabled !== false && !!config,
-    remoteFrom: str(remote.from) ?? str(linkedin.remoteFrom) ?? str(applicant?.country),
+    remoteFrom: remoteFrom({ remote, linkedin } as unknown as Pick<Config, 'remote' | 'linkedin'>, buildProfile(applicant ?? {})),
   };
 }
 
@@ -56,37 +59,13 @@ export function marketLine(m: Market): string {
   return line || 'No target countries yet: add them in Settings';
 }
 
-// ---- Profile completeness (same rules as src/profile.ts buildProfile + profileGaps) ----
+// ---- Profile completeness (src/profile.ts buildProfile + profileGaps) ----
 
-export const REQUIRED_PROFILE = ['fullName', 'email', 'location', 'countryCode', 'languages'] as const;
+export { REQUIRED_PROFILE, type MasterContact };
 export type ProfileField = (typeof REQUIRED_PROFILE)[number];
 
-export type MasterContact = { name?: string; contact?: { email?: string; location?: string } };
-
-/** "English, Urdu and Arabic" -> ["English", "Urdu", "Arabic"] (src/profile.ts splitLanguages). */
-export function splitLanguages(v: unknown): string[] {
-  const s = str(v);
-  if (!s) return [];
-  return s
-    .split(/\s*(?:,|\/|;|\band\b|&)\s*/i)
-    .map((x) => x.replace(/\(.*?\)/g, '').trim())
-    .filter(Boolean);
-}
-
 /** Required profile fields still empty after the CV fallbacks (name, email and location may come from the CV). */
-export function profileGaps(app: Json, master: MasterContact = {}): ProfileField[] {
-  const c = master.contact ?? {};
-  const city = str(app.city);
-  const country = str(app.country);
-  const have: Record<ProfileField, boolean> = {
-    fullName: !!(str(app.fullName) ?? str(master.name)),
-    email: !!(str(app.email) ?? str(c.email)),
-    location: !!((city && country) || str(app.currentLocation) || str(c.location) || city || country),
-    countryCode: !!str(app.countryCode),
-    languages: splitLanguages(app.languages).length > 0,
-  };
-  return REQUIRED_PROFILE.filter((k) => !have[k]);
-}
+export const profileGaps = (app: Json, master: MasterContact = {}): ProfileField[] => gapsOf(buildProfile(app, master));
 
 export const PROFILE_LABEL: Record<ProfileField, string> = {
   fullName: 'full name',

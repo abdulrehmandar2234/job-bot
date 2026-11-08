@@ -1,5 +1,3 @@
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { refresh } from 'next/cache';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { rewriteLetter, rewriteSummary, saveLetter, saveSummary, tailorCv, writeLetter, writeSummary } from '@/app/actions';
@@ -35,9 +33,7 @@ beforeEach(async () => {
 afterAll(closeDb);
 
 describe('validation shared with the bot', () => {
-  it('FEEDBACK_CAP matches src/tasks.ts, which checks the task args again', () => {
-    const src = readFileSync(join(import.meta.dirname, '..', '..', '..', 'src', 'tasks.ts'), 'utf8');
-    expect(Number(src.match(/export const FEEDBACK_CAP = (\d+);/)![1])).toBe(FEEDBACK_CAP);
+  it("FEEDBACK_CAP is the bot's limit (task:run checks it again)", () => {
     expect(FEEDBACK_CAP).toBe(1000);
   });
 

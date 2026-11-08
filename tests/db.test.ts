@@ -253,5 +253,8 @@ describe('IND sponsor register', () => {
     assert.equal(isIndSponsor('Elastic'), true); // config maps it to "elasticsearch B.V."
     assert.equal(isIndSponsor('Totally Unknown Startup Xyz'), false);
     assert.equal(isIndSponsor('A'), false);
+    // A company list passed in replaces config.json's: without the mapping, "Elastic" is not on the register.
+    assert.equal(isIndSponsor('Elastic', []), false);
+    assert.equal(isIndSponsor('Acme', [{ name: 'Acme', indName: 'Adyen' }]), true);
   });
 });

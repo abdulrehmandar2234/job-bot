@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path';
 import { z } from 'zod';
 import { API_PRESETS, RESPONSE_FORMATS } from './ai-presets.ts';
 import { TEMPLATE_IDS } from './cv/templates/index.ts';
+import { ATS, REMOTE_BOARDS } from './types.ts';
 
 // Schemas for the two hand-edited settings files, config.json and cv/applicant.json. Loading them (config.ts, ai.ts)
 // validates first, so a typo fails at startup with the file and field instead of deep inside a fetch.
@@ -13,11 +14,12 @@ export const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 export const path = (...p: string[]) => join(ROOT, ...p);
 
 // JOB_BOT_CONFIG / JOB_BOT_APPLICANT / JOB_BOT_MASTER point the bot at other files (tests use temp copies). The
-// functions read the environment on every call; every read or write of these files goes through them (the dashboard
-// has the same helpers in web/lib/settings.ts). CONFIG_FILE and APPLICANT_FILE are their values at startup.
-export const configFile = () => process.env.JOB_BOT_CONFIG || path('config.json');
-export const applicantFile = () => process.env.JOB_BOT_APPLICANT || path('cv', 'applicant.json');
-export const masterFile = () => process.env.JOB_BOT_MASTER || path('cv', 'master.json');
+// functions read the environment on every call; every read or write of these files goes through them. `root` is the
+// bot's folder: this one, or where the dashboard finds it (web/lib/settings.ts passes its BOT_ROOT, which its tests
+// move). CONFIG_FILE and APPLICANT_FILE are their values at startup.
+export const configFile = (root = ROOT) => process.env.JOB_BOT_CONFIG || join(root, 'config.json');
+export const applicantFile = (root = ROOT) => process.env.JOB_BOT_APPLICANT || join(root, 'cv', 'applicant.json');
+export const masterFile = (root = ROOT) => process.env.JOB_BOT_MASTER || join(root, 'cv', 'master.json');
 export const CONFIG_FILE = configFile();
 // The shipped settings: config.json is personal and gitignored, and starts as a copy of this file.
 export const DEFAULT_CONFIG_FILE = path('config.default.json');
@@ -35,11 +37,8 @@ export function ensureConfigFile(file = configFile(), defaults = DEFAULT_CONFIG_
 export const APPLICANT_FILE = applicantFile();
 export const APPLICANT_EXAMPLE_FILE = path('cv', 'applicant.example.json');
 
-// workday: token is "<tenant>/<wdN>/<site>", e.g. "acme/wd3/AcmeCareers".
-export const ATS = ['greenhouse', 'lever', 'ashby', 'recruitee', 'workable', 'smartrecruiters', 'workday'] as const;
-
-// The remote job boards the bot can fetch (BOARDS in src/sources/boards.ts); mirrored in web/lib/settings-form.ts.
-export const REMOTE_BOARDS = ['himalayas', 'remotive', 'remoteok', 'arbeitnow', 'adzuna'] as const;
+// The ATS and remote board lists live in types.ts, which the dashboard's client components import too.
+export { ATS, REMOTE_BOARDS };
 
 const text = z.string().min(1);
 const regex = z.string().refine((s) => {

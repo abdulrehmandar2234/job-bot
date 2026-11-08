@@ -31,6 +31,7 @@ Nothing planned right now. Ideas from real use go here.
 - **Preset-driven scoring:** each stack preset carries its skill patterns and CV clusters (`skills` / `clusters` in presets/stacks/\*.json); scoring follows config.json `stacks` (missing = `php-laravel` + `javascript`, the old built-in behaviour), with cross-stack skills in src/match.ts `BASE_SKILLS`.
 - **Background task queue:** `tasks` table, src/tasks.ts, web/lib/tasks.ts, `bot task:run <id>`.
 - **Shared types:** src/types.ts, imported by the dashboard.
+- **One copy of the rules (2026-11):** config.json is read on first use (src/config.ts), and logic takes settings as a parameter (`scoreJob(job, cfg)`), so the dashboard imports the bot's profile, follow-up, contact, currency, CV template, AI preset and skip-reason rules from src/ instead of keeping copies with parity tests. Only the task queue SQL is still duplicated (web/lib/tasks.ts), since the bot's runs on its own database pool.
 - **Settings validation:** zod schemas in src/settings.ts, checked at startup.
 - **Split CLI:** one file per command in src/commands/; src/cli.ts is the registry.
 - **Versioned migrations:** src/migrate.ts and src/migrations/NNN_name.sql.

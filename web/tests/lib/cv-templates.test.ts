@@ -1,8 +1,7 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import * as bot from '../../../src/cv/templates/index';
 
 // lib/bot.ts resolves BOT_ROOT from the working directory (web/..) at import time: point it at a temp folder.
 const root = mkdtempSync(join(tmpdir(), 'job-bot-web-tpl-'));
@@ -22,11 +21,10 @@ afterEach(() => {
 afterAll(() => rmSync(root, { recursive: true, force: true }));
 
 describe('the template list', () => {
-  it('matches the bot (src/cv/templates/index.ts): ids, names and descriptions, classic first and the default', () => {
-    expect(lib.TEMPLATES.map((t) => ({ id: t.id, name: t.name, description: t.description }))).toEqual(
-      bot.TEMPLATE_IDS.map((id) => ({ id, name: bot.TEMPLATES[id].name, description: bot.TEMPLATES[id].description })),
-    );
-    expect(lib.DEFAULT_TEMPLATE).toBe(bot.DEFAULT_TEMPLATE);
+  it('lists every design with a name and description, classic first and the default', () => {
+    expect(lib.TEMPLATES.map((t) => t.id)).toEqual(['classic', 'modern', 'compact']);
+    for (const t of lib.TEMPLATES) expect(t.name && t.description).toBeTruthy();
+    expect(lib.DEFAULT_TEMPLATE).toBe('classic');
   });
 
   it('isTemplate accepts only listed names', () => {
@@ -37,9 +35,7 @@ describe('the template list', () => {
 });
 
 describe('CV_VERSION', () => {
-  it('is the one rule for a version name, matching the bot (src/tasks.ts, which checks task args again)', () => {
-    const src = readFileSync(join(import.meta.dirname, '..', '..', '..', 'src', 'tasks.ts'), 'utf8');
-    expect(src.match(/export const CV_VERSION = (\/.+\/);/)![1]).toBe(lib.CV_VERSION.toString());
+  it('is the one rule for a version name', () => {
     for (const v of ['default', 'laravel-v1', 'a', 'custom-acme-v2']) expect(lib.CV_VERSION.test(v)).toBe(true);
     for (const v of ['-v1', '-', 'Laravel', 'a b', '../etc', 'x/y', '']) expect(lib.CV_VERSION.test(v)).toBe(false);
   });
