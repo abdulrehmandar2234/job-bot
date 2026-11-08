@@ -122,7 +122,7 @@ const LINE: Record<Outcome, string> = {
 };
 
 /**
- * An open Himalayas job whose location changed since it was fetched (e.g. Worldwide → United States) gets the new
+ * A Himalayas job (not closed) whose location changed since it was fetched (e.g. Worldwide → United States) gets the new
  * one. A new or filtered job is scored again, so one no longer open to the candidate's country becomes filtered; a
  * job further on keeps its status and only its visa note is updated. Returns the new location and the job's status
  * and filter reason afterwards, or null when nothing changed or the search did not find it.
@@ -191,7 +191,8 @@ async function checkOpenLocked(args: string[], flags: Flags) {
           : ` — status ${job.status} kept${['applied', 'interview', 'offer'].includes(job.status) ? ', you are already in the process' : ''}`;
       console.log(`${LINE[outcome]} ${job.company} — ${job.title} (${r.reason})${kept}\n      id: ${job.id}`);
     }
-    if (job.source === 'himalayas' && (outcome === 'open' || outcome === 'reopened')) {
+    // Himalayas answers its job pages to bots with a 403 (unknown), but its search API still says where a job is open.
+    if (job.source === 'himalayas' && outcome !== 'expired' && outcome !== 'reported') {
       const moved = await himalayasMoved(job.id);
       if (moved) {
         const now = moved.status === 'filtered' ? `, now filtered: ${moved.filter_reason}` : '';
