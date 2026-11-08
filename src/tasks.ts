@@ -7,21 +7,28 @@ import { parseSkills } from './cv/confirm-skills.ts';
 // The dashboard enqueues (web/lib/tasks.ts, same SQL as enqueue() here) and spawns a detached `task:run <id>`
 // (src/commands/task.ts), which claims the row, runs the normal CLI command and stores the result.
 
+/**
+ * A kind that makes an AI call must outlive the overall per-call AI budget (AI_BUDGET in src/ai-providers.ts,
+ * 5 minutes) with a margin, so the worker records the real provider error instead of SIGKILLing the child and
+ * reporting a generic "Timed out" (tests/tasks.test.ts ties the two values together).
+ */
+const AI_TASK_MS = 6 * 60_000;
+
 /** How long each kind may run before the worker kills it. */
 export const TASK_TIMEOUT_MS: Record<TaskKind, number> = {
   fetch: 20 * 60_000,
   prepare: 4 * 60_000,
-  ai_review: 4 * 60_000,
-  answers: 4 * 60_000,
+  ai_review: AI_TASK_MS,
+  answers: AI_TASK_MS,
   rescore: 5 * 60_000,
-  prep: 4 * 60_000,
-  follow_up: 4 * 60_000,
-  letter: 4 * 60_000,
-  summary: 4 * 60_000,
+  prep: AI_TASK_MS,
+  follow_up: AI_TASK_MS,
+  letter: AI_TASK_MS,
+  summary: AI_TASK_MS,
   tailored_cv: 4 * 60_000,
   cv_template: 4 * 60_000,
-  cv_feedback: 5 * 60_000,
-  cv_review: 4 * 60_000,
+  cv_feedback: AI_TASK_MS,
+  cv_review: AI_TASK_MS,
 };
 /** Extra time before a running task counts as stale, so the worker can record its own timeout first. */
 export const DEADLINE_GRACE_MS = 60_000;

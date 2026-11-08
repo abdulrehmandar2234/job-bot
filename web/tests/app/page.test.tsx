@@ -2,14 +2,14 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { cloneElement, Fragment, isValidElement, type ReactElement, type ReactNode } from 'react';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { RouterContext } from 'next/dist/shared/lib/router-context.shared-runtime';
 import Page from '@/app/page';
 import { BOT_ROOT } from '@/lib/bot';
 import { pool, statusCounts, type Status } from '@/lib/db';
-import { cleanupDb, closeDb, daysAgo, ensureSchema, insertFetchRun, insertJob } from '../helpers/db';
+import { cleanupDb, closeDb, dateDaysAgo, ensureSchema, insertFetchRun, insertJob } from '../helpers/db';
 
 // The header and first-run banner read config.json per request (connection()); these tests render outside Next.
 vi.mock('next/server', async (importOriginal) => ({
@@ -180,6 +180,19 @@ describe('job list page', () => {
 
     expect(screen.getByText('Matching now').nextElementSibling).toHaveTextContent(n('new', 2));
     expect(screen.getByText('Applied (7 days)').nextElementSibling!.textContent).toMatch(/^\d+$/);
+  });
+
+  it('hints at tabs beyond the fold: the strip hides its scrollbar but carries the edge-shadow class', async () => {
+    await renderPage();
+    const nav = screen.getByRole('navigation', { name: 'Job status' });
+    expect(nav).toHaveClass('overflow-x-auto', '[scrollbar-width:none]', 'scroll-x-hint');
+    // The class is real CSS: an edge shadow whose covers scroll with the content (globals.css), in theme colours.
+    const css = readFileSync(join(import.meta.dirname, '..', '..', 'app', 'globals.css'), 'utf8');
+    const rule = css.match(/\.scroll-x-hint\s*{[^}]*}/)?.[0];
+    expect(rule).toBeDefined();
+    expect(rule).toContain('var(--background)');
+    expect(rule).toContain('var(--foreground)');
+    expect(rule).toContain('local');
   });
 
   it('shows the last finished fetch run', async () => {
@@ -357,7 +370,7 @@ describe('job list page', () => {
   });
 
   it('shows jobs posted in the last 24 hours by default on Matching, and all of them with "any time"', async () => {
-    await insertJob({ id: 'd-old', title: 'TG week old', posted_at: daysAgo(5) });
+    await insertJob({ id: 'd-old', title: 'TG week old', posted_at: dateDaysAgo(5) });
     await insertJob({ id: 'd-new', title: 'TG today', posted_at: new Date(Date.now() - 3_600_000) });
     await renderPage({});
     expect(titles()).toEqual(['TG today']);
@@ -372,14 +385,14 @@ describe('job list page', () => {
   });
 
   it('never hides older jobs in the other tabs by when they were posted', async () => {
-    await insertJob({ id: 'd-applied', title: 'TG applied long ago', status: 'applied', posted_at: daysAgo(30) });
+    await insertJob({ id: 'd-applied', title: 'TG applied long ago', status: 'applied', posted_at: dateDaysAgo(30) });
     await renderPage({ status: 'applied', days: '1' });
     expect(titles()).toEqual(['TG applied long ago']);
   });
 
   it('sorts by posting date with "Newest first"', async () => {
-    await insertJob({ id: 'n-old', title: 'TG old', score: 90, posted_at: daysAgo(5) });
-    await insertJob({ id: 'n-new', title: 'TG new', score: 10, posted_at: daysAgo(1) });
+    await insertJob({ id: 'n-old', title: 'TG old', score: 90, posted_at: dateDaysAgo(5) });
+    await insertJob({ id: 'n-new', title: 'TG new', score: 10, posted_at: dateDaysAgo(1) });
     await renderPage({ sort: 'newest', days: '0' });
     expect(titles()).toEqual(['TG new', 'TG old']);
   });

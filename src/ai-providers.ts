@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { posix, win32 } from 'node:path';
+import { z } from 'zod';
 import { AI_BASE_URL_ENV, AI_KEY_ENV, LEGACY_KEY_ENV, PRESETS, detectPreset, type ApiPreset, type ResponseFormat } from './ai-presets.ts';
 import { config } from './config.ts';
 import type { AiSettings } from './settings.ts';
@@ -56,8 +57,19 @@ export function noCredit(t: Pick<ApiTarget, 'preset' | 'name'>): string {
 }
 export type ProviderMode = 'claude-cli' | 'api';
 
-/** Every call, whichever provider: the same budget as the CLI path has always had. */
+/** Per attempt: one HTTP request, or the whole CLI run (the CLI path makes one attempt). */
 export const AI_TIMEOUT_MS = 180_000;
+
+/**
+ * The overall budget for one askAi call, whichever provider: attempts, HTTP retries, backoff and the one re-ask all
+ * stop here, so a caller knows it has an answer or the real provider error by then. The task timeouts in src/tasks.ts
+ * must exceed this with margin (tests/tasks.test.ts ties them together), or the worker SIGKILLs the task and the user
+ * sees a generic "Timed out" instead of what actually went wrong. An object so tests can shrink it.
+ */
+export const AI_BUDGET = { ms: 300_000 };
+
+/** After a per-attempt timeout, how long the Claude CLI gets to exit on SIGTERM before it is SIGKILLed. */
+export const CLI_KILL_GRACE_MS = 3000;
 
 export const providerMode = (ai: AiSettings = config.ai): ProviderMode =>
   !ai.provider || ai.provider === 'claude-cli' ? 'claude-cli' : 'api';
@@ -186,7 +198,14 @@ export function resolveClaude(
 
 // JOB_BOT_CLAUDE swaps in another executable (tests use a fake one). Calls are headless: no tools, no MCP servers,
 // no session saved.
-export function askClaude<T>(prompt: string, schema: object, model: string, system: string, claudePath = config.ai.claudePath): Promise<T> {
+export function askClaude<T>(
+  prompt: string,
+  schema: object,
+  model: string,
+  system: string,
+  claudePath = config.ai.claudePath,
+  timeoutMs = AI_TIMEOUT_MS,
+): Promise<T> {
   return new Promise((resolve, reject) => {
     const child = spawn(
       process.env.JOB_BOT_CLAUDE || resolveClaude(claudePath),
@@ -211,18 +230,25 @@ export function askClaude<T>(prompt: string, schema: object, model: string, syst
     );
     let out = '';
     let err = '';
+    let hardKill: NodeJS.Timeout | undefined;
     const timer = setTimeout(() => {
+      // Polite first; a wedged CLI that ignores SIGTERM is SIGKILLed after a short grace, so it never outlives the
+      // rejected promise. Both timers are unref'd or cleared on close, so they never keep the bot alive.
       child.kill();
+      hardKill = setTimeout(() => child.kill('SIGKILL'), CLI_KILL_GRACE_MS);
+      hardKill.unref();
       reject(new Error('Claude CLI timed out'));
-    }, AI_TIMEOUT_MS);
+    }, timeoutMs);
     child.stdout.on('data', (d) => (out += d));
     child.stderr.on('data', (d) => (err += d));
     child.on('error', (e) => {
       clearTimeout(timer);
+      clearTimeout(hardKill);
       reject(e);
     });
     child.on('close', (code) => {
       clearTimeout(timer);
+      clearTimeout(hardKill);
       try {
         const res = JSON.parse(out);
         if (res.is_error || !res.structured_output) throw new Error(res.result || `claude exited ${code}`);
@@ -266,7 +292,51 @@ export function chatBody(t: Pick<ApiTarget, 'format' | 'temperature'>, req: ApiR
   return body;
 }
 
-/** The JSON object in a reply, checked for the schema's required top-level keys. */
+/**
+ * A zod validator for the JSON-schema subset the prompts in src/ai.ts use (object, array, string with enum, integer
+ * with minimum/maximum, number, boolean), so a reply with the right keys but the wrong shapes ("verdict": 42,
+ * "location": "Berlin") is re-asked instead of written to the database. Only what the code reads is checked:
+ * item counts and wording are left to the model. Unknown keys and unknown schema constructs are let through.
+ */
+export function validatorFor(schema: unknown): z.ZodType {
+  const s = schema as {
+    type?: string;
+    enum?: string[];
+    properties?: Record<string, unknown>;
+    required?: string[];
+    items?: unknown;
+    minimum?: number;
+    maximum?: number;
+  };
+  switch (s?.type) {
+    case 'string':
+      return s.enum?.length ? z.enum(s.enum as [string, ...string[]]) : z.string();
+    case 'integer': {
+      let n = z.number().int();
+      if (s.minimum !== undefined) n = n.min(s.minimum);
+      if (s.maximum !== undefined) n = n.max(s.maximum);
+      return n;
+    }
+    case 'number':
+      return z.number();
+    case 'boolean':
+      return z.boolean();
+    case 'array':
+      return z.array(s.items ? validatorFor(s.items) : z.unknown());
+    case 'object': {
+      const required = s.required ?? [];
+      return z.object(
+        Object.fromEntries(
+          Object.entries(s.properties ?? {}).map(([k, p]) => [k, required.includes(k) ? validatorFor(p) : validatorFor(p).optional()]),
+        ),
+      );
+    }
+    default:
+      return z.unknown();
+  }
+}
+
+/** The JSON object in a reply, checked for the schema's required top-level keys and its field shapes. */
 export function parseReply<T>(reply: ChatReply, schema: object): T {
   const msg = reply.choices?.[0]?.message;
   if (msg?.refusal) throw new Error(`the model refused: ${msg.refusal.slice(0, 200)}`);
@@ -285,6 +355,12 @@ export function parseReply<T>(reply: ChatReply, schema: object): T {
   const required = (schema as { required?: string[] }).required ?? [];
   const missing = required.filter((k) => !(k in obj));
   if (missing.length) throw new BadReply(`reply is missing ${missing.join(', ')}`);
+  const checked = validatorFor(schema).safeParse(obj);
+  if (!checked.success) {
+    const issue = checked.error.issues[0];
+    throw new BadReply(`reply does not match the schema at ${issue.path.join('.') || '$'}: ${issue.message}`);
+  }
+  // The original object, not zod's copy: keys the schema does not know are kept (and ignored by the code).
   return obj as T;
 }
 
@@ -298,17 +374,60 @@ function apiMessage(body: string): string {
   return body.slice(0, 200);
 }
 
+/** Thrown when the overall AI budget runs out while a request is still in flight. */
+class BudgetExceeded extends Error {}
+
+/** `p`, rejected with BudgetExceeded when it has not settled after `ms`. The timer never keeps the process alive. */
+function within<T>(ms: number, p: Promise<T>): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new BudgetExceeded(`no answer within the ${AI_BUDGET.ms / 1000}s AI budget`)), ms);
+    timer.unref?.();
+    p.then(
+      (v) => {
+        clearTimeout(timer);
+        resolve(v);
+      },
+      (e) => {
+        clearTimeout(timer);
+        reject(e);
+      },
+    );
+  });
+}
+
 export async function askApi<T>(req: ApiRequest, ai: AiSettings = config.ai, env: Env = process.env): Promise<T> {
   const t = resolveApi(ai, env);
   const body = chatBody(t, req, req.kind === 'score' ? t.scoreModel : t.letterModel);
   const headers: Record<string, string> = t.key ? { authorization: `Bearer ${t.key}` } : {};
+  const deadline = Date.now() + AI_BUDGET.ms;
   let last = '';
-  // One more try when the reply is not the JSON asked for; HTTP retries (429, 5xx) happen inside postJson.
+  // One more try when the reply is not the JSON asked for, told what was wrong so the model can correct itself;
+  // HTTP retries (429, 5xx) happen inside postJson. Everything stops at the overall AI budget (AI_BUDGET).
   for (let attempt = 0; attempt < 2; attempt++) {
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) break;
+    const ask = !attempt
+      ? body
+      : {
+          ...body,
+          messages: [
+            ...(body.messages as object[]),
+            {
+              role: 'user',
+              content: `Your previous reply was not valid: ${last}. Reply again with only one JSON object that matches the schema, no other text.`,
+            },
+          ],
+        };
     let reply: ChatReply;
     try {
-      reply = await postJson<ChatReply>(t.url, body, { headers, attempts: 3, timeoutMs: AI_TIMEOUT_MS });
+      reply = await within(
+        remaining,
+        postJson<ChatReply>(t.url, ask, { headers, attempts: 3, timeoutMs: Math.min(AI_TIMEOUT_MS, remaining) }),
+      );
     } catch (e) {
+      if (e instanceof BudgetExceeded) {
+        throw new AiError(redact(`${t.name} gave ${e.message}${last ? ` (last problem: ${last})` : ''}`, t.key));
+      }
       if (e instanceof HttpError && (e.status === 401 || e.status === 403)) {
         // The provider's own words help ("api key is invalid", "no access to this model"), redacted like the rest.
         const said = apiMessage(e.body).trim();
@@ -325,5 +444,6 @@ export async function askApi<T>(req: ApiRequest, ai: AiSettings = config.ai, env
       last = e.message;
     }
   }
-  throw new AiError(redact(`${t.name} gave no usable answer after 2 tries: ${last}`, t.key));
+  const why = Date.now() >= deadline ? `no usable answer within the ${AI_BUDGET.ms / 1000}s AI budget` : 'no usable answer after 2 tries';
+  throw new AiError(redact(`${t.name} gave ${why}: ${last}`, t.key));
 }

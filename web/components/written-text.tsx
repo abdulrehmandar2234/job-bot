@@ -17,7 +17,9 @@ export function useTextForm(action: Action) {
     const fd = new FormData(e.currentTarget);
     startTransition(() => dispatch(fd));
   };
-  return { state, pending, onSubmit };
+  // `action` is for the form's action prop: before hydration (or without JS) the form still posts to the server
+  // action; once hydrated, onSubmit takes over and keeps the controls' values when the action answers an error.
+  return { state, pending, onSubmit, action: dispatch };
 }
 
 export function Problem({ state }: { state: TextFormState }) {

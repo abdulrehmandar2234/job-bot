@@ -1,4 +1,7 @@
-export const STATUS_LABEL: Record<string, string> = {
+import type { Status } from '@/lib/db';
+
+// Typed on Status so a missing or renamed status fails the typecheck instead of rendering an empty label.
+export const STATUS_LABEL: Record<Status, string> = {
   new: 'Matching',
   prepared: 'Prepared',
   applied: 'Applied',
@@ -70,7 +73,8 @@ export function Posted({ date }: { date: Date | null }) {
 /** Shows the AI score when the job has one, else the keyword score. */
 export function Score({ value, ai }: { value: number; ai?: number | null }) {
   const v = ai ?? value;
-  const tone = v >= 75 ? 'bg-emerald-600' : v >= 55 ? 'bg-amber-500' : 'bg-zinc-400 dark:bg-zinc-600';
+  // amber-700 keeps white text at ≥ 4.5:1 (WCAG AA); amber-500 was ~2:1 and unreadable.
+  const tone = v >= 75 ? 'bg-emerald-600' : v >= 55 ? 'bg-amber-700' : 'bg-zinc-400 dark:bg-zinc-600';
   return (
     <span
       title={ai != null ? `AI score ${ai} · keyword score ${value}` : `Keyword score ${value} (not AI-reviewed yet)`}

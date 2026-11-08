@@ -15,7 +15,8 @@ import {
 } from '@/app/actions';
 import { getJob, type Job, jobEvents, postingsFor } from '@/lib/db';
 import { isActive, openTasks } from '@/lib/tasks';
-import { CopyButton, SubmitButton } from '@/components/client';
+import { ActionForm } from '@/components/action-form';
+import { CopyButton } from '@/components/client';
 import { CvAction, OpenJobLink, StatusActions } from '@/components/job-actions';
 import { Collapsible, FoldedText } from '@/components/collapsible';
 import { InterviewPrep } from '@/components/interview-prep';
@@ -210,8 +211,7 @@ async function JobDetail({ params }: { params: PageProps<'/jobs/[id]'>['params']
 
           <section className="space-y-2">
             <h2 className="font-medium">Notes</h2>
-            <form action={saveNotes} className="space-y-2">
-              <input type="hidden" name="id" value={job.id} />
+            <ActionForm action={saveNotes} fields={{ id: job.id }} className="space-y-2" pendingText="Saving…" label="Save notes">
               <textarea
                 name="notes"
                 aria-label="Job notes"
@@ -220,8 +220,7 @@ async function JobDetail({ params }: { params: PageProps<'/jobs/[id]'>['params']
                 className="input w-full"
                 placeholder="Recruiter name, salary, interview date…"
               />
-              <SubmitButton pendingText="Saving…">Save notes</SubmitButton>
-            </form>
+            </ActionForm>
           </section>
 
           {events.length > 0 && (
@@ -277,7 +276,7 @@ async function JobDetail({ params }: { params: PageProps<'/jobs/[id]'>['params']
           <div className="space-y-2">
             <AiReviewFold job={job} />
             <SkillsMatch job={job} />
-            <AtsCheck jobId={job.id} confirm={ai && !CV_TASKS.some((k) => busy.includes(k))} />
+            <AtsCheck jobId={job.id} cvVersion={job.cv_version ?? job.cluster} confirm={ai && !CV_TASKS.some((k) => busy.includes(k))} />
           </div>
 
           <section id="letter" className="scroll-mt-4 space-y-2">
@@ -299,10 +298,12 @@ async function JobDetail({ params }: { params: PageProps<'/jobs/[id]'>['params']
                 {busy.includes('letter') ? (
                   <Busy>{job.cover_letter ? 'Rewriting letter…' : 'Writing letter…'}</Busy>
                 ) : (
-                  <form action={writeLetter}>
-                    <input type="hidden" name="id" value={job.id} />
-                    <SubmitButton pendingText="Starting…">{job.cover_letter ? 'Rewrite letter' : 'Write letter'}</SubmitButton>
-                  </form>
+                  <ActionForm
+                    action={writeLetter}
+                    fields={{ id: job.id }}
+                    pendingText="Starting…"
+                    label={job.cover_letter ? 'Rewrite letter' : 'Write letter'}
+                  />
                 )}
                 {job.cover_letter && <CopyButton text={job.cover_letter} />}
                 {job.cover_letter && !busy.includes('letter') && (
@@ -349,10 +350,12 @@ async function JobDetail({ params }: { params: PageProps<'/jobs/[id]'>['params']
                   <Busy>{job.cv_summary ? 'Rewriting summary…' : 'Writing summary…'}</Busy>
                 ) : (
                   ai && (
-                    <form action={writeSummary}>
-                      <input type="hidden" name="id" value={job.id} />
-                      <SubmitButton pendingText="Starting…">{job.cv_summary ? 'Rewrite summary' : 'Write summary'}</SubmitButton>
-                    </form>
+                    <ActionForm
+                      action={writeSummary}
+                      fields={{ id: job.id }}
+                      pendingText="Starting…"
+                      label={job.cv_summary ? 'Rewrite summary' : 'Write summary'}
+                    />
                   )
                 )}
                 {job.cv_summary && <CopyButton text={job.cv_summary} />}
@@ -361,10 +364,7 @@ async function JobDetail({ params }: { params: PageProps<'/jobs/[id]'>['params']
                     <Busy>Building CV with this summary…</Busy>
                   ) : (
                     !busy.includes('summary') && (
-                      <form action={tailorCv}>
-                        <input type="hidden" name="id" value={job.id} />
-                        <SubmitButton pendingText="Starting…">Use in my CV for this job</SubmitButton>
-                      </form>
+                      <ActionForm action={tailorCv} fields={{ id: job.id }} pendingText="Starting…" label="Use in my CV for this job" />
                     )
                   ))}
               </div>
@@ -397,12 +397,7 @@ async function JobDetail({ params }: { params: PageProps<'/jobs/[id]'>['params']
               <h2 className="font-medium">
                 Application form answers <span className="text-xs font-normal text-zinc-500">· AI drafts, you review and paste</span>
               </h2>
-              {answers.length > 0 && (
-                <form action={clearAnswers}>
-                  <input type="hidden" name="id" value={job.id} />
-                  <SubmitButton pendingText="Clearing…">Clear all</SubmitButton>
-                </form>
-              )}
+              {answers.length > 0 && <ActionForm action={clearAnswers} fields={{ id: job.id }} pendingText="Clearing…" label="Clear all" />}
             </div>
             {answers.length > 0 && (
               <ul className="space-y-3">
@@ -434,8 +429,14 @@ async function JobDetail({ params }: { params: PageProps<'/jobs/[id]'>['params']
             {!ai ? (
               <AiOffNote what="drafting answers" />
             ) : (
-              <form action={draftAnswers} className="space-y-2">
-                <input type="hidden" name="id" value={job.id} />
+              <ActionForm
+                action={draftAnswers}
+                fields={{ id: job.id }}
+                className="space-y-2"
+                pendingText="Starting…"
+                label="Draft answers"
+                busy={busy.includes('answers') ? <Busy>Drafting answers…</Busy> : undefined}
+              >
                 <textarea
                   name="questions"
                   aria-label="Application form questions"
@@ -446,12 +447,7 @@ async function JobDetail({ params }: { params: PageProps<'/jobs/[id]'>['params']
                     'Paste the questions from the application form, e.g.\nHow many years of experience do you have with Laravel?\nDo you require visa sponsorship? Yes / No\nWhy do you want to work with us?'
                   }
                 />
-                {busy.includes('answers') ? (
-                  <Busy>Drafting answers…</Busy>
-                ) : (
-                  <SubmitButton pendingText="Starting…">Draft answers</SubmitButton>
-                )}
-              </form>
+              </ActionForm>
             )}
           </section>
 

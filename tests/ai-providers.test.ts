@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { mockFetch } from './helpers.ts';
 import { API_PRESETS, PRESETS, detectPreset } from '../src/ai-presets.ts';
 import {
+  AI_BUDGET,
   aiLabel,
   aiModel,
   askAi,
@@ -284,6 +285,39 @@ describe('askAi over HTTP', () => {
     assert.equal(seen.length, 2);
   });
 
+  it('the re-ask tells the model what was wrong with its previous reply', async () => {
+    const seen = serve(reply('Sure! Here is the review'), reply('{"score":70,"verdict":"good"}'));
+    assert.deepEqual(await askAi('p', SCHEMA, 'score', 's', api()), { score: 70, verdict: 'good' });
+    assert.equal(seen[0].body.messages.length, 2, 'the first request carries no hint');
+    const messages = seen[1].body.messages as { role: string; content: string }[];
+    assert.equal(messages.length, 3);
+    assert.equal(messages[2].role, 'user');
+    assert.match(messages[2].content, /previous reply was not valid: reply is not valid JSON/);
+    assert.match(messages[2].content, /only one JSON object/);
+  });
+
+  it('asks once more when a field has the wrong type, and the retry hint names it', async () => {
+    const seen = serve(reply('{"score":"high","verdict":"good"}'), reply('{"score":70,"verdict":"good"}'));
+    assert.deepEqual(await askAi('p', SCHEMA, 'score', 's', api()), { score: 70, verdict: 'good' });
+    assert.equal(seen.length, 2);
+    assert.match((seen[1].body.messages as { content: string }[])[2].content, /score/);
+  });
+
+  it('stops asking when the overall AI budget is exhausted, naming the budget and never the key', async () => {
+    const saved = AI_BUDGET.ms;
+    AI_BUDGET.ms = 50;
+    try {
+      mock = mockFetch({ 'chat/completions': () => new Promise<never>(() => {}) }); // a request that never answers
+      await assert.rejects(askAi('p', SCHEMA, 'score', 's', api()), (e: Error) => {
+        assert.match(e.message, /OpenAI gave no answer within the [\d.]+s AI budget/);
+        return noKeyIn(e);
+      });
+      assert.equal(mock.calls.length, 1, 'no retry once the budget is spent');
+    } finally {
+      AI_BUDGET.ms = saved;
+    }
+  });
+
   it('fails fast on 401/403 naming AI_API_KEY and the detected provider, never the key', async () => {
     process.env.AI_API_KEY = ANT;
     for (const status of [401, 403]) {
@@ -356,5 +390,48 @@ describe('parseReply', () => {
   it('rejects an empty reply and a JSON array', () => {
     assert.throws(() => parseReply({ choices: [] }, SCHEMA), /empty reply/);
     assert.throws(() => parseReply(reply('[1]'), SCHEMA), /not a JSON object/);
+  });
+
+  // The shapes the code reads and stores, like src/ai.ts SCORE_SCHEMA declares them.
+  const DEEP = {
+    type: 'object',
+    properties: {
+      score: { type: 'integer', minimum: 0, maximum: 100 },
+      verdict: { type: 'string', enum: ['good', 'poor'] },
+      reasons: { type: 'array', items: { type: 'string' } },
+      location: {
+        type: 'object',
+        properties: { eligible: { type: 'string', enum: ['yes', 'no', 'unclear'] }, reason: { type: 'string' } },
+        required: ['eligible', 'reason'],
+      },
+    },
+    required: ['score', 'verdict'],
+  };
+  const deep = (json: object) => parseReply(reply(JSON.stringify({ score: 70, verdict: 'good', ...json })), DEEP);
+
+  it('rejects wrong types, out-of-range numbers and values outside the enum', () => {
+    assert.throws(() => deep({ verdict: 42 }), /reply does not match the schema at verdict/);
+    assert.throws(() => deep({ verdict: 'awesome' }), /verdict/);
+    assert.throws(() => deep({ score: 'high' }), /score/);
+    assert.throws(() => deep({ score: 101 }), /score/);
+    assert.throws(() => deep({ reasons: 'solid fit' }), /reasons/);
+    assert.throws(() => deep({ reasons: [42] }), /reasons/);
+  });
+
+  it('rejects a wrong nested shape, naming the path', () => {
+    assert.throws(() => deep({ location: 'Berlin' }), /reply does not match the schema at location/);
+    assert.throws(() => deep({ location: { eligible: 'maybe', reason: 'r' } }), /location\.eligible/);
+    assert.throws(() => deep({ location: { eligible: 'yes' } }), /location\.reason/);
+  });
+
+  it('a valid reply still parses, keeping keys the schema does not know', () => {
+    assert.deepEqual(deep({ location: { eligible: 'yes', reason: 'visa provided' }, extra: true }), {
+      score: 70,
+      verdict: 'good',
+      location: { eligible: 'yes', reason: 'visa provided' },
+      extra: true,
+    });
+    // A schema with required keys but no properties (src/ai.ts textSchema's simplest shape) checks presence only.
+    assert.deepEqual(parseReply(reply('{"letter":"Dear"}'), { type: 'object', required: ['letter'] }), { letter: 'Dear' });
   });
 });

@@ -2,20 +2,47 @@ import { config } from './config.ts';
 import { masterRaw } from './cv/versions.ts';
 import { loadProfile, needsVisa, remoteFrom, remoteFromCode } from './profile.ts';
 import { effectiveRemoteRules } from './regions.ts';
+import { masterFile } from './settings.ts';
 import { isIndSponsor } from './sponsors.ts';
 import type { RawJob } from './sources/index.ts';
 import type { VisaEvidence } from './types.ts';
 
 type Skill = { name: string; re: RegExp; have: boolean; weight?: number; cv?: RegExp };
 
-/** The skill items of cv/master.json, one per line: what `have` is checked against. */
+const CV_HINT =
+  'every skill is checked against the master CV, so scoring cannot run without it — restore the file (or point JOB_BOT_MASTER at a valid CV JSON file)';
+
+/**
+ * The skill items of cv/master.json, one per line: what `have` is checked against. A missing or corrupt master CV
+ * fails loudly: swallowing it would mark every skill as not on the CV and silently filter every posting.
+ */
 function cvSkills(): string {
+  let raw: string;
   try {
-    const cv = JSON.parse(masterRaw()) as { skills?: { items: string[] }[] };
-    return (cv.skills ?? []).flatMap((g) => g.items).join('\n');
-  } catch {
-    return '';
+    raw = masterRaw();
+  } catch (e) {
+    throw new Error(`Cannot read the master CV at ${masterFile()}: ${(e as Error).message}; ${CV_HINT}.`);
   }
+  let cv: { skills?: { items?: string[] }[] };
+  try {
+    cv = JSON.parse(raw) as { skills?: { items?: string[] }[] };
+  } catch (e) {
+    throw new Error(`Cannot parse the master CV at ${masterFile()} as JSON: ${(e as Error).message}; ${CV_HINT}.`);
+  }
+  return (cv.skills ?? []).flatMap((g) => g.items ?? []).join('\n');
+}
+
+// Config patterns are compiled once and reused: scoreJob runs for thousands of postings per fetch, and recompiling
+// the same RegExp for each one is pure waste. Keyed on the pattern text (not on the config object), so tests that
+// swap config values in place still get the right matcher. All patterns come from config.json, so the map stays small.
+const RE_CACHE = new Map<string, RegExp>();
+function re(src: string): RegExp {
+  let m = RE_CACHE.get(src);
+  if (!m) {
+    m = new RegExp(src, 'i');
+    RE_CACHE.set(src, m);
+  }
+  return m;
 }
 
 /**
@@ -77,7 +104,25 @@ const SKILL_PATTERNS: Omit<Skill, 'have'>[] = [
   { name: 'C#/.NET', re: /\bc#|\.net\b/i, weight: 2 },
 ];
 
-export const SKILLS: Skill[] = withCv(SKILL_PATTERNS, cvSkills());
+// Loaded on first use, not at import time: src/cli.ts imports each command lazily, so commands that never score
+// (list, mark, settings:check, ...) still run while cv/master.json is missing — only scoring itself fails loudly.
+const skillsTarget: Skill[] = [];
+let skillsLoaded = false;
+function loadSkills(): Skill[] {
+  if (!skillsLoaded) {
+    skillsTarget.push(...withCv(SKILL_PATTERNS, cvSkills()));
+    skillsLoaded = true;
+  }
+  return skillsTarget;
+}
+
+// A lazy array: reading it the first time loads the master CV (and reports a missing or corrupt one).
+export const SKILLS: Skill[] = new Proxy(skillsTarget, {
+  get: (_t, p, r) => Reflect.get(loadSkills(), p, r),
+  has: (_t, p) => Reflect.has(loadSkills(), p),
+  ownKeys: () => Reflect.ownKeys(loadSkills()),
+  getOwnPropertyDescriptor: (_t, p) => Reflect.getOwnPropertyDescriptor(loadSkills(), p),
+});
 
 // Which CV version (cluster) fits a job. 'default' = the original PDF, untouched.
 const CLUSTERS: { id: string; re: RegExp[] }[] = [
@@ -109,12 +154,21 @@ const LOCAL_LANGUAGES = ['dutch', 'arabic', 'german', 'french'];
 const BONUS_LANGUAGES = ['dutch', 'arabic'];
 const NEVER = /(?!)/;
 
+// One entry per spoken-language set (one, in practice): the patterns are the same for every posting.
+const LANG_CACHE = new Map<string, { required: RegExp; bonus: RegExp }>();
+
 /** The "language required" and "language is a plus" patterns for the languages the candidate does not speak. */
 export function languageRules(spoken: string[]): { required: RegExp; bonus: RegExp } {
+  const key = spoken
+    .map((l) => l.toLowerCase())
+    .sort()
+    .join(',');
+  const cached = LANG_CACHE.get(key);
+  if (cached) return cached;
   const known = new Set(spoken.map((l) => l.toLowerCase()));
   const req = LOCAL_LANGUAGES.filter((l) => !known.has(l)).join('|');
   const bonus = BONUS_LANGUAGES.filter((l) => !known.has(l)).join('|');
-  return {
+  const rules = {
     required: req
       ? new RegExp(
           `(fluent|fluency|native|proficien\\w*|excellent|strong|business[- ]level|professional)[^.\\n]{0,40}\\b(${req})\\b(?![^.\\n]{0,40}(is a plus|is a bonus|nice to have|preferred|advantage|beneficial))|\\b(${req})\\b[^.\\n]{0,25}\\b(required|mandatory|is a must|must)\\b`,
@@ -123,6 +177,8 @@ export function languageRules(spoken: string[]): { required: RegExp; bonus: RegE
       : NEVER,
     bonus: bonus ? new RegExp(`\\b(${bonus})\\b[^.\\n]{0,40}(plus|bonus|nice to have|preferred|advantage|beneficial)`, 'i') : NEVER,
   };
+  LANG_CACHE.set(key, rules);
+  return rules;
 }
 const NO_SPONSOR =
   /(no|not|unable to|cannot|can't|don't|do not)\s[^.\n]{0,30}(visa )?sponsor|must (already )?have (the )?(right|authori[sz]ation|permit) to work|eu (work )?(permit|passport|citizen)|without (the need for )?sponsorship|local candidates only|saudi nationals only|saudization|uae nationals only|emirati(s)? only|emiratisation/i;
@@ -143,11 +199,11 @@ function remoteCountry(location: string, description: string): { country: string
   // "Remote — Dubai" means living in Dubai: treat as an on-site country, not as remote from the candidate's country.
   const profile = loadProfile();
   const rules = effectiveRemoteRules(config.remote, remoteFromCode(config, profile), remoteFrom(config, profile));
-  const allow = new RegExp(rules.allow, 'i');
-  const deny = new RegExp(rules.deny, 'i');
-  const flagRe = new RegExp(rules.flag, 'i');
+  const allow = re(rules.allow);
+  const deny = re(rules.deny);
+  const flagRe = re(rules.flag);
   for (const [code, c] of Object.entries(config.countries)) {
-    if (new RegExp(c.match, 'i').test(region) && !allow.test(region)) return { country: code };
+    if (re(c.match).test(region) && !allow.test(region)) return { country: code };
   }
   if (region && !/not stated/i.test(region)) {
     if (!allow.test(region) && deny.test(region)) return { country: null, reason: `remote, but only for: ${region.slice(0, 80)}` };
@@ -161,12 +217,12 @@ function remoteCountry(location: string, description: string): { country: string
 
 function findCountry(location: string, description: string): string | null {
   for (const [code, c] of Object.entries(config.countries)) {
-    if (new RegExp(c.match, 'i').test(location)) return code;
+    if (re(c.match).test(location)) return code;
   }
   // Remote / hybrid roles that name a target country only in the description.
   if (/remote|anywhere|emea|middle east|mena|gcc|europe/i.test(location)) {
     for (const [code, c] of Object.entries(config.countries)) {
-      if (new RegExp(`(based|located|office|hub) in [^.\\n]{0,30}(${c.match})`, 'i').test(description)) return code;
+      if (re(`(based|located|office|hub) in [^.\\n]{0,30}(${c.match})`).test(description)) return code;
     }
   }
   return null;
@@ -192,8 +248,8 @@ export function scoreJob(job: RawJob): Scored {
 
   if (remote?.reason) return out(remote.reason);
   if (!country) return out(`location not in target countries (${job.location || 'unknown'})`);
-  if (!new RegExp(config.roleInclude, 'i').test(job.title)) return out('title is not an engineering role');
-  if (new RegExp(config.roleExclude, 'i').test(job.title)) return out('title excluded (other stack / non-dev / level)');
+  if (!re(config.roleInclude).test(job.title)) return out('title is not an engineering role');
+  if (re(config.roleExclude).test(job.title)) return out('title excluded (other stack / non-dev / level)');
 
   // Re-checked on every fetch, so a matching job drops out once it gets older than maxAgeDays.
   if (job.posted_at) {
@@ -255,7 +311,7 @@ function skillScore(
   const missing: string[] = [];
   let got = 0;
   let total = 0;
-  for (const s of SKILLS) {
+  for (const s of loadSkills()) {
     if (!s.re.test(text)) continue;
     const w = s.weight ?? 1;
     total += w;

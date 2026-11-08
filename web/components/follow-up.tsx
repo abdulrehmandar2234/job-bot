@@ -2,7 +2,8 @@ import { draftFollowUp, markFollowedUp } from '@/app/jobs/[id]/followup-actions'
 import type { Job } from '@/lib/db';
 import { daysWaiting, FOLLOW_UP_DAYS, type FollowUpInfo, isDue, MAX_FOLLOW_UPS } from '@/lib/followup';
 import type { TaskKind } from '@/lib/tasks';
-import { CopyButton, SubmitButton } from './client';
+import { ActionForm } from './action-form';
+import { CopyButton } from './client';
 import { Busy } from './tasks';
 import { fmtDate } from './ui';
 
@@ -16,25 +17,6 @@ export function FollowUpBadge({ job }: { job: FollowUpInfo }) {
     >
       Follow up · {daysWaiting(job)} days
     </span>
-  );
-}
-
-function ActionButton({
-  action,
-  id,
-  children,
-  pending,
-}: {
-  action: (f: FormData) => Promise<void>;
-  id: string;
-  children: string;
-  pending: string;
-}) {
-  return (
-    <form action={action}>
-      <input type="hidden" name="id" value={id} />
-      <SubmitButton pendingText={pending}>{children}</SubmitButton>
-    </form>
   );
 }
 
@@ -63,15 +45,14 @@ export function FollowUp({ job, busy = [] }: { job: Job; busy?: readonly TaskKin
             {busy.includes('follow_up') ? (
               <Busy>Drafting follow-up…</Busy>
             ) : (
-              <ActionButton action={draftFollowUp} id={job.id} pending="Starting…">
-                {job.follow_up_draft ? 'Redraft' : 'Draft follow-up'}
-              </ActionButton>
+              <ActionForm
+                action={draftFollowUp}
+                fields={{ id: job.id }}
+                pendingText="Starting…"
+                label={job.follow_up_draft ? 'Redraft' : 'Draft follow-up'}
+              />
             )}
-            {!done && (
-              <ActionButton action={markFollowedUp} id={job.id} pending="Saving…">
-                I sent a follow-up
-              </ActionButton>
-            )}
+            {!done && <ActionForm action={markFollowedUp} fields={{ id: job.id }} pendingText="Saving…" label="I sent a follow-up" />}
           </div>
         )}
       </div>

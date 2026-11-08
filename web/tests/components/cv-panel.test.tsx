@@ -5,7 +5,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { improveCv } from '@/app/actions';
+import { applyCvTemplate, improveCv } from '@/app/actions';
 import type { Job } from '@/lib/db';
 import { PREFIX } from '../helpers/db';
 
@@ -82,6 +82,19 @@ describe('CvPanel', () => {
     rerender(<CvPanel job={job({ cv_version: 'default' })} busy={['cv_review']} />);
     expect(screen.getByText('Reviewing CV…')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Apply template' })).toBeInTheDocument();
+  });
+
+  it('"Apply template" sends the job id and template, and shows the refusal instead of dropping the click', async () => {
+    vi.mocked(applyCvTemplate).mockResolvedValue({ ok: false, message: 'The CV is being changed right now. Try again when it is done.' });
+    const user = userEvent.setup();
+    render(<CvPanel job={job({ cv_version: 'default' })} />);
+    await user.selectOptions(screen.getByLabelText('Template'), 'modern');
+    await user.click(screen.getByRole('button', { name: 'Apply template' }));
+    await waitFor(() =>
+      expect(screen.getByRole('alert')).toHaveTextContent('The CV is being changed right now. Try again when it is done.'),
+    );
+    const fd = vi.mocked(applyCvTemplate).mock.calls.at(-1)![1];
+    expect([fd.get('id'), fd.get('template')]).toEqual([PREFIX + 'panel', 'modern']);
   });
 
   it('"Improve CV with feedback" sends the feedback with the job id and shows a refusal', async () => {

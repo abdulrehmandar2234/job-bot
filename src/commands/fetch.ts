@@ -22,53 +22,66 @@ async function fetchAll(_args: string[], flags: Flags) {
   const {
     rows: [run],
   } = await pool.query<{ id: number }>('INSERT INTO fetch_runs DEFAULT VALUES RETURNING id');
-  const before = await waitingCount();
+  let before = 0;
+  let waiting: number | null = null;
   let added = 0,
     total = 0;
+  let fatal = false;
   const errors: { company: string; error: string }[] = [];
-  const sources: { name: string; load: () => Promise<Fetched> }[] = [
-    ...config.companies.map((c) => ({ name: c.name, load: () => fetchCompany(c) })),
-    ...(config.remote.enabled ? config.remote.boards.filter((b) => BOARDS[b]).map((b) => ({ name: b, load: BOARDS[b] })) : []),
-    ...(config.linkedin.enabled ? [{ name: 'linkedin', load: linkedin }] : []),
-  ];
-  const queue = sources.filter((s) => !only || s.name.toLowerCase().includes(only));
-  // 4 sources at a time; Workable spaces its own calls inside the adapter.
-  const worker = async () => {
-    for (let c = queue.shift(); c; c = queue.shift()) {
-      try {
-        const jobs = await c.load();
-        // One posting the database rejects must not cost the rest of the source.
-        let skipped = 0;
-        let firstError = '';
-        for (const j of jobs) {
-          try {
-            if ((await save(j)) === 'inserted') added++;
-          } catch (e) {
-            skipped++;
-            firstError ||= `${j.id}: ${(e as Error).message}`;
+  try {
+    before = await waitingCount();
+    const sources: { name: string; load: () => Promise<Fetched> }[] = [
+      ...config.companies.map((c) => ({ name: c.name, load: () => fetchCompany(c) })),
+      ...(config.remote.enabled ? config.remote.boards.filter((b) => BOARDS[b]).map((b) => ({ name: b, load: BOARDS[b] })) : []),
+      ...(config.linkedin.enabled ? [{ name: 'linkedin', load: linkedin }] : []),
+    ];
+    const queue = sources.filter((s) => !only || s.name.toLowerCase().includes(only));
+    // 4 sources at a time; Workable spaces its own calls inside the adapter.
+    const worker = async () => {
+      for (let c = queue.shift(); c; c = queue.shift()) {
+        try {
+          const jobs = await c.load();
+          // One posting the database rejects must not cost the rest of the source.
+          let skipped = 0;
+          let firstError = '';
+          for (const j of jobs) {
+            try {
+              if ((await save(j)) === 'inserted') added++;
+            } catch (e) {
+              skipped++;
+              firstError ||= `${j.id}: ${(e as Error).message}`;
+            }
           }
+          total += jobs.length - skipped;
+          if (jobs.partialError) errors.push({ company: c.name, error: jobs.partialError });
+          if (skipped) errors.push({ company: c.name, error: `${skipped} of ${jobs.length} postings not saved (first: ${firstError})` });
+          const notes = [jobs.partialError, skipped ? `${skipped} skipped` : ''].filter(Boolean).join('; ');
+          console.log(`${notes ? '!' : '✓'} ${c.name}: ${jobs.length - skipped} postings${notes ? ` (${notes})` : ''}`);
+        } catch (e) {
+          errors.push({ company: c.name, error: (e as Error).message });
+          console.log(`✗ ${c.name}: ${(e as Error).message}`);
         }
-        total += jobs.length - skipped;
-        if (jobs.partialError) errors.push({ company: c.name, error: jobs.partialError });
-        if (skipped) errors.push({ company: c.name, error: `${skipped} of ${jobs.length} postings not saved (first: ${firstError})` });
-        const notes = [jobs.partialError, skipped ? `${skipped} skipped` : ''].filter(Boolean).join('; ');
-        console.log(`${notes ? '!' : '✓'} ${c.name}: ${jobs.length - skipped} postings${notes ? ` (${notes})` : ''}`);
-      } catch (e) {
-        errors.push({ company: c.name, error: (e as Error).message });
-        console.log(`✗ ${c.name}: ${(e as Error).message}`);
       }
-    }
-  };
-  await Promise.all(Array.from({ length: 4 }, worker));
-  const waiting = await waitingCount();
-  await pool.query(`UPDATE fetch_runs SET finished_at = now(), checked = $2, inserted = $3, new_matches = $4, errors = $5 WHERE id = $1`, [
-    run.id,
-    total,
-    added,
-    Math.max(0, waiting - before),
-    JSON.stringify(errors),
-  ]);
-  console.log(`\n${total} postings checked, ${added} new. ${waiting} matching jobs waiting (status=new).`);
+    };
+    await Promise.all(Array.from({ length: 4 }, worker));
+    waiting = await waitingCount();
+    console.log(`\n${total} postings checked, ${added} new. ${waiting} matching jobs waiting (status=new).`);
+  } catch (e) {
+    // Recorded on the run row below, so the dashboard shows why the fetch stopped; then rethrown for the CLI.
+    fatal = true;
+    errors.push({ company: 'fetch', error: (e as Error).message });
+    throw e;
+  } finally {
+    // Always stamp finished_at: a crashed fetch must not look like one that is still running.
+    const matches = Math.max(0, (waiting ?? (await waitingCount().catch(() => before))) - before);
+    const update = pool.query(
+      `UPDATE fetch_runs SET finished_at = now(), checked = $2, inserted = $3, new_matches = $4, errors = $5 WHERE id = $1`,
+      [run.id, total, added, matches, JSON.stringify(errors)],
+    );
+    // After a fatal error the update is best-effort, so a broken connection cannot mask the original error.
+    if (fatal) await update.catch((e: Error) => console.log(`! fetch run ${run.id} not closed: ${e.message}`));
+    else await update;
+  }
 }
 
 // A salary that came from a source's API is not in the text, so re-parsing would lose it.

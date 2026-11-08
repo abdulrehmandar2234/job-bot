@@ -1,7 +1,7 @@
 import { aiReview, prepare, setStatus } from '@/app/actions';
 import type { Job } from '@/lib/db';
 import type { TaskKind } from '@/lib/tasks';
-import { SubmitButton } from './client';
+import { ActionForm } from './action-form';
 import { Busy } from './tasks';
 import { SkipButton } from './skip-button';
 
@@ -26,14 +26,13 @@ export function CvAction({ job, busy = [] }: { job: Job; busy?: Running }) {
       </a>
     );
   return (
-    <form action={prepare}>
-      <input type="hidden" name="id" value={job.id} />
-      {/* An expired posting would stop `prepare` at its open check, so "anyway" skips it (--force). */}
-      {job.status === 'expired' && <input type="hidden" name="force" value="true" />}
-      <SubmitButton pendingText="Starting…">
-        {job.status === 'filtered' || job.status === 'expired' ? 'Prepare anyway' : 'Prepare CV'}
-      </SubmitButton>
-    </form>
+    <ActionForm
+      action={prepare}
+      // An expired posting would stop `prepare` at its open check, so "anyway" skips it (--force).
+      fields={{ id: job.id, ...(job.status === 'expired' ? { force: 'true' } : {}) }}
+      pendingText="Starting…"
+      label={job.status === 'filtered' || job.status === 'expired' ? 'Prepare anyway' : 'Prepare CV'}
+    />
   );
 }
 
@@ -43,11 +42,7 @@ export function CvAction({ job, busy = [] }: { job: Job; busy?: Running }) {
  */
 export function StatusActions({ job, busy = [], ai = true }: { job: Job; busy?: Running; ai?: boolean }) {
   const status = (to: string, label: string, extra = '') => (
-    <form action={setStatus}>
-      <input type="hidden" name="id" value={job.id} />
-      <input type="hidden" name="status" value={to} />
-      <SubmitButton className={extra}>{label}</SubmitButton>
-    </form>
+    <ActionForm action={setStatus} fields={{ id: job.id, status: to }} buttonClass={extra} label={label} />
   );
 
   return (
@@ -55,13 +50,7 @@ export function StatusActions({ job, busy = [], ai = true }: { job: Job; busy?: 
       {busy.includes('ai_review') ? (
         <Busy>AI reviewing…</Busy>
       ) : (
-        ai &&
-        job.ai_score == null && (
-          <form action={aiReview}>
-            <input type="hidden" name="id" value={job.id} />
-            <SubmitButton pendingText="Starting…">AI review</SubmitButton>
-          </form>
-        )
+        ai && job.ai_score == null && <ActionForm action={aiReview} fields={{ id: job.id }} pendingText="Starting…" label="AI review" />
       )}
 
       {(job.status === 'new' || job.status === 'prepared') && (

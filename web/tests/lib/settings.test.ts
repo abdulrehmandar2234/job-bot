@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
 import * as BOT_PRESETS from '../../../src/ai-presets';
-import { ATS as BOT_ATS } from '../../../src/settings';
+import { ATS as BOT_ATS, REMOTE_BOARDS as BOT_REMOTE_BOARDS } from '../../../src/settings';
 import { BOT_ROOT } from '@/lib/bot';
 import { aiKeyStatus, applicantFile, configFile, defaultConfigFile, ensureConfigFile, readApplicant, readConfig } from '@/lib/settings';
 import {
@@ -17,6 +17,7 @@ import {
   mergeApplicant,
   mergeConfig,
   PRESETS,
+  REMOTE_BOARDS,
   RESPONSE_FORMATS,
   salaryKeys,
 } from '@/lib/settings-form';
@@ -97,6 +98,10 @@ describe('settings files', () => {
 
   it('has the same ATS list as the bot', () => {
     expect([...ATS]).toEqual([...BOT_ATS]);
+  });
+
+  it('has the same remote boards list as the bot', () => {
+    expect([...REMOTE_BOARDS]).toEqual([...BOT_REMOTE_BOARDS]);
   });
 });
 

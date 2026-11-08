@@ -27,21 +27,21 @@ afterAll(closeDb);
 
 describe('checkStillOpen', () => {
   it('runs `bot check:open <id>` with a 60s timeout, then refreshes', async () => {
-    await checkStillOpen(form({ id }));
+    expect(await checkStillOpen(null, form({ id }))).toBeNull();
     expect(bot).toHaveBeenCalledExactlyOnceWith(['check:open', id], 60_000);
     expect(refresh).toHaveBeenCalledOnce();
   });
 
-  it('rejects a missing or unknown job without running the bot', async () => {
-    await expect(checkStillOpen(form({}))).rejects.toThrow('Missing job id');
-    await expect(checkStillOpen(form({ id: PREFIX + 'nope' }))).rejects.toThrow('Unknown job');
+  it('answers a missing or unknown job with an error state, without running the bot', async () => {
+    expect(await checkStillOpen(null, form({}))).toEqual({ ok: false, message: 'Missing job id' });
+    expect(await checkStillOpen(null, form({ id: PREFIX + 'nope' }))).toEqual({ ok: false, message: 'Unknown job' });
     expect(bot).not.toHaveBeenCalled();
     expect(refresh).not.toHaveBeenCalled();
   });
 
-  it('does not refresh when the bot fails', async () => {
-    bot.mockRejectedValue(new Error('Command failed'));
-    await expect(checkStillOpen(form({ id }))).rejects.toThrow(/Command failed/);
+  it('answers a failed bot run with an error state (no refresh), not a throw into app/error.tsx', async () => {
+    bot.mockRejectedValue(Object.assign(new Error('Command failed'), { stderr: 'Error: fetch failed\n    at main' }));
+    expect(await checkStillOpen(null, form({ id }))).toEqual({ ok: false, message: 'The bot failed: fetch failed' });
     expect(refresh).not.toHaveBeenCalled();
   });
 });

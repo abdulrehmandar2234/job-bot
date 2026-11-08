@@ -7,8 +7,8 @@ export type { Task, TaskKind };
 // Long bot commands run as background tasks (table `tasks`, see job-bot/src/tasks.ts): the dashboard queues one,
 // spawns a detached `bot task:run <id>` and returns at once. The enqueue SQL matches enqueue() in src/tasks.ts.
 
-/** What the dashboard shows of a task: active ones, and failures until dismissed. */
-export type TaskView = Pick<Task, 'id' | 'kind' | 'job_id' | 'status' | 'error' | 'created_at' | 'started_at'> & {
+/** What the dashboard shows of a task: active ones, failures until dismissed, and just-finished ones as a notice. */
+export type TaskView = Pick<Task, 'id' | 'kind' | 'job_id' | 'status' | 'error' | 'created_at' | 'started_at' | 'finished_at'> & {
   company: string | null;
   title: string | null;
 };
@@ -30,6 +30,17 @@ export const TASK_LABEL: Record<TaskKind, string> = {
 };
 
 export const isActive = (t: Pick<Task, 'status'>) => t.status === 'queued' || t.status === 'running';
+
+/** Tasks that change a job's CV version (as CV_TASKS in components/cv-panel.tsx): one at a time per job. */
+export const CV_CHANGES: readonly TaskKind[] = ['prepare', 'tailored_cv', 'cv_template', 'cv_feedback'];
+
+/** Thrown by enqueueTask when another task is already changing the job's CV. The message is shown to the user. */
+export class CvBusyError extends Error {
+  constructor() {
+    super('The CV is being changed right now. Try again when it is done.');
+    this.name = 'CvBusyError';
+  }
+}
 
 /** Done and failed tasks are deleted this long after they finished (on enqueue), as in src/tasks.ts. */
 export const KEEP_FINISHED_DAYS = 30;
@@ -61,8 +72,20 @@ export async function failDeadWorkers(): Promise<number> {
   return rowCount ?? 0;
 }
 
+/** How often openTasks runs the stale check at most: every page render and every TaskWatcher poll (each ~3s, per
+ * tab) calls it, and a task going stale a few seconds later is fine. Enqueueing always runs it (`force`). */
+export const EXPIRE_EVERY_MS = 10_000;
+let lastExpire = 0;
+
+/** For tests: forget the last stale check, so the next openTasks runs one. */
+export function resetExpireThrottle() {
+  lastExpire = 0;
+}
+
 /** Fails tasks whose worker died: a dead pid, or past the deadline (expire_stale_tasks() in the migration). */
-async function expireStale() {
+async function expireStale(force = false) {
+  if (!force && Date.now() - lastExpire < EXPIRE_EVERY_MS) return;
+  lastExpire = Date.now();
   await failDeadWorkers();
   await pool.query('SELECT expire_stale_tasks()');
 }
@@ -78,22 +101,30 @@ export async function pruneFinished(): Promise<number> {
 
 /**
  * Queues a task and starts its worker. If the same work is already queued or running (one fetch at a time,
- * one task per kind and job), returns that task instead and starts nothing.
+ * one task per kind and job), returns that task instead and starts nothing. A CV-changing kind (CV_CHANGES)
+ * is refused with CvBusyError while another CV-changing kind runs for the job: the insert itself checks
+ * (INSERT … WHERE NOT EXISTS), so two different kinds enqueued at the same time cannot both pass.
  */
 export async function enqueueTask(
   kind: TaskKind,
   jobId: string | null,
   args: Record<string, string> = {},
 ): Promise<{ task: Task; created: boolean }> {
-  await expireStale();
+  await expireStale(true);
   await pruneFinished();
+  const cvChange = jobId !== null && CV_CHANGES.includes(kind);
   for (let attempt = 0; attempt < 3; attempt++) {
     const {
       rows: [task],
     } = await pool.query<Task>(
-      `INSERT INTO tasks (kind, job_id, args) VALUES ($1, $2, $3)
-       ON CONFLICT (kind, coalesce(job_id, '')) WHERE status IN ('queued', 'running') DO NOTHING RETURNING *`,
-      [kind, jobId, JSON.stringify(args)],
+      cvChange
+        ? `INSERT INTO tasks (kind, job_id, args)
+           SELECT $1::text, $2::text, $3::jsonb WHERE NOT EXISTS (
+             SELECT 1 FROM tasks WHERE job_id = $2 AND kind <> $1 AND kind = ANY($4::text[]) AND status IN ('queued', 'running'))
+           ON CONFLICT (kind, coalesce(job_id, '')) WHERE status IN ('queued', 'running') DO NOTHING RETURNING *`
+        : `INSERT INTO tasks (kind, job_id, args) VALUES ($1, $2, $3)
+           ON CONFLICT (kind, coalesce(job_id, '')) WHERE status IN ('queued', 'running') DO NOTHING RETURNING *`,
+      cvChange ? [kind, jobId, JSON.stringify(args), [...CV_CHANGES]] : [kind, jobId, JSON.stringify(args)],
     );
     if (task) {
       spawnBot(['task:run', String(task.id)]);
@@ -106,26 +137,48 @@ export async function enqueueTask(
       [kind, jobId],
     );
     if (active) return { task: active, created: false };
+    if (cvChange) {
+      const { rowCount } = await pool.query(
+        `SELECT 1 FROM tasks WHERE job_id = $1 AND kind = ANY($2::text[]) AND status IN ('queued', 'running')`,
+        [jobId, [...CV_CHANGES]],
+      );
+      if (rowCount) throw new CvBusyError();
+    }
   }
   throw new Error(`Could not start ${TASK_LABEL[kind].toLowerCase()}`);
 }
 
-/** Active tasks and undismissed failures, oldest first; only one job's when `jobId` is given. */
+/** A done task is offered as a "finished" notice this long (until dismissed); older ones stay hidden. */
+export const FINISHED_NOTICE_MS = 60 * 60_000;
+
+/**
+ * Active tasks, undismissed failures and recently finished, undismissed tasks (the "finished" notice), oldest
+ * first; only one job's when `jobId` is given.
+ */
 export async function openTasks(jobId?: string): Promise<TaskView[]> {
   await expireStale();
   const { rows } = await pool.query<TaskView>(
-    `SELECT t.id, t.kind, t.job_id, t.status, t.error, t.created_at, t.started_at, j.company, j.title
+    `SELECT t.id, t.kind, t.job_id, t.status, t.error, t.created_at, t.started_at, t.finished_at, j.company, j.title
      FROM tasks t LEFT JOIN jobs j ON j.id = t.job_id
-     WHERE (t.status IN ('queued', 'running') OR (t.status = 'failed' AND NOT t.dismissed))
+     WHERE (t.status IN ('queued', 'running') OR (t.status = 'failed' AND NOT t.dismissed)
+        OR (t.status = 'done' AND NOT t.dismissed AND t.finished_at > now() - make_interval(secs => $2)))
        AND ($1::text IS NULL OR t.job_id = $1)
      ORDER BY t.created_at, t.id`,
-    [jobId ?? null],
+    [jobId ?? null, FINISHED_NOTICE_MS / 1000],
   );
   return rows;
 }
 
-/** Hides a failed task from the dashboard. Returns false if there is no such failure. */
+/** Hides a failed task's error or a finished task's notice from the dashboard. Returns false if there is no such task. */
 export async function dismissTask(id: number) {
-  const { rowCount } = await pool.query(`UPDATE tasks SET dismissed = true WHERE id = $1 AND status = 'failed'`, [id]);
-  return rowCount === 1;
+  // The task bar shows only the newest finished task, so dismissing it also dismisses the done tasks that finished
+  // before it: otherwise each Dismiss would uncover the next older "finished" notice.
+  const { rowCount } = await pool.query(
+    `WITH t AS (SELECT id, status, finished_at FROM tasks WHERE id = $1 AND status IN ('done', 'failed'))
+     UPDATE tasks SET dismissed = true
+     WHERE id IN (SELECT id FROM t)
+        OR (status = 'done' AND NOT dismissed AND finished_at <= (SELECT finished_at FROM t WHERE status = 'done'))`,
+    [id],
+  );
+  return (rowCount ?? 0) > 0;
 }

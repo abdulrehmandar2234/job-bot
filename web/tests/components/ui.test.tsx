@@ -122,7 +122,7 @@ describe('Score', () => {
     const badge = container.firstElementChild!;
     expect(badge).toHaveTextContent('62kw');
     expect(badge).toHaveAttribute('title', 'Keyword score 62 (not AI-reviewed yet)');
-    expect(badge).toHaveClass('bg-amber-500');
+    expect(badge).toHaveClass('bg-amber-700');
   });
 
   it('prefers the AI score, labelled "AI", and colours by it', () => {
@@ -141,8 +141,8 @@ describe('Score', () => {
 
   it.each([
     [75, 'bg-emerald-600'],
-    [74, 'bg-amber-500'],
-    [55, 'bg-amber-500'],
+    [74, 'bg-amber-700'],
+    [55, 'bg-amber-700'],
     [54, 'bg-zinc-400'],
   ])('score %i is %s', (v, cls) => {
     const { container } = render(<Score value={v} ai={null} />);

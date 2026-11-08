@@ -8,7 +8,8 @@
     "build": "next build",
     "start": "next start -H 127.0.0.1 -p 3100",
     "test": "vitest run",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "next typegen && tsc -p ."
   },
   "dependencies": {
     "next": "16.4.3",

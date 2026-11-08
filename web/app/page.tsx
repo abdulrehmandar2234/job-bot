@@ -16,8 +16,9 @@ import {
   weekStats,
   type Status,
 } from '@/lib/db';
+import { ActionForm } from '@/components/action-form';
 import { FetchWarning } from '@/components/analytics';
-import { BaytBookmarklet, SubmitButton } from '@/components/client';
+import { BaytBookmarklet } from '@/components/client';
 import { JobActions } from '@/components/job-actions';
 import { TaskBar } from '@/components/tasks';
 import { isActive, openTasks } from '@/lib/tasks';
@@ -56,11 +57,7 @@ export default function Page(props: PageProps<'/'>) {
           <Link href="/settings" className="btn">
             Settings
           </Link>
-          <form action={fetchNow}>
-            <SubmitButton pendingText="Starting…" className="btn-primary">
-              Fetch new jobs
-            </SubmitButton>
-          </form>
+          <ActionForm action={fetchNow} pendingText="Starting…" buttonClass="btn-primary" label="Fetch new jobs" />
         </div>
       </header>
       <Suspense fallback={null}>
@@ -134,8 +131,8 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<'/'>['searc
   const [postings, contacts] = await Promise.all([postingsFor(jobs.map((j) => j.id)), allContacts()]);
   // Tabs and filters start again at page 1; the page links keep everything else.
   // While searching, a tab link narrows the search to that tab (in=tab); page links keep the current scope.
-  const tabHref = (s: string, view?: 'followup', toPage = 1, scope: 'tab' | 'keep' = 'tab') => {
-    const p = new URLSearchParams({
+  const tabParams = (s: string, view?: 'followup', toPage = 1, scope: 'tab' | 'keep' = 'tab') =>
+    new URLSearchParams({
       ...(view ? { view } : { status: s }),
       ...(country && { country }),
       ...(min && { min: String(min) }),
@@ -148,12 +145,11 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<'/'>['searc
       ...(size !== PAGE_SIZE_DEFAULT && { size: String(size) }),
       ...(toPage > 1 && { page: String(toPage) }),
     });
-    return `/?${p}`;
-  };
+  const tabHref = (s: string, view?: 'followup', toPage = 1, scope: 'tab' | 'keep' = 'tab') => `/?${tabParams(s, view, toPage, scope)}`;
   const pageHref = (n: number) => tabHref(status, followUp ? 'followup' : undefined, n, 'keep');
   // The same search in every tab: the current URL without in=tab and page.
   const everyTabHref = () => {
-    const p = new URLSearchParams(tabHref(status, undefined, 1, 'keep').slice(2));
+    const p = tabParams(status, undefined, 1, 'keep');
     p.delete('in');
     return `/?${p}`;
   };
@@ -170,7 +166,7 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<'/'>['searc
 
       <nav
         aria-label="Job status"
-        className="mb-4 flex gap-1 overflow-x-auto [scrollbar-width:none] border-b border-zinc-200 dark:border-zinc-800"
+        className="scroll-x-hint mb-4 flex gap-1 overflow-x-auto [scrollbar-width:none] border-b border-zinc-200 dark:border-zinc-800"
       >
         {STATUSES.map((s) => (
           <Fragment key={s}>

@@ -5,7 +5,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 import Page from '@/app/page';
 import JobPage from '@/app/jobs/[id]/page';
 import { followUpCount } from '@/lib/db';
-import { cleanupDb, closeDb, daysAgo, ensureSchema, insertJob } from '../helpers/db';
+import { cleanupDb, closeDb, dateDaysAgo, ensureSchema, insertJob } from '../helpers/db';
 
 // The header and first-run banner read config.json per request (connection()); these tests render outside Next.
 vi.mock('next/server', async (importOriginal) => ({
@@ -76,8 +76,8 @@ afterAll(closeDb);
 describe('follow-up reminders on the dashboard', () => {
   it('"Needs follow-up" sits after Applied with the due count, and lists only due jobs', async () => {
     const before = await followUpCount();
-    await insertJob({ id: 'fu-due', title: 'TG waiting', status: 'applied', applied_at: daysAgo(9) });
-    await insertJob({ id: 'fu-fresh', title: 'TG fresh', status: 'applied', applied_at: daysAgo(1) });
+    await insertJob({ id: 'fu-due', title: 'TG waiting', status: 'applied', applied_at: dateDaysAgo(9) });
+    await insertJob({ id: 'fu-fresh', title: 'TG fresh', status: 'applied', applied_at: dateDaysAgo(1) });
     await renderList({ view: 'followup' });
     expect(tab('Needs follow-up')).toHaveTextContent(`Needs follow-up ${before + 1}`);
     expect(tab('Needs follow-up')).toHaveAttribute('href', '/?view=followup');
@@ -95,14 +95,14 @@ describe('follow-up reminders on the dashboard', () => {
   });
 
   it('the Applied tab lists every applied job, with the badge on the due one', async () => {
-    await insertJob({ id: 'fu-due', title: 'TG waiting', status: 'applied', applied_at: daysAgo(9) });
-    await insertJob({ id: 'fu-fresh', title: 'TG fresh', status: 'applied', applied_at: daysAgo(1) });
+    await insertJob({ id: 'fu-due', title: 'TG waiting', status: 'applied', applied_at: dateDaysAgo(9) });
+    await insertJob({ id: 'fu-fresh', title: 'TG fresh', status: 'applied', applied_at: dateDaysAgo(1) });
     await renderList({ status: 'applied' });
     expect(cardTitles().sort()).toEqual(['TG fresh · Acme ', 'TG waiting · Acme Follow up · 9 days']);
   });
 
   it('says so when nothing is due', async () => {
-    await insertJob({ id: 'fu-fresh', title: 'TG fresh', status: 'applied', applied_at: daysAgo(1) });
+    await insertJob({ id: 'fu-fresh', title: 'TG fresh', status: 'applied', applied_at: dateDaysAgo(1) });
     await renderList({ view: 'followup' });
     expect(screen.getByText(/^No follow-ups due/)).toBeInTheDocument();
   });
@@ -112,7 +112,7 @@ describe('follow-up reminders on the dashboard', () => {
       id: 'fu-page',
       title: 'TG waiting',
       status: 'applied',
-      applied_at: daysAgo(9),
+      applied_at: dateDaysAgo(9),
       follow_up_draft: 'Dear Acme Hiring Team,\nStill keen.',
       follow_up_draft_at: new Date(),
     });

@@ -114,13 +114,25 @@ export async function dedupe() {
     `SELECT id, company, title, country, source, status, first_seen_at FROM jobs WHERE status <> 'filtered'`,
   );
   const links = duplicateLinks(rows);
-  await pool.query('UPDATE jobs SET duplicate_of = NULL WHERE duplicate_of IS NOT NULL');
-  if (links.length) {
-    await pool.query(
-      `UPDATE jobs SET duplicate_of = v.primary_id FROM unnest($1::text[], $2::text[]) AS v(id, primary_id)
-      WHERE jobs.id = v.id`,
-      [links.map((l) => l[0]), links.map((l) => l[1])],
-    );
+  // Unlink and relink in one transaction: a reader never sees the window where every duplicate is ungrouped,
+  // and two dedupes running at once serialise on the row locks instead of interleaving the two statements.
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('UPDATE jobs SET duplicate_of = NULL WHERE duplicate_of IS NOT NULL');
+    if (links.length) {
+      await client.query(
+        `UPDATE jobs SET duplicate_of = v.primary_id FROM unnest($1::text[], $2::text[]) AS v(id, primary_id)
+        WHERE jobs.id = v.id`,
+        [links.map((l) => l[0]), links.map((l) => l[1])],
+      );
+    }
+    await client.query('COMMIT');
+  } catch (e) {
+    await client.query('ROLLBACK');
+    throw e;
+  } finally {
+    client.release();
   }
   return links.length;
 }
@@ -237,14 +249,16 @@ export const SKIP_REASONS = [
 /**
  * Changes a job's status and logs it in job_events, in one transaction. `reason` is kept only for skips. With `expectFrom`, the change only applies when the current
  * status (read under a row lock) is one of those statuses: bot steps pass the statuses they decided from, so a status
- * the user set in the meantime is never overwritten. Returns whether the status was changed.
+ * the user set in the meantime is never overwritten. With `set`, the extra columns change in the same transaction
+ * (and not at all when the change is refused), so a crash can never leave a status without its matching reason.
+ * Returns whether the status was changed.
  */
 export async function setStatus(
   id: string,
   status: JobStatus,
   note?: string,
   reason?: SkipReason,
-  { expectFrom }: { expectFrom?: readonly JobStatus[] } = {},
+  { expectFrom, set }: { expectFrom?: readonly JobStatus[]; set?: { filter_reason?: string | null } } = {},
 ): Promise<boolean> {
   const client = await pool.connect();
   try {
@@ -261,6 +275,7 @@ export async function setStatus(
       WHERE id = $1`,
       [id, status],
     );
+    if (set && 'filter_reason' in set) await client.query('UPDATE jobs SET filter_reason = $2 WHERE id = $1', [id, set.filter_reason]);
     await client.query('INSERT INTO job_events (job_id, from_status, to_status, note, reason) VALUES ($1, $2, $3, $4, $5)', [
       id,
       rows[0]?.status ?? null,

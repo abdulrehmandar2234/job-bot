@@ -4,7 +4,7 @@
 // form and submits it.
 import { copyButton, h, link } from './dom.js';
 import { fetchCv, lookupJob } from './lib/api.js';
-import { planFill } from './lib/fill.js';
+import { planFrameFills } from './lib/fill.js';
 import { applyFill, describeFields, listFrameUrls } from './lib/page-fill.js';
 import { frameOrigins, isHttpUrl, sameTab } from './lib/url.js';
 import { readTab, renderSendForm } from './send.js';
@@ -140,11 +140,15 @@ async function fillForm(j, tab, retry) {
   const frames = await chrome.scripting
     .executeScript({ target: { tabId: tab.id, allFrames: true }, func: describeFields })
     .catch(() => chrome.scripting.executeScript({ target: { tabId: tab.id }, func: describeFields }));
+  // All frames are planned in one pass, so a drafted answer is typed into one field on the page, not once per frame.
+  const plans = planFrameFills(
+    frames.map((f) => f.result ?? []),
+    data,
+  );
   const filled = [];
   const skipped = [];
-  for (const { frameId, result } of frames) {
-    if (!result?.length) continue;
-    const plan = planFill(result, data);
+  for (const [i, { frameId }] of frames.entries()) {
+    const plan = plans[i];
     skipped.push(...plan.skipped);
     if (plan.fills.some((f) => f.kind === 'file')) cv ??= await fetchCv(j.cv_url, j.cv_file_name);
     const fills = cv ? plan.fills : plan.fills.filter((f) => f.kind !== 'file');

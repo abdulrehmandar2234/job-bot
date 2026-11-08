@@ -5,10 +5,42 @@
 
 /** Lists visible, enabled form fields, tagging each with data-jobbot-field so applyFill() can find it again. */
 export function describeFields() {
+  // An element is shown when neither it nor an ancestor is display:none, visibility:hidden or (near-)transparent,
+  // and it has a real box inside the page. A hostile page can plant "email" / "cv" fields hidden with opacity:0,
+  // zero size or left:-9999px to harvest values from one honest click, so all of those count as hidden here.
+  // (Test environments without layout report a 0×0 page; the box checks are skipped there.)
+  const shown = (el) => {
+    for (let n = el; n instanceof Element; n = n.parentElement) {
+      const s = getComputedStyle(n);
+      if (s.display === 'none' || s.visibility === 'hidden') return false;
+      const opacity = Number.parseFloat(s.opacity);
+      if (!Number.isNaN(opacity) && opacity < 0.1) return false;
+    }
+    if (el.getClientRects().length === 0) return false;
+    const r = el.getBoundingClientRect();
+    if (r.width < 1 || r.height < 1) return false;
+    const d = document.documentElement;
+    const pageW = Math.max(d.scrollWidth, d.clientWidth, window.innerWidth || 0);
+    const pageH = Math.max(d.scrollHeight, d.clientHeight, window.innerHeight || 0);
+    const left = r.left + (window.scrollX || 0); // document coordinates
+    const top = r.top + (window.scrollY || 0);
+    if (pageW > 0 && (left + r.width <= 0 || left >= pageW)) return false;
+    if (pageH > 0 && (top + r.height <= 0 || top >= pageH)) return false;
+    return true;
+  };
+  // A file input is often display:none behind a styled "Upload" button; that is fine only when the user can see
+  // its trigger (a label). A hidden file input with no visible label never gets the CV.
   const visible = (el) => {
-    if (el.type === 'file') return true; // file inputs are often hidden behind a styled "Upload" button
-    const style = getComputedStyle(el);
-    return style.display !== 'none' && style.visibility !== 'hidden' && el.getClientRects().length > 0;
+    if (shown(el)) return true;
+    if (el.type !== 'file') return false;
+    const byFor = el.id ? document.querySelector(`label[for="${CSS.escape(el.id)}"]`) : null;
+    const label = byFor ?? el.closest('label');
+    if (label && shown(label)) return true;
+    const by = el.getAttribute('aria-labelledby') ?? '';
+    return by.split(/\s+/).some((id) => {
+      const n = document.getElementById(id);
+      return n != null && shown(n);
+    });
   };
   const textOf = (node) => (node ? (node.innerText ?? node.textContent ?? '') : '');
   const labelOf = (el) => {
@@ -57,16 +89,48 @@ export function describeFields() {
  * Returns how many fields were filled.
  */
 export function applyFill(fills, cv) {
+  // Same visibility checks as describeFields(), duplicated because Chrome serializes each function on its own.
+  const shown = (el) => {
+    for (let n = el; n instanceof Element; n = n.parentElement) {
+      const s = getComputedStyle(n);
+      if (s.display === 'none' || s.visibility === 'hidden') return false;
+      const opacity = Number.parseFloat(s.opacity);
+      if (!Number.isNaN(opacity) && opacity < 0.1) return false;
+    }
+    if (el.getClientRects().length === 0) return false;
+    const r = el.getBoundingClientRect();
+    if (r.width < 1 || r.height < 1) return false;
+    const d = document.documentElement;
+    const pageW = Math.max(d.scrollWidth, d.clientWidth, window.innerWidth || 0);
+    const pageH = Math.max(d.scrollHeight, d.clientHeight, window.innerHeight || 0);
+    const left = r.left + (window.scrollX || 0);
+    const top = r.top + (window.scrollY || 0);
+    if (pageW > 0 && (left + r.width <= 0 || left >= pageW)) return false;
+    if (pageH > 0 && (top + r.height <= 0 || top >= pageH)) return false;
+    return true;
+  };
+  const visible = (el) => {
+    if (shown(el)) return true;
+    if (el.type !== 'file') return false;
+    const byFor = el.id ? document.querySelector(`label[for="${CSS.escape(el.id)}"]`) : null;
+    const label = byFor ?? el.closest('label');
+    if (label && shown(label)) return true;
+    const by = el.getAttribute('aria-labelledby') ?? '';
+    return by.split(/\s+/).some((id) => {
+      const n = document.getElementById(id);
+      return n != null && shown(n);
+    });
+  };
   // Checked again right before typing: the page may have changed since describeFields(), and a field the user
-  // filled in meanwhile, or one that is now hidden or disabled, is never touched.
+  // filled in meanwhile, or one that is now hidden or disabled — text, select or file alike — is never touched.
   const stillEmpty = (el) => {
-    if (el.disabled || el.readOnly) return false;
+    if (el.disabled || el.readOnly || !visible(el)) return false;
     if (el.type === 'file') return el.files.length === 0;
     if (el.tagName === 'SELECT') {
       const o = el.options[el.selectedIndex];
       return !o || o.value === '' || o.disabled;
     }
-    return !el.value.trim() && getComputedStyle(el).display !== 'none' && el.getClientRects().length > 0;
+    return !el.value.trim();
   };
   let filled = 0;
   for (const f of fills) {

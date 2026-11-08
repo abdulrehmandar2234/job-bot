@@ -185,6 +185,7 @@ export type Posting = { id: string; source: string; url: string };
 
 /** Every site a job was found on: the primary row itself plus its duplicates, keyed by primary id. */
 export async function postingsFor(ids: string[]) {
+  if (!ids.length) return new Map<string, Posting[]>(); // an empty tab needs no query
   const { rows } = await pool.query<Posting & { primary_id: string }>(
     `SELECT coalesce(duplicate_of, id) AS primary_id, id, source, url FROM jobs
      WHERE id = ANY($1) OR duplicate_of = ANY($1) ORDER BY duplicate_of NULLS FIRST, first_seen_at`,
@@ -202,7 +203,7 @@ export async function lastRun() {
 
 export async function weekStats() {
   const { rows } = await pool.query<{ applied_week: number; new_today: number }>(`
-    SELECT (SELECT count(*)::int FROM jobs WHERE applied_at > now() - interval '7 days') AS applied_week,
+    SELECT (SELECT count(*)::int FROM jobs WHERE duplicate_of IS NULL AND applied_at > now() - interval '7 days') AS applied_week,
            (SELECT count(*)::int FROM jobs
             WHERE status <> 'filtered' AND duplicate_of IS NULL AND first_seen_at::date = current_date) AS new_today`);
   return rows[0];

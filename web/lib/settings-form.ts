@@ -158,6 +158,9 @@ export const isApiProvider = (v: unknown) => v === 'api' || v === 'openai' || v 
 /** Same list as the bot's ATS (src/settings.ts); tests/lib/settings.test.ts checks they match. */
 export const ATS: readonly Company['ats'][] = ['greenhouse', 'lever', 'ashby', 'recruitee', 'workable', 'smartrecruiters', 'workday'];
 
+/** Same list as the bot's REMOTE_BOARDS (src/settings.ts); tests/lib/settings.test.ts checks they match. */
+export const REMOTE_BOARDS: readonly string[] = ['himalayas', 'remotive', 'remoteok', 'arbeitnow', 'adzuna'];
+
 // Form field names are the same paths the validator reports (`ai.enabled`, `companies[3].ats`), so errors map
 // straight onto fields. Merging starts from the current file, so keys the form does not show are kept.
 

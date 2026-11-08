@@ -2,7 +2,12 @@ name: Tests
 
 on:
   push:
+    branches: [main]
   pull_request:
+  # Once a month on main: the job boards and ATS APIs the bot talks to change under us, and so do transitive
+  # dependencies; a scheduled run notices breakage without waiting for the next push.
+  schedule:
+    - cron: "17 6 1 * *"
 
 # Tests only read the repository.
 permissions:
@@ -78,7 +83,7 @@ jobs:
             web/package-lock.json
       - run: npm ci
       - run: npm ci --prefix web
-      - run: npx biome ci .
+      # No Biome here: linting is platform-independent and already runs on Ubuntu.
       - run: npm run typecheck
       - run: >-
           npm test --

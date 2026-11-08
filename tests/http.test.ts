@@ -1,10 +1,10 @@
 import { after, afterEach, before, describe, it, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { mockFetch } from './helpers.ts';
-import { HttpError, UA, getJson, getText, postJson, request, retryDelay, timing } from '../src/sources/http.ts';
+import { HttpError, UA, getJson, getText, postJson, pruneCache, request, retryDelay, timing } from '../src/sources/http.ts';
 
 const cacheDir = mkdtempSync(join(tmpdir(), 'job-bot-http-'));
 before(() => {
@@ -114,6 +114,16 @@ describe('request: retries', () => {
     assert.equal(net.calls.length, 1);
   });
 
+  it('a non-JSON body names the URL without its query string (where API keys live)', async () => {
+    net = mockFetch({ 'q.test': '<html>maintenance</html>', 'p.test': 'nope' });
+    const err = await getJson('https://q.test/api/search?app_key=secret-key&page=1', { cache: false }).catch((e) => e);
+    assert.ok(err.message.startsWith('invalid JSON from https://q.test/api/search?…'), err.message);
+    assert.ok(!err.message.includes('secret-key'));
+    // postJson parses the same way; a URL without a query string stays as it is.
+    const perr = await postJson('https://p.test/search', {}).catch((e) => e);
+    assert.match(perr.message, /^invalid JSON from https:\/\/p\.test\/search: /);
+  });
+
   it('sends the job-bot User-Agent unless the caller sets one', async () => {
     const agents: (string | undefined)[] = [];
     net = mockFetch({
@@ -163,6 +173,32 @@ describe('request: conditional cache', () => {
     await getText('https://i.test/b', { cache: false });
     await getText('https://i.test/b', { cache: false });
     assert.ok(seen.every((h) => !h['if-none-match']));
+  });
+});
+
+describe('pruneCache', () => {
+  it('removes .json entries older than 30 days and keeps fresh ones and other files', () => {
+    const old = join(cacheDir, 'old-entry.json');
+    const fresh = join(cacheDir, 'fresh-entry.json');
+    const other = join(cacheDir, 'not-an-entry.txt');
+    for (const f of [old, fresh, other]) writeFileSync(f, '{}');
+    const past = new Date(Date.now() - 40 * 86_400_000);
+    utimesSync(old, past, past);
+    utimesSync(other, past, past);
+    assert.equal(pruneCache(), 1);
+    assert.ok(!existsSync(old));
+    assert.ok(existsSync(fresh));
+    assert.ok(existsSync(other));
+  });
+
+  it('returns 0 when the cache directory does not exist yet', () => {
+    const prev = process.env.JOB_BOT_HTTP_CACHE;
+    process.env.JOB_BOT_HTTP_CACHE = join(cacheDir, 'does-not-exist');
+    try {
+      assert.equal(pruneCache(), 0);
+    } finally {
+      process.env.JOB_BOT_HTTP_CACHE = prev;
+    }
   });
 });
 

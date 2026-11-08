@@ -1,16 +1,26 @@
 // Bayt collector — runs inside a bayt.com tab, started by the "Bayt → Job Bot" bookmarklet on the dashboard
-// (served from http://localhost:3100/api/bayt-script) or by Claude through the Chrome extension.
+// (served from the dashboard's /api/bayt-script, which injects the user's search settings and the import token).
 // Bayt blocks direct requests from the bot (Cloudflare 403), so jobs are read from inside the browser
-// and posted to the local dashboard (http://localhost:3100/api/import), where `bot add` scores them.
+// and posted to the local dashboard's /api/import, where `bot add` scores them.
 // Chrome asks once to allow bayt.com to reach localhost ("local network access").
 // Progress: the box in the page corner, and window.__bayt (phase, links, jobs, done, errors, result).
 
 (() => {
   if (window.__bayt && !window.__bayt.done) return 'already running';
 
-  const KEYWORDS = ['laravel', 'php-developer', 'node-js', 'react-js', 'full-stack-developer', 'mern-stack', 'next-js', 'nestjs', 'vue-js'];
-  const COUNTRIES = ['uae', 'saudi-arabia'];
-  const MAX_AGE_DAYS = 14;
+  // Search settings. Served through the dashboard, /api/bayt-script replaces the next line's null with values from
+  // the user's config.json (keywords, countries, maxAgeDays), the dashboard's own origin (any port, not just 3100)
+  // and the import token that /api/import requires, so nothing personal is hardcoded here. The fallbacks below only
+  // apply when the file is run raw; they mirror config.default.json, and without a token the dashboard refuses the
+  // import — always load the collector through the bookmarklet.
+  const SETTINGS = /*__BAYT_SETTINGS__*/ null;
+  const DASHBOARD = SETTINGS?.dashboard || 'http://localhost:3100';
+  const TOKEN = SETTINGS?.token || '';
+  const KEYWORDS = SETTINGS?.keywords?.length
+    ? SETTINGS.keywords
+    : ['laravel', 'php-developer', 'node-js', 'react-js', 'full-stack-developer', 'mern-stack', 'next-js', 'nestjs', 'vue-js'];
+  const COUNTRIES = SETTINGS?.countries?.length ? SETTINGS.countries : ['uae', 'saudi-arabia'];
+  const MAX_AGE_DAYS = SETTINGS?.maxAgeDays || 14;
   const INCLUDE = /engineer|developer|full-?stack|back-?end|front-?end|software|web|php|laravel|node|react|programmer/i;
   const EXCLUDE =
     /data-scien|machine-learning|-ml-|ios|android|mobile|-qa-|quality|-test|-sre-|devops|security|intern|graduate|trainee|manager|director|head-of|sales|support|analyst|designer|embedded|hardware|golang|-java-|net-|dotnet|c-sharp|python|data-engineer|react-native|wordpress|shopify|marketing|salesforce|-sap-|oracle|dynamics/i;
@@ -118,16 +128,22 @@
     S.phase = 'import';
     show(`Sending ${S.jobs.length} jobs to the dashboard…`);
     try {
-      const r = await fetch('http://localhost:3100/api/import', {
+      // The token travels in a header (never in a URL, where it would land in logs and history).
+      const r = await fetch(`${DASHBOARD}/api/import`, {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: { 'content-type': 'application/json', 'x-import-token': TOKEN },
         body: JSON.stringify(S.jobs),
       });
       S.result = await r.json();
-      show(
-        `Done ✓ ${S.result.received ?? 0} sent, <b>${S.result.matched ?? 0} matched</b> your profile.` +
-          '<br><a href="http://localhost:3100" target="_blank" style="color:#7dd3fc">Open dashboard ↗</a>',
-      );
+      if (!r.ok) {
+        S.errors.push(`import: ${S.result.error || r.status}`);
+        show(`The dashboard refused the import: ${S.result.error || r.status}`);
+      } else {
+        show(
+          `Done ✓ ${S.result.received ?? 0} sent, <b>${S.result.matched ?? 0} matched</b> your profile.` +
+            `<br><a href="${DASHBOARD}" target="_blank" style="color:#7dd3fc">Open dashboard ↗</a>`,
+        );
+      }
     } catch (e) {
       S.errors.push(`import: ${e}`);
       show('Could not reach the dashboard. Is <code>npm run web</code> running, and did you allow local network access?');

@@ -5,7 +5,7 @@ import { NextRequest } from 'next/server';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { OPTIONS, POST } from '@/app/api/import/route';
 import { BOT_ROOT, runBot } from '@/lib/bot';
-import { EXTENSION_ID } from '@/lib/extension';
+import { EXTENSION_ID, importToken } from '@/lib/extension';
 import { cleanupDb, closeDb, ensureSchema, insertJob, PREFIX } from '../../helpers/db';
 
 // Never spawn the bot; import files go to a temp "bot root". `bot add` is played by insertJob below.
@@ -44,11 +44,14 @@ const job = (over: Record<string, unknown> = {}) => ({
 });
 
 type Imported = { source: string; company: string; title: string; url: string; posted_at: string | null };
-const imported = () => JSON.parse(readFileSync(bot.mock.calls[0][0][2], 'utf8')) as Imported[];
+// The import file is deleted after a successful `bot add`, so fakeAdd captures what it was given.
+let sent: Imported[][] = [];
+const imported = () => sent[0];
 
 /** Plays `bot add`: saves each imported job, filtered when its title says so. */
 const fakeAdd = async (args: string[]) => {
   const jobs = JSON.parse(readFileSync(args[2], 'utf8')) as Imported[];
+  sent.push(jobs);
   for (const [i, j] of jobs.entries()) {
     const filtered = /filtered/.test(j.title);
     await insertJob({
@@ -68,6 +71,7 @@ const fakeAdd = async (args: string[]) => {
 beforeAll(ensureSchema);
 beforeEach(async () => {
   vi.clearAllMocks();
+  sent = [];
   bot.mockImplementation(fakeAdd);
   await cleanupDb();
 });
@@ -81,7 +85,12 @@ describe('POST /api/import from the Chrome extension', () => {
     const preflight = (origin: string) =>
       OPTIONS(new NextRequest('http://localhost:3100/api/import', { method: 'OPTIONS', headers: { origin } }));
     expect((await preflight(EXT)).headers.get('access-control-allow-origin')).toBe(EXT);
-    expect((await preflight(OTHER)).headers.get('access-control-allow-origin')).toBe('null');
+    expect((await preflight(OTHER)).headers.get('access-control-allow-origin')).toBeNull();
+  });
+
+  it('needs no import token: the chrome-extension:// origin cannot be forged by web pages', async () => {
+    // Every post() in this file sends no x-import-token header; this one just says so explicitly.
+    expect((await post([job()])).status).toBe(200);
   });
 
   it('accepts another id set in JOB_BOT_EXTENSION_ID instead of the pinned one', async () => {
@@ -212,7 +221,13 @@ describe('POST /api/import from the Chrome extension', () => {
   });
 
   it('still limits Bayt bookmarklet requests to bayt.com urls', async () => {
-    const res = await post([job({ url: `${SITE}/jobs/1` })], 'https://www.bayt.com');
+    const res = await POST(
+      new NextRequest('http://localhost:3100/api/import', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', origin: 'https://www.bayt.com', 'x-import-token': importToken() },
+        body: JSON.stringify([job({ url: `${SITE}/jobs/1` })]),
+      }),
+    );
     expect(await res.json()).toEqual({ added: 0 });
   });
 });

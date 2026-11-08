@@ -1,7 +1,8 @@
 import { prepareInterview } from '@/app/jobs/[id]/interview-actions';
 import type { InterviewPrep as Prep, Job } from '@/lib/db';
 import type { TaskKind } from '@/lib/tasks';
-import { CopyButton, SubmitButton } from './client';
+import { ActionForm } from './action-form';
+import { CopyButton } from './client';
 import { AiOffNote } from './ai-off';
 import { Busy } from './tasks';
 import { fmtDate } from './ui';
@@ -30,12 +31,7 @@ export function prepText(p: Prep): string {
 }
 
 function PrepButton({ id, label }: { id: string; label: string }) {
-  return (
-    <form action={prepareInterview}>
-      <input type="hidden" name="id" value={id} />
-      <SubmitButton pendingText="Starting…">{label}</SubmitButton>
-    </form>
-  );
+  return <ActionForm action={prepareInterview} fields={{ id }} pendingText="Starting…" label={label} />;
 }
 
 const card = 'space-y-1 rounded-xl border border-zinc-200 p-3 text-sm dark:border-zinc-800';

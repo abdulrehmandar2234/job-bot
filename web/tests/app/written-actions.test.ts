@@ -83,9 +83,9 @@ describe.each([
     expect(refresh).not.toHaveBeenCalled();
   });
 
-  it('rejects a missing or unknown job', async () => {
-    await expect(action(null, form({ feedback: 'shorter' }))).rejects.toThrow('Missing job id');
-    await expect(action(null, form({ id: PREFIX + 'nope', feedback: 'shorter' }))).rejects.toThrow('Unknown job');
+  it('answers a missing or unknown job with an error state, not a throw (the page keeps its state)', async () => {
+    expect(await action(null, form({ feedback: 'shorter' }))).toEqual({ ok: false, message: 'Missing job id' });
+    expect(await action(null, form({ id: PREFIX + 'nope', feedback: 'shorter' }))).toEqual({ ok: false, message: 'Unknown job' });
     expect(await tasks()).toEqual([]);
   });
 });
@@ -114,7 +114,7 @@ describe('saveLetter', () => {
   });
 
   it('refuses while the bot is rewriting the letter, which would overwrite the edit', async () => {
-    await writeLetter(form({ id }));
+    await writeLetter(null, form({ id }));
     expect(await saveLetter(null, form({ id, text: 'Mine' }))).toEqual({
       ok: false,
       message: 'The letter is being rewritten right now. Save again when it is done.',
@@ -122,14 +122,14 @@ describe('saveLetter', () => {
     expect((await getJob(id))!.cover_letter).toBe('Dear Acme,\nAI letter\n');
   });
 
-  it('rejects an unknown job', async () => {
-    await expect(saveLetter(null, form({ id: PREFIX + 'nope', text: 'x' }))).rejects.toThrow('Unknown job');
+  it('answers an unknown job with an error state, not a throw', async () => {
+    expect(await saveLetter(null, form({ id: PREFIX + 'nope', text: 'x' }))).toEqual({ ok: false, message: 'Unknown job' });
   });
 });
 
 describe('CV summary', () => {
   it('writeSummary queues a summary task without feedback', async () => {
-    await writeSummary(form({ id }));
+    expect(await writeSummary(null, form({ id }))).toBeNull();
     const [t] = await tasks();
     expect(t).toMatchObject({ kind: 'summary', job_id: id, args: {} });
     expect(spawn).toHaveBeenCalledExactlyOnceWith(['task:run', String(t.id)]);
@@ -137,14 +137,22 @@ describe('CV summary', () => {
   });
 
   it('tailorCv queues a tailored_cv task once a summary exists, and refuses before', async () => {
-    await expect(tailorCv(form({ id }))).rejects.toThrow('Write the CV summary for this job first');
+    expect(await tailorCv(null, form({ id }))).toEqual({ ok: false, message: 'Write the CV summary for this job first' });
     expect(await tasks()).toEqual([]);
     await pool.query(`UPDATE jobs SET cv_summary = 'Senior engineer.' WHERE id = $1`, [id]);
-    await tailorCv(form({ id }));
+    expect(await tailorCv(null, form({ id }))).toBeNull();
     const [t] = await tasks();
     expect(t).toMatchObject({ kind: 'tailored_cv', job_id: id, args: {} });
     expect(spawn).toHaveBeenCalledExactlyOnceWith(['task:run', String(t.id)]);
-    await expect(tailorCv(form({ id: PREFIX + 'nope' }))).rejects.toThrow('Unknown job');
+    expect(await tailorCv(null, form({ id: PREFIX + 'nope' }))).toEqual({ ok: false, message: 'Unknown job' });
+  });
+
+  it('tailorCv reads the job and its summary in one query: a job that disappears is "Unknown job", not a crash', async () => {
+    const gone = PREFIX + 'tailor-gone';
+    await insertJob({ id: gone, cv_summary: 'Senior engineer.' });
+    await pool.query('DELETE FROM jobs WHERE id = $1', [gone]);
+    expect(await tailorCv(null, form({ id: gone }))).toEqual({ ok: false, message: 'Unknown job' });
+    expect(await tailorCv(null, form({}))).toEqual({ ok: false, message: 'Missing job id' });
   });
 
   it('saveSummary stores the edited summary as one paragraph and marks it edited', async () => {
@@ -158,7 +166,7 @@ describe('CV summary', () => {
   });
 
   it('saveSummary refuses while a summary task runs', async () => {
-    await writeSummary(form({ id }));
+    await writeSummary(null, form({ id }));
     expect((await saveSummary(null, form({ id, text: 'Mine' })))?.ok).toBe(false);
     expect((await getJob(id))!.cv_summary).toBeNull();
   });

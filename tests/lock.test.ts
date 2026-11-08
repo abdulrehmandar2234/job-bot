@@ -104,6 +104,22 @@ describe('CLI', () => {
     assert.equal(await fetchRuns(), 1);
   });
 
+  it('a bulk ai:score skips while another holds the lock; a single job (--id) never does', async () => {
+    const release = await hold('ai:score');
+    try {
+      assert.match(await bot(['ai:score']), /An ai:score is already running; skipping\./);
+      // One job, as a dashboard task runs it: guarded by the task queue, not the lock.
+      const single = await bot(['ai:score', '--id', 'nope:1']);
+      assert.doesNotMatch(single, /already running/);
+      assert.match(single, /Nothing to score\./);
+    } finally {
+      await release();
+    }
+    const out = await bot(['ai:score']);
+    assert.doesNotMatch(out, /already running/);
+    assert.match(out, /Nothing to score\./);
+  });
+
   it('a bulk check:open skips while another holds the lock; checking named jobs never does', async () => {
     const release = await hold('check:open');
     try {

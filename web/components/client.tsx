@@ -4,14 +4,16 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 
-// Loads the Bayt collector from this dashboard into the current bayt.com tab.
-const BAYT_BOOKMARKLET = `javascript:(()=>{if(!/(^|\\.)bayt\\.com$/.test(location.hostname)){alert('Open bayt.com first, then click this bookmark.');return}const s=document.createElement('script');s.src='http://localhost:3100/api/bayt-script?'+Date.now();document.body.appendChild(s)})()`;
+// Loads the Bayt collector from this dashboard into the current bayt.com tab. Built from the dashboard's own
+// origin (window.location.origin, set after mount), so the dashboard keeps working on any port, not just 3100.
+const baytBookmarklet = (dashboard: string) =>
+  `javascript:(()=>{if(!/(^|\\.)bayt\\.com$/.test(location.hostname)){alert('Open bayt.com first, then click this bookmark.');return}const s=document.createElement('script');s.src='${dashboard}/api/bayt-script?'+Date.now();document.body.appendChild(s)})()`;
 
 /** A link to drag to the bookmarks bar (biome.json exempts it from the anchor a11y rules: it is a drag target). React refuses javascript: hrefs in JSX, so the href is set after mount. */
 export function BaytBookmarklet() {
   const ref = useRef<HTMLAnchorElement>(null);
   useEffect(() => {
-    ref.current?.setAttribute('href', BAYT_BOOKMARKLET);
+    ref.current?.setAttribute('href', baytBookmarklet(window.location.origin));
   }, []);
   return (
     <a

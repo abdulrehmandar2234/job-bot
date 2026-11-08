@@ -62,15 +62,22 @@ function fakeSite(listings: Record<string, Route>, jobs: Record<string, Route>, 
 }
 
 /** Runs the collector like the bookmarklet would and returns what the script itself returns. */
-function runCollector(fetch: (url: string, init?: RequestInit) => Promise<FakeResponse>) {
+function runCollector(fetch: (url: string, init?: RequestInit) => Promise<FakeResponse>, source = SOURCE) {
   return new Function('window', 'document', 'fetch', 'location', 'src', 'return eval(src)')(
     window,
     document,
     fetch,
     { origin: ORIGIN },
-    SOURCE,
+    source,
   ) as string;
 }
+
+// What /api/bayt-script replaces with the user's settings; raw, the script runs on its built-in defaults.
+const PLACEHOLDER = '/*__BAYT_SETTINGS__*/ null';
+const withSettings = (settings: object) => {
+  expect(SOURCE).toContain(PLACEHOLDER);
+  return SOURCE.replace(PLACEHOLDER, JSON.stringify(settings));
+};
 
 const finished = () => vi.waitFor(() => expect(state()?.done).toBe(true), { timeout: 5000 });
 
@@ -198,10 +205,13 @@ describe('bayt-collect.js', () => {
 
     expect(S.errors).toEqual(['403 uae/php-developer', 'TypeError: Failed to fetch', 'TypeError: Bayt timeout']);
 
-    // One POST with every collected job.
+    // One POST with every collected job; run raw (not through /api/bayt-script) there is no token to send.
     const imports = calls.filter((c) => c.url === IMPORT_URL);
     expect(imports).toHaveLength(1);
-    expect(imports[0].init).toMatchObject({ method: 'POST', headers: { 'content-type': 'application/json' } });
+    expect(imports[0].init).toMatchObject({
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-import-token': '' },
+    });
     expect(JSON.parse(imports[0].init!.body as string)).toEqual(S.jobs);
     expect(S.phase).toBe('import');
     expect(S.result).toEqual({ received: 3, matched: 2 });
@@ -247,6 +257,60 @@ describe('bayt-collect.js', () => {
 
     expect(box()).toHaveTextContent('Done ✓ 2 sent, 1 matched your profile.');
     expect(box().querySelector('a')).toHaveAttribute('href', 'http://localhost:3100');
+  });
+
+  it('searches the injected keywords and countries, honours maxAgeDays and posts to the injected dashboard with the token', async () => {
+    const DASH = 'http://127.0.0.1:4123';
+    const calls: { url: string; init?: RequestInit }[] = [];
+    const fetch = vi.fn(async (url: string, init?: RequestInit) => {
+      calls.push({ url, init });
+      if (url === `${DASH}/api/import`) return respond({ received: 1, matched: 1 });
+      if (url === '/en/qatar/jobs/django-jobs/')
+        return listing('/en/qatar/jobs/django-developer-1000001/', '/en/qatar/jobs/django-engineer-1000002/');
+      if (url === '/en/qatar/jobs/django-developer-1000001/') return ldJson(posting({ title: 'Django Developer', jobLocation: [] }));
+      if (url === '/en/qatar/jobs/django-engineer-1000002/')
+        return ldJson(posting({ title: 'Old Django Engineer', datePosted: daysAgo(10), jobLocation: [] }));
+      return listing();
+    });
+    const src = withSettings({
+      dashboard: DASH,
+      token: 'tok-from-dashboard',
+      keywords: ['django', 'rails'],
+      countries: ['qatar'],
+      maxAgeDays: 7,
+    });
+    expect(runCollector(fetch, src)).toBe('started');
+    await finished();
+    const S = state()!;
+
+    // Only the injected searches, none of the built-in default keywords or countries.
+    const searched = calls.map((c) => c.url).filter((u) => u.includes('-jobs/'));
+    expect(new Set(searched)).toEqual(new Set(['/en/qatar/jobs/django-jobs/', '/en/qatar/jobs/rails-jobs/']));
+    // maxAgeDays 7 drops the 10-day-old posting that the default 14 would have kept.
+    expect(S.jobs.map((j) => j.title)).toEqual(['Django Developer']);
+
+    const imports = calls.filter((c) => c.url === `${DASH}/api/import`);
+    expect(imports).toHaveLength(1);
+    expect(imports[0].init).toMatchObject({
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-import-token': 'tok-from-dashboard' },
+    });
+    expect(imports[0].url.split('?')).toHaveLength(1); // the token never travels in a URL
+    expect(box().querySelector('a')).toHaveAttribute('href', DASH);
+  });
+
+  it('shows the dashboard refusing the import (wrong or missing token)', async () => {
+    const { fetch } = fakeSite(
+      {},
+      {},
+      respond({ error: 'Missing or wrong import token: load the collector through the dashboard bookmarklet and try again.' }, 403),
+    );
+    runCollector(fetch);
+    await finished();
+    expect(state()!.errors).toEqual([
+      'import: Missing or wrong import token: load the collector through the dashboard bookmarklet and try again.',
+    ]);
+    expect(box()).toHaveTextContent('The dashboard refused the import: Missing or wrong import token');
   });
 
   it('says so when the dashboard cannot be reached', async () => {

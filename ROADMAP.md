@@ -19,7 +19,9 @@ Nothing planned right now. Ideas from real use go here.
 - **Settings page:** `/settings` (web/app/settings, web/components/settings.tsx); `bot settings:check` / `settings:save`.
 - **Learn from skips:** skip reasons (`mark <id> skipped --reason`, Skip button) and skip patterns on `/analytics` (web/lib/skip-insights.ts).
 - **Dead-link check:** `bot check:open`; `prepare` checks first; status `expired` with its own tab (src/sources/open.ts).
-- **ATS keyword check:** `bot ats <id>` and on the job page (src/ats.ts).
+- **ATS keyword check:** `bot ats <id>` and on the job page (src/ats.ts); its folded heading counts the job skills the CV is missing.
+- **Confirm missing skills:** "I have this" on the job page and `cv:feedback <id> --add-skills` add confirmed job skills to the master CV, with a backup first (src/cv/confirm-skills.ts).
+- **Day / night theme:** a toggle in the dashboard header (web/components/theme-toggle.tsx) that follows the system until a choice is saved.
 - **Salary extraction:** src/salary.ts; shown on cards, minimum-salary filter on the job list.
 - **Contacts per job:** `bot contacts` / `contact:add`, and on the job page with referral reminders.
 - **Chrome extension:** `extension/` (send a job, apply helper side panel, form auto-fill that never submits).
@@ -33,11 +35,12 @@ Nothing planned right now. Ideas from real use go here.
 - **Versioned migrations:** src/migrate.ts and src/migrations/NNN_name.sql.
 - **HTTP retry and caching:** src/sources/http.ts (backoff with jitter, ETag / Last-Modified cache in data/http-cache).
 - **Database backups:** `bot backup` (src/backup.ts: pg_dump + zlib, daily, keeps 14).
+- **Hardening pass (2026-11):** sources survive bad dates and keep LinkedIn partial results, AI replies are validated and time-bounded, `ai:score` takes a lock and dedupe is atomic, settings fail loudly on a missing master CV or a config typo, and the dashboard polls more cheaply with one CV change per job.
 - **Cross-platform:** macOS, Linux and Windows. `bot daily` (src/commands/daily.ts) is the scheduled run on every OS (launchd through scripts/daily-fetch.sh, systemd or cron, Task Scheduler; `bot schedule:print`), notifications per OS (src/notify.ts), npm scripts without shell syntax (scripts/run-tests.mjs).
 
 ### Quality and tooling
 
-- **CI:** .github/workflows/test.yml (Ubuntu with a Postgres service: lint, typecheck, backend and web suites; Windows: lint, typecheck and the tests that need no database).
+- **CI:** .github/workflows/test.yml (Ubuntu with a Postgres service: lint, typecheck, backend and web suites; Windows: typecheck and the tests that need no database), on pull requests, pushes to main and a monthly schedule; Dependabot opens monthly npm update PRs (.github/dependabot.yml).
 - **Lint and format:** Biome (`biome.json`), `npm run lint` / `npm run format`, and a pre-commit hook in `.githooks/` that checks staged files.
 - **Coverage report:** `npm run test:coverage` and `npm run test:web:coverage`.
 - **Known test gaps closed:** job list and layout, `runBot`, CopyButton failure, the Bayt collector (web/tests).

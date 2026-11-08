@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react';
 import type { ReactElement, ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AtsCheck, AtsLists, type AtsReport } from '@/components/ats-check';
+import { clearAtsCache } from '@/lib/ats-cache';
 import { runBot } from '@/lib/bot';
 
 vi.mock('@/lib/bot', () => ({ runBot: vi.fn() }));
@@ -27,7 +28,10 @@ async function renderCheck(jobId: string) {
   return render(<>{await loader.type(loader.props)}</>);
 }
 
-beforeEach(() => vi.mocked(runBot).mockReset());
+beforeEach(() => {
+  vi.mocked(runBot).mockReset();
+  clearAtsCache(); // the report cache is module-scoped, so each test starts cold
+});
 
 describe('AtsLists', () => {
   it('shows the version, the three lists and the suggestion', () => {

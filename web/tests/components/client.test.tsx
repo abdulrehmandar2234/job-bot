@@ -58,7 +58,15 @@ describe('BaytBookmarklet', () => {
     expect(alert).not.toHaveBeenCalled();
     expect(appended).toHaveLength(1);
     expect(appended[0].tagName).toBe('SCRIPT');
-    expect(appended[0].src).toMatch(/^http:\/\/localhost:3100\/api\/bayt-script\?\d+$/);
+    expect(appended[0].src).toMatch(new RegExp(`^${window.location.origin}/api/bayt-script\\?\\d+$`));
+  });
+
+  it('builds the collector url from the dashboard origin, not a hardcoded port', () => {
+    render(<BaytBookmarklet />);
+    // jsdom serves the test page from an origin that is not the default port 3100.
+    expect(window.location.origin).not.toContain(':3100');
+    expect(bookmarkletCode()).toContain(`s.src='${window.location.origin}/api/bayt-script?'`);
+    expect(bookmarkletCode()).not.toContain('3100');
   });
 
   it.each(['example.com', 'notbayt.com', 'bayt.com.evil.io'])('refuses to run on %s', (host) => {
