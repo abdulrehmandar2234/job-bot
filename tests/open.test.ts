@@ -9,7 +9,8 @@ import { promisify } from 'node:util';
 import { mockFetch, TEST_DB } from './helpers.ts';
 import { timing } from '../src/sources/http.ts';
 import { closedText, genericRedirect, isOpen, resetOpenChecks, workdayApiUrl, type OpenJob } from '../src/sources/open.ts';
-import { checkAll, checkOpen, record, selectJobs, type CheckJob } from '../src/commands/open.ts';
+import { checkAll, checkOpen, himalayasMoved, record, selectJobs, type CheckJob } from '../src/commands/open.ts';
+import { save } from '../src/commands/shared.ts';
 import { duplicateLinks, getJob, migrate, pool, setStatus, type DedupeRow } from '../src/db.ts';
 import { prepare } from '../src/commands/prepare.ts';
 import { path } from '../src/config.ts';
@@ -515,5 +516,62 @@ describe('CLI', () => {
     assert.equal((await getJob('greenhouse:acme:1')).status, 'expired');
     assert.equal((await getJob('greenhouse:acme:2')).status, 'applied');
     assert.match(await bot(['mark', 'greenhouse:acme:2', 'expired']), /→ expired/);
+  });
+});
+
+describe('himalayasMoved (a Himalayas job whose location changed after the fetch)', () => {
+  const posting = (id: string) => ({
+    id: `himalayas:movedco/jobs/${id}`,
+    source: 'himalayas',
+    company: 'Movedco',
+    title: 'Full Stack TypeScript Developer',
+    location: 'Remote — Worldwide',
+    url: `https://movedco.example/jobs/${id}`,
+    description: 'TypeScript, React, Node.js and PostgreSQL. Remote.',
+    posted_at: new Date().toISOString(),
+  });
+  const search = (id: string, restrictions: string[], zones: number[] = []) => ({
+    'himalayas.app/jobs/api/search': {
+      jobs: [
+        { guid: 'https://himalayas.app/companies/other/jobs/x', locationRestrictions: [] },
+        { guid: `https://himalayas.app/companies/movedco/jobs/${id}`, locationRestrictions: restrictions, timezoneRestrictions: zones },
+      ],
+    },
+  });
+
+  it('takes the new location and filters a new job no longer open to the candidate', async () => {
+    await save(posting('us-only'));
+    assert.equal((await getJob('himalayas:movedco/jobs/us-only')).status, 'new');
+    net = mockFetch(search('us-only', ['United States'], [-8, -5]));
+    const moved = await himalayasMoved('himalayas:movedco/jobs/us-only');
+    assert.equal(moved?.from, 'Remote — Worldwide');
+    assert.match(moved!.to, /^Remote — United States/);
+    assert.equal(moved?.status, 'filtered');
+    const j = await getJob('himalayas:movedco/jobs/us-only');
+    assert.equal(j.location, moved!.to);
+    assert.equal(j.status, 'filtered');
+    assert.match(net.calls[0], /himalayas\.app\/jobs\/api\/search\?q=Full%20Stack%20TypeScript%20Developer$/);
+  });
+
+  it('keeps the status of a job further on and changes nothing when the location is the same or not found', async () => {
+    await save(posting('applied'));
+    await setStatus('himalayas:movedco/jobs/applied', 'applied');
+    net = mockFetch(search('applied', ['United States'], [-8, -5]));
+    const moved = await himalayasMoved('himalayas:movedco/jobs/applied');
+    assert.equal(moved?.status, 'applied');
+    assert.match((await getJob('himalayas:movedco/jobs/applied')).location, /^Remote — United States/);
+    net.restore();
+
+    await save(posting('same'));
+    net = mockFetch(search('same', []));
+    assert.equal(await himalayasMoved('himalayas:movedco/jobs/same'), null);
+    net.restore();
+    net = mockFetch({ 'himalayas.app/jobs/api/search': { jobs: [] } });
+    assert.equal(await himalayasMoved('himalayas:movedco/jobs/same'), null);
+    net.restore();
+    net = mockFetch({ 'himalayas.app/jobs/api/search': new Response('busy', { status: 503 }) });
+    assert.equal(await himalayasMoved('himalayas:movedco/jobs/same'), null, 'a failed search changes nothing');
+    assert.equal((await getJob('himalayas:movedco/jobs/same')).status, 'new');
+    assert.equal(await himalayasMoved('greenhouse:acme:1'), null, 'only Himalayas jobs');
   });
 });

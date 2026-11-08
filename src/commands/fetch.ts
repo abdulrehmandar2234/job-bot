@@ -72,24 +72,27 @@ async function fetchAll(_args: string[], flags: Flags) {
 }
 
 // A salary that came from a source's API is not in the text, so re-parsing would lose it.
-const keptSalary = (j: Job) => (SALARY_SOURCES.includes(j.source) ? rowSalary(j) : null) ?? undefined;
+export const keptSalary = (j: Job) => (SALARY_SOURCES.includes(j.source) ? rowSalary(j) : null) ?? undefined;
 
 /** Re-applies filters and scoring to stored jobs after config.json / match.ts changes (no network). */
+/** Scores a stored new or filtered job again (moving it between the two) and saves it; `location` replaces its own. */
+export function saveAgain(j: Job, location = j.location) {
+  return save({
+    id: j.id,
+    source: j.source,
+    company: j.company,
+    title: j.title,
+    location,
+    url: j.url,
+    description: j.description,
+    posted_at: j.posted_at ? new Date(j.posted_at).toISOString() : null,
+    salary: keptSalary(j),
+  });
+}
+
 export async function rescore() {
   const { rows } = await pool.query<Job>(`SELECT * FROM jobs WHERE status IN ('new', 'filtered')`);
-  for (const j of rows) {
-    await save({
-      id: j.id,
-      source: j.source,
-      company: j.company,
-      title: j.title,
-      location: j.location,
-      url: j.url,
-      description: j.description,
-      posted_at: j.posted_at ? new Date(j.posted_at).toISOString() : null,
-      salary: keptSalary(j),
-    });
-  }
+  for (const j of rows) await saveAgain(j);
   // Jobs the user acted on are not re-scored, but their salary and visa note are filled in (or corrected) too.
   const { rows: acted } = await pool.query<Job>(`SELECT * FROM jobs WHERE status NOT IN ('new', 'filtered')`);
   for (const j of acted) {
