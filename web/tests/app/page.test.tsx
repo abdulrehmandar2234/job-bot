@@ -17,6 +17,7 @@ vi.mock('next/server', async (importOriginal) => ({
   connection: async () => {},
 }));
 vi.mock('@/app/actions', () => ({
+  skipSelected: vi.fn(),
   writeLetter: vi.fn(),
   fetchNow: vi.fn(),
   setStatus: vi.fn(),
@@ -64,6 +65,16 @@ beforeEach(cleanupDb);
 afterAll(closeDb);
 
 describe('job list page', () => {
+  it('gives each card the hooks of the keyboard triage layer, and points at its shortcut list', async () => {
+    const id = await insertJob({ id: 'kbd', title: 'TG Keyboard', status: 'new', score: 99 });
+    await renderPage();
+    const [card] = cards();
+    expect(card).toHaveAttribute('data-job-id', id);
+    expect(card).toHaveAttribute('tabindex', '-1');
+    expect(within(card).getByRole('link', { name: /TG Keyboard/ })).toHaveAttribute('aria-keyshortcuts', 'o');
+    expect(screen.getByText(/shows every shortcut/)).toBeInTheDocument();
+  });
+
   it('shows the header, the Fetch button and the Bayt instructions', async () => {
     await renderPage();
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Job Bot');

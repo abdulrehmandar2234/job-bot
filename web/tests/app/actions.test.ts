@@ -1,6 +1,6 @@
 import { refresh } from 'next/cache';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { aiReview, clearAnswers, dismissTask, draftAnswers, fetchNow, prepare, saveNotes, setStatus } from '@/app/actions';
+import { aiReview, clearAnswers, dismissTask, draftAnswers, fetchNow, prepare, saveNotes, setStatus, skipSelected } from '@/app/actions';
 import { spawnBot } from '@/lib/bot';
 import { getJob, jobEvents, pool } from '@/lib/db';
 import type { Task } from '@/lib/tasks';
@@ -95,6 +95,46 @@ describe('setStatus', () => {
     expect(await setStatus(null, form({ id, status }))).toEqual({ ok: false, message: 'Invalid status' });
     expect((await getJob(id))!.status).toBe('new');
     expect(await jobEvents(id)).toEqual([]);
+    expect(refresh).not.toHaveBeenCalled();
+  });
+});
+
+describe('skipSelected (bulk skip)', () => {
+  const ids = (...list: string[]) => {
+    const fd = new FormData();
+    for (const v of list) fd.append('id', v);
+    return fd;
+  };
+
+  it('skips every selected job in one go, logging each move with the one shared reason', async () => {
+    const other = await insertJob({ id: 'act2', status: 'prepared' });
+    const fd = ids(id, other, id); // a repeated id counts once
+    fd.set('reason', 'seniority');
+    expect(await skipSelected(null, fd)).toEqual({ ok: true, message: 'Skipped 2 jobs' });
+    expect((await getJob(id))!.status).toBe('skipped');
+    expect((await getJob(other))!.status).toBe('skipped');
+    expect(await jobEvents(id)).toMatchObject([{ from_status: 'new', to_status: 'skipped', reason: 'seniority' }]);
+    expect(await jobEvents(other)).toMatchObject([{ from_status: 'prepared', to_status: 'skipped', reason: 'seniority' }]);
+    expect(refresh).toHaveBeenCalledOnce();
+  });
+
+  it('stores no reason when none (or an unknown one) was picked', async () => {
+    const fd = ids(id);
+    fd.set('reason', 'boredom');
+    expect(await skipSelected(null, fd)).toEqual({ ok: true, message: 'Skipped 1 job' });
+    expect((await jobEvents(id))[0].reason).toBeNull();
+  });
+
+  it('ignores jobs that vanished mid-click and answers an error when none are left', async () => {
+    expect(await skipSelected(null, ids(id, PREFIX + 'gone'))).toEqual({ ok: true, message: 'Skipped 1 job' });
+    expect(await skipSelected(null, ids(PREFIX + 'gone'))).toEqual({ ok: false, message: 'Unknown jobs' });
+    expect(await skipSelected(null, ids())).toEqual({ ok: false, message: 'No jobs selected' });
+  });
+
+  it('refuses more than a page of jobs at once', async () => {
+    const many = ids(...Array.from({ length: 101 }, (_, i) => `${PREFIX}many${i}`));
+    expect(await skipSelected(null, many)).toEqual({ ok: false, message: 'At most 100 jobs can be skipped at once' });
+    expect((await getJob(id))!.status).toBe('new');
     expect(refresh).not.toHaveBeenCalled();
   });
 });

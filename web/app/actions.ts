@@ -2,7 +2,7 @@
 
 import { refresh } from 'next/cache';
 import { ActionError, guarded } from '@/lib/action-state';
-import { pool, STATUSES, type Status } from '@/lib/db';
+import { PAGE_SIZES, pool, STATUSES, type Status } from '@/lib/db';
 import { CvBusyError, dismissTask as dismissFailedTask, enqueueTask, type TaskKind } from '@/lib/tasks';
 import { checkFeedback, checkText, type TextFormState, type WrittenKind } from '@/lib/written-text';
 import { skipReason } from '@/lib/skips';
@@ -51,6 +51,48 @@ export async function setStatus(_prev: TextFormState, formData: FormData): Promi
       client.release();
     }
     refresh();
+  });
+}
+
+// At most a page of jobs can be selected at once (the triage layer selects from the rendered cards).
+const BULK_CAP = Math.max(...PAGE_SIZES);
+
+/**
+ * Skips every selected job in one transaction, with one optional reason for them all (the bulk-skip bar,
+ * components/triage.tsx). Ids that vanished mid-click (dedupe) are ignored; the answer says how many were skipped.
+ */
+export async function skipSelected(_prev: TextFormState, formData: FormData): Promise<TextFormState> {
+  return guarded(async () => {
+    const ids = [...new Set(formData.getAll('id').filter((v): v is string => typeof v === 'string' && v !== ''))];
+    if (!ids.length) throw new ActionError('No jobs selected');
+    if (ids.length > BULK_CAP) throw new ActionError(`At most ${BULK_CAP} jobs can be skipped at once`);
+    const reason = skipReason(formData.get('reason'));
+
+    const client = await pool.connect();
+    let skipped = 0;
+    try {
+      await client.query('BEGIN');
+      const { rows } = await client.query<{ id: string; status: string }>(
+        'SELECT id, status FROM jobs WHERE id = ANY($1) ORDER BY id FOR UPDATE',
+        [ids],
+      );
+      if (!rows.length) throw new ActionError('Unknown jobs');
+      await client.query(`UPDATE jobs SET status = 'skipped' WHERE id = ANY($1)`, [rows.map((r) => r.id)]);
+      await client.query(
+        `INSERT INTO job_events (job_id, from_status, to_status, reason)
+         SELECT unnest($1::text[]), unnest($2::text[]), 'skipped', $3`,
+        [rows.map((r) => r.id), rows.map((r) => r.status), reason],
+      );
+      await client.query('COMMIT');
+      skipped = rows.length;
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+    refresh();
+    return { ok: true, message: `Skipped ${skipped} job${skipped === 1 ? '' : 's'}` };
   });
 }
 
