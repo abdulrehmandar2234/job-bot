@@ -43,6 +43,22 @@ export function himalayasRegion(countries?: string[] | null, zones?: number[] | 
   return places || 'Worldwide';
 }
 
+/** The Himalayas page (its API guid) of a stored Himalayas job, from the job's id. */
+export const himalayasGuid = (id: string) => `https://himalayas.app/companies/${id.replace(/^himalayas:/, '')}`;
+
+/**
+ * Where a stored Himalayas job is open to now, as its location ("Remote — United States"), or null when a search for
+ * its title does not find it. A posting's restrictions can change after it was fetched (Worldwide → United States),
+ * and the fetch only asks for jobs open to the candidate's country, so it never sees that change; check:open asks.
+ */
+export async function himalayasLocation(job: { id: string; title: string }): Promise<string | null> {
+  const guid = himalayasGuid(job.id);
+  const data = await getJson(`https://himalayas.app/jobs/api/search?q=${encodeURIComponent(job.title)}`, { cache: false, attempts: 2 });
+  const j = (data.jobs ?? []).find((x: { guid?: string }) => x.guid === guid);
+  if (!j) return null;
+  return `Remote — ${himalayasRegion(j.locationRestrictions, j.timezoneRestrictions, utcHours(loadProfile().utcOffset))}`;
+}
+
 /**
  * Himalayas search with country=<ISO code> only returns remote jobs open to candidates in that country: the
  * remote-from country (config remote.fromCode, else the profile's countryCode). Without one, all remote jobs.

@@ -1,5 +1,5 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { config, path } from './config.ts';
+import { config, path, type Company } from './config.ts';
 import { getText } from './sources/http.ts';
 
 // Dutch IND public register of recognised sponsors (erkend referent) for highly skilled migrants.
@@ -25,12 +25,13 @@ export async function updateIndRegister() {
 
 let cache: Set<string> | null = null;
 
-export function isIndSponsor(company: string): boolean | null {
+/** Whether a company is on the IND register; null when the register was not downloaded. `companies`: config.json's. */
+export function isIndSponsor(company: string, companies: Pick<Company, 'name' | 'indName'>[] = config.companies): boolean | null {
   if (!cache) {
     if (!existsSync(FILE)) return null;
     cache = new Set((JSON.parse(readFileSync(FILE, 'utf8')).names as string[]).map(normalize));
   }
   // config.json can map a company to its legal name on the register (e.g. Elastic → elasticsearch B.V.).
-  const n = normalize(config.companies.find((c) => c.name === company)?.indName ?? company);
+  const n = normalize(companies.find((c) => c.name === company)?.indName ?? company);
   return n.length > 1 && cache.has(n);
 }

@@ -1,4 +1,4 @@
-import type { Task, TaskKind } from '../../src/types';
+import { KEEP_FINISHED_DAYS, type Task, type TaskKind } from '../../src/types.ts';
 import { spawnBot } from './bot';
 import { pool } from './db';
 
@@ -42,8 +42,8 @@ export class CvBusyError extends Error {
   }
 }
 
-/** Done and failed tasks are deleted this long after they finished (on enqueue), as in src/tasks.ts. */
-export const KEEP_FINISHED_DAYS = 30;
+/** Done and failed tasks are deleted this long after they finished (on enqueue): the bot's rule (src/types.ts). */
+export { KEEP_FINISHED_DAYS };
 export const DEAD_WORKER_ERROR = 'The worker process exited without recording a result (see data/logs/tasks.log).';
 
 /** Whether a process exists. Signal 0 only checks: ESRCH = no such process, EPERM = it exists but is not ours. */
@@ -75,17 +75,20 @@ export async function failDeadWorkers(): Promise<number> {
 /** How often openTasks runs the stale check at most: every page render and every TaskWatcher poll (each ~3s, per
  * tab) calls it, and a task going stale a few seconds later is fine. Enqueueing always runs it (`force`). */
 export const EXPIRE_EVERY_MS = 10_000;
-let lastExpire = 0;
+// Timed with performance.now(), not Date.now(): pages that list tasks are prerendered, and Next refuses a wall-clock
+// read there. It counts from process start, so "never ran" is -Infinity, not 0.
+let lastExpire = Number.NEGATIVE_INFINITY;
 
 /** For tests: forget the last stale check, so the next openTasks runs one. */
 export function resetExpireThrottle() {
-  lastExpire = 0;
+  lastExpire = Number.NEGATIVE_INFINITY;
 }
 
 /** Fails tasks whose worker died: a dead pid, or past the deadline (expire_stale_tasks() in the migration). */
 async function expireStale(force = false) {
-  if (!force && Date.now() - lastExpire < EXPIRE_EVERY_MS) return;
-  lastExpire = Date.now();
+  const now = performance.now();
+  if (!force && now - lastExpire < EXPIRE_EVERY_MS) return;
+  lastExpire = now;
   await failDeadWorkers();
   await pool.query('SELECT expire_stale_tasks()');
 }
@@ -171,6 +174,14 @@ export async function openTasks(jobId?: string): Promise<TaskView[]> {
 
 /** Hides a failed task's error or a finished task's notice from the dashboard. Returns false if there is no such task. */
 export async function dismissTask(id: number) {
-  const { rowCount } = await pool.query(`UPDATE tasks SET dismissed = true WHERE id = $1 AND status IN ('done', 'failed')`, [id]);
-  return rowCount === 1;
+  // The task bar shows only the newest finished task, so dismissing it also dismisses the done tasks that finished
+  // before it: otherwise each Dismiss would uncover the next older "finished" notice.
+  const { rowCount } = await pool.query(
+    `WITH t AS (SELECT id, status, finished_at FROM tasks WHERE id = $1 AND status IN ('done', 'failed'))
+     UPDATE tasks SET dismissed = true
+     WHERE id IN (SELECT id FROM t)
+        OR (status = 'done' AND NOT dismissed AND finished_at <= (SELECT finished_at FROM t WHERE status = 'done'))`,
+    [id],
+  );
+  return (rowCount ?? 0) > 0;
 }

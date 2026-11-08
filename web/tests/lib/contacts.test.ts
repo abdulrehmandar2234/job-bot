@@ -2,9 +2,6 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import * as web from '@/lib/contacts';
 import { allContacts } from '@/lib/contacts-db';
 import { pool } from '@/lib/db';
-// The bot's versions. Importing them in a test is fine; the dashboard itself never bundles bot code.
-import { normCompany as botNormCompany } from '../../../src/db';
-import * as bot from '../../../src/commands/contacts';
 import { cleanupDb, closeDb, ensureSchema, insertJob, PREFIX } from '../helpers/db';
 
 const contact = (o: Partial<web.CompanyContact> = {}): web.CompanyContact => ({
@@ -21,47 +18,6 @@ const contact = (o: Partial<web.CompanyContact> = {}): web.CompanyContact => ({
   company: 'Acme',
   job_title: 'Engineer',
   ...o,
-});
-
-describe('parity with the bot', () => {
-  it('normCompany gives the same key as src/db.ts', () => {
-    for (const s of [
-      'Acme Inc.',
-      'ACME',
-      'acme.io',
-      'Foo B.V.',
-      'Bar N.V.',
-      'Careem Technologies FZ LLC',
-      'Noon.com',
-      'Talabat Group',
-      'Tabby FZCO',
-      'Data Labs GmbH',
-      'X Corp',
-      'Mr. Co',
-      '',
-      'Ümlaut AG',
-      'deliveryhero.ai',
-      'a.b.c',
-    ]) {
-      expect(web.normCompany(s), s).toBe(botNormCompany(s));
-    }
-  });
-
-  it('roles, referral statuses and contact validation match src/commands/contacts.ts', () => {
-    expect(web.CONTACT_ROLES).toEqual(bot.CONTACT_ROLES);
-    expect(web.REFERRAL_STATUSES).toEqual(bot.REFERRAL_STATUSES);
-    const inputs: Record<string, string | undefined>[] = [
-      {},
-      { name: ' Jane ' },
-      { name: 'J', role: 'boss', referral_status: 'maybe' },
-      { name: 'J', email: 'a@b' },
-      { name: 'J', email: 'jane@acme.com', linkedin_url: 'https://www.linkedin.com/in/jane', phone: '+971 50 123 4567' },
-      { name: 'J', linkedin_url: 'http://linkedin.com/in/x' },
-      { name: 'J', linkedin_url: 'https://evil.com/linkedin.com' },
-      { name: 'x'.repeat(121), notes: 'n'.repeat(2001), phone: 'call me' },
-    ];
-    for (const i of inputs) expect(web.validateContact(i), JSON.stringify(i)).toEqual(bot.validateContact(i));
-  });
 });
 
 describe('validateContact', () => {

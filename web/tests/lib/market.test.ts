@@ -2,9 +2,8 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
-import * as bot from '../../../src/profile';
 import { BOT_ROOT } from '@/lib/bot';
-import { countryLabels, flag, market, marketLine, profileGaps, REQUIRED_PROFILE, splitLanguages } from '@/lib/market';
+import { countryLabels, flag, market, marketLine, profileGaps } from '@/lib/market';
 import { readCountryLabels, readMarketLine, readProfileStatus } from '@/lib/profile';
 
 const json = (f: string) => JSON.parse(readFileSync(join(BOT_ROOT, f), 'utf8'));
@@ -75,22 +74,12 @@ describe('labels and header from config.json', () => {
 });
 
 describe('profile completeness', () => {
-  const cases: [Record<string, unknown>, Record<string, unknown>][] = [
-    [{}, {}],
-    [{}, OWNER_MASTER],
-    [OWNER_APPLICANT, OWNER_MASTER],
-    [{ ...OWNER_APPLICANT, countryCode: null }, OWNER_MASTER],
-    [{ fullName: 'Jane', email: 'j@x.io', city: 'Lisbon', countryCode: 'PT', languages: 'English' }, {}],
-    [{ country: 'Portugal', languages: ' and ' }, { name: 'Jane' }],
-    [{ currentLocation: 'Faro', languages: '(fluent)' }, { contact: { email: 'j@x.io' } }],
-  ];
-
-  it('matches the bot (src/profile.ts)', () => {
-    expect([...REQUIRED_PROFILE]).toEqual([...bot.REQUIRED_PROFILE]);
-    for (const [app, master] of cases) expect(profileGaps(app, master)).toEqual(bot.profileGaps(bot.buildProfile(app, master)));
-    for (const s of ['English, Urdu', 'English (fluent) / Dutch & German', 'a and b', '', null]) {
-      expect(splitLanguages(s)).toEqual(bot.splitLanguages(s));
-    }
+  it('fills name, email and location from the CV, and needs a country code and languages', () => {
+    expect(profileGaps({}, {})).toEqual(['fullName', 'email', 'location', 'countryCode', 'languages']);
+    expect(
+      profileGaps({ countryCode: 'PT', languages: 'English' }, { name: 'Jane', contact: { email: 'j@x.io', location: 'Faro' } }),
+    ).toEqual([]);
+    expect(profileGaps({ country: 'Portugal', languages: ' and ' }, { name: 'Jane' })).toEqual(['email', 'countryCode', 'languages']);
   });
 
   it('the owner profile is complete; without countryCode it is not', () => {

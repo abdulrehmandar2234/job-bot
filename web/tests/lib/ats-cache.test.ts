@@ -5,7 +5,8 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { type AtsReport, cachedAtsReport, clearAtsCache } from '@/lib/ats-cache';
 import { runBot } from '@/lib/bot';
 
-vi.mock('@/lib/bot', () => ({ runBot: vi.fn() }));
+// Only runBot is faked: lib/settings.ts still needs the real BOT_ROOT (it roots the master CV path).
+vi.mock('@/lib/bot', async (orig) => ({ ...(await orig<typeof import('@/lib/bot')>()), runBot: vi.fn() }));
 
 const report = (label = 'laravel-v2'): AtsReport => ({
   label,

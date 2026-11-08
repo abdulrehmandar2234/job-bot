@@ -1,8 +1,10 @@
+import { FEEDBACK_CAP } from '../../src/types.ts';
+
 // The cover letter and the CV summary on the job page: rewriting them with feedback, or editing them by hand.
 // Plain values and checks, shared by the server actions (app/actions.ts) and the forms (components/written-text.tsx).
 
-/** Longest feedback ("What should change?"), as FEEDBACK_CAP in src/tasks.ts, which checks it again. */
-export const FEEDBACK_CAP = 1000;
+/** Longest feedback ("What should change?"): the bot's limit, which task:run checks again. */
+export { FEEDBACK_CAP };
 /** Longest text the user may save by hand. */
 export const TEXT_CAP = { letter: 10_000, summary: 2_000 } as const;
 export type WrittenKind = keyof typeof TEXT_CAP;

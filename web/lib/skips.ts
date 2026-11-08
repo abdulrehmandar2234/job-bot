@@ -1,17 +1,7 @@
-import type { SkipReason } from '../../src/types';
+import { SKIP_REASONS, type SkipReason } from '../../src/types.ts';
 
-// Why a job was skipped (job_events.reason). Same list as the bot's SKIP_REASONS (src/db.ts); tests/lib/skips.test.ts checks.
-export type { SkipReason };
-
-export const SKIP_REASONS = [
-  'stack',
-  'seniority',
-  'salary',
-  'location',
-  'company',
-  'language',
-  'other',
-] as const satisfies readonly SkipReason[];
+// Why a job was skipped (job_events.reason): the bot's list, with the dashboard's labels.
+export { SKIP_REASONS, type SkipReason };
 
 export const SKIP_LABEL: Record<SkipReason, string> = {
   stack: 'Stack',

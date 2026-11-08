@@ -313,6 +313,15 @@ async function JobDetail({ params }: { params: PageProps<'/jobs/[id]'>['params']
                 )}
               </div>
             </div>
+            {job.cover_letter && !job.cover_letter_ai && !job.cover_letter_edited_at && job.cover_letter_ai_error && (
+              <p
+                role="note"
+                className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm dark:border-amber-800 dark:bg-amber-950/30"
+              >
+                <span className="font-medium">The AI could not write this letter, so this is the template letter.</span>{' '}
+                {job.cover_letter_ai_error}
+              </p>
+            )}
             {job.cover_letter && (
               <FoldedText preview={job.cover_letter} label="letter">
                 <WrittenText
