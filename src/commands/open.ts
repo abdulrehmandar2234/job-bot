@@ -1,5 +1,8 @@
 import { JOB_STATUSES, pool, setStatus, withLock, type Job, type JobStatus } from '../db.ts';
 import { sleep } from '../sources/http.ts';
+import { himalayasLocation } from '../sources/boards.ts';
+import { scoreJob } from '../match.ts';
+import { saveAgain } from './fetch.ts';
 import { isOpen, openCheck, type OpenJob, type OpenResult } from '../sources/open.ts';
 import type { Flags } from './shared.ts';
 
@@ -118,6 +121,38 @@ const LINE: Record<Outcome, string> = {
   unknown: '? unknown ',
 };
 
+/**
+ * An open Himalayas job whose location changed since it was fetched (e.g. Worldwide → United States) gets the new
+ * one. A new or filtered job is scored again, so one no longer open to the candidate's country becomes filtered; a
+ * job further on keeps its status and only its visa note is updated. Returns the new location and the job's status
+ * and filter reason afterwards, or null when nothing changed or the search did not find it.
+ */
+export async function himalayasMoved(id: string) {
+  const {
+    rows: [j],
+  } = await pool.query<Job>('SELECT * FROM jobs WHERE id = $1', [id]);
+  if (j?.source !== 'himalayas') return null;
+  let where: string | null;
+  try {
+    where = await himalayasLocation(j);
+  } catch {
+    return null; // the open check already answered; the location is checked again next run
+  }
+  if (!where || where === j.location) return null;
+  if (j.status === 'new' || j.status === 'filtered') await saveAgain(j, where);
+  else {
+    const s = scoreJob({ ...j, location: where, posted_at: null });
+    await pool.query('UPDATE jobs SET location = $2, country = $3, visa = coalesce($4, visa) WHERE id = $1', [
+      id,
+      where,
+      s.country,
+      s.visa,
+    ]);
+  }
+  const { rows } = await pool.query<Pick<Job, 'status' | 'filter_reason'>>('SELECT status, filter_reason FROM jobs WHERE id = $1', [id]);
+  return { from: j.location, to: where, ...rows[0] };
+}
+
 /** check:open [<id>...] [--status new,prepared] [--limit N]: marks postings that have closed as `expired`. */
 export async function checkOpen(args: string[], flags: Flags) {
   // Only one bulk check runs at a time, so two runs never pace the same boards twice. Checking named jobs (the
@@ -155,6 +190,13 @@ async function checkOpenLocked(args: string[], flags: Flags) {
           ? ''
           : ` — status ${job.status} kept${['applied', 'interview', 'offer'].includes(job.status) ? ', you are already in the process' : ''}`;
       console.log(`${LINE[outcome]} ${job.company} — ${job.title} (${r.reason})${kept}\n      id: ${job.id}`);
+    }
+    if (job.source === 'himalayas' && (outcome === 'open' || outcome === 'reopened')) {
+      const moved = await himalayasMoved(job.id);
+      if (moved) {
+        const now = moved.status === 'filtered' ? `, now filtered: ${moved.filter_reason}` : '';
+        console.log(`↻ location ${job.company} — ${job.title}: ${moved.from} → ${moved.to}${now}\n      id: ${job.id}`);
+      }
     }
   });
   console.log(

@@ -369,10 +369,31 @@ describe('job list page', () => {
     expect(third).toHaveTextContent('90kw');
   });
 
+  it('shows jobs posted in the last 24 hours by default on Matching, and all of them with "any time"', async () => {
+    await insertJob({ id: 'd-old', title: 'TG week old', posted_at: dateDaysAgo(5) });
+    await insertJob({ id: 'd-new', title: 'TG today', posted_at: new Date(Date.now() - 3_600_000) });
+    await renderPage({});
+    expect(titles()).toEqual(['TG today']);
+    expect(screen.getByRole('combobox', { name: 'Posted within' })).toHaveValue('1');
+    expect(tab('Applied')).toHaveAttribute('href', '/?status=applied');
+
+    document.body.innerHTML = '';
+    await renderPage({ days: '0' });
+    expect(titles().sort()).toEqual(['TG today', 'TG week old']);
+    expect(screen.getByRole('combobox', { name: 'Posted within' })).toHaveValue('0');
+    expect(tab('Applied')).toHaveAttribute('href', '/?status=applied&days=0');
+  });
+
+  it('never hides older jobs in the other tabs by when they were posted', async () => {
+    await insertJob({ id: 'd-applied', title: 'TG applied long ago', status: 'applied', posted_at: dateDaysAgo(30) });
+    await renderPage({ status: 'applied', days: '1' });
+    expect(titles()).toEqual(['TG applied long ago']);
+  });
+
   it('sorts by posting date with "Newest first"', async () => {
     await insertJob({ id: 'n-old', title: 'TG old', score: 90, posted_at: dateDaysAgo(5) });
     await insertJob({ id: 'n-new', title: 'TG new', score: 10, posted_at: dateDaysAgo(1) });
-    await renderPage({ sort: 'newest' });
+    await renderPage({ sort: 'newest', days: '0' });
     expect(titles()).toEqual(['TG new', 'TG old']);
   });
 
