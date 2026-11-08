@@ -1,9 +1,8 @@
 import { Pool } from 'pg';
-// Row types are shared with the bot (job-bot/src/types.ts). Type-only import: erased at build time, so no bot code
-// is bundled and Turbopack's root stays web/.
-// .ts extension: the bot's tests (tests/statuses.test.ts) load this file in plain Node too.
-import { FOLLOW_UP_DUE_SQL } from './followup.ts';
-import { currencyTable } from './currencies.ts';
+// Row types and the follow-up rule come from the bot (job-bot/src/types.ts, src/followup.ts).
+// .ts extensions: the bot's tests (tests/statuses.test.ts) load this file in plain Node too.
+import { FOLLOW_UP_DUE_SQL } from '../../src/followup.ts';
+import { currencyCodes, eurRate } from './currencies.ts';
 import type { FetchRun, FormAnswer, InterviewPrep, Job as JobRow, JobEvent, SalaryPeriod } from '../../src/types';
 
 // Same Postgres database the CLI bot writes to (job-bot/.env and web/.env.local).
@@ -65,8 +64,8 @@ export const PER_YEAR: Record<SalaryPeriod, number> = { year: 1, month: 12, hour
 
 /** SQL for a job's best pay (top of its range) in euros per year; NULL without a salary. Built from the rate tables. */
 const sqlYearlyEur = () => `(coalesce(salary_max, salary_min)
-  * CASE salary_currency ${Object.entries(currencyTable().currencies)
-    .map(([c, e]) => `WHEN '${c.replace(/[^A-Z]/g, '')}' THEN ${Number(e.eur)}`)
+  * CASE salary_currency ${currencyCodes()
+    .map((c) => `WHEN '${c.replace(/[^A-Z]/g, '')}' THEN ${Number(eurRate(c))}`)
     .join(' ')} END
   * CASE salary_period ${Object.entries(PER_YEAR)
     .map(([p, n]) => `WHEN '${p}' THEN ${n}`)
@@ -81,7 +80,7 @@ export type JobFilter = {
   sort?: 'score' | 'newest';
   minSalary?: number;
   salaryOnly?: boolean;
-  followUp?: boolean; // only applied jobs due a follow-up (web/lib/followup.ts)
+  followUp?: boolean; // only applied jobs due a follow-up (src/followup.ts)
   visaOnly?: boolean; // only jobs whose posting offers visa/relocation support, or that need no visa
   everyTab?: boolean; // ignore status: a search across every tab (each card then shows its status)
 }; // minSalary: euros per year

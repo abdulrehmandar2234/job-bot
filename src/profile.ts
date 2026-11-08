@@ -4,8 +4,8 @@ import { APPLICANT_EXAMPLE_FILE, applicantFile, loadSettings, masterFile, type A
 // The candidate's profile: the personal facts that letters, prompts and filters need (name, contact, where they live,
 // languages, relocation). It comes from cv/applicant.json; name and contact fall back to cv/master.json, so a CV alone
 // already signs letters correctly. Nothing here is hardcoded for one person: `npm run bot -- setup` fills it in.
-// The dashboard reads the same files itself (web/lib/profile.ts and web/lib/market.ts, kept in step by
-// web/tests/lib/market.test.ts).
+// The rules take their inputs (applicant, master CV, `cfg`) as parameters, so the dashboard imports them: it reads the
+// files itself (web/lib/profile.ts) and builds on these functions (web/lib/market.ts).
 
 export type MasterContact = {
   name?: string;
@@ -50,7 +50,7 @@ export function yesNo(v: unknown): boolean | null {
   return null;
 }
 
-/** The profile from applicant facts plus the master CV's name and contact. Pure, so the dashboard can mirror it. */
+/** The profile from applicant facts plus the master CV's name and contact. Pure, so the dashboard uses it too. */
 export function buildProfile(app: Applicant | Record<string, unknown>, master: MasterContact = {}): Profile {
   const a = app as Record<string, unknown>;
   const c = master.contact ?? {};
@@ -78,7 +78,7 @@ export function buildProfile(app: Applicant | Record<string, unknown>, master: M
   };
 }
 
-/** Profile fields the bot needs before its letters and filters are personal. Same list in web/lib/profile.ts. */
+/** Profile fields the bot needs before its letters and filters are personal (the dashboard's first-run banner too). */
 export const REQUIRED_PROFILE = ['fullName', 'email', 'location', 'countryCode', 'languages'] as const;
 
 /** Which required fields are still empty (after the CV fallbacks). Empty = the profile is complete. */

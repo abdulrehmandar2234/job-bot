@@ -107,7 +107,7 @@ export async function rescore() {
   const { rows: acted } = await pool.query<Job>(`SELECT * FROM jobs WHERE status NOT IN ('new', 'filtered')`);
   for (const j of acted) {
     const s = keptSalary(j) ?? parseSalary(`${j.title}\n${j.description}`, j.country, homeCountry());
-    const scored = scoreJob({ ...j, posted_at: null });
+    const scored = scoreJob({ ...j, posted_at: null }, config);
     await pool.query(
       `UPDATE jobs SET salary_min = $2, salary_max = $3, salary_currency = $4, salary_period = $5,
         visa = coalesce($6, visa), visa_evidence = coalesce($7, visa_evidence) WHERE id = $1`,

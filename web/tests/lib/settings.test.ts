@@ -2,23 +2,17 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'no
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
-import * as BOT_PRESETS from '../../../src/ai-presets';
-import { ATS as BOT_ATS, REMOTE_BOARDS as BOT_REMOTE_BOARDS } from '../../../src/settings';
 import { BOT_ROOT } from '@/lib/bot';
 import { aiKeyStatus, applicantFile, configFile, defaultConfigFile, ensureConfigFile, readApplicant, readConfig } from '@/lib/settings';
 import {
   AI_KEY_ENV,
   API_PRESETS,
-  ATS,
   detectPreset,
   errorsFor,
   get,
-  LEGACY_KEY_ENV,
   mergeApplicant,
   mergeConfig,
   PRESETS,
-  REMOTE_BOARDS,
-  RESPONSE_FORMATS,
   salaryKeys,
 } from '@/lib/settings-form';
 
@@ -87,21 +81,18 @@ describe('settings files', () => {
     expect(readConfig()).toMatchObject({ data: null, error: 'not a JSON object' });
   });
 
-  it('has the same AI presets, key variables and key detection as the bot', () => {
-    expect([...API_PRESETS]).toEqual([...BOT_PRESETS.API_PRESETS]);
-    expect([...RESPONSE_FORMATS]).toEqual([...BOT_PRESETS.RESPONSE_FORMATS]);
-    expect(PRESETS).toEqual(BOT_PRESETS.PRESETS);
-    expect(AI_KEY_ENV).toBe(BOT_PRESETS.AI_KEY_ENV);
-    expect(LEGACY_KEY_ENV).toEqual(BOT_PRESETS.LEGACY_KEY_ENV);
-    for (const k of ['sk-ant-x', 'gsk_x', 'sk-or-x', 'AIzax', 'sk-x', 'x', '']) expect(detectPreset(k)).toBe(BOT_PRESETS.detectPreset(k));
-  });
-
-  it('has the same ATS list as the bot', () => {
-    expect([...ATS]).toEqual([...BOT_ATS]);
-  });
-
-  it('has the same remote boards list as the bot', () => {
-    expect([...REMOTE_BOARDS]).toEqual([...BOT_REMOTE_BOARDS]);
+  it("detects the provider from a key prefix (the bot's presets, so the Settings page names the same provider)", () => {
+    expect(['sk-ant-x', 'gsk_x', 'sk-or-x', 'AIzax', 'sk-x', 'x', ''].map(detectPreset)).toEqual([
+      'anthropic',
+      'groq',
+      'openrouter',
+      'gemini',
+      'openai',
+      null,
+      null,
+    ]);
+    expect(Object.keys(PRESETS)).toEqual([...API_PRESETS]);
+    expect(AI_KEY_ENV).toBe('AI_API_KEY');
   });
 });
 

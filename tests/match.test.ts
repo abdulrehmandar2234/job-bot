@@ -26,6 +26,24 @@ describe('scoreJob: location', () => {
   });
 });
 
+describe('scoreJob: settings passed in', () => {
+  it('uses the settings it is given instead of config.json, and leaves config.json alone', () => {
+    const cfg = {
+      ...config,
+      countries: { DE: { name: 'Germany', visa: 'employer' as const, match: 'berlin|germany', needsVisa: false } },
+      remote: { ...config.remote, enabled: false },
+    };
+    const berlin = raw({ location: 'Berlin, Germany' });
+    const s = scoreJob(berlin, cfg);
+    assert.equal(s.country, 'DE');
+    assert.equal(s.visa, 'Germany: no visa needed');
+    assert.equal(scoreJob(raw({ location: 'Dubai, UAE' }), cfg).country, null);
+    assert.equal(scoreJob(raw({ location: 'Remote — Worldwide' }), cfg).country, null); // remote search is off here
+    assert.equal(scoreJob(berlin).country, null); // the default is still config.json
+    assert.match(scoreJob(berlin, { ...cfg, minScore: 101 }).filterReason!, /below minScore 101/);
+  });
+});
+
 describe('scoreJob: remote from Pakistan', () => {
   it('accepts worldwide remote jobs as RM without a visa check', () => {
     const s = scoreJob(raw({ location: 'Remote — Worldwide', description: `${raw().description} We do not sponsor visas.` }));

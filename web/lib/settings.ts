@@ -1,29 +1,28 @@
-import { copyFileSync, existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import * as bot from '../../src/settings.ts';
 import { BOT_ROOT } from './bot';
 import { AI_KEY_ENV, detectPreset, LEGACY_KEY_ENV, type ApiPreset, type Json } from './settings-form';
 
 // Reads config.json and cv/applicant.json for the settings page. Read-only: saving always goes through the
 // bot's `settings:save` command, which is the single writer and validator (see app/settings/actions.ts).
 
-// Same env overrides as the bot (JOB_BOT_CONFIG, JOB_BOT_APPLICANT, JOB_BOT_MASTER), read on every call so tests can
-// point them at temp files. Every dashboard read of these files goes through these helpers.
-export const configFile = () => process.env.JOB_BOT_CONFIG || join(BOT_ROOT, 'config.json');
+// The bot's file helpers, rooted at BOT_ROOT (web/..): the same JOB_BOT_CONFIG / JOB_BOT_APPLICANT / JOB_BOT_MASTER
+// overrides, read on every call so tests can point them at temp files. Every dashboard read of these files goes
+// through them.
+export const configFile = () => bot.configFile(BOT_ROOT);
+export const applicantFile = () => bot.applicantFile(BOT_ROOT);
+export const masterFile = () => bot.masterFile(BOT_ROOT);
 // The shipped settings: config.json is personal and gitignored, and starts as a copy of this file (as in the bot).
 export const defaultConfigFile = () => join(BOT_ROOT, 'config.default.json');
+export const applicantExampleFile = () => join(BOT_ROOT, 'cv', 'applicant.example.json');
 
 /**
- * Creates config.json from config.default.json when it does not exist yet (a fresh clone), like the bot's
- * ensureConfigFile. A missing JOB_BOT_CONFIG file stays missing. Returns true when it copied.
+ * Creates config.json from config.default.json when it does not exist yet (a fresh clone): the bot's
+ * ensureConfigFile, at BOT_ROOT. A missing JOB_BOT_CONFIG file stays missing. Returns true when it copied.
  */
-export function ensureConfigFile(file = configFile(), defaults = defaultConfigFile(), home = join(BOT_ROOT, 'config.json')): boolean {
-  if (file !== home || existsSync(file) || !existsSync(defaults)) return false;
-  copyFileSync(defaults, file);
-  return true;
-}
-export const applicantFile = () => process.env.JOB_BOT_APPLICANT || join(BOT_ROOT, 'cv', 'applicant.json');
-export const applicantExampleFile = () => join(BOT_ROOT, 'cv', 'applicant.example.json');
-export const masterFile = () => process.env.JOB_BOT_MASTER || join(BOT_ROOT, 'cv', 'master.json');
+export const ensureConfigFile = (file = configFile(), defaults = defaultConfigFile(), home = join(BOT_ROOT, 'config.json')) =>
+  bot.ensureConfigFile(file, defaults, home);
 // The bot's own env file (job-bot/.env, loaded by `npm run bot` and by the bot runs the dashboard starts).
 export const botEnvFile = () => process.env.JOB_BOT_ENV_FILE || join(BOT_ROOT, '.env');
 

@@ -20,6 +20,7 @@ export const DB_FREE = [
   'tests/chrome.test.ts',
   'tests/ci.test.ts',
   'tests/settings.test.ts',
+  'tests/config.test.ts',
   'tests/match.test.ts',
   'tests/salary.test.ts',
   'tests/http.test.ts',

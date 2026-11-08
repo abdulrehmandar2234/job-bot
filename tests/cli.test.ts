@@ -493,6 +493,10 @@ describe('CLI settings', () => {
     const list = await botExit(['list'], t.env);
     assert.equal(list.code, 1);
     assert.ok(list.stderr.includes(`Invalid settings file ${t.config}:\n  - maxAgeDays: Invalid input: expected number`));
+    // A command that never reads config.json still runs (the CLI checks the file up front only for the others).
+    const contacts = await botExit(['contacts', 'no-such-job'], t.env);
+    assert.equal(contacts.code, 0);
+    assert.match(contacts.stdout, /Usage: contacts <id>/);
     const fixed = await botExit(['settings:save', '--kind', 'config', '--file', json(JSON.parse(realConfig))], t.env);
     assert.deepEqual(JSON.parse(fixed.stdout), { ok: true });
     assert.equal((await botExit(['list'], t.env)).code, 0);

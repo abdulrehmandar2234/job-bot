@@ -1,6 +1,6 @@
 // The OpenAI-compatible chat APIs the bot knows by name, for `ai.provider: "api"` (src/ai-providers.ts).
 // Pure data and functions with no imports, so the setup wizard can use them without loading config.json.
-// The dashboard keeps a copy in web/lib/settings-form.ts (web/tests/lib/settings.test.ts checks they match).
+// The dashboard's Settings page imports them too (web/lib/settings-form.ts, client components included).
 
 /**
  * How a provider is asked for JSON:

@@ -125,7 +125,7 @@ describe('a new user: template letters', () => {
   });
 
   it('follow-up is signed with her name', () => {
-    assert.match(templateFollowUp(job(), null), /Best regards,\nJane Doe\n$/);
+    assert.match(templateFollowUp(job(), null, loadProfile().fullName), /Best regards,\nJane Doe\n$/);
   });
 });
 

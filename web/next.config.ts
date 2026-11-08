@@ -1,12 +1,14 @@
 import type { NextConfig } from 'next';
+import { join } from 'node:path';
 
 const nextConfig: NextConfig = {
   /* config options here */
   cacheComponents: true,
   partialPrefetching: true,
   turbopack: {
-    // job-bot/ (the CLI bot) has its own lockfile; the web app is its own workspace.
-    root: import.meta.dirname,
+    // The repo root, not web/: the dashboard imports the bot's pure modules from ../src (profile rules, follow-up rule,
+    // AI presets, shared constants). The two packages keep their own lockfiles and node_modules.
+    root: join(import.meta.dirname, '..'),
     rules: {
       '*.css': {
         loaders: ['@tailwindcss/turbopack'],

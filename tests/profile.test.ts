@@ -261,8 +261,8 @@ describe('owner regression: same output as before the profile', () => {
 
   it('template follow-ups', () => {
     const job = { company: 'Acme', title: 'Dev', applied_at: new Date('2026-10-01T10:00:00Z'), follow_ups: 0 };
-    assert.equal(templateFollowUp(job, null), golden.followUps.fu0);
-    assert.equal(templateFollowUp({ ...job, applied_at: null, follow_ups: 1 }, 'Jane'), golden.followUps.fu1);
+    assert.equal(templateFollowUp(job, null, loadProfile().fullName), golden.followUps.fu0);
+    assert.equal(templateFollowUp({ ...job, applied_at: null, follow_ups: 1 }, 'Jane', loadProfile().fullName), golden.followUps.fu1);
   });
 
   it('filters, visa notes and flags', () => {

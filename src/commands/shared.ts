@@ -26,7 +26,7 @@ export const homeCountry = () => remoteFromCode(config, loadProfile());
 
 /** Scores a posting and upserts it as new or filtered. A source's own salary data wins over parsing the text. */
 export function save({ salary: given, ...raw }: RawJob) {
-  const s = scoreJob(raw);
+  const s = scoreJob(raw, config);
   const salary = given ?? parseSalary(`${raw.title}\n${raw.description}`, s.country, homeCountry());
   return upsertJob({
     ...raw,

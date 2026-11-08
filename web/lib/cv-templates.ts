@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { BOT_ROOT } from './bot';
 import { configFile, readConfig } from './settings';
+import { CV_VERSION } from '../../src/types.ts';
 import { DEFAULT_TEMPLATE, isTemplate, type TemplateId } from './cv-template-list';
 
 // Server-side helpers for the CV files and templates: the PDF path and file name, the default template from
@@ -11,9 +12,9 @@ export { DEFAULT_TEMPLATE, isTemplate, TEMPLATES, templateName, type TemplateId 
 
 /**
  * A CV version name, the one rule for every dashboard path that takes one (prepare's `cv`, /api/cv/[version],
- * versionInfo), as CV_VERSION in src/tasks.ts (the bot checks it again; parity in tests/lib/cv-templates.test.ts).
+ * versionInfo); the bot checks task arguments with the same rule (src/tasks.ts).
  */
-export const CV_VERSION = /^[a-z0-9][a-z0-9-]*$/;
+export { CV_VERSION };
 
 /**
  * config.json cvFileName, from the file the bot uses (JOB_BOT_CONFIG when set). It lives here, not in bot.ts, because

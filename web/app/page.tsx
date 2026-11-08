@@ -93,7 +93,7 @@ export default function Page(props: PageProps<'/'>) {
 async function Dashboard({ searchParams }: { searchParams: PageProps<'/'>['searchParams'] }) {
   const sp = await searchParams;
   const one = (k: string) => (Array.isArray(sp[k]) ? sp[k][0] : sp[k]) || undefined;
-  // "Needs follow-up" is a view of applied jobs (web/lib/followup.ts), not a status of its own.
+  // "Needs follow-up" is a view of applied jobs (src/followup.ts), not a status of its own.
   const followUp = one('view') === 'followup';
   const status = followUp ? 'applied' : ((STATUSES.includes(one('status') as Status) ? one('status') : 'new') as Status);
   const labels = readCountryLabels(); // config.json target countries, plus RM for remote

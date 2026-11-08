@@ -1,5 +1,20 @@
-// Types shared by the bot (src/) and the dashboard (web/, via `import type`). Types only: no runtime code or
-// imports here, so the dashboard build can erase the import and never bundles bot code.
+// Types, and a few constant lists, shared by the bot (src/) and the dashboard (web/). No imports and no I/O, so any
+// part of the dashboard can import it, client components included.
+
+// workday: token is "<tenant>/<wdN>/<site>", e.g. "acme/wd3/AcmeCareers".
+export const ATS = ['greenhouse', 'lever', 'ashby', 'recruitee', 'workable', 'smartrecruiters', 'workday'] as const;
+
+// The remote job boards the bot can fetch (BOARDS in src/sources/boards.ts).
+export const REMOTE_BOARDS = ['himalayas', 'remotive', 'remoteok', 'arbeitnow', 'adzuna'] as const;
+
+/** A CV version name (`default`, `laravel-v1`): the one rule for every path and task argument that takes one. */
+export const CV_VERSION = /^[a-z0-9][a-z0-9-]*$/;
+
+/** Longest feedback for rewriting a letter, summary or CV ("What should change?" on the job page). */
+export const FEEDBACK_CAP = 1000;
+
+/** Done and failed tasks are deleted this long after they finished (when the next task is queued). */
+export const KEEP_FINISHED_DAYS = 30;
 
 export type JobStatus = 'new' | 'prepared' | 'applied' | 'interview' | 'offer' | 'rejected' | 'skipped' | 'expired' | 'filtered';
 
@@ -104,7 +119,8 @@ export type SalaryPeriod = 'year' | 'month' | 'hour';
 export type Salary = { min: number | null; max: number | null; currency: SalaryCurrency; period: SalaryPeriod };
 
 /** Why the user skipped a job (optional, picked next to the Skip button). `location` covers visa too. */
-export type SkipReason = 'stack' | 'seniority' | 'salary' | 'location' | 'company' | 'language' | 'other';
+export const SKIP_REASONS = ['stack', 'seniority', 'salary', 'location', 'company', 'language', 'other'] as const;
+export type SkipReason = (typeof SKIP_REASONS)[number];
 
 /** One row of `job_events`: a status change. `reason` is only set on skips. */
 export type JobEvent = {
