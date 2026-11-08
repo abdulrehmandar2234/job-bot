@@ -574,4 +574,16 @@ describe('himalayasMoved (a Himalayas job whose location changed after the fetch
     assert.equal((await getJob('himalayas:movedco/jobs/same')).status, 'new');
     assert.equal(await himalayasMoved('greenhouse:acme:1'), null, 'only Himalayas jobs');
   });
+
+  it('check:open moves it even when the Himalayas page answers 403 (an unknown open check)', async () => {
+    await save({ ...posting('page-403'), url: 'https://himalayas.app/companies/movedco/jobs/page-403?utm_source=api' });
+    net = mockFetch({
+      'himalayas.app/companies/movedco/jobs/page-403': new Response('Forbidden', { status: 403 }),
+      ...search('page-403', ['United States'], [-8, -5]),
+    });
+    await checkOpen(['himalayas:movedco/jobs/page-403'], {});
+    const j = await getJob('himalayas:movedco/jobs/page-403');
+    assert.match(j.location, /^Remote — United States/);
+    assert.equal(j.status, 'filtered');
+  });
 });
