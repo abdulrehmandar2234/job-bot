@@ -141,7 +141,9 @@ if (!load) {
       }
     }
   } catch (e) {
-    if (!(e instanceof InvalidSettingsError)) throw e;
+    // A setting or AI problem the user can fix: its message is the whole story, a stack trace would only bury it.
+    // AiError (src/ai-providers.ts) is matched by name: importing that module here would load config.json first.
+    if (!(e instanceof InvalidSettingsError || (e instanceof Error && e.name === 'AiError'))) throw e;
     console.error(e.message);
     process.exitCode = 1;
   }
