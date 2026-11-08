@@ -65,7 +65,8 @@ AI_API_KEY=sk-ant-...
 ```
 
 - **The key** is read only from the environment, never written to `config.json`, never logged or shown, and only sent to that provider's base URL. The dashboard only shows whether `AI_API_KEY` is set and which provider it looks like.
-- **Errors:** a missing key stops before any request; a rejected key (401/403) stops at once with a message naming `AI_API_KEY` and the provider; a reply that is not the JSON asked for is asked for once more.
+- **Errors:** a missing key stops before any request. A rejected key (401/403) stops at once with a message naming `AI_API_KEY`, the provider, its own reason and the page where a new key is made, and how to paste it. An account with no credit (402) says so, with the page to add credit. A reply that is not the JSON asked for is asked for once more. These problems print as one line, with no stack trace, so the dashboard shows that line as the task's error.
+- **Cover letter fallback:** when the AI fails, Write letter still writes the template letter (the job page labels it "template"), and the job page says the AI could not write it and why.
 - **Older settings still work:** `ai.provider` `"openai"` / `"deepseek"` (with their `ai.openai` / `ai.deepseek` sections) are read as `api` with that preset, and `OPENAI_API_KEY` / `DEEPSEEK_API_KEY` are read when `AI_API_KEY` is not set.
 - `ai.api.baseUrl` (or `AI_BASE_URL` in `.env`, which wins) points at a proxy or another compatible endpoint; `ai.api.responseFormat` (`json_schema`, `json_object`, `text`) overrides how JSON is asked for, if a provider rejects the preset's default.
 

@@ -2,7 +2,18 @@ import { afterEach, beforeEach, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { mockFetch } from './helpers.ts';
 import { API_PRESETS, PRESETS, detectPreset } from '../src/ai-presets.ts';
-import { aiLabel, aiModel, askAi, chatBody, parseReply, providerMode, resolveApi, resolveClaude } from '../src/ai-providers.ts';
+import {
+  aiLabel,
+  aiModel,
+  askAi,
+  chatBody,
+  keyRejected,
+  noCredit,
+  parseReply,
+  providerMode,
+  resolveApi,
+  resolveClaude,
+} from '../src/ai-providers.ts';
 import type { AiSettings } from '../src/settings.ts';
 import { timing } from '../src/sources/http.ts';
 
@@ -278,12 +289,41 @@ describe('askAi over HTTP', () => {
     for (const status of [401, 403]) {
       const seen = serve(Response.json({ error: { message: `invalid x-api-key ${ANT}` } }, { status }));
       await assert.rejects(askAi('p', SCHEMA, 'score', 's', api()), (e: Error) => {
-        assert.match(e.message, new RegExp(`Anthropic rejected the API key \\(AI_API_KEY\\): ${status}`));
+        assert.match(
+          e.message,
+          new RegExp(`Anthropic rejected the API key \\(AI_API_KEY\\): ${status} \\(invalid x-api-key \\*\\*\\*\\)\\.`),
+        );
+        assert.match(e.message, /Make a new key at https:\/\/console\.anthropic\.com\/settings\/keys and put it in \.env/);
+        assert.match(e.message, /only the key, with no quotes, spaces or notes\. Then restart the dashboard\.$/);
+        assert.equal(e.name, 'AiError');
         return noKeyIn(e);
       });
       assert.equal(seen.length, 1, 'not retried');
       mock!.restore();
     }
+  });
+
+  it('says the account has no credit on 402, with where to add it', async () => {
+    process.env.AI_API_KEY = 'sk-' + 'a'.repeat(32);
+    const seen = serve(Response.json({ error: { message: 'Insufficient Balance' } }, { status: 402 }));
+    await assert.rejects(askAi('p', SCHEMA, 'score', 's', api({ preset: 'deepseek' })), (e: Error) => {
+      assert.equal(
+        e.message,
+        'DeepSeek says the account has no credit left (402). Add credit at https://platform.deepseek.com/top_up, or choose another AI on the Settings page.',
+      );
+      return true;
+    });
+    assert.equal(seen.length, 1);
+  });
+
+  it('names no page for a provider it has none for, and leaves out an empty provider message', () => {
+    const t = { preset: 'custom' as const, name: 'Custom endpoint', keyEnv: 'AI_API_KEY' };
+    assert.equal(
+      keyRejected(t, 401),
+      'Custom endpoint rejected the API key (AI_API_KEY): 401. Make a new key and put it in .env in the job-bot folder as ' +
+        'AI_API_KEY=<the key>: only the key, with no quotes, spaces or notes. Then restart the dashboard.',
+    );
+    assert.match(noCredit(t), /Add credit in your account,/);
   });
 
   it('redacts the key from other API errors and reports the provider message', async () => {
