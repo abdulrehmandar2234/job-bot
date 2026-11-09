@@ -173,6 +173,22 @@ describe('JobActions', () => {
 });
 
 // The job page places these apart (summary card, CV block); JobActions keeps them in one row for the list cards.
+describe('keyboard shortcuts (components/triage.tsx presses these)', () => {
+  it('marks Open job, Prepare CV, Mark applied and the skip-reason select with their keys', () => {
+    render(<JobActions job={job()} />);
+    expect(screen.getByRole('link', { name: 'Open job ↗' })).toHaveAttribute('aria-keyshortcuts', 'Enter');
+    expect(screen.getByRole('button', { name: 'Prepare CV' })).toHaveAttribute('data-shortcut', 'p');
+    expect(screen.getByRole('button', { name: 'Mark applied ✓' })).toHaveAttribute('data-shortcut', 'a');
+    expect(screen.getByLabelText('Skip reason (optional)')).toHaveAttribute('data-shortcut', 's');
+  });
+
+  it('p downloads the CV once one exists, and no other button claims a key', () => {
+    render(<JobActions job={job({ cv_version: 'php', status: 'applied' })} />);
+    expect(screen.getByRole('link', { name: /Download CV/ })).toHaveAttribute('aria-keyshortcuts', 'p');
+    expect(screen.getByRole('button', { name: 'Got interview' })).not.toHaveAttribute('data-shortcut');
+  });
+});
+
 describe('JobActions parts', () => {
   it('OpenJobLink is only the link to the posting', () => {
     const { container } = render(<OpenJobLink job={job()} />);

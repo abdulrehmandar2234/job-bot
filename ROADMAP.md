@@ -17,6 +17,7 @@ Nothing planned right now. Ideas from real use go here.
 - **More sources:** Workday (`"ats": "workday"`, src/sources/index.ts), Arbeitnow and Adzuna (`remote.boards`, src/sources/boards.ts).
 - **Instant alerts for strong matches:** src/notify.ts, called by `ai:score`; `ai.alertStrong` in config.json or on `/settings`.
 - **Settings page:** `/settings` (web/app/settings, web/components/settings.tsx); `bot settings:check` / `settings:save`.
+- **Keyboard triage and bulk skip:** j/k, Enter, o, a, p, s on the job list, x / shift-click with "Skip selected" (web/components/triage.tsx, `skipSelected` in web/app/actions.ts).
 - **Learn from skips:** skip reasons (`mark <id> skipped --reason`, Skip button) and skip patterns on `/analytics` (web/lib/skip-insights.ts).
 - **Dead-link check:** `bot check:open`; `prepare` checks first; status `expired` with its own tab (src/sources/open.ts).
 - **ATS keyword check:** `bot ats <id>` and on the job page (src/ats.ts); its folded heading counts the job skills the CV is missing.

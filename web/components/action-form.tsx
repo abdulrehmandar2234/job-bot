@@ -21,6 +21,7 @@ export function ActionForm({
   className = '',
   buttonClass = '',
   busy,
+  shortcut,
 }: {
   action: Action;
   /** Hidden inputs, e.g. { id, status }. */
@@ -33,6 +34,8 @@ export function ActionForm({
   buttonClass?: string;
   /** Rendered in place of the submit button, e.g. <Busy> while the matching background task runs. */
   busy?: ReactNode;
+  /** The key that presses this button on a focused job card (components/triage.tsx), e.g. "a". */
+  shortcut?: string;
 }) {
   const { state, pending, onSubmit, action: formAction } = useTextForm(action);
   return (
@@ -42,7 +45,13 @@ export function ActionForm({
       ))}
       {children}
       {busy ?? (
-        <button type="submit" disabled={pending} className={`btn ${buttonClass} ${pending ? 'opacity-60 cursor-wait' : ''}`}>
+        <button
+          type="submit"
+          disabled={pending}
+          data-shortcut={shortcut}
+          aria-keyshortcuts={shortcut}
+          className={`btn ${buttonClass} ${pending ? 'opacity-60 cursor-wait' : ''}`}
+        >
           {pending ? (pendingText ?? '…') : label}
         </button>
       )}
