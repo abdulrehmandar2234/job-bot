@@ -336,6 +336,7 @@
       "token": "educative"
     }
   ],
+  "stacks": ["php-laravel", "javascript"],
   "roleInclude": "engineer|developer|full.?stack|back.?end|front.?end|software|web|php|laravel|node|react",
   "roleExclude": "data scien|machine learning|\\bml\\b|ios|android|mobile|\\bs?qa\\b|quality|\\btest|\\bsre\\b|site reliability|devops|platform engineer|infrastructure|security|\\binterns?(hip)?\\b|graduate|working student|trainee|manager|director|head of|\\bvp\\b|principal|sales|support|analyst|designer|embedded|hardware|firmware|golang|\\bgo\\b|\\bjava\\b|scala|rust|\\.net|c#|c\\+\\+|kotlin|swift|ruby|elixir|python|data engineer|solutions engineer|customer|account|advocate|value engineer|solutions? engineer|analytics|professional services|research|application engineer|sales engineer|support engineer|react native|wordpress|woocommerce|shopify|marketing|database engineer|dba\\b"
 }

@@ -4,5 +4,24 @@
   "linkedinKeywords": ["laravel", "php"],
   "remoteQueries": ["laravel", "php"],
   "roleInclude": "php|laravel",
-  "allowInTitles": []
+  "allowInTitles": [],
+  "skills": [
+    { "name": "PHP", "pattern": "\\bphp\\b" },
+    { "name": "Laravel", "pattern": "\\blaravel\\b", "weight": 2 },
+    { "name": "Livewire", "pattern": "\\blivewire\\b" },
+    { "name": "Filament", "pattern": "\\bfilament(php)?\\b" },
+    { "name": "Inertia.js", "pattern": "\\binertia" },
+    { "name": "Alpine.js", "pattern": "\\balpine(\\.?js)?\\b" }
+  ],
+  "clusters": [
+    {
+      "id": "default",
+      "priority": 2,
+      "all": ["\\blaravel\\b|\\bphp\\b", "\\bnode|\\breact\\b|\\bnext\\.?js|\\bnest"],
+      "none": ["\\blivewire|\\bvue"]
+    },
+    { "id": "laravel", "all": ["\\blaravel\\b|\\bphp\\b"] },
+    { "id": "tall", "all": ["\\blivewire\\b|\\balpine|\\btailwind", "\\blaravel\\b"] },
+    { "id": "laravel-vue", "all": ["\\bvue", "\\blaravel\\b|\\bphp\\b"] }
+  ]
 }

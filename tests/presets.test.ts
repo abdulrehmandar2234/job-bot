@@ -4,7 +4,16 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFil
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import './helpers.ts';
-import { alternatives, applyMarkets, applyStacks, BASE_ROLE_INCLUDE, loadMarkets, loadStacks, pick } from '../src/presets.ts';
+import {
+  alternatives,
+  applyMarkets,
+  applyStacks,
+  BASE_ROLE_INCLUDE,
+  DEFAULT_STACKS,
+  loadMarkets,
+  loadStacks,
+  pick,
+} from '../src/presets.ts';
 import { ensureConfigFile, path, validateConfig } from '../src/settings.ts';
 
 const DEFAULTS = JSON.parse(readFileSync(path('config.default.json'), 'utf8'));
@@ -36,6 +45,8 @@ describe('presets', () => {
     assert.deepEqual(built.remote, DEFAULTS.remote);
     assert.equal(built.roleInclude, DEFAULTS.roleInclude);
     assert.equal(built.roleExclude, DEFAULTS.roleExclude);
+    assert.deepEqual(built.stacks, DEFAULTS.stacks);
+    assert.deepEqual(DEFAULTS.stacks, DEFAULT_STACKS, 'the scoring fallback is what config.default.json is built from');
   });
 
   it('ships nothing personal: no name, contact or machine path in config.default.json or presets/', () => {
@@ -75,6 +86,7 @@ describe('presets', () => {
   it('applyStacks: keywords, queries and title words from the stacks; a stack can take its language out of roleExclude', () => {
     const [py] = pick(loadStacks(), ['python'], 'stacks');
     const cfg = applyStacks(DEFAULTS, [py]) as typeof DEFAULTS;
+    assert.deepEqual(cfg.stacks, ['python'], 'the chosen ids are recorded for scoring');
     assert.deepEqual(cfg.linkedin.keywords, ['python', 'django', 'fastapi']);
     assert.deepEqual(cfg.remote.himalayasQueries, ['python', 'django', 'fastapi']);
     assert.equal(cfg.roleInclude, `${BASE_ROLE_INCLUDE}|python|django`);

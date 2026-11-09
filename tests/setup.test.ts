@@ -147,6 +147,7 @@ describe('setup wizard', () => {
     assert.ok(cfg.companies.some((c: { name: string }) => c.name === 'Adyen'));
     assert.ok(!cfg.companies.some((c: { name: string }) => c.name === 'Careem'), 'Gulf boards are gone');
     assert.deepEqual(cfg.linkedin.keywords, ['python', 'django', 'fastapi']);
+    assert.deepEqual(cfg.stacks, ['python'], 'the chosen stacks are recorded for scoring');
     assert.match(cfg.roleInclude, /\|python\|django$/);
     assert.doesNotMatch(cfg.roleExclude, /python/);
     assert.match(printed, /netherlands: Onsite jobs in the Netherlands/);

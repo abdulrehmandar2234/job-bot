@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { daysAgo, raw } from './helpers.ts'; // first: it points the bot at a temp config before src/ loads one
 import { isIndSponsor } from '../src/sponsors.ts';
-import { languageRules, pickCluster, scoreJob } from '../src/match.ts';
+import { languageRules, pickCluster, scoreJob, SKILLS } from '../src/match.ts';
 import { config } from '../src/config.ts';
 
 describe('scoreJob: location', () => {
@@ -235,6 +235,110 @@ describe('pickCluster', () => {
   });
   it('falls back to default', () => {
     assert.equal(pickCluster('COBOL'), 'default');
+  });
+});
+
+describe('skills and clusters follow the stack presets (config.stacks)', () => {
+  const asStacks = (stacks: string[], fn: () => void) => {
+    const was = config.stacks;
+    config.stacks = stacks;
+    try {
+      fn();
+    } finally {
+      if (was === undefined) delete config.stacks;
+      else config.stacks = was;
+    }
+  };
+
+  it('the default stacks give exactly the skill list the bot always had', () => {
+    assert.deepEqual(
+      SKILLS.map((s) => s.name),
+      // prettier-ignore
+      [
+        'PHP',
+        'Laravel',
+        'Livewire',
+        'Filament',
+        'Inertia.js',
+        'Alpine.js',
+        'JavaScript',
+        'TypeScript',
+        'Node.js',
+        'NestJS',
+        'Express.js',
+        'React',
+        'Next.js',
+        'Redux',
+        'Vue.js',
+        'MongoDB',
+        'PostgreSQL',
+        'MySQL',
+        'SQL',
+        'Prisma',
+        'TypeORM',
+        'GraphQL',
+        'REST APIs',
+        'OAuth/JWT',
+        'AWS',
+        'Docker',
+        'CI/CD',
+        'Testing',
+        'LLM / AI',
+        'Microservices',
+        'Angular',
+        'Tailwind CSS',
+        'Kubernetes',
+        'Redis',
+        'Kafka',
+        'Terraform',
+        'GCP',
+        'Azure',
+        'Python',
+        'Go',
+        'Java',
+        'Ruby',
+        'C#/.NET',
+      ],
+    );
+    assert.equal(SKILLS.find((s) => s.name === 'Laravel')?.weight, 2);
+    assert.equal(SKILLS.find((s) => s.name === 'SQL')?.cv?.test('MySQL'), true);
+  });
+
+  it('a python stack scores postings by its own skills', () => {
+    asStacks(['python'], () => {
+      const s = scoreJob(raw({ title: 'Senior Software Engineer', description: 'Django, FastAPI, PostgreSQL, Docker and pytest.' }));
+      assert.ok(s.missing.includes('Django'), 'Django is seen and not on the CV');
+      assert.ok(s.missing.includes('FastAPI'));
+      assert.ok(s.matched.includes('PostgreSQL') && s.matched.includes('Docker'), 'the cross-stack skills still count');
+    });
+  });
+
+  it('cross-stack markers still see postings built on another stack', () => {
+    asStacks(['python'], () => {
+      const s = scoreJob(raw({ title: 'Senior Software Engineer', description: 'Laravel back end with a React front end.' }));
+      const names = [...s.matched, ...s.missing];
+      assert.ok(names.includes('PHP'), 'Laravel counts as the PHP marker');
+      assert.ok(names.includes('JavaScript'), 'React counts as the JavaScript marker');
+      assert.ok(!names.includes('Laravel') && !names.includes('React'), 'the granular skills belong to their stacks');
+    });
+  });
+
+  it('CV clusters follow the stacks', () => {
+    asStacks(['python'], () => {
+      assert.equal(pickCluster('Laravel, Livewire and Tailwind'), 'default');
+    });
+    asStacks(['javascript'], () => {
+      assert.equal(pickCluster('MongoDB, Express, React, Node'), 'mern');
+      assert.equal(pickCluster('PHP developer'), 'default');
+    });
+    assert.equal(pickCluster('Laravel, Livewire and Tailwind'), 'tall', 'the default stacks are back');
+  });
+
+  it('an unknown stack id fails loudly and names the known ones', () => {
+    asStacks(['cobol'], () => {
+      assert.throws(() => scoreJob(raw()), /unknown stack preset "cobol" \(known: javascript, php-laravel, python\)/);
+      assert.throws(() => pickCluster('Laravel'), /unknown stack preset "cobol"/);
+    });
   });
 });
 
