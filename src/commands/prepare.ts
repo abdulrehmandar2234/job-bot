@@ -5,7 +5,8 @@ import { cvFile, jobTemplate, masterRaw, versionFor } from '../cv/versions.ts';
 import { htmlToPdf, letterHtml, type Cv } from '../cv/render.ts';
 import { PROFILES } from '../cv/profiles.ts';
 import { coverLetter } from '../cover.ts';
-import { aiCoverLetter, aiSummary } from '../ai.ts';
+import { aiCoverLetter, aiHeadline, aiSummary } from '../ai.ts';
+import { unsupportedClaims } from '../cv/feedback.ts';
 import { FEEDBACK_CAP } from '../tasks.ts';
 import { isOpen } from '../sources/open.ts';
 import { record } from './open.ts';
@@ -133,6 +134,52 @@ export async function summary(args: string[], flags: Flags) {
   console.log(`${j.company} — ${j.title}`);
   console.log(`CV summary : ${feedback ? '(rewritten by AI with your feedback)' : '(written by AI for this job)'}`);
   console.log(res.summary);
+  if (res.note) console.log(`Note       : ${res.note}`);
+  console.log(`To put it in a CV for this job: npm run bot -- cv:tailor ${j.id}`);
+}
+
+/** Longest CV headline: the AI is asked for at most 90 characters; the job page allows the same when editing by hand. */
+export const HEADLINE_CAP = 120;
+
+/**
+ * headline <id> [--feedback "…"]: the AI writes a CV headline for this job (the line under the name) from the CV and
+ * the job description, or rewrites the current one to follow the feedback, and stores it on the job. `cv:tailor <id>`
+ * puts it in a CV. Checked in code like a revised CV's title (src/cv/feedback.ts): a headline that names a skill or
+ * number the master CV does not show is not stored. When the AI is off or fails, nothing changes and it exits 1.
+ */
+export async function headline(args: string[], flags: Flags) {
+  const feedback = feedbackFlag(flags);
+  if (feedback === null) return;
+  const j = await getJob(args[0]);
+  if (!j) return console.log('Not found');
+  if (!config.ai.enabled) {
+    console.error('The CV headline is written by the AI, and it is off (config.json ai.enabled).');
+    process.exitCode = 1;
+    return;
+  }
+  const unchanged = j.cv_headline ? ', the headline is unchanged' : '';
+  let res: Awaited<ReturnType<typeof aiHeadline>>;
+  try {
+    res = await aiHeadline(j, feedback);
+  } catch (e) {
+    console.error(`AI headline failed${unchanged}: ${(e as Error).message}`);
+    process.exitCode = 1;
+    return;
+  }
+  const extra = unsupportedClaims(res.headline, JSON.parse(masterRaw()) as Cv);
+  if (!res.headline || res.headline.length > HEADLINE_CAP || extra.length) {
+    const why = extra.length ? `it names ${extra.join(', ')}, which your CV does not show` : 'it was empty or too long';
+    console.error(`The AI headline was not used${unchanged}: ${why}. Try again, or edit it yourself on the job page.`);
+    process.exitCode = 1;
+    return;
+  }
+  await pool.query('UPDATE jobs SET cv_headline = $2, cv_headline_at = now(), cv_headline_edited_at = NULL WHERE id = $1', [
+    j.id,
+    res.headline,
+  ]);
+  console.log(`${j.company} — ${j.title}`);
+  console.log(`CV headline: ${feedback ? '(rewritten by AI with your feedback)' : '(written by AI for this job)'}`);
+  console.log(res.headline);
   if (res.note) console.log(`Note       : ${res.note}`);
   console.log(`To put it in a CV for this job: npm run bot -- cv:tailor ${j.id}`);
 }

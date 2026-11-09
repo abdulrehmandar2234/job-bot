@@ -4,12 +4,15 @@ import { Suspense } from 'react';
 import {
   clearAnswers,
   draftAnswers,
+  rewriteHeadline,
   rewriteLetter,
   rewriteSummary,
+  saveHeadline,
   saveLetter,
   saveNotes,
   saveSummary,
   tailorCv,
+  writeHeadline,
   writeLetter,
   writeSummary,
 } from '@/app/actions';
@@ -254,6 +257,9 @@ async function JobDetail({ params }: { params: PageProps<'/jobs/[id]'>['params']
             <a href="#letter" className={navLink}>
               Cover letter
             </a>
+            <a href="#cv-headline" className={navLink}>
+              CV headline
+            </a>
             <a href="#cv-summary" className={navLink}>
               CV summary
             </a>
@@ -337,6 +343,59 @@ async function JobDetail({ params }: { params: PageProps<'/jobs/[id]'>['params']
             )}
           </section>
 
+          <section id="cv-headline" className="scroll-mt-4 space-y-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="font-medium">
+                CV headline for this job{' '}
+                <span className="text-xs font-normal text-zinc-500">
+                  {!job.cv_headline ? '· not written yet' : job.cv_headline_edited_at ? '· edited by you' : '· written by AI for this job'}
+                </span>
+              </h2>
+              <div className="flex flex-wrap gap-2">
+                {busy.includes('headline') ? (
+                  <Busy>{job.cv_headline ? 'Rewriting headline…' : 'Writing headline…'}</Busy>
+                ) : (
+                  ai && (
+                    <ActionForm
+                      action={writeHeadline}
+                      fields={{ id: job.id }}
+                      pendingText="Starting…"
+                      label={job.cv_headline ? 'Rewrite headline' : 'Write headline'}
+                    />
+                  )
+                )}
+                {job.cv_headline && <CopyButton text={job.cv_headline} />}
+                {job.cv_headline &&
+                  (busy.includes('tailored_cv') ? (
+                    <Busy>Building CV for this job…</Busy>
+                  ) : (
+                    !busy.includes('headline') &&
+                    !busy.includes('summary') && (
+                      <ActionForm action={tailorCv} fields={{ id: job.id }} pendingText="Starting…" label="Use in my CV for this job" />
+                    )
+                  ))}
+              </div>
+            </div>
+            {job.cv_headline ? (
+              <WrittenText
+                id={job.id}
+                kind="headline"
+                text={job.cv_headline}
+                busy={busy.includes('headline') || busy.includes('tailored_cv')}
+                save={saveHeadline}
+                rewrite={rewriteHeadline}
+                ai={ai}
+              />
+            ) : !ai ? (
+              <AiOffNote what="writing a CV headline for this job" />
+            ) : (
+              <p className="text-sm text-zinc-500">
+                The line under your name on the CV, written for this job: the role as this job names it and its main technologies that your
+                CV shows. Only facts from your CV.
+              </p>
+            )}
+          </section>
+
           <section id="cv-summary" className="scroll-mt-4 space-y-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h2 className="font-medium">
@@ -361,9 +420,10 @@ async function JobDetail({ params }: { params: PageProps<'/jobs/[id]'>['params']
                 {job.cv_summary && <CopyButton text={job.cv_summary} />}
                 {job.cv_summary &&
                   (busy.includes('tailored_cv') ? (
-                    <Busy>Building CV with this summary…</Busy>
+                    <Busy>Building CV for this job…</Busy>
                   ) : (
-                    !busy.includes('summary') && (
+                    !busy.includes('summary') &&
+                    !busy.includes('headline') && (
                       <ActionForm action={tailorCv} fields={{ id: job.id }} pendingText="Starting…" label="Use in my CV for this job" />
                     )
                   ))}

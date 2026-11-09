@@ -30,6 +30,7 @@ const commands: Record<string, () => Promise<Command>> = {
   prepare: async () => (await import('./commands/prepare.ts')).prepare,
   letter: async () => (await import('./commands/prepare.ts')).letter,
   summary: async () => (await import('./commands/prepare.ts')).summary,
+  headline: async () => (await import('./commands/prepare.ts')).headline,
   'cv:tailor': async () => (await import('./commands/cv.ts')).cvTailor,
   'cv:template': async () => (await import('./commands/cv.ts')).cvTemplate,
   'cv:templates': async () => (await import('./commands/cv-templates.ts')).cvTemplates,
@@ -97,7 +98,8 @@ if (!load) {
          [--feedback "shorter"]   AI rewrites the current letter with your feedback (prints a note if it left
                                   something out because the CV does not support it)
   summary <id> [--feedback "…"]   AI writes a CV summary for this job (or rewrites it with your feedback)
-  cv:tailor <id>                  one-off CV version with the job's CV summary (sets it as the job's CV)
+  headline <id> [--feedback "…"]  AI writes a CV headline for this job (the line under your name), or rewrites it
+  cv:tailor <id>                  one-off CV version with the job's CV headline and summary (sets it as the job's CV)
   cv:templates                    list the CV designs (default: config.json cvTemplate, else classic)
   cv:template <id> <template>     use a CV design for this job and re-render its CV as a new version
   cv:preview <template> [--pdf]   the master CV in a design (HTML, or data/previews/<template>.pdf)

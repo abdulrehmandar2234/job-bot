@@ -99,7 +99,7 @@ describe('task queue', () => {
   });
 
   it('every kind that calls the AI outlives the overall AI budget with margin, so the real error is recorded', () => {
-    const aiKinds: TaskKind[] = ['ai_review', 'answers', 'prep', 'follow_up', 'letter', 'summary', 'cv_feedback', 'cv_review'];
+    const aiKinds: TaskKind[] = ['ai_review', 'answers', 'prep', 'follow_up', 'letter', 'summary', 'headline', 'cv_feedback', 'cv_review'];
     for (const kind of aiKinds) assert.ok(TASK_TIMEOUT_MS[kind] >= AI_BUDGET.ms + 60_000, `${kind} must exceed the AI budget with margin`);
   });
 
@@ -329,6 +329,8 @@ describe('cliArgs', () => {
     assert.deepEqual(cliArgs(t('follow_up')), ['follow-up', JOB]);
     assert.deepEqual(cliArgs(t('letter')), ['letter', JOB]);
     assert.deepEqual(cliArgs(t('summary')), ['summary', JOB]);
+    assert.deepEqual(cliArgs(t('headline')), ['headline', JOB]);
+    assert.deepEqual(cliArgs(t('headline', { feedback: ' shorter ' })), ['headline', JOB, '--feedback=shorter']);
     assert.deepEqual(cliArgs(t('tailored_cv')), ['cv:tailor', JOB]);
     assert.deepEqual(cliArgs(t('cv_template', { template: 'compact' })), ['cv:template', JOB, 'compact']);
     assert.deepEqual(cliArgs(t('cv_feedback', { feedback: '  put Laravel first ' })), ['cv:feedback', JOB, '--feedback=put Laravel first']);

@@ -4,7 +4,7 @@ import { existsSync, mkdtempSync, readFileSync, utimesSync, writeFileSync } from
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import './helpers.ts';
-import { aiAnswers, aiCoverLetter, aiScore, aiSummary, applicantFacts, cvText } from '../src/ai.ts';
+import { aiAnswers, aiCoverLetter, aiHeadline, aiScore, aiSummary, applicantFacts, cvText } from '../src/ai.ts';
 import { askClaude, CLI_KILL_GRACE_MS } from '../src/ai-providers.ts';
 import type { Job } from '../src/db.ts';
 
@@ -203,6 +203,32 @@ describe('prompts', () => {
     assert.match(arg(argv, '--system-prompt'), /REVISION: the candidate gives you the CURRENT SUMMARY and FEEDBACK/);
     assert.match(stdin, /CURRENT SUMMARY:\nThe current summary\.\n\nFEEDBACK FROM THE CANDIDATE:\nmention Go$/);
     assert.deepEqual(JSON.parse(arg(argv, '--json-schema')).required, ['summary', 'note']);
+  });
+
+  it("aiHeadline asks for one line of CV facts in the job's words, and cleans the reply", async () => {
+    process.env.FAKE_CLAUDE_OUT = JSON.stringify({ headline: '  "Senior Laravel Engineer ·\n PHP & MySQL."  ' });
+    assert.deepEqual(await aiHeadline(job()), { headline: 'Senior Laravel Engineer · PHP & MySQL', note: '' });
+    const [{ argv, stdin }] = calls();
+    const system = arg(argv, '--system-prompt');
+    assert.match(system, /You write the headline of one candidate's CV, tailored to one job: the one line under the name/);
+    assert.match(system, /Never name a skill, technology, employer, certification or number the CV does not show/);
+    assert.match(system, /Keep the seniority the CV shows/);
+    assert.match(system, /at most 90 characters/);
+    assert.doesNotMatch(system, /REVISION/);
+    assert.match(stdin, /CV:\n[\s\S]*JOB:\nTITLE: Senior Laravel Developer/);
+    assert.deepEqual(JSON.parse(arg(argv, '--json-schema')).required, ['headline']);
+  });
+
+  it('aiHeadline with feedback sends the current headline and the feedback, and returns the note', async () => {
+    process.env.FAKE_CLAUDE_OUT = JSON.stringify({ headline: 'Laravel Engineer', note: 'No Go in the CV.' });
+    assert.deepEqual(await aiHeadline(job({ cv_headline: 'Senior Laravel Engineer' }), 'mention Go'), {
+      headline: 'Laravel Engineer',
+      note: 'No Go in the CV.',
+    });
+    const [{ argv, stdin }] = calls();
+    assert.match(arg(argv, '--system-prompt'), /REVISION: the candidate gives you the CURRENT HEADLINE and FEEDBACK/);
+    assert.match(stdin, /CURRENT HEADLINE:\nSenior Laravel Engineer\n\nFEEDBACK FROM THE CANDIDATE:\nmention Go$/);
+    assert.deepEqual(JSON.parse(arg(argv, '--json-schema')).required, ['headline', 'note']);
   });
 
   it('aiAnswers sends the questions and applicant facts, and forbids guessing personal decisions', async () => {

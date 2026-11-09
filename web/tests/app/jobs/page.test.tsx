@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { isValidElement, type ReactElement, type ReactNode } from 'react';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import Page from '@/app/jobs/[id]/page';
@@ -11,6 +11,9 @@ vi.mock('@/app/actions', () => ({
   rewriteLetter: vi.fn(),
   saveLetter: vi.fn(),
   writeSummary: vi.fn(),
+  writeHeadline: vi.fn(),
+  rewriteHeadline: vi.fn(),
+  saveHeadline: vi.fn(),
   rewriteSummary: vi.fn(),
   saveSummary: vi.fn(),
   tailorCv: vi.fn(),
@@ -257,6 +260,7 @@ describe('job page', () => {
         .map((a) => [a.textContent, a.getAttribute('href')]);
       expect(links).toEqual([
         ['Cover letter', '#letter'],
+        ['CV headline', '#cv-headline'],
         ['CV summary', '#cv-summary'],
         ['CV template', '#cv-panel'],
         ['Form answers', '#answers'],
@@ -476,6 +480,46 @@ describe('job page', () => {
         expect(within(s).getByRole('button', { name })).toBeInTheDocument();
     });
 
+    const headlineSection = () => screen.getByRole('heading', { name: /^CV headline for this job/ }).closest('section')!;
+
+    it('CV headline: "not written yet" and Write headline before one exists', async () => {
+      await insertJob({ id });
+      await renderJob(id);
+      const s = headlineSection();
+      expect(within(s).getByRole('heading')).toHaveTextContent('· not written yet');
+      expect(within(s).getByRole('button', { name: 'Write headline' })).toBeInTheDocument();
+      expect(within(s).queryByRole('button', { name: 'Use in my CV for this job' })).toBeNull();
+      expect(s).toHaveTextContent(/The line under your name on the CV, written for this job/);
+    });
+
+    it('CV headline: Rewrite, Copy, Use in my CV, Edit and feedback once one exists; "edited by you" after a hand edit', async () => {
+      await insertJob({ id, cv_headline: 'Senior Full Stack Engineer · Laravel & React' });
+      await renderJob(id);
+      const s = headlineSection();
+      expect(within(s).getByRole('heading')).toHaveTextContent('· written by AI for this job');
+      expect(s).toHaveTextContent('Senior Full Stack Engineer · Laravel & React');
+      for (const name of ['Rewrite headline', 'Copy', 'Use in my CV for this job', 'Edit', 'Rewrite with feedback'])
+        expect(within(s).getByRole('button', { name })).toBeInTheDocument();
+      fireEvent.click(within(s).getByRole('button', { name: 'Edit' }));
+      expect(within(s).getByRole('textbox', { name: 'Edit CV headline' })).toHaveAttribute('maxlength', '120');
+
+      await cleanupDb();
+      document.body.innerHTML = '';
+      await insertJob({ id, cv_headline: 'Mine', cv_headline_edited_at: new Date() });
+      await renderJob(id);
+      expect(within(headlineSection()).getByRole('heading')).toHaveTextContent('· edited by you');
+    });
+
+    it('CV headline: a running headline task shows "Writing headline…" in place of the buttons', async () => {
+      await insertJob({ id, cv_summary: 'Old.' });
+      await addTask('headline');
+      await renderJob(id);
+      expect(within(headlineSection()).getByRole('status')).toHaveTextContent('Writing headline…');
+      expect(within(headlineSection()).queryByRole('button', { name: 'Write headline' })).toBeNull();
+      expect(within(summarySection()).queryByRole('button', { name: 'Use in my CV for this job' })).toBeNull();
+      expect(statuses()[0]).toMatch(/Writing CV headline/);
+    });
+
     it('CV summary: "edited by you" after a hand edit', async () => {
       await insertJob({ id, cv_summary: 'Mine.', cv_summary_edited_at: new Date() });
       await renderJob(id);
@@ -485,7 +529,7 @@ describe('job page', () => {
     it.each([
       ['summary', null, 'Writing summary…', ['Write summary']],
       ['summary', 'Old.', 'Rewriting summary…', ['Rewrite summary', 'Use in my CV for this job', 'Edit', 'Rewrite with feedback']],
-      ['tailored_cv', 'Old.', 'Building CV with this summary…', ['Use in my CV for this job', 'Edit', 'Rewrite with feedback']],
+      ['tailored_cv', 'Old.', 'Building CV for this job…', ['Use in my CV for this job', 'Edit', 'Rewrite with feedback']],
     ] as const)('CV summary: a running %s task (summary %j) shows %j in place of the buttons', async (kind, cv_summary, busy, hidden) => {
       await insertJob({ id, cv_summary });
       await addTask(kind);
@@ -493,7 +537,7 @@ describe('job page', () => {
       const s = summarySection();
       expect(within(s).getByRole('status')).toHaveTextContent(busy);
       for (const name of hidden) expect(within(s).queryByRole('button', { name })).toBeNull();
-      expect(statuses()[0]).toMatch(kind === 'summary' ? /Writing CV summary/ : /Building CV with summary/);
+      expect(statuses()[0]).toMatch(kind === 'summary' ? /Writing CV summary/ : /Building CV for this job/);
     });
 
     it("shows the buttons again once the task is done, and only this job's tasks", async () => {

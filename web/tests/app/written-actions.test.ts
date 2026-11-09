@@ -1,6 +1,17 @@
 import { refresh } from 'next/cache';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { rewriteLetter, rewriteSummary, saveLetter, saveSummary, tailorCv, writeLetter, writeSummary } from '@/app/actions';
+import {
+  rewriteHeadline,
+  rewriteLetter,
+  rewriteSummary,
+  saveHeadline,
+  saveLetter,
+  saveSummary,
+  tailorCv,
+  writeHeadline,
+  writeLetter,
+  writeSummary,
+} from '@/app/actions';
 import { spawnBot } from '@/lib/bot';
 import { getJob, pool } from '@/lib/db';
 import type { Task } from '@/lib/tasks';
@@ -133,7 +144,7 @@ describe('CV summary', () => {
   });
 
   it('tailorCv queues a tailored_cv task once a summary exists, and refuses before', async () => {
-    expect(await tailorCv(null, form({ id }))).toEqual({ ok: false, message: 'Write the CV summary for this job first' });
+    expect(await tailorCv(null, form({ id }))).toEqual({ ok: false, message: 'Write the CV headline or summary for this job first' });
     expect(await tasks()).toEqual([]);
     await pool.query(`UPDATE jobs SET cv_summary = 'Senior engineer.' WHERE id = $1`, [id]);
     expect(await tailorCv(null, form({ id }))).toBeNull();
@@ -165,5 +176,46 @@ describe('CV summary', () => {
     await writeSummary(null, form({ id }));
     expect((await saveSummary(null, form({ id, text: 'Mine' })))?.ok).toBe(false);
     expect((await getJob(id))!.cv_summary).toBeNull();
+  });
+});
+
+describe('CV headline', () => {
+  it('writeHeadline queues a headline task, and rewriteHeadline one with the feedback', async () => {
+    expect(await writeHeadline(null, form({ id }))).toBeNull();
+    const [t] = await tasks();
+    expect(t).toMatchObject({ kind: 'headline', job_id: id, args: {} });
+    expect(spawn).toHaveBeenCalledExactlyOnceWith(['task:run', String(t.id)]);
+
+    const other = PREFIX + 'headline-2';
+    await insertJob({ id: other });
+    expect(await rewriteHeadline(null, form({ id: other, feedback: ' shorter ' }))).toEqual({
+      ok: true,
+      message: 'Rewriting with your feedback…',
+    });
+    const { rows } = await pool.query<Task>('SELECT * FROM tasks WHERE job_id = $1', [other]);
+    expect(rows[0]).toMatchObject({ kind: 'headline', args: { feedback: 'shorter' } });
+  });
+
+  it('tailorCv also runs with only a headline', async () => {
+    await pool.query(`UPDATE jobs SET cv_headline = 'Senior Laravel Engineer' WHERE id = $1`, [id]);
+    expect(await tailorCv(null, form({ id }))).toBeNull();
+    expect((await tasks())[0]).toMatchObject({ kind: 'tailored_cv' });
+  });
+
+  it('saveHeadline stores the edited headline as one line of at most 120 characters, and refuses while one is written', async () => {
+    expect(await saveHeadline(null, form({ id, text: ' Senior\r\nLaravel  Engineer ' }))).toEqual({ ok: true, message: 'Saved.' });
+    const job = (await getJob(id))!;
+    expect(job.cv_headline).toBe('Senior Laravel Engineer');
+    expect(job.cv_headline_edited_at).toBeInstanceOf(Date);
+    expect(await saveHeadline(null, form({ id, text: 'x'.repeat(121) }))).toEqual({
+      ok: false,
+      message: 'The headline is too long: at most 120 characters.',
+    });
+    expect(checkText('headline', '')).toEqual({ error: 'The headline is empty.' });
+    expect(TEXT_CAP.headline).toBe(120);
+
+    await writeHeadline(null, form({ id }));
+    expect((await saveHeadline(null, form({ id, text: 'Mine' })))?.ok).toBe(false);
+    expect((await getJob(id))!.cv_headline).toBe('Senior Laravel Engineer');
   });
 });
