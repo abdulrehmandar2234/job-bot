@@ -67,6 +67,7 @@ CI runs Biome, the typecheck and both suites on Ubuntu with PostgreSQL, plus the
 ## Reporting bugs
 
 Open an issue with:
+
 - what you did, what you expected and what happened;
 - your OS, your Node version (`node --version`) and the AI provider;
 - the relevant lines of `data/fetch.log` or the terminal output.

@@ -277,6 +277,7 @@ If nothing appears, check Settings → System → Notifications: notifications m
 ## 14. The Chrome extension
 
 The extension sends the job you are looking at to job-bot, and shows the prepared CV, letter and answers in a side panel while you apply. **Fill this form** types them into the form's empty fields; it never overwrites a field, never clicks a button and never submits.
+
 1. Keep the dashboard running (`npm run web`).
 2. Open `chrome://extensions` and turn on **Developer mode** (top right).
 3. Click **Load unpacked** and choose the `extension` folder inside `C:\Users\<you>\job-bot`.
