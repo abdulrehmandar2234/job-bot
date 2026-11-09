@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Triage } from '@/components/triage';
@@ -166,9 +166,10 @@ describe('bulk skip', () => {
     const fd = skip.mock.calls.at(-1)![1];
     expect(fd.getAll('id')).toEqual(['job:a', 'job:c']);
     expect(fd.get('reason')).toBe('seniority');
-    // The action answered ok: the selection and the bar are gone.
-    expect(screen.queryByText('2 selected')).toBeNull();
+    // The action answered ok: the selection and the bar go once its state arrives.
+    await waitFor(() => expect(screen.queryByText('2 selected')).toBeNull());
     expect(card('job:a').dataset.selected).toBeUndefined();
+    expect(card('job:c').dataset.selected).toBeUndefined();
   });
 
   it('x on a selected card unselects it, Escape and Clear empty the selection', async () => {

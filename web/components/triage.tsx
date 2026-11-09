@@ -1,6 +1,6 @@
 'use client';
 
-import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
+import { type ReactNode, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { SKIP_LABEL, SKIP_REASONS } from '@/lib/skips';
 import type { TextFormState } from '@/lib/written-text';
 import { Problem, useTextForm } from './written-text';
@@ -42,8 +42,9 @@ export function Triage({ ids, skip }: { ids: readonly string[]; skip: SkipAction
     [card],
   );
 
-  // Selection is painted onto the server-rendered cards: data-selected styles the <li> (app/page.tsx).
-  useEffect(() => {
+  // Selection is painted onto the server-rendered cards: data-selected styles the <li> (app/page.tsx). A layout
+  // effect, so the highlight changes in the same commit as the bulk-skip bar instead of one frame later.
+  useLayoutEffect(() => {
     for (let i = 0; i < ids.length; i++) {
       const el = card(i);
       if (!el) continue;
