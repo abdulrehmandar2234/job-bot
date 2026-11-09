@@ -138,8 +138,13 @@ describe('cv:template', () => {
     assert.equal((await getJob(id))!.cv_version, v);
 
     // A one-off CV keeps its content: a new custom folder in the new template, the old folder unchanged.
-    await pool.query(`UPDATE jobs SET cv_summary = 'React engineer for Templateco.' WHERE id = $1`, [id]);
-    const tailored = versionOf(await bot(['cv:tailor', id]));
+    await pool.query(`UPDATE jobs SET cv_summary = 'React engineer for Templateco.', cv_headline = 'Senior React Engineer' WHERE id = $1`, [
+      id,
+    ]);
+    const tailoredOut = await bot(['cv:tailor', id]);
+    assert.match(tailoredOut, /\(with the CV headline and summary for this job\)/);
+    const tailored = versionOf(tailoredOut);
+    assert.deepEqual([cvJson(tailored).title, cvJson(tailored).summary], ['Senior React Engineer', 'React engineer for Templateco.']);
     assert.equal(meta(tailored).template, 'modern', 'cv:tailor uses the job template');
     const before = readFileSync(path('cv', 'versions', tailored, config.cvFileName));
     const again = versionOf(await bot(['cv:template', id, 'compact']));

@@ -6,7 +6,7 @@ import { FEEDBACK_CAP } from '../../src/types.ts';
 /** Longest feedback ("What should change?"): the bot's limit, which task:run checks again. */
 export { FEEDBACK_CAP };
 /** Longest text the user may save by hand. */
-export const TEXT_CAP = { letter: 10_000, summary: 2_000 } as const;
+export const TEXT_CAP = { letter: 10_000, summary: 2_000, headline: 120 } as const;
 export type WrittenKind = keyof typeof TEXT_CAP;
 
 /** What the feedback and edit forms get back: `ok` and a message, or why not. The form keeps the typed text. */
@@ -23,10 +23,10 @@ export function checkFeedback(value: unknown): { feedback: string } | { error: s
 
 /**
  * Text the user typed, ready to store, or the reason it cannot be. Line breaks become \n (forms send \r\n); a letter
- * keeps its paragraphs and ends with one newline, as the bot writes it; a summary is one paragraph.
+ * keeps its paragraphs and ends with one newline, as the bot writes it; a summary is one paragraph, a headline one line.
  */
 export function checkText(kind: WrittenKind, value: unknown): { text: string } | { error: string } {
-  const name = kind === 'letter' ? 'letter' : 'summary';
+  const name = kind;
   if (typeof value !== 'string') return { error: `The ${name} must be text.` };
   const text = value.replace(/\r\n?/g, '\n').trim();
   if (!text) return { error: `The ${name} is empty.` };

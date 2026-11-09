@@ -69,6 +69,9 @@ export type Job = {
   cv_summary: string | null; // the CV summary the AI wrote for this job (`bot summary`)
   cv_summary_at: Date | null;
   cv_summary_edited_at: Date | null; // the user edited the summary by hand on the job page
+  cv_headline: string | null; // the CV headline the AI wrote for this job (`bot headline`)
+  cv_headline_at: Date | null;
+  cv_headline_edited_at: Date | null; // the user edited the headline by hand on the job page
   cv_template: string | null; // the CV design chosen for this job (src/cv/templates); null = config.json cvTemplate
   cv_review: string | null; // the AI's short review of this job's CV (`bot cv:review`)
   cv_review_at: Date | null;
@@ -167,10 +170,11 @@ export type TaskKind =
   | 'tailored_cv'
   | 'cv_template'
   | 'cv_feedback'
-  | 'cv_review';
+  | 'cv_review'
+  | 'headline';
 export type TaskStatus = 'queued' | 'running' | 'done' | 'failed';
 
-/** One row of `tasks`. `args` holds the command's options, e.g. { cv, force } for prepare, { questions } for answers, { feedback } for letter, summary and cv_feedback, or { template } for cv_template. */
+/** One row of `tasks`. `args` holds the command's options, e.g. { cv, force } for prepare, { questions } for answers, { feedback } for letter, summary, headline and cv_feedback, or { template } for cv_template. */
 export type Task = {
   id: number;
   kind: TaskKind;

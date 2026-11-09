@@ -93,16 +93,17 @@ AI_API_KEY=sk-ant-...
 
 Each feature uses either the score model (fast) or the letter model (better writer):
 
-| Feature        | Model  | Claude CLI | API (preset default) | Used by                                             |
-| -------------- | ------ | ---------- | -------------------- | --------------------------------------------------- |
-| Fit review     | score  | `haiku`    | score model          | `ai:score`, daily run, **AI review** button         |
-| Cover letter   | letter | `sonnet`   | letter model         | `letter`, "Write letter", "Rewrite with feedback"   |
-| CV summary     | letter | `sonnet`   | letter model         | `summary`, "Write summary", "Rewrite with feedback" |
-| CV feedback    | letter | `sonnet`   | letter model         | `cv:feedback`, "Improve CV with feedback"           |
-| CV review      | letter | `sonnet`   | letter model         | `cv:review`, "Suggest improvements"                 |
-| Form answers   | letter | `sonnet`   | letter model         | `answer`, "Draft answers"                           |
-| Interview prep | letter | `sonnet`   | letter model         | `prep`, "Prepare for interview"                     |
-| Follow-up      | letter | `sonnet`   | letter model         | `follow-up`, "Draft follow-up"                      |
+| Feature        | Model  | Claude CLI | API (preset default) | Used by                                               |
+| -------------- | ------ | ---------- | -------------------- | ----------------------------------------------------- |
+| Fit review     | score  | `haiku`    | score model          | `ai:score`, daily run, **AI review** button           |
+| Cover letter   | letter | `sonnet`   | letter model         | `letter`, "Write letter", "Rewrite with feedback"     |
+| CV summary     | letter | `sonnet`   | letter model         | `summary`, "Write summary", "Rewrite with feedback"   |
+| CV headline    | letter | `sonnet`   | letter model         | `headline`, "Write headline", "Rewrite with feedback" |
+| CV feedback    | letter | `sonnet`   | letter model         | `cv:feedback`, "Improve CV with feedback"             |
+| CV review      | letter | `sonnet`   | letter model         | `cv:review`, "Suggest improvements"                   |
+| Form answers   | letter | `sonnet`   | letter model         | `answer`, "Draft answers"                             |
+| Interview prep | letter | `sonnet`   | letter model         | `prep`, "Prepare for interview"                       |
+| Follow-up      | letter | `sonnet`   | letter model         | `follow-up`, "Draft follow-up"                        |
 
 ## Speed and cost
 

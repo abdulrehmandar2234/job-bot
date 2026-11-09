@@ -31,7 +31,7 @@ export function Problem({ state }: { state: TextFormState }) {
   );
 }
 
-const NAME: Record<WrittenKind, string> = { letter: 'cover letter', summary: 'CV summary' };
+const NAME: Record<WrittenKind, string> = { letter: 'cover letter', summary: 'CV summary', headline: 'CV headline' };
 
 function EditForm({ id, kind, text, save, onDone }: { id: string; kind: WrittenKind; text: string; save: Action; onDone: () => void }) {
   const { state, pending, onSubmit } = useTextForm(save);
@@ -46,7 +46,7 @@ function EditForm({ id, kind, text, save, onDone }: { id: string; kind: WrittenK
         defaultValue={text}
         aria-label={`Edit ${NAME[kind]}`}
         maxLength={TEXT_CAP[kind]}
-        rows={kind === 'letter' ? 16 : 4}
+        rows={kind === 'letter' ? 16 : kind === 'headline' ? 2 : 4}
         className="input w-full font-sans text-sm"
       />
       <div className="flex flex-wrap items-center gap-2">

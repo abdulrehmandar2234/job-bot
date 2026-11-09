@@ -142,24 +142,36 @@ export async function writeSummary(_prev: TextFormState, formData: FormData): Pr
   });
 }
 
-/** Builds a one-off CV with the job's CV summary and makes it the job's CV (`bot cv:tailor <id>`). */
+/** Writes or rewrites the CV headline for this job (`bot headline <id>`). */
+export async function writeHeadline(_prev: TextFormState, formData: FormData): Promise<TextFormState> {
+  return guarded(async () => {
+    const id = await assertJob(formData.get('id'));
+    await enqueueTask('headline', id);
+    refresh();
+  });
+}
+
+/** Builds a one-off CV with the job's CV headline and summary and makes it the job's CV (`bot cv:tailor <id>`). */
 export async function tailorCv(_prev: TextFormState, formData: FormData): Promise<TextFormState> {
   return guarded(async () => {
     const id = formData.get('id');
     if (typeof id !== 'string' || !id) throw new ActionError('Missing job id');
-    // One query for the job and its summary, so a job deleted after a separate existence check cannot crash this.
-    const { rows } = await pool.query<{ cv_summary: string | null }>('SELECT cv_summary FROM jobs WHERE id = $1', [id]);
+    // One query for the job and its texts, so a job deleted after a separate existence check cannot crash this.
+    const { rows } = await pool.query<{ cv_summary: string | null; cv_headline: string | null }>(
+      'SELECT cv_summary, cv_headline FROM jobs WHERE id = $1',
+      [id],
+    );
     if (!rows.length) throw new ActionError('Unknown job');
-    if (!rows[0].cv_summary) throw new ActionError('Write the CV summary for this job first');
+    if (!rows[0].cv_summary && !rows[0].cv_headline) throw new ActionError('Write the CV headline or summary for this job first');
     const busy = await enqueueCvChange('tailored_cv', id);
     if (busy) return busy;
     refresh();
   });
 }
 
-const TASK_FOR: Record<WrittenKind, TaskKind> = { letter: 'letter', summary: 'summary' };
+const TASK_FOR: Record<WrittenKind, TaskKind> = { letter: 'letter', summary: 'summary', headline: 'headline' };
 
-/** Queues the AI rewrite of the letter or summary with the user's feedback (`bot letter|summary <id> --feedback`). */
+/** Queues the AI rewrite of the letter, summary or headline with the user's feedback (`bot <kind> <id> --feedback`). */
 async function rewrite(kind: WrittenKind, formData: FormData): Promise<TextFormState> {
   const id = await assertJob(formData.get('id'));
   const checked = checkFeedback(formData.get('feedback'));
@@ -177,9 +189,14 @@ export async function rewriteSummary(_prev: TextFormState, formData: FormData) {
   return guarded(() => rewrite('summary', formData));
 }
 
+export async function rewriteHeadline(_prev: TextFormState, formData: FormData) {
+  return guarded(() => rewrite('headline', formData));
+}
+
 const SAVE_SQL: Record<WrittenKind, string> = {
   letter: 'UPDATE jobs SET cover_letter = $2, cover_letter_ai = false, cover_letter_edited_at = now() WHERE id = $1',
   summary: 'UPDATE jobs SET cv_summary = $2, cv_summary_at = now(), cv_summary_edited_at = now() WHERE id = $1',
+  headline: 'UPDATE jobs SET cv_headline = $2, cv_headline_at = now(), cv_headline_edited_at = now() WHERE id = $1',
 };
 
 /** Stores the text the user edited by hand, with no AI. Refused while the bot is rewriting it (it would overwrite). */
@@ -203,6 +220,10 @@ export async function saveLetter(_prev: TextFormState, formData: FormData) {
 
 export async function saveSummary(_prev: TextFormState, formData: FormData) {
   return guarded(() => saveText('summary', formData));
+}
+
+export async function saveHeadline(_prev: TextFormState, formData: FormData) {
+  return guarded(() => saveText('headline', formData));
 }
 
 /**
