@@ -51,6 +51,8 @@ The home page shows four numbers (matching now, new today, applied in the last 7
 
 **Each card** shows the scores, the AI verdict and reasons, the location with the visa label, the salary (with a "below your expectation" hint when `cv/applicant.json` → `expectedSalary` is higher), every site the same job was found on, matched and missing skills, flags, your notes, and buttons: open the posting, **Prepare CV**, **Download CV**, AI review, and status buttons. **Skip** asks why (stack, seniority, salary, location, company, language, other); `/analytics` shows the patterns.
 
+**Triage from the keyboard:** `j` / `k` (or the arrow keys) move between cards, `Enter` opens the posting, `o` the job page, `a` marks applied, `p` prepares the CV, and `s` jumps to the skip reason (`Enter` skips, `Esc` backs out). `x` or shift-click selects cards for **Skip selected**, which skips them all with one optional reason. Press `?` for the full list. The keys are off while you type in a search box or select.
+
 ## A job's page
 
 Click a job's title. From top to bottom:

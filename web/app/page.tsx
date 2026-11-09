@@ -1,7 +1,7 @@
 import Form from 'next/form';
 import Link from 'next/link';
 import { Fragment, Suspense } from 'react';
-import { fetchNow } from './actions';
+import { fetchNow, skipSelected } from './actions';
 import {
   countJobs,
   followUpCount,
@@ -30,6 +30,7 @@ import { allContacts } from '@/lib/contacts-db';
 import { ExpiredBadge } from '@/components/open-check';
 import { FollowUpBadge } from '@/components/follow-up';
 import { Pager } from '@/components/pager';
+import { Triage } from '@/components/triage';
 import { AutoCheckbox, AutoSelect } from '@/components/auto-submit';
 import { VisaBadge } from '@/components/visa';
 import { ago, AiReview, Chips, fmtDate, Posted, PostedOn, Score, STATUS_LABEL } from '@/components/ui';
@@ -296,14 +297,26 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<'/'>['searc
         </p>
       )}
 
+      {/* data-job-id, tabIndex and data-selected on each card belong to the keyboard triage layer
+          (components/triage.tsx), which moves focus between the cards and paints the bulk-skip selection. */}
       <ul className="space-y-3">
         {jobs.map((j) => (
-          <li key={j.id} className="rounded-xl border border-zinc-200 p-4 dark:border-zinc-800">
+          <li
+            key={j.id}
+            data-job-id={j.id}
+            tabIndex={-1}
+            className="rounded-xl border border-zinc-200 p-4 outline-offset-2 focus:outline-2 focus:outline-sky-500 data-[selected=true]:border-sky-500 data-[selected=true]:bg-sky-50/50 dark:border-zinc-800 dark:data-[selected=true]:border-sky-500 dark:data-[selected=true]:bg-sky-950/30"
+          >
             <div className="flex gap-3">
               <Score value={j.score} ai={j.ai_score} />
               <div className="min-w-0 flex-1 space-y-2">
                 <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-                  <Link href={`/jobs/${encodeURIComponent(j.id)}`} className="font-medium hover:underline">
+                  <Link
+                    href={`/jobs/${encodeURIComponent(j.id)}`}
+                    data-shortcut="o"
+                    aria-keyshortcuts="o"
+                    className="font-medium hover:underline"
+                  >
                     {j.title} <span className="text-zinc-500">· {j.company}</span> <ExpiredBadge job={j} />
                     {everyTab && j.status !== 'expired' && <StatusTag status={j.status} />}
                     <FollowUpBadge job={j} />
@@ -339,6 +352,7 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<'/'>['searc
       </ul>
 
       <Pager page={page} total={total} pageSize={size} href={pageHref} />
+      <Triage ids={jobs.map((j) => j.id)} skip={skipSelected} />
     </>
   );
 }

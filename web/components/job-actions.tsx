@@ -10,7 +10,7 @@ type Running = readonly TaskKind[];
 /** "Open job ↗": the posting on the site it came from. */
 export function OpenJobLink({ job }: { job: Pick<Job, 'url'> }) {
   return (
-    <a href={job.url} target="_blank" rel="noreferrer" className="btn btn-primary">
+    <a href={job.url} target="_blank" rel="noreferrer" data-shortcut="enter" aria-keyshortcuts="Enter" className="btn btn-primary">
       Open job ↗
     </a>
   );
@@ -21,7 +21,13 @@ export function CvAction({ job, busy = [] }: { job: Job; busy?: Running }) {
   if (busy.includes('prepare')) return <Busy>Preparing CV…</Busy>;
   if (job.cv_version)
     return (
-      <a href={`/api/cv/${encodeURIComponent(job.cv_version)}?download`} className="btn" title={`CV version: ${job.cv_version}`}>
+      <a
+        href={`/api/cv/${encodeURIComponent(job.cv_version)}?download`}
+        data-shortcut="p"
+        aria-keyshortcuts="p"
+        className="btn"
+        title={`CV version: ${job.cv_version}`}
+      >
         Download CV ({job.cv_version}) ↓
       </a>
     );
@@ -31,6 +37,7 @@ export function CvAction({ job, busy = [] }: { job: Job; busy?: Running }) {
       // An expired posting would stop `prepare` at its open check, so "anyway" skips it (--force).
       fields={{ id: job.id, ...(job.status === 'expired' ? { force: 'true' } : {}) }}
       pendingText="Starting…"
+      shortcut="p"
       label={job.status === 'filtered' || job.status === 'expired' ? 'Prepare anyway' : 'Prepare CV'}
     />
   );
@@ -41,8 +48,8 @@ export function CvAction({ job, busy = [] }: { job: Job; busy?: Running }) {
  * job along the pipeline, including Skip.
  */
 export function StatusActions({ job, busy = [], ai = true }: { job: Job; busy?: Running; ai?: boolean }) {
-  const status = (to: string, label: string, extra = '') => (
-    <ActionForm action={setStatus} fields={{ id: job.id, status: to }} buttonClass={extra} label={label} />
+  const status = (to: string, label: string, extra = '', shortcut?: string) => (
+    <ActionForm action={setStatus} fields={{ id: job.id, status: to }} buttonClass={extra} shortcut={shortcut} label={label} />
   );
 
   return (
@@ -55,7 +62,7 @@ export function StatusActions({ job, busy = [], ai = true }: { job: Job; busy?: 
 
       {(job.status === 'new' || job.status === 'prepared') && (
         <>
-          {status('applied', 'Mark applied ✓', 'btn-good')}
+          {status('applied', 'Mark applied ✓', 'btn-good', 'a')}
           <SkipButton id={job.id} />
         </>
       )}

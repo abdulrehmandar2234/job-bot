@@ -11,6 +11,7 @@ vi.mock('next/server', async (importOriginal) => ({
   connection: async () => {},
 }));
 vi.mock('@/app/actions', () => ({
+  skipSelected: vi.fn(),
   writeLetter: vi.fn(),
   fetchNow: vi.fn(),
   setStatus: vi.fn(),
