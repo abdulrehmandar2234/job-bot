@@ -11,6 +11,7 @@ import { path } from '../src/settings.ts';
 import {
   claim,
   cliArgs,
+  CvBusyError,
   DEAD_WORKER_ERROR,
   DEADLINE_GRACE_MS,
   enqueue,
@@ -135,7 +136,19 @@ describe('task queue', () => {
       const { task, created } = await enqueue(kind, JOB, args[kind]);
       assert.equal(created, true);
       assert.deepEqual([task.kind, task.args], [kind, args[kind]]);
+      await finish(task.id, ''); // CV-changing kinds run one at a time per job
     }
+  });
+
+  it('one CV change per job: another CV-changing kind is refused while one is active (the rule the dashboard uses)', async () => {
+    await addJob('tasktest:2');
+    const { task } = await enqueue('prepare', JOB);
+    await assert.rejects(enqueue('cv_template', JOB, { template: 'modern' }), CvBusyError);
+    assert.equal((await enqueue('prepare', JOB)).created, false); // the same kind is the same work, not refused
+    assert.equal((await enqueue('letter', JOB)).created, true); // a letter does not change the CV
+    assert.equal((await enqueue('cv_template', 'tasktest:2', { template: 'modern' })).created, true); // another job
+    await finish(task.id, '');
+    assert.equal((await enqueue('cv_template', JOB, { template: 'modern' })).created, true);
   });
 
   it('rejects unknown kinds and jobs at the database', async () => {

@@ -1,11 +1,12 @@
 import { pool } from './db.ts';
+import * as queue from './task-queue.ts';
 import { CV_VERSION, FEEDBACK_CAP, KEEP_FINISHED_DAYS, type Task, type TaskKind } from './types.ts';
 import { isTemplate } from './cv/templates/index.ts';
 import { parseSkills } from './cv/confirm-skills.ts';
 
 // The background task queue (table `tasks`, src/migrations/002_tasks.sql).
-// The dashboard enqueues (web/lib/tasks.ts, same SQL as enqueue() here) and spawns a detached `task:run <id>`
-// (src/commands/task.ts), which claims the row, runs the normal CLI command and stores the result.
+// The dashboard enqueues (web/lib/tasks.ts, with the shared rules in src/task-queue.ts) and spawns a detached
+// `task:run <id>` (src/commands/task.ts), which claims the row, runs the normal CLI command and stores the result.
 
 /**
  * A kind that makes an AI call must outlive the overall per-call AI budget (AI_BUDGET in src/ai-providers.ts,
@@ -38,83 +39,13 @@ export const QUESTIONS_CAP = 8000;
 
 export const tail = (s: string, n = OUTPUT_CAP) => (s.length > n ? '…' + s.slice(-n) : s);
 
-export const DEAD_WORKER_ERROR = 'The worker process exited without recording a result (see data/logs/tasks.log).';
-
-/** Whether a process exists. Signal 0 only checks: ESRCH = no such process, EPERM = it exists but is not ours. */
-export function pidAlive(pid: number): boolean {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (e) {
-    return (e as NodeJS.ErrnoException).code !== 'ESRCH';
-  }
-}
-
-/**
- * Fails running tasks whose worker process no longer exists, without waiting for their deadline.
- * Workers always run on this Mac (the dashboard spawns them), so their pid is checked locally.
- * The update re-checks `running`, so a worker that just recorded its result is left alone.
- */
-export async function failDeadWorkers(): Promise<number> {
-  const { rows } = await pool.query<{ id: number; pid: number }>(`SELECT id, pid FROM tasks WHERE status = 'running' AND pid IS NOT NULL`);
-  const dead = rows.filter((r) => !pidAlive(r.pid)).map((r) => r.id);
-  if (!dead.length) return 0;
-  const { rowCount } = await pool.query(
-    `UPDATE tasks SET status = 'failed', finished_at = now(), error = $2 WHERE id = ANY($1) AND status = 'running'`,
-    [dead, DEAD_WORKER_ERROR],
-  );
-  return rowCount ?? 0;
-}
-
-/**
- * Fails tasks whose worker is gone: a dead worker pid, or past the deadline (see expire_stale_tasks() in the
- * migration). Returns how many.
- */
-export async function expireStale(): Promise<number> {
-  const dead = await failDeadWorkers();
-  return dead + (await pool.query<{ n: number }>('SELECT expire_stale_tasks() n')).rows[0].n;
-}
-
-/** Deletes done and failed tasks that finished more than KEEP_FINISHED_DAYS ago. Returns how many. */
-export async function pruneFinished(): Promise<number> {
-  const { rowCount } = await pool.query(
-    `DELETE FROM tasks WHERE status IN ('done', 'failed') AND coalesce(finished_at, created_at) < now() - make_interval(days => $1)`,
-    [KEEP_FINISHED_DAYS],
-  );
-  return rowCount ?? 0;
-}
-
-/**
- * Queues a task, unless the same work is already queued or running: then that task is returned instead
- * (`created: false`). The unique index tasks_one_active makes this safe against concurrent clicks.
- */
-export async function enqueue(
-  kind: TaskKind,
-  jobId: string | null,
-  args: Record<string, string> = {},
-): Promise<{ task: Task; created: boolean }> {
-  await expireStale();
-  await pruneFinished();
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const {
-      rows: [task],
-    } = await pool.query<Task>(
-      `INSERT INTO tasks (kind, job_id, args) VALUES ($1, $2, $3)
-       ON CONFLICT (kind, coalesce(job_id, '')) WHERE status IN ('queued', 'running') DO NOTHING RETURNING *`,
-      [kind, jobId, JSON.stringify(args)],
-    );
-    if (task) return { task, created: true };
-    const {
-      rows: [active],
-    } = await pool.query<Task>(
-      `SELECT * FROM tasks WHERE kind = $1 AND job_id IS NOT DISTINCT FROM $2 AND status IN ('queued', 'running')`,
-      [kind, jobId],
-    );
-    if (active) return { task: active, created: false };
-    // The active task finished between the two queries: try the insert again.
-  }
-  throw new Error(`Could not enqueue ${kind}`);
-}
+// Queueing and the dead-worker / stale checks are shared with the dashboard (src/task-queue.ts); here they run on the
+// bot's pool.
+export { CV_CHANGES, CvBusyError, DEAD_WORKER_ERROR, pidAlive } from './task-queue.ts';
+export const failDeadWorkers = () => queue.failDeadWorkers(pool);
+export const expireStale = () => queue.expireStale(pool);
+export const pruneFinished = () => queue.pruneFinished(pool);
+export const enqueue = (kind: TaskKind, jobId: string | null, args: Record<string, string> = {}) => queue.enqueue(pool, kind, jobId, args);
 
 /** Marks a queued task running for this process. Returns null if it is not queued (already claimed, or expired). */
 export async function claim(id: number): Promise<Task | null> {
