@@ -137,7 +137,8 @@ export const normTitle = (s: string) =>
  * Groups the same posting found on several sites (same company + title + country) and points the copies
  * at one primary row. The primary is the one the user already acted on, else the most direct source.
  */
-export async function dedupe() {
+/** Groups duplicate postings. `grouped`: copies linked to a primary now; `changed`: rows this run wrote (0 when the grouping stayed). */
+export async function dedupe(): Promise<{ grouped: number; changed: number }> {
   const { rows } = await pool.query<DedupeRow>(
     `SELECT id, company, title, country, source, status, first_seen_at FROM jobs WHERE status <> 'filtered'`,
   );
@@ -145,7 +146,7 @@ export async function dedupe() {
   // Only rows whose link changes are written: every grouped row gets its primary, and a row still linked but no
   // longer in a group (or now filtered) gets NULL. It is one statement, so a reader never sees a half-done relink; an
   // unchanged grouping writes nothing, so a concurrent fetch's upserts never wait on locks of rows that did not change.
-  await pool.query(
+  const { rowCount } = await pool.query(
     `WITH wanted AS (SELECT * FROM unnest($1::text[], $2::text[]) AS v(id, primary_id))
     UPDATE jobs SET duplicate_of = w.primary_id
       FROM (
@@ -155,7 +156,7 @@ export async function dedupe() {
      WHERE jobs.id = w.id AND jobs.duplicate_of IS DISTINCT FROM w.primary_id`,
     [links.map((l) => l[0]), links.map((l) => l[1])],
   );
-  return links.length;
+  return { grouped: links.length, changed: rowCount ?? 0 };
 }
 
 export type DedupeRow = Pick<Job, 'id' | 'company' | 'title' | 'country' | 'source' | 'status' | 'first_seen_at'>;

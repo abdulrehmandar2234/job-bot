@@ -497,7 +497,8 @@ export function aiInterviewPrep(job: Job): Promise<InterviewPrep> {
 
 /** A short follow-up message for an application with no answer yet. The user reviews and sends it. */
 export async function aiFollowUp(job: Job, name: string | null): Promise<string> {
-  const applied = job.applied_at ? new Date(job.applied_at).toISOString().slice(0, 10) : 'unknown';
+  // The user's own calendar day (like the template follow-up): an evening application in GMT+5 is still that day.
+  const applied = job.applied_at ? new Date(job.applied_at).toLocaleDateString('en-CA') : 'unknown';
   const system = `You write a short follow-up message for one candidate who applied to a job and has heard nothing back.
 Rules:
 - 60-120 words, plain text, no markdown, no subject line, no placeholders like [Company].
