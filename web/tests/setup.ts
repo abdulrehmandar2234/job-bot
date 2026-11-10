@@ -15,6 +15,10 @@ if (!process.env.JOB_BOT_CONFIG) {
   copyFileSync(join(import.meta.dirname, '..', '..', 'config.default.json'), process.env.JOB_BOT_CONFIG);
 }
 
+// Never write the real data/ folder (data/logs/tasks.log, temp settings files, data/imports, the import token) from a
+// test: the dashboard and the bot runs it starts write there through dataDir() (src/settings.ts), which reads this.
+process.env.JOB_BOT_DATA_DIR ||= mkdtempSync(join(tmpdir(), 'job-bot-web-data-'));
+
 if (typeof document !== 'undefined') {
   const { cleanup } = await import('@testing-library/react');
   afterEach(cleanup);

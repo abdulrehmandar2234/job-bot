@@ -198,6 +198,31 @@ describe('runDaily', () => {
     assert.match(log, /http-cache: removed 3 entries older than 30 days\n$/);
   });
 
+  it('runs the cleanup after the backup and before the prune, logging what it removed', async () => {
+    const { calls, log } = await fakeDaily({}, () => 0, {
+      cleanup: async () => {
+        return ['cleanup: removed 2 old question files: a.txt, b.txt'];
+      },
+    });
+    assert.deepEqual(calls.slice(-2), ['backup', 'prune']);
+    assert.match(log, /notification: .*\n(.|\n)*cleanup: removed 2 old question files: a\.txt, b\.txt\nhttp-cache: removed/);
+  });
+
+  it('a failing or hung cleanup only shows in the log, and the prune still runs', async () => {
+    const failing = await fakeDaily({}, () => 0, {
+      cleanup: async () => {
+        throw new Error('no database');
+      },
+    });
+    assert.match(failing.log, /cleanup failed: no database\n/);
+    assert.equal(failing.calls.at(-1), 'prune');
+    const started = Date.now();
+    const hung = await fakeDaily({}, () => 0, { cleanup: () => new Promise(() => {}), timeouts: { cleanup: 50 } });
+    assert.match(hung.log, /cleanup timed out after 0\.1 s\n/);
+    assert.equal(hung.calls.at(-1), 'prune');
+    assert.ok(Date.now() - started < 5000);
+  });
+
   it('a failing prune only shows in the log', async () => {
     const { notes, log } = await fakeDaily({}, () => {
       throw new Error('disk gone');

@@ -2,10 +2,13 @@ import { execFile, spawn } from 'node:child_process';
 import { closeSync, mkdirSync, openSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
+import { dataDir } from '../../src/settings.ts';
 import { pool } from './db';
 
 // The web app lives in job-bot/web; the bot (CLI, CVs, config) is one level up.
 export const BOT_ROOT = resolve(process.cwd(), '..');
+/** The bot's data folder (logs, temp files, previews, the import token): JOB_BOT_DATA_DIR, else BOT_ROOT/data. */
+export const botDataDir = () => dataDir(BOT_ROOT);
 
 const run = promisify(execFile);
 
@@ -33,7 +36,7 @@ export async function failUnstartedTask(id: number, error: string) {
 
 /**
  * Starts the bot CLI in the background and returns at once: a detached process (argument array, never a shell)
- * that outlives this request and the dev server. Its output is appended to data/logs/tasks.log.
+ * that outlives this request and the dev server. Its output is appended to logs/tasks.log in the data folder (botDataDir).
  * When it cannot start, a `task:run <id>` task is marked failed with the reason; a failure before the process
  * exists (the log file, spawn itself) also throws BotStartError("Could not start the bot: …").
  */
@@ -47,7 +50,7 @@ export function spawnBot(args: string[]) {
   };
   let log: number;
   try {
-    const dir = join(BOT_ROOT, 'data', 'logs');
+    const dir = join(botDataDir(), 'logs');
     mkdirSync(dir, { recursive: true });
     log = openSync(join(dir, 'tasks.log'), 'a');
   } catch (e) {

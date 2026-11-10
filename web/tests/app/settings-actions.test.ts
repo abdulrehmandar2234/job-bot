@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { refresh } from 'next/cache';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { saveApplicant, saveConfig, saveJson } from '@/app/settings/actions';
-import { BOT_ROOT, runBot } from '@/lib/bot';
+import { BOT_ROOT, botDataDir, runBot } from '@/lib/bot';
 import { enqueueTask } from '@/lib/tasks';
 
 vi.mock('next/cache', () => ({ refresh: vi.fn() }));
@@ -28,7 +28,7 @@ const enqueue = vi.mocked(enqueueTask);
 const dir = mkdtempSync(join(tmpdir(), 'job-bot-web-settings-files-'));
 const CONFIG_FILE = join(dir, 'config.json');
 const APPLICANT_FILE = join(dir, 'applicant.json');
-const tempDir = () => join(BOT_ROOT, 'data', 'settings');
+const tempDir = () => join(botDataDir(), 'settings');
 
 const CONFIG = {
   minScore: 45,

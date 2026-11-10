@@ -34,10 +34,10 @@ Design principles:
   Without them Adzuna is skipped with one log line. Adzuna only returns a snippet of each description, so its keyword scores see less text.
 - **LinkedIn** guest job search (no login, your account is never used). It covers onsite jobs in `linkedin.locations` and remote jobs searched from `linkedin.remoteFrom`. Requests are 1.2 s apart, and a 429 stops LinkedIn for the rest of that fetch, with no retries (a later fetch tries again). Be aware that LinkedIn offers no public job-search API, and scraping its guest search is against LinkedIn's terms of service and can get your IP rate-limited or blocked; set `linkedin.enabled: false` in `config.json` to leave LinkedIn out of `fetch` entirely.
 - **Bayt** via a browser bookmarklet (`scripts/bayt-collect.js`), because Bayt blocks direct requests. You click it on bayt.com and it sends jobs to the dashboard's `/api/import`. The dashboard serves the collector with your own search keywords and countries from `config.json` and with a per-installation import token (`data/import-token`, generated on first use), which `/api/import` requires from job-site origins. That stops other scripts on those sites (ads, trackers) from posting jobs blindly; a script written to attack job-bot could still load the collector and read the token, so the token raises the bar rather than closing the door. The Chrome extension's own origin needs no token (prefer it over the bookmarklet if that matters to you).
-- **Chrome extension** (`extension/`, see [extension/README.md](extension/README.md)): "Send to job-bot" from any job page (Bayt, GulfTalent, NaukriGulf, company sites), and an "Apply helper" side panel with the prepared CV, letter and answers to copy. **Fill this form** types your name and contact details, the cover letter, drafted answers and the CV PDF into the form's empty fields (outlined in orange). It never overwrites what you typed, never fills answers that need your input, and never clicks a button or submits: you check the form and submit it yourself.
+- **Chrome extension** (`extension/`, see [extension/README.md](extension/README.md)): "Send to job-bot" from any job page (Bayt, GulfTalent, NaukriGulf, company sites), and an "Apply helper" side panel with the prepared CV, letter and answers to copy, also on the application page (Lever `/apply`, Ashby `/application`, Workday's steps). **Fill this form** types your name and contact details, the cover letter, drafted answers and the CV PDF into the form's empty fields (outlined in orange); on a page whose job is not in job-bot, **Fill profile + CV only** types just your contact details and default CV. Custom dropdowns, listboxes and Yes/No buttons are never typed into: empty ones are listed as "pick from the list". It never overwrites what you typed, never fills answers that need your input, and never clicks a button or submits: you check the form and submit it yourself. The dashboard's address (default port 3100) is an extension option.
 - **Manual add** of any job as JSON (`bot add`), e.g. from GulfTalent or a referral.
 - **Company discovery** (`bot discover <names> --add`) tries a company name on the six ATS platforms that work by name (a full myworkdayjobs.com URL tries Workday) and adds it to the config if it has jobs in your target countries.
-- **Daily automatic fetch** at 9:00 (`bot daily`, started by launchd on macOS, a systemd timer or cron on Linux, Task Scheduler on Windows), followed by AI review of new matches, a desktop notification and a database backup.
+- **Daily automatic fetch** at 9:00 (`bot daily`, started by launchd on macOS, a systemd timer or cron on Linux, Task Scheduler on Windows), followed by AI review of new matches, a desktop notification and a database backup. Each step has a time limit, so one that hangs cannot block the rest; logs rotate at 5 MB, the IND sponsor register refreshes itself when a week old, and old filtered postings are pruned ([details](docs/daily-use.md#a-typical-day)).
 
 ### Filtering and scoring
 
@@ -56,7 +56,7 @@ Every posting is checked by `src/match.ts`. Jobs that fail a rule are kept with 
   Hover a label for the full note. The **Visa/relocation offered (or not needed)** filter on the job list shows only the first two kinds. The AI location check also marks a silent onsite posting `unclear`, not `yes`.
 - **Age:** postings older than `maxAgeDays` (14) are skipped, and matching jobs expire automatically once they get older.
 - **Keyword score:** a weighted match of the job's skills against yours (a skill counts as yours when `cv/master.json` lists it), with a `minScore` threshold. It also suggests which CV version fits.
-- **AI review:** the AI (by default the local Claude CLI with model `haiku`; see [AI](#ai) for an API key instead) reads each matching job together with your CV and returns a 0–100 score, a verdict (strong / good / stretch / poor), reasons, gaps and red flags (part-time, language, visa, region lock).
+- **AI review:** the AI (by default the local Claude CLI with model `haiku`; see [AI](#ai) for an API key instead) reads each matching job together with your CV and returns a 0–100 score, a verdict (strong / good / stretch / poor), reasons, gaps and red flags (part-time, language, visa, region lock). A problem that would hit every job (a rejected key, no credit, Claude signed out) or 3 timeouts in a row stops `ai:score` at once with one line and exit 1.
 - **Location check from the whole description:** the same review decides whether you can take the job from where you live (`yes` / `no` / `unclear`), reading the full description rather than only the location field: "US only", "must reside in…", "authorized to work in X without sponsorship", required time zones, or a description that names another country ("work remotely from Slovenia" on a Saudi listing). A `no` moves a matching job to **Filtered out** with the quoted reason (`location (AI): …`), and it stays there when jobs are re-scored; jobs you already acted on keep their status. An `unclear` adds a "Location unclear" flag to check. Himalayas jobs limited to time zones far from GMT+5 are filtered by the keyword rules already.
 - **Instant alerts:** when the AI rates a job `strong`, `ai:score` (and so the daily fetch) shows a desktop notification right away (macOS, Linux with `notify-send`, Windows toast): one per job, or one grouped notification for more than three. Each job alerts once (`alerted_at`). With `terminal-notifier` installed (Homebrew), clicking it opens the job in the dashboard. Turn it off with `config.json` → `ai.alertStrong: false`.
 - **Salary:** a salary range in the title or description (any currency in [`src/currencies.json`](src/currencies.json), the country → currency table: codes, symbols such as ₹, CA$ or zł, and words such as "dirhams"; "20k–25k", "up to", per month / per year / per hour, Dutch "bruto per maand", Indian "12 LPA", "₹18,00,000" and lakh / crore. A mark several currencies share, such as "Rs", follows the job's country, then yours for remote jobs, then the text; plain "$" is always USD) is stored with the job. Funding rounds, budgets, bonuses and years of experience are ignored, and an unclear amount is left out rather than guessed. Adzuna, Himalayas, RemoteOK and Lever give salary data of their own, which wins over the text. `rescore` fills it in for jobs already stored.
@@ -96,11 +96,12 @@ npm run web          # http://localhost:3100
 - Salary on each card ("AED 20k–25k / month") and a "Min salary" filter in any currency of `src/currencies.json` (your own country's currency by default), per month or year. It compares in euros per year with the fixed, approximate rates in that table. Jobs without a salary stay visible unless "only with salary" is ticked. When `cv/applicant.json` has `expectedSalary` for the job's country (a country code, or `remote`), a lower salary gets a "below your expectation" hint; it never hides the job. A plain number there is in the country's currency (USD for `remote`), per month in the Gulf and per year otherwise; text such as `"AED 25,000 per month"` or `"18 LPA"` says it itself.
 - The list shows 10 jobs per page (25, 50 or 100 with the "per page" filter), with page links above and below it. The page links keep the tab, filters and sort; changing the tab or filters goes back to page 1.
 - The Matching tab shows jobs posted in the last 24 hours unless **Posted within** says otherwise (any time, 3 or 7 days); the other tabs never hide a job for its age.
-- Filters stay as you set them until you change them: a refresh, another tab, a job page and back, or opening the dashboard again keeps them (a cookie holds the last ones; `web/proxy.ts`). The search box, the tab and the page are not remembered.
+- Filters stay as you set them until you change them: a refresh, another tab, a job page and back, or opening the dashboard again keeps them (a cookie holds the last ones; `web/proxy.ts`, `web/lib/filter-memory.ts`). The search box, the tab and the page are not remembered. An empty list says how many jobs match without the filters and offers **Show any time** and **Reset filters** (`/?reset=1` forgets the remembered ones).
 - Search (company or title) looks in **every tab**, and each card shows which tab it is in (Matching, Prepared, Applied, Skipped…). "Search only in <tab>" or a tab link narrows it to one tab.
 - Per job: open the posting, **Prepare CV** (picks or builds the CV version), **Download CV**, AI review, and status buttons.
 - **Keyboard triage** on the list: `j` / `k` (or the arrow keys) move a visible focus between the cards, `Enter` opens the posting, `o` the job page, `a` marks applied, `p` prepares the CV (or downloads it), and `s` moves into the card's skip-reason select (pick a reason, `Enter` skips, `Esc` backs out). `?` shows the list. The keys do nothing while you type in a search box or select, so the filters stay usable.
-- **Bulk skip:** `x` (or shift-click for a range) selects cards, and the bar at the bottom skips them all at once with one optional reason. `Esc` or **Clear** empties the selection.
+- **Bulk skip** (Matching and Prepared tabs): `x` (or shift-click for a range) selects cards, and the bar at the bottom skips them all at once with one optional reason, at most 100 per click; jobs that moved past triage meanwhile are left alone. `Esc` or **Clear** empties the selection.
+- Job page: **← All jobs** goes back to the exact list you came from (tab, filters, search, page), with **Previous** / **Next** through it; keys `j` / `k` (next / previous), `Esc` (back), `a` (applied) and `s` (skip reason), off while you type. History has **Undo** for the last status change (restores the applied date and skip reason). A status button from a stale tab is refused instead of moving the job back. Rewriting a letter, summary or headline you edited, and **Clear all** for drafted answers, ask first.
 - Job page: "Check if still open" button, full description, CV keyword check, cover letter, form-answer helper, notes and status history. The cover letter is never written automatically: **Write letter** writes it (AI from the description, else the template), **Rewrite letter** writes a new one, **Copy** copies it, and **Download PDF** downloads it as a one-page PDF in the CV's style, with your name and contact as the header (`bot letter:pdf <id>`, saved as `cover-letter.pdf` in the job's `applications/` folder). Under the letter, **What should change?** with **Rewrite with feedback** has the AI rewrite it (`letter <id> --feedback`), and **Edit** lets you change it yourself and **Save** it with no AI (the label then says "edited by you").
 - Job page, **CV for this job**: the CV version and its template, a template select with **Apply template** (a background task; previews of each template open in a new tab), **Download CV**, **What should change in this CV?** with **Improve CV with feedback** (`cv:feedback`), and **Suggest improvements** (`cv:review`) whose suggestions **Use as feedback** copies into the box. When a CV was revised with feedback, what was left out because your master CV does not have it is listed there. `GET /api/cv/preview/<template>` shows your master CV in a template (HTML, or `?pdf` for a PDF). The Settings page has the default **CV template**.
 - Job page, **CV headline for this job**: **Write headline**, then **Rewrite headline**, **Copy**, **Use in my CV for this job**, **Edit** and **What should change?**, like the summary below it.
@@ -159,7 +160,7 @@ flowchart LR
 The project has two parts that share one PostgreSQL database:
 
 1. **The bot CLI** (`src/`) does all the real work: fetching, scoring, AI calls and CV rendering. Node 24+ runs the TypeScript directly, so there is no build step.
-2. **The dashboard** (`web/`, Next.js) reads the database directly for display. For anything heavy (fetch, prepare, AI review, form answers, interview prep, follow-up drafts) its server actions queue a background task and return at once: they insert a row in `tasks` and start a detached `bot task:run <id>` (`web/lib/bot.ts` `spawnBot`, argument array, no shell, output in `data/logs/tasks.log`). That worker claims the row, runs the normal CLI command and stores the result, so the CLI and the dashboard always behave the same. The page shows "Working…" while a task runs, polls `/api/tasks` and refreshes when it finishes; failures stay on the page with their error until dismissed. Only one fetch, and one task per kind and job, runs at a time, and a task whose worker died is failed so it never blocks new ones: at once when its worker pid no longer exists, otherwise after its timeout (Mac slept or restarted). Finished tasks are deleted after 30 days (`src/tasks.ts`).
+2. **The dashboard** (`web/`, Next.js) reads the database directly for display. For anything heavy (fetch, prepare, AI review, form answers, interview prep, follow-up drafts) its server actions queue a background task and return at once: they insert a row in `tasks` and start a detached `bot task:run <id>` (`web/lib/bot.ts` `spawnBot`, argument array, no shell, output in `data/logs/tasks.log`). That worker claims the row, runs the normal CLI command and stores the result, so the CLI and the dashboard always behave the same. The page shows "Working…" while a task runs, polls `/api/tasks` and refreshes when it finishes; failures stay on the page with their error until dismissed. Only one fetch, and one task per kind and job, runs at a time, and a task whose worker died is failed so it never blocks new ones: at once when its worker pid no longer exists, otherwise after its timeout (Mac slept or restarted). Finished tasks are deleted after 30 days (`src/task-queue.ts`, `KEEP_FINISHED_DAYS` in `src/types.ts`).
 
 ### A job's journey
 
@@ -315,7 +316,7 @@ npm run bot -- ats <id> [--cv next-nest] [--json] # CV keyword check: shown, hid
 npm run bot -- sponsors:update | stats | dedupe
 npm run bot -- settings:check|settings:save --kind config|applicant [--file x.json]  # validate (and save) settings, JSON result; no --file reads stdin
 npm run bot -- task:run <id>                  # run a queued background task (the dashboard starts these)
-npm run bot -- daily                         # the scheduled morning run: fetch, check:open, ai:score, notification, backup
+npm run bot -- daily                         # the scheduled morning run: fetch, check:open, ai:score, notification, backup, cleanup
 npm run bot -- schedule:print [--os macos|linux|windows]   # the scheduler setup for this clone and OS
 npm run bot -- backup                        # pg_dump into data/backups/<db>-YYYY-MM-DD.sql.gz (keeps 14)
 npm run bot -- restore <file> [--into db] [--yes]  # load a backup with psql; a database with tables needs --yes (backed up first)
@@ -336,13 +337,15 @@ npm run bot -- restore <file> [--into db] [--yes]  # load a backup with psql; a 
 
 ### Daily fetch
 
-`npm run bot -- daily` runs `fetch`, `check:open --limit 100` and `ai:score`, shows a notification with the result and backs up the database, logging to `data/fetch.log`. A scheduler starts it at 9:00; `npm run bot -- schedule:print` prints the setup for your OS with your paths filled in (step 12 of each [install guide](docs/README.md#1-install-it-on-your-computer) has the details):
+`npm run bot -- daily` runs `fetch`, `check:open --limit 100` and `ai:score`, shows a notification with the result, backs up the database and cleans up leftover files (temporary files, old `data/cv-backups`, one-off CVs of long-finished jobs), logging to `data/fetch.log`. A scheduler starts it at 9:00; `npm run bot -- schedule:print` prints the setup for your OS with your paths filled in (step 12 of each [install guide](docs/README.md#1-install-it-on-your-computer) has the details):
 
 | OS      | Scheduler                                                    | A missed 9:00 (computer off)    |
 | ------- | ------------------------------------------------------------ | ------------------------------- |
 | macOS   | launchd plist running `scripts/daily-fetch.sh` (zsh wrapper) | runs after sleep, not shut-down |
 | Linux   | systemd user timer (or a cron line)                          | runs at boot (timer)            |
 | Windows | Task Scheduler (`Register-ScheduledTask` or `schtasks`)      | runs when the computer is on    |
+
+Each step has a time limit (fetch 30 min, check:open 15, ai:score 60, backup 10): a step that hangs is stopped, named in the notification, and the rest still run. `fetch` exits 1 when every source failed ("All N sources failed — is the network up?") and reports "N of M sources failed" otherwise. `data/fetch.log` and the task log rotate at 5 MB. What each message means: [troubleshooting](docs/troubleshooting.md#the-900-run-did-not-happen).
 
 On macOS, keep the project out of `~/Desktop` and `~/Documents`, because macOS does not let background jobs read them. Run it now with `launchctl kickstart gui/$(id -u)/com.<you>.job-bot.fetch` (macOS), `systemctl --user start job-bot-fetch.service` (Linux), `Start-ScheduledTask -TaskName 'job-bot daily fetch'` (Windows), or `npm run bot -- daily` anywhere.
 
@@ -391,10 +394,14 @@ src/
   cli.ts            command entry point: flags, command registry, dedupe after changes
   commands/         one file per command (or small group of related commands)
   config.ts         loads config.json
-  settings.ts       zod schemas for config.json and cv/applicant.json
+  settings.ts       zod schemas for config.json and cv/applicant.json, settings file paths
+  presets.ts        market and stack presets (presets/) for the setup wizard
+  regions.ts        remote-from country to remote region allow / deny / flag patterns
+  errors.ts         UserError (printed without a stack trace) and ConfigError
   types.ts          row types shared with the dashboard
   match.ts          filters, keyword score, CV cluster
   salary.ts         salary range extraction
+  currencies.ts     country → currency table (currencies.json), marks and approximate rates
   ats.ts            CV keyword check (shown / hidden but true / missing)
   db.ts             Postgres access, upsert, status changes, dedupe
   migrate.ts        migration runner (applied on start)
@@ -403,10 +410,13 @@ src/
   ai-providers.ts   AI providers: Claude CLI or one API key (askAi)
   ai-presets.ts     API presets: URLs, default models, JSON mode, key detection
   profile.ts        your profile from cv/applicant.json (+ cv/master.json fallbacks), visa and remote-from rules
-  tasks.ts          background task queue (claim, run, time out, clean up)
+  task-queue.ts     task queue rules shared with the dashboard (enqueue, dead workers, pruning; takes the pool)
+  tasks.ts          the bot's side of the queue (claim, run, time out, CLI arguments per kind)
   notify.ts         desktop notifications per OS (macOS, Linux, Windows) for strong matches and the daily run
   backup.ts         pg_dump + gzip of the database, keeping 14; restore of a backup with psql
+  cleanup.ts        daily cleanup: temp files, old cv-backups, one-off CVs of finished jobs
   followup.ts       follow-up reminders and template
+  contacts.ts       contact and referral rules shared with the dashboard
   cover.ts          template cover letter
   sponsors.ts       IND recognised-sponsor register
   discover.ts       find a company's ATS board
@@ -435,10 +445,10 @@ npm run lint         # Biome lint + format check; npm run format fixes it
 ```
 
 - Tests use separate databases: `job_bot_test_bot` (backend) and `job_bot_test` (dashboard). They never touch the real `job_bot`. Create them once with `npm run test:db -- job_bot_test_bot job_bot_test` (the script needs the names). `BOT_TEST_DB` / `WEB_TEST_DB` pick other test databases (e.g. `job_bot_test_bot_wt1`) so parallel worktrees do not collide.
-- Some tests pin the original author's letters and filter results against the repository's `config.json` and `cv/master.json` (`tests/fixtures/owner-golden.json`), so they fail once you replace those files with your own.
+- Some tests pin the original author's letters and filter results against `config.default.json` and the repository's `cv/master.json` (`tests/fixtures/owner-golden.json`), so they fail once you replace `cv/master.json` with your own. Tests never read your `config.json`: they use a temporary copy of `config.default.json` (`tests/helpers.ts`, `web/tests/setup.ts`).
 - Job-site requests are mocked, a fake script (`tests/fixtures/fake-claude.mjs`) stands in for Claude, and the API providers answer from mocked fetch with a dummy key, so tests run offline and use none of your Claude plan or API credit.
 - Every new feature or change ships with its tests (see `CLAUDE.md`).
-- `npm install` points git at `.githooks/`, so each commit runs Biome on the staged files. GitHub Actions runs on every pull request and on pushes to main (plus once a month): lint, typecheck, both suites and a build of the dashboard on Ubuntu, and typecheck and the tests that need no database on Windows.
+- `npm install` points git at `.githooks/`, so each commit runs Biome on the staged files. GitHub Actions runs on every pull request and on pushes to main (plus once a month): lint, typecheck, both suites, a build of the dashboard and a coverage summary (informational, never fails the run) on Ubuntu, and typecheck and the tests that need no database on Windows with Node 24 and 26.
 - The npm scripts use no shell syntax, so they run in PowerShell and cmd.exe too: `npm test -- tests/match.test.ts` runs one file on any OS (`scripts/run-tests.mjs` sets `DATABASE_URL`).
 
 ## Tech stack

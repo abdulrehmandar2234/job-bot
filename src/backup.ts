@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import { createWriteStream, existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
-import { basename, posix, resolve, win32 } from 'node:path';
+import { basename, join, posix, resolve, win32 } from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import { promisify } from 'node:util';
 import { createGzip, gunzip } from 'node:zlib';
@@ -129,7 +129,9 @@ function backupDate(env: NodeJS.ProcessEnv): string {
   return date;
 }
 
-const backupDir = (env: NodeJS.ProcessEnv) => resolve(ROOT, env.JOB_BOT_BACKUP_DIR || 'data/backups');
+// JOB_BOT_BACKUP_DIR wins; otherwise <data dir>/backups (JOB_BOT_DATA_DIR, else data/ in the bot's folder).
+const backupDir = (env: NodeJS.ProcessEnv) =>
+  resolve(ROOT, env.JOB_BOT_BACKUP_DIR || join(env.JOB_BOT_DATA_DIR || join(ROOT, 'data'), 'backups'));
 
 /** The backup settings from the environment. Throws on an invalid date or when pg_dump is missing. */
 export function backupOptions(env: NodeJS.ProcessEnv = process.env, pgDump = findPgDump(env)): BackupOptions {

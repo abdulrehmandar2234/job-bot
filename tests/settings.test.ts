@@ -6,6 +6,8 @@ import { join } from 'node:path';
 import {
   applicantFile,
   configFile,
+  dataDir,
+  dataPath,
   InvalidSettingsError,
   loadSettings,
   masterFile,
@@ -229,6 +231,23 @@ describe('settings files', () => {
       ] as const)
         if (v === undefined) delete process.env[k];
         else process.env[k] = v;
+    }
+  });
+
+  it('dataDir follows JOB_BOT_DATA_DIR on every call, else <root>/data', () => {
+    const saved = process.env.JOB_BOT_DATA_DIR;
+    try {
+      delete process.env.JOB_BOT_DATA_DIR;
+      assert.equal(dataDir(), path('data'));
+      assert.equal(dataDir(dir), join(dir, 'data'));
+      assert.equal(dataPath('logs', 'tasks.log'), path('data', 'logs', 'tasks.log'));
+      process.env.JOB_BOT_DATA_DIR = join(dir, 'd');
+      assert.equal(dataDir(), join(dir, 'd'));
+      assert.equal(dataDir(tmpdir()), join(dir, 'd'));
+      assert.equal(dataPath('questions', 'q.txt'), join(dir, 'd', 'questions', 'q.txt'));
+    } finally {
+      if (saved === undefined) delete process.env.JOB_BOT_DATA_DIR;
+      else process.env.JOB_BOT_DATA_DIR = saved;
     }
   });
 

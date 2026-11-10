@@ -142,26 +142,19 @@ export async function dedupe() {
     `SELECT id, company, title, country, source, status, first_seen_at FROM jobs WHERE status <> 'filtered'`,
   );
   const links = duplicateLinks(rows);
-  // Unlink and relink in one transaction: a reader never sees the window where every duplicate is ungrouped,
-  // and two dedupes running at once serialise on the row locks instead of interleaving the two statements.
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    await client.query('UPDATE jobs SET duplicate_of = NULL WHERE duplicate_of IS NOT NULL');
-    if (links.length) {
-      await client.query(
-        `UPDATE jobs SET duplicate_of = v.primary_id FROM unnest($1::text[], $2::text[]) AS v(id, primary_id)
-        WHERE jobs.id = v.id`,
-        [links.map((l) => l[0]), links.map((l) => l[1])],
-      );
-    }
-    await client.query('COMMIT');
-  } catch (e) {
-    await client.query('ROLLBACK');
-    throw e;
-  } finally {
-    client.release();
-  }
+  // Only rows whose link changes are written: every grouped row gets its primary, and a row still linked but no
+  // longer in a group (or now filtered) gets NULL. It is one statement, so a reader never sees a half-done relink; an
+  // unchanged grouping writes nothing, so a concurrent fetch's upserts never wait on locks of rows that did not change.
+  await pool.query(
+    `WITH wanted AS (SELECT * FROM unnest($1::text[], $2::text[]) AS v(id, primary_id))
+    UPDATE jobs SET duplicate_of = w.primary_id
+      FROM (
+        SELECT j.id, wanted.primary_id FROM jobs j LEFT JOIN wanted ON wanted.id = j.id
+        WHERE wanted.id IS NOT NULL OR j.duplicate_of IS NOT NULL
+      ) w
+     WHERE jobs.id = w.id AND jobs.duplicate_of IS DISTINCT FROM w.primary_id`,
+    [links.map((l) => l[0]), links.map((l) => l[1])],
+  );
   return links.length;
 }
 

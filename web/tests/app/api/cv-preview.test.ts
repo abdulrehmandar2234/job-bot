@@ -12,7 +12,9 @@ const runBot = vi.fn();
 vi.mock('@/lib/bot', async (orig) => ({ ...(await orig<typeof import('@/lib/bot')>()), runBot: (...a: unknown[]) => runBot(...a) }));
 let GET: typeof import('@/app/api/cv/preview/[template]/route').GET;
 
+const savedDataDir = process.env.JOB_BOT_DATA_DIR;
 beforeAll(async () => {
+  process.env.JOB_BOT_DATA_DIR = join(root, 'data'); // read on every call (src/settings.ts dataDir)
   mkdirSync(join(root, 'data', 'previews'), { recursive: true });
   writeFileSync(pdfPath, '%PDF-1.7 preview');
   const cwd = vi.spyOn(process, 'cwd').mockReturnValue(join(root, 'web'));
@@ -23,7 +25,10 @@ beforeAll(async () => {
   }
 });
 beforeEach(() => runBot.mockReset());
-afterAll(() => rmSync(root, { recursive: true, force: true }));
+afterAll(() => {
+  process.env.JOB_BOT_DATA_DIR = savedDataDir;
+  rmSync(root, { recursive: true, force: true });
+});
 
 const get = (template: string, query = '') =>
   GET(new NextRequest(`http://localhost:3100/api/cv/preview/${encodeURIComponent(template)}${query}`), {

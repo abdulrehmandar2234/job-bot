@@ -27,6 +27,8 @@ export const DB_FREE = [
   'tests/ai-providers.test.ts',
   'tests/sources.test.ts',
   'tests/extension.test.ts',
+  'tests/task-queue.test.ts',
+  'tests/docs.test.ts',
 ];
 
 /** Every tests/**\/*.test.ts, sorted, with / on every OS. */

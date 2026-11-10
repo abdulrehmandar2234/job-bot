@@ -2,6 +2,8 @@
 
 Sends the job you are looking at to your local job-bot, and shows what job-bot prepared for it (CV, cover letter, form answers) so you can copy it, or fill it into the application form, while you apply. It replaces the Bayt bookmarklet as the main way to add jobs from the browser. The bookmarklet still works.
 
+The day-to-day flow is in [docs/daily-use.md](../docs/daily-use.md#applying-with-the-chrome-extension); installing it is step 14 of each [install guide](../docs/README.md), and problems with the Bayt bookmarklet's import token are in [docs/troubleshooting.md](../docs/troubleshooting.md#missing-or-wrong-import-token-bayt-bookmarklet).
+
 ## What it does
 
 - **Send to job-bot** (toolbar button). When you click it, the popup reads the job from the open tab:

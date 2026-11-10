@@ -94,6 +94,8 @@ All later commands run in `$HOME\job-bot`. The repository keeps LF line endings 
 
 The bot reads `.env` in the project folder, the dashboard reads `web\.env.local`. Both need the connection string from step 2 (replace `<password>`):
 
+If you skip this, the setup wizard (step 8) offers to create the missing `.env` (from `.env.example`) and `web\.env.local` with your `DATABASE_URL`; the commands below are the manual way.
+
 ```powershell
 Copy-Item .env.example .env
 Add-Content .env 'DATABASE_URL=postgres://postgres:<password>@127.0.0.1:5432/job_bot'
@@ -174,6 +176,8 @@ Two answers to get right on a fresh clone:
 - **Presets:** before the target countries it offers **market presets** (`gulf`, `netherlands`, `pakistan`: countries, LinkedIn locations and company boards), and after the LinkedIn locations **stack presets** (`php-laravel`, `javascript`, `python`: search keywords and job-title rules). Type one or more, comma-separated, or press Enter to keep what `config.json` has. See [configuration.md](../configuration.md#presets).
 - **Target countries and "remote work from":** your `config.json` starts as a copy of `config.default.json`, which has the original owner's markets. The wizard proposes your own country for remote work and shows what the file had.
 - **AI:** answer `claude-cli` and paste the `claude.exe` path from step 6 (the repository's path is the owner's, from a Mac; the wizard's hint says `where claude`, which in PowerShell must be typed `where.exe claude`), or `api` and pick a provider (`auto` detects it from the key).
+
+If `.env` or `web\.env.local` is missing, it first offers to write them with `DATABASE_URL` only: it asks before writing, never overwrites an existing file and never asks for or writes an API key (those go in `.env` yourself, see `.env.example`).
 
 Nothing is written until both files pass validation and you answer `y` to `Save cv/applicant.json and config.json?`. Each question is explained in [your-cv-and-profile.md](../your-cv-and-profile.md#the-setup-wizard).
 
@@ -283,7 +287,7 @@ The extension sends the job you are looking at to job-bot, and shows the prepare
 3. Click **Load unpacked** and choose the `extension` folder inside `C:\Users\<you>\job-bot`.
 4. Pin the job-bot button to the toolbar (puzzle icon → pin).
 
-It talks only to `http://localhost:3100`. Details and permissions: [extension/README.md](../../extension/README.md).
+It talks only to your local dashboard, `http://localhost:3100` by default; if you run the dashboard on another port, set its address in the extension's options (**Extension options** in the popup). Details and permissions: [extension/README.md](../../extension/README.md#dashboard-address-options).
 
 **Success:** on any job page, the job-bot button opens a popup with the job's title and company read from the page.
 

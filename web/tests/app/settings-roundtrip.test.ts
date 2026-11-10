@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { saveApplicant, saveConfig } from '@/app/settings/actions';
-import { BOT_ROOT } from '@/lib/bot';
+import { BOT_ROOT, botDataDir } from '@/lib/bot';
 import { CONFIG_FIELDS, get, type Json } from '@/lib/settings-form';
 
 // The real CLI (settings:save, rescore) on temp copies of the settings files, with the bot's test database.
@@ -17,7 +17,9 @@ const realConfigText = readFileSync(REAL_CONFIG, 'utf8');
 const dir = mkdtempSync(join(tmpdir(), 'job-bot-web-settings-rt-'));
 const CONFIG_FILE = join(dir, 'config.json');
 const APPLICANT_FILE = join(dir, 'applicant.json');
-const tempFiles = () => (existsSync(join(BOT_ROOT, 'data', 'settings')) ? readdirSync(join(BOT_ROOT, 'data', 'settings')) : []);
+// The temp files go to the data folder, a temp one in tests (JOB_BOT_DATA_DIR, web/tests/setup.ts), never BOT_ROOT/data.
+const settingsDir = () => join(botDataDir(), 'settings');
+const tempFiles = () => (existsSync(settingsDir()) ? readdirSync(settingsDir()) : []);
 const startTemps = tempFiles();
 
 /** The config form as the page would post it, unchanged, plus overrides. */
@@ -50,6 +52,7 @@ afterEach(() => {
   vi.unstubAllEnvs();
   // Never the real files, and no temp files left behind.
   expect(readFileSync(REAL_CONFIG, 'utf8')).toBe(realConfigText);
+  expect(settingsDir().startsWith(process.env.JOB_BOT_DATA_DIR!)).toBe(true);
   expect(tempFiles()).toEqual(startTemps);
 });
 afterAll(() => {

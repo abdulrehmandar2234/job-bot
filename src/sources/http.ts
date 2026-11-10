@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { mkdirSync, readdirSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { dataDir } from '../settings.ts';
 
 // Shared pacing for job-site requests. Tests set `timing.scale = 0` so paced loops run instantly.
 export const timing = { scale: 1 };
@@ -82,8 +82,7 @@ export function retryDelay(attempt: number, baseDelayMs: number, retryAfter?: st
   return Math.round(baseDelayMs * 2 ** attempt * (0.5 + random()));
 }
 
-const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
-const cacheDir = () => process.env.JOB_BOT_HTTP_CACHE || join(ROOT, 'data', 'http-cache');
+const cacheDir = () => process.env.JOB_BOT_HTTP_CACHE || join(dataDir(), 'http-cache');
 const cacheFile = (url: string) => join(cacheDir(), `${createHash('sha256').update(url).digest('hex')}.json`);
 type Cached = { url: string; etag: string | null; lastModified: string | null; body: string };
 
