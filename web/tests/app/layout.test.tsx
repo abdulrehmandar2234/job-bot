@@ -12,7 +12,9 @@ vi.mock('next/font/google', () => ({
 describe('root layout', () => {
   it('sets the page title and description', () => {
     expect(metadata.title).toBe('Job Bot');
-    expect(metadata.description).toBe('Matching jobs in UAE, Saudi Arabia and the Netherlands');
+    // Nothing personal: the owner's markets come from config.json at runtime, never from the page metadata.
+    expect(metadata.description).toBe('Finds, scores and prepares jobs for the countries in your settings');
+    for (const owner of ['UAE', 'Saudi', 'Netherlands', 'Pakistan', 'Laravel']) expect(String(metadata.description)).not.toContain(owner);
   });
 
   const render = () => RootLayout({ children: <main>dashboard</main>, params: Promise.resolve({}) } as Parameters<typeof RootLayout>[0]);

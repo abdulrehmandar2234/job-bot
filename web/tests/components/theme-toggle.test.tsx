@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ThemeToggle } from '@/components/theme-toggle';
+import { ABOVE_BULK_BAR, ThemeToggle } from '@/components/theme-toggle';
 import { resolveTheme, THEME_KEY, THEME_SCRIPT } from '@/lib/theme';
 
 /** A system colour scheme the test can flip, like the OS switching to dark at sunset. */
@@ -105,6 +105,19 @@ describe('ThemeToggle', () => {
     render(<ThemeToggle />);
     await userEvent.click(screen.getByRole('button', { name: 'Switch to night mode' }));
     expect(document.documentElement.dataset.theme).toBe('dark');
+  });
+});
+
+describe('ThemeToggle placement', () => {
+  it('sits in the bottom-right corner, and moves up above the bulk-skip bar while it shows', () => {
+    fakeSystem(false);
+    render(<ThemeToggle />);
+    const button = screen.getByRole('button', { name: /^Switch to/ });
+    expect(button).toHaveClass('fixed', 'right-4', 'bottom-4', ABOVE_BULK_BAR);
+    // The bar is components/triage.tsx's <form aria-label="Bulk skip">: the selector must still find it.
+    expect(ABOVE_BULK_BAR).toBe('[body:has(form[aria-label^=Bulk])_&]:bottom-32');
+    const triage = readFileSync(join(import.meta.dirname, '..', '..', 'components', 'triage.tsx'), 'utf8');
+    expect(triage).toContain('aria-label="Bulk skip"');
   });
 });
 

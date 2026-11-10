@@ -3,9 +3,14 @@
 import { type ReactNode, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { SKIP_LABEL, SKIP_REASONS } from '@/lib/skips';
 import type { TextFormState } from '@/lib/written-text';
-import { Problem, useTextForm } from './written-text';
+import { Problem, useTextForm } from './form-state';
 
 type SkipAction = (prev: TextFormState, fd: FormData) => Promise<TextFormState>;
+
+/** Whether a key press goes to a text field, select or editable element (typing takes every key there). */
+export const isTyping = (t: EventTarget | null) =>
+  ['INPUT', 'TEXTAREA', 'SELECT'].includes((t as HTMLElement | null)?.tagName ?? '') ||
+  Boolean((t as HTMLElement | null)?.isContentEditable);
 
 /**
  * Keyboard-first triage for the job list, plus bulk skip. The list itself is a server component, so this small
@@ -24,6 +29,15 @@ type SkipAction = (prev: TextFormState, fd: FormData) => Promise<TextFormState>;
  */
 export function Triage({ ids, skip, selectable }: { ids: readonly string[]; skip: SkipAction; selectable: boolean }) {
   const [selected, setSelected] = useState<readonly string[]>([]);
+  // What the last bulk skip answered ("Skipped 3 jobs ..."): the bar closes on success, so the page says it instead.
+  const [notice, setNotice] = useState<string | undefined>();
+  const clearAfterSkip = useCallback((message?: string) => {
+    setSelected([]);
+    setNotice(message);
+  }, []);
+  useEffect(() => {
+    if (selected.length > 0) setNotice(undefined);
+  }, [selected.length]);
   const [help, setHelp] = useState(false);
   // The focused card (index into ids) and the last card selected with x, the start of a shift-click range.
   const cursor = useRef(-1);
@@ -197,19 +211,25 @@ export function Triage({ ids, skip, selectable }: { ids: readonly string[]; skip
         )}{' '}
         · <Kbd>?</Kbd> shows every shortcut
       </p>
-      {selectable && selected.length > 0 && <BulkBar selected={selected} skip={skip} onClear={() => setSelected([])} />}
+      {selectable && selected.length > 0 && <BulkBar selected={selected} skip={skip} onClear={clearAfterSkip} />}
+      {notice && selected.length === 0 && (
+        <p role="status" className="mt-2 text-center text-sm text-emerald-700 dark:text-emerald-400">
+          {notice}
+        </p>
+      )}
       {help && <Help selectable={selectable} onClose={() => setHelp(false)} />}
     </>
   );
 }
 
 /** Skips every selected card in one go, with the same optional reason the per-card Skip offers. */
-function BulkBar({ selected, skip, onClear }: { selected: readonly string[]; skip: SkipAction; onClear: () => void }) {
+function BulkBar({ selected, skip, onClear }: { selected: readonly string[]; skip: SkipAction; onClear: (message?: string) => void }) {
   const { state, pending, onSubmit } = useTextForm(skip);
   const done = state?.ok;
+  const message = state?.ok ? state.message : undefined;
   useEffect(() => {
-    if (done) onClear();
-  }, [done, onClear]);
+    if (done) onClear(message);
+  }, [done, message, onClear]);
   return (
     <form
       onSubmit={onSubmit}
@@ -236,7 +256,7 @@ function BulkBar({ selected, skip, onClear }: { selected: readonly string[]; ski
       <button type="submit" disabled={pending} className={`btn ${pending ? 'opacity-60 cursor-wait' : ''}`}>
         {pending ? 'Skipping…' : 'Skip selected'}
       </button>
-      <button type="button" className="btn" onClick={onClear} disabled={pending}>
+      <button type="button" className="btn" onClick={() => onClear()} disabled={pending}>
         Clear
       </button>
       <Problem state={state} />

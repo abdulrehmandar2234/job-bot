@@ -7,9 +7,7 @@ import {
   followUpCount,
   lastRun,
   listJobs,
-  PAGE_SIZE as PAGE_SIZE_DEFAULT,
   PAGE_SIZES,
-  pageSize,
   postingsFor,
   STATUSES,
   statusCounts,
@@ -22,13 +20,13 @@ import { BaytBookmarklet } from '@/components/client';
 import { JobActions } from '@/components/job-actions';
 import { TaskBar } from '@/components/tasks';
 import { isActive, openTasks } from '@/lib/tasks';
-import { SalaryFilter, SalaryOnlyToggle, salaryParams, SalaryTag } from '@/components/salary';
-import { defaultCurrency, loadExpectations } from '@/lib/salary';
+import { SalaryFilter, SalaryOnlyToggle, SalaryTag } from '@/components/salary';
+import { loadExpectations } from '@/lib/salary';
 import { aiEnabled } from '@/lib/settings';
 import { ReferralBadge } from '@/components/contacts';
 import { allContacts } from '@/lib/contacts-db';
 import { ExpiredBadge } from '@/components/open-check';
-import { FollowUpBadge } from '@/components/follow-up';
+import { FollowUpActions, FollowUpBadge } from '@/components/follow-up';
 import { Pager } from '@/components/pager';
 import { Triage } from '@/components/triage';
 import { AutoCheckbox, AutoSelect } from '@/components/auto-submit';
@@ -36,7 +34,10 @@ import { VisaBadge } from '@/components/visa';
 import { ago, AiReview, Chips, fmtDate, Posted, PostedOn, Score, STATUS_LABEL } from '@/components/ui';
 import { FirstRunBanner, MarketHeader } from '@/components/profile-banner';
 import { readCountryLabels } from '@/lib/profile';
-import { DEFAULT_DAYS, postedDays } from '@/lib/filter-memory';
+import { RESET_PARAM } from '@/lib/filter-memory';
+import { listView } from '@/lib/job-list';
+import { baytUrl } from '@/lib/bayt';
+import { connection } from 'next/server';
 
 export default function Page(props: PageProps<'/'>) {
   return (
@@ -80,9 +81,9 @@ export default function Page(props: PageProps<'/'>) {
               The first time, Chrome asks to allow bayt.com to reach this dashboard — click <b>Allow</b>.
             </li>
           </ol>
-          <a href="https://www.bayt.com/en/uae/jobs/laravel-jobs/" target="_blank" rel="noreferrer" className="btn">
-            Open Bayt ↗
-          </a>
+          <Suspense fallback={null}>
+            <OpenBayt />
+          </Suspense>
         </div>
       </details>
       <Suspense fallback={<p className="text-sm text-zinc-500">Loading jobs…</p>}>
@@ -94,30 +95,11 @@ export default function Page(props: PageProps<'/'>) {
 
 async function Dashboard({ searchParams }: { searchParams: PageProps<'/'>['searchParams'] }) {
   const sp = await searchParams;
-  const one = (k: string) => (Array.isArray(sp[k]) ? sp[k][0] : sp[k]) || undefined;
-  // "Needs follow-up" is a view of applied jobs (src/followup.ts), not a status of its own.
-  const followUp = one('view') === 'followup';
-  const status = followUp ? 'applied' : ((STATUSES.includes(one('status') as Status) ? one('status') : 'new') as Status);
-  const labels = readCountryLabels(); // config.json target countries, plus RM for remote
-  const country = one('country') && labels[one('country')!] ? one('country') : undefined;
-  const min = Number(one('min')) || undefined;
-  const q = one('q');
-  // A search looks in every tab (each card says which), unless "only in this tab" was chosen (in=tab).
-  const onlyTab = one('in') === 'tab';
-  // Absent: the last 24 hours (DEFAULT_DAYS); 0 is "any time". proxy.ts keeps the chosen filters across visits.
-  const days = postedDays(Array.isArray(sp.days) ? sp.days[0] : sp.days);
-  const sort = one('sort') === 'newest' ? 'newest' : 'score';
-  const visaOnly = one('visa') === '1';
-  const salary = salaryParams(one, defaultCurrency());
+  const view = listView(sp);
+  const { followUp, status, labels, country, min, q, days, sort, visaOnly, salary, page, size, everyTab, filter } = view;
+  const { tabParams, tabHref, pageHref } = view;
   const expected = loadExpectations();
   const ai = aiEnabled(); // config.json ai.enabled: off hides the AI review buttons
-  const page = Math.max(1, Math.floor(Number(one('page'))) || 1);
-  const size = pageSize(one('size'));
-  const everyTab = Boolean(q) && !followUp && !onlyTab;
-  // "Posted within" narrows the Matching tab only: in the pipeline tabs (Applied, Interview, ...) and a search across
-  // every tab, a job's age is not a reason to hide it.
-  const postedFilter = status === 'new' && !followUp && !everyTab ? days : undefined;
-  const filter = { status, country, min, q, days: postedFilter, sort, followUp, visaOnly, everyTab, ...salary.filter } as const;
 
   const [jobs, total, counts, run, week, tasks, dueCount] = await Promise.all([
     listJobs(filter, page, size),
@@ -128,32 +110,27 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<'/'>['searc
     openTasks(),
     followUpCount(),
   ]);
+  // An empty list with filters on says how many jobs they hide.
+  const hidden = jobs.length === 0 && view.active.length > 0 ? await countJobs(view.unfiltered) : 0;
   const busy = (id: string) => tasks.filter((t) => t.job_id === id && isActive(t)).map((t) => t.kind);
   const [postings, contacts] = await Promise.all([postingsFor(jobs.map((j) => j.id)), allContacts()]);
-  // Tabs and filters start again at page 1; the page links keep everything else.
-  // While searching, a tab link narrows the search to that tab (in=tab); page links keep the current scope.
-  const tabParams = (s: string, view?: 'followup', toPage = 1, scope: 'tab' | 'keep' = 'tab') =>
-    new URLSearchParams({
-      ...(view ? { view } : { status: s }),
-      ...(country && { country }),
-      ...(min && { min: String(min) }),
-      ...(q && { q }),
-      ...(q && (scope === 'tab' || onlyTab) && { in: 'tab' }),
-      ...(days !== DEFAULT_DAYS && { days: String(days ?? 0) }),
-      ...(sort === 'newest' && { sort }),
-      ...(visaOnly && { visa: '1' }),
-      ...salary.query,
-      ...(size !== PAGE_SIZE_DEFAULT && { size: String(size) }),
-      ...(toPage > 1 && { page: String(toPage) }),
-    });
-  const tabHref = (s: string, view?: 'followup', toPage = 1, scope: 'tab' | 'keep' = 'tab') => `/?${tabParams(s, view, toPage, scope)}`;
-  const pageHref = (n: number) => tabHref(status, followUp ? 'followup' : undefined, n, 'keep');
   // The same search in every tab: the current URL without in=tab and page.
   const everyTabHref = () => {
     const p = tabParams(status, undefined, 1, 'keep');
     p.delete('in');
     return `/?${p}`;
   };
+  // A job page opened from here comes back to this exact list (tab, filters, page), and walks it with Previous / Next.
+  const jobHref = (id: string) => `/jobs/${encodeURIComponent(id)}?${new URLSearchParams({ from: pageHref(page) })}`;
+  const anyTimeHref = () => {
+    const p = tabParams(status, followUp ? 'followup' : undefined, 1, 'keep');
+    p.set('days', '0');
+    return `/?${p}`;
+  };
+  // Bulk skip only where every card is still being triaged: not the pipeline tabs, and not a search across every tab,
+  // which mixes in applied and skipped jobs (skipSelected leaves those as they are anyway).
+  const selectable = !followUp && !everyTab && (status === 'new' || status === 'prepared');
+  const resetHref = `/?${new URLSearchParams({ ...(followUp ? { view: 'followup' } : { status }), ...(q && { q }), [RESET_PARAM]: '1' })}`;
 
   return (
     <>
@@ -292,76 +269,102 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<'/'>['searc
       <Pager page={page} total={total} pageSize={size} href={pageHref} />
 
       {jobs.length === 0 && (
-        <p className="py-10 text-center text-sm text-zinc-500">
-          {followUp ? 'No follow-ups due: every application has had news or was sent less than a week ago.' : 'No jobs here.'}
-        </p>
+        <div className="space-y-3 py-10 text-center text-sm text-zinc-500">
+          <p>{followUp ? 'No follow-ups due: every application has had news or was sent less than a week ago.' : 'No jobs here.'}</p>
+          {view.active.length > 0 && (
+            <>
+              <p>
+                {hidden > 0
+                  ? `${hidden} job${hidden === 1 ? '' : 's'} match${hidden === 1 ? 'es' : ''} without the ${andList(view.active)} filter${view.active.length > 1 ? 's' : ''}.`
+                  : `None without the ${andList(view.active)} filter${view.active.length > 1 ? 's' : ''} either.`}
+              </p>
+              <p className="flex flex-wrap justify-center gap-2">
+                {view.active.includes('date') && (
+                  <Link href={anyTimeHref()} className="btn">
+                    Show any time
+                  </Link>
+                )}
+                <Link href={resetHref} className="btn">
+                  Reset filters
+                </Link>
+              </p>
+            </>
+          )}
+        </div>
       )}
 
       {/* data-job-id, tabIndex and data-selected on each card belong to the keyboard triage layer
           (components/triage.tsx), which moves focus between the cards and paints the bulk-skip selection. */}
-      <ul className="space-y-3">
-        {jobs.map((j) => (
-          <li
-            key={j.id}
-            data-job-id={j.id}
-            tabIndex={-1}
-            className="rounded-xl border border-zinc-200 p-4 outline-offset-2 focus:outline-2 focus:outline-sky-500 data-[selected=true]:border-sky-500 data-[selected=true]:bg-sky-50/50 dark:border-zinc-800 dark:data-[selected=true]:border-sky-500 dark:data-[selected=true]:bg-sky-950/30"
-          >
-            <div className="flex gap-3">
-              <Score value={j.score} ai={j.ai_score} />
-              <div className="min-w-0 flex-1 space-y-2">
-                <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-                  <Link
-                    href={`/jobs/${encodeURIComponent(j.id)}`}
-                    data-shortcut="o"
-                    aria-keyshortcuts="o"
-                    className="font-medium hover:underline"
-                  >
-                    {j.title} <span className="text-zinc-500">· {j.company}</span> <ExpiredBadge job={j} />
-                    {everyTab && j.status !== 'expired' && <StatusTag status={j.status} />}
-                    <FollowUpBadge job={j} />
-                  </Link>
-                  <span className="text-xs text-zinc-500">
-                    <Posted date={j.posted_at} />
-                    {j.applied_at && ` · applied ${fmtDate(j.applied_at)}`}
-                  </span>
+      {/* Room at the bottom where the bulk-skip bar may show (components/triage.tsx, fixed at the bottom of the
+          window), so it never covers the last card or the pager. */}
+      <div data-testid="job-list" className={selectable ? 'pb-28' : undefined}>
+        <ul className="space-y-3">
+          {jobs.map((j) => (
+            <li
+              key={j.id}
+              data-job-id={j.id}
+              tabIndex={-1}
+              className="rounded-xl border border-zinc-200 p-4 outline-offset-2 focus:outline-2 focus:outline-sky-500 data-[selected=true]:border-sky-500 data-[selected=true]:bg-sky-50/50 dark:border-zinc-800 dark:data-[selected=true]:border-sky-500 dark:data-[selected=true]:bg-sky-950/30"
+            >
+              <div className="flex gap-3">
+                <Score value={j.score} ai={j.ai_score} />
+                <div className="min-w-0 flex-1 space-y-2">
+                  <div className="flex flex-wrap items-baseline justify-between gap-x-3">
+                    <Link href={jobHref(j.id)} data-shortcut="o" aria-keyshortcuts="o" className="font-medium hover:underline">
+                      {j.title} <span className="text-zinc-500">· {j.company}</span> <ExpiredBadge job={j} />
+                      {everyTab && j.status !== 'expired' && <StatusTag status={j.status} />}
+                      <FollowUpBadge job={j} />
+                    </Link>
+                    <span className="text-xs text-zinc-500">
+                      <Posted date={j.posted_at} />
+                      {j.applied_at && ` · applied ${fmtDate(j.applied_at)}`}
+                    </span>
+                  </div>
+                  <p className="text-sm text-zinc-600 dark:text-zinc-400">
+                    {j.country ? (labels[j.country] ?? j.country) : ''} · {j.location}
+                    {(j.visa || j.visa_evidence) && (
+                      <>
+                        {' · '}
+                        <VisaBadge job={j} />
+                      </>
+                    )}
+                  </p>
+                  <SalaryTag job={j} expected={expected} />
+                  <PostedOn postings={postings.get(j.id) ?? []} />
+                  <ReferralBadge job={j} contacts={contacts} />
+                  {j.filter_reason && <p className="text-sm text-rose-700 dark:text-rose-400">✗ {j.filter_reason}</p>}
+                  <AiReview job={j} />
+                  <Chips items={j.matched} tone="good" />
+                  <Chips items={j.missing} tone="bad" />
+                  <Chips items={j.flags} tone="warn" />
+                  {j.notes && <p className="whitespace-pre-line text-sm text-zinc-500">📝 {j.notes}</p>}
+                  <JobActions job={j} busy={busy(j.id)} ai={ai} />
+                  {followUp && <FollowUpActions job={j} busy={busy(j.id)} />}
                 </div>
-                <p className="text-sm text-zinc-600 dark:text-zinc-400">
-                  {j.country ? (labels[j.country] ?? j.country) : ''} · {j.location}
-                  {(j.visa || j.visa_evidence) && (
-                    <>
-                      {' · '}
-                      <VisaBadge job={j} />
-                    </>
-                  )}
-                </p>
-                <SalaryTag job={j} expected={expected} />
-                <PostedOn postings={postings.get(j.id) ?? []} />
-                <ReferralBadge job={j} contacts={contacts} />
-                {j.filter_reason && <p className="text-sm text-rose-700 dark:text-rose-400">✗ {j.filter_reason}</p>}
-                <AiReview job={j} />
-                <Chips items={j.matched} tone="good" />
-                <Chips items={j.missing} tone="bad" />
-                <Chips items={j.flags} tone="warn" />
-                {j.notes && <p className="whitespace-pre-line text-sm text-zinc-500">📝 {j.notes}</p>}
-                <JobActions job={j} busy={busy(j.id)} ai={ai} />
               </div>
-            </div>
-          </li>
-        ))}
-      </ul>
+            </li>
+          ))}
+        </ul>
 
-      <Pager page={page} total={total} pageSize={size} href={pageHref} />
-      {/* Bulk skip only where every card is still being triaged: not the pipeline tabs, and not a search across every
-          tab, which mixes in applied and skipped jobs (skipSelected leaves those as they are anyway). */}
-      <Triage
-        ids={jobs.map((j) => j.id)}
-        skip={skipSelected}
-        selectable={!followUp && !everyTab && (status === 'new' || status === 'prepared')}
-      />
+        <Pager page={page} total={total} pageSize={size} href={pageHref} />
+        <Triage ids={jobs.map((j) => j.id)} skip={skipSelected} selectable={selectable} />
+      </div>
     </>
   );
 }
+
+/** "Open Bayt": the board of the first configured target country Bayt serves (lib/bayt.ts), else Bayt's home page. */
+async function OpenBayt() {
+  await connection(); // config.json is read per request
+  return (
+    <a href={baytUrl(Object.keys(readCountryLabels()))} target="_blank" rel="noreferrer" className="btn">
+      Open Bayt ↗
+    </a>
+  );
+}
+
+/** "date, score and visa". */
+const andList = (items: readonly string[]) => (items.length > 1 ? `${items.slice(0, -1).join(', ')} and ${items.at(-1)}` : items[0]);
 
 /** On search results from every tab: which tab the job is in. */
 function StatusTag({ status }: { status: Status }) {

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { FEEDBACK_CAP, type TextFormState } from '@/lib/written-text';
-import { Problem, useTextForm } from './written-text';
+import { Problem, useTextForm } from './form-state';
 
 type Action = (prev: TextFormState, fd: FormData) => Promise<TextFormState>;
 
@@ -31,7 +31,7 @@ export function CvFeedback({ id, review, busy, improve }: { id: string; review: 
           <input type="hidden" name="id" value={id} />
           <label className="block text-sm">
             <span className="font-medium">What should change in this CV?</span>
-            <span className="ml-1 text-xs text-zinc-500">e.g. summary too generic, put Laravel experience first, fit on one page</span>
+            <span className="ml-1 text-xs text-zinc-500">e.g. summary too generic, put my main framework first, fit on one page</span>
             <textarea
               name="feedback"
               value={text}

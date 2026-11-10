@@ -38,3 +38,33 @@ export function withSavedFilters(url: URL, saved: string | undefined): URL | nul
   for (const [k, v] of new URLSearchParams(add)) next.searchParams.append(k, v);
   return next;
 }
+
+/** `/?reset=1` asks the proxy to forget the saved filters and show the list with its defaults. */
+export const RESET_PARAM = 'reset';
+
+/**
+ * The list URL after a reset: the same tab and search, without the reset flag, the page or any remembered filter.
+ * Null when the URL asks for no reset.
+ */
+export function resetTarget(url: URL): URL | null {
+  if (!url.searchParams.has(RESET_PARAM)) return null;
+  const next = new URL(url);
+  for (const k of [RESET_PARAM, 'page', ...REMEMBERED]) next.searchParams.delete(k);
+  return next;
+}
+
+/**
+ * The job list URL a job page was opened from (`?from=`), when it is one: a same-origin path to the list (`/` with
+ * any query), normalised. Anything else (another site, `//host`, another page) is null, so the back link can never
+ * lead off the dashboard.
+ */
+export function listFrom(raw: unknown): string | null {
+  if (typeof raw !== 'string' || !raw.startsWith('/') || raw.startsWith('//') || raw.includes('\\')) return null;
+  const base = 'http://list.invalid';
+  try {
+    const u = new URL(raw, base);
+    return u.origin === base && u.pathname === '/' ? u.pathname + u.search : null;
+  } catch {
+    return null;
+  }
+}

@@ -41,15 +41,24 @@ import { Chips, fmtDate, Posted, PostedOn, Score, STATUS_LABEL } from '@/compone
 import { readCountryLabels } from '@/lib/profile';
 import { aiEnabled } from '@/lib/settings';
 import { AiOffNote } from '@/components/ai-off';
+import { JobNav, jobNav } from '@/components/job-nav';
 
 export default function Page(props: PageProps<'/jobs/[id]'>) {
   return (
     <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6">
-      <Link href="/" className="text-sm text-zinc-500 hover:underline">
-        ← All jobs
-      </Link>
-      <Suspense fallback={<p className="mt-4 text-sm text-zinc-500">Loading…</p>}>
-        <JobDetail params={props.params} />
+      {/* The back link, Previous / Next and the keys come with the job (components/job-nav.tsx): they need the list it
+          was opened from. */}
+      <Suspense
+        fallback={
+          <>
+            <Link href="/" className="text-sm text-zinc-500 hover:underline">
+              ← All jobs
+            </Link>
+            <p className="mt-4 text-sm text-zinc-500">Loading…</p>
+          </>
+        }
+      >
+        <JobDetail params={props.params} searchParams={props.searchParams} />
       </Suspense>
     </div>
   );
@@ -128,9 +137,22 @@ function AiReviewFold({ job }: { job: Job }) {
   );
 }
 
-async function JobDetail({ params }: { params: PageProps<'/jobs/[id]'>['params'] }) {
+async function JobDetail({
+  params,
+  searchParams,
+}: {
+  params: PageProps<'/jobs/[id]'>['params'];
+  searchParams?: PageProps<'/jobs/[id]'>['searchParams'];
+}) {
   const id = decodeURIComponent((await params).id);
-  const [job, events, tasks, contacts] = await Promise.all([getJob(id), jobEvents(id), openTasks(id), allContacts()]);
+  const from = (await searchParams)?.from;
+  const [job, events, tasks, contacts, nav] = await Promise.all([
+    getJob(id),
+    jobEvents(id),
+    openTasks(id),
+    allContacts(),
+    jobNav(id, from),
+  ]);
   if (!job) notFound();
   const busy = tasks.filter(isActive).map((t) => t.kind);
   const primaryId = job.duplicate_of ?? job.id;
@@ -147,7 +169,8 @@ async function JobDetail({ params }: { params: PageProps<'/jobs/[id]'>['params']
   const ai = aiEnabled();
 
   return (
-    <div className="mt-4 space-y-4">
+    <div className="space-y-4">
+      <JobNav {...nav} />
       <header className="space-y-1">
         <h1 className="text-xl font-semibold">
           {job.title} <ExpiredBadge job={job} />
@@ -529,7 +552,7 @@ async function JobDetail({ params }: { params: PageProps<'/jobs/[id]'>['params']
                   required
                   className="input w-full"
                   placeholder={
-                    'Paste the questions from the application form, e.g.\nHow many years of experience do you have with Laravel?\nDo you require visa sponsorship? Yes / No\nWhy do you want to work with us?'
+                    'Paste the questions from the application form, e.g.\nHow many years of experience do you have with our main framework?\nDo you require visa sponsorship? Yes / No\nWhy do you want to work with us?'
                   }
                 />
               </ActionForm>

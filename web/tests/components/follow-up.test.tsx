@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { FollowUp, FollowUpBadge } from '@/components/follow-up';
+import { FollowUp, FollowUpActions, FollowUpBadge } from '@/components/follow-up';
 import type { Job } from '@/lib/db';
 
 // The actions are only referenced as form actions here; they are tested in tests/app/jobs/followup-actions.test.ts.
@@ -81,5 +81,29 @@ describe('FollowUp', () => {
     expect(screen.getByText('Dear Acme Hiring Team,')).toBeInTheDocument();
     expect(button('Redraft')).not.toBeInTheDocument();
     expect(screen.queryByText(/Reminder after/)).not.toBeInTheDocument();
+  });
+});
+
+describe('FollowUpActions (the "Needs follow-up" cards)', () => {
+  it('drafts, copies the draft and records "I sent a follow-up" for this job, in one row', () => {
+    render(<FollowUpActions job={job({ follow_up_draft: 'Dear Acme,\nStill keen.' })} />);
+    expect(formId('Redraft')).toBe('greenhouse:acme:1');
+    expect(button('Copy draft')).toBeInTheDocument();
+    expect(formId('I sent a follow-up')).toBe('greenhouse:acme:1');
+  });
+
+  it('offers a first draft without a copy button, shows the running draft, and stops after the last follow-up', () => {
+    const { unmount } = render(<FollowUpActions job={job()} busy={['follow_up']} />);
+    expect(screen.getByText('Drafting follow-up…')).toBeInTheDocument();
+    expect(button('Copy draft')).toBeNull();
+    unmount();
+    render(<FollowUpActions job={job({ follow_ups: 2 })} />);
+    expect(button('Draft follow-up')).toBeInTheDocument();
+    expect(button('I sent a follow-up')).toBeNull();
+  });
+
+  it('shows nothing for a job that is not applied', () => {
+    const { container } = render(<FollowUpActions job={job({ status: 'interview' })} />);
+    expect(container).toBeEmptyDOMElement();
   });
 });

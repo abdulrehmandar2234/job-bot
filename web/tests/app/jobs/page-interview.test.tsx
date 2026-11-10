@@ -41,9 +41,11 @@ async function renderJob(id: string) {
   const shell = Page({ params: Promise.resolve({ id: encodeURIComponent(id) }) } as Parameters<typeof Page>[0]) as ReactElement<{
     children: ReactNode;
   }>;
-  const suspense = (shell.props.children as ReactNode[]).find(
-    (c): c is ReactElement<{ children: ReactElement }> => isValidElement(c) && (c.props as { fallback?: unknown }).fallback !== undefined,
-  )!;
+  const suspense = ([] as ReactNode[])
+    .concat(shell.props.children)
+    .find(
+      (c): c is ReactElement<{ children: ReactElement }> => isValidElement(c) && (c.props as { fallback?: unknown }).fallback !== undefined,
+    )!;
   const detail = suspense.props.children as ReactElement<Record<string, unknown>, (p: unknown) => Promise<ReactNode>>;
   return render(<>{await detail.type(detail.props)}</>);
 }

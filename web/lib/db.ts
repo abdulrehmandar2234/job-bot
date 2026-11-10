@@ -141,28 +141,48 @@ function jobWhere(f: JobFilter) {
   return { where: where.join(' AND '), params };
 }
 
+/** The job list's order for a filter, shared by listJobs() and jobNeighbours(). */
+function jobOrder(f: JobFilter) {
+  const newest = 'coalesce(posted_at, first_seen_at) DESC';
+  return f.sort === 'newest'
+    ? newest
+    : f.followUp
+      ? 'coalesce(followed_up_at, applied_at)' // the longest wait first
+      : f.everyTab || f.status === 'new' || f.status === 'filtered'
+        ? `ai_score DESC NULLS LAST, score DESC, ${newest}`
+        : 'coalesce(applied_at, first_seen_at) DESC';
+}
+
 /** One page of the job list (1-based; a page past the end is empty). */
 export async function listJobs(f: JobFilter, page = 1, pageSize = PAGE_SIZE) {
   const { where, params } = jobWhere(f);
-  const newest = 'coalesce(posted_at, first_seen_at) DESC';
-  const order =
-    f.sort === 'newest'
-      ? newest
-      : f.followUp
-        ? 'coalesce(followed_up_at, applied_at)' // the longest wait first
-        : f.everyTab || f.status === 'new' || f.status === 'filtered'
-          ? `ai_score DESC NULLS LAST, score DESC, ${newest}`
-          : 'coalesce(applied_at, first_seen_at) DESC';
+  const order = jobOrder(f);
   params.push(pageSize, (Math.max(1, Math.floor(page)) - 1) * pageSize);
   const { rows } = await pool.query<Job>(
     `SELECT id, source, company, title, location, country, url, '' AS description, posted_at, first_seen_at, score, cluster,
       matched, missing, visa, flags, status, filter_reason, cv_version, NULL AS cover_letter, applied_at, notes,
       ai_score, ai_verdict, ai_summary, ai_reasons, ai_gaps, ai_flags, salary_min, salary_max, salary_currency, salary_period,
-      closed_at, follow_ups, followed_up_at, visa_evidence
+      closed_at, follow_ups, followed_up_at, follow_up_draft, visa_evidence
      FROM jobs WHERE ${where} ORDER BY ${order}, id LIMIT $${params.length - 1} OFFSET $${params.length}`,
     params,
   );
   return rows;
+}
+
+/**
+ * The jobs before and after one job in the list a filter gives, in the list's order (the job page's Previous / Next):
+ * null at either end, both null when the job is not in that list (any more).
+ */
+export async function jobNeighbours(f: JobFilter, id: string) {
+  const { where, params } = jobWhere(f);
+  params.push(id);
+  const { rows } = await pool.query<{ prev: string | null; next: string | null }>(
+    `SELECT prev, next FROM (
+       SELECT id, lag(id) OVER w AS prev, lead(id) OVER w AS next FROM jobs WHERE ${where} WINDOW w AS (ORDER BY ${jobOrder(f)}, id)
+     ) t WHERE id = $${params.length}`,
+    params,
+  );
+  return { prev: rows[0]?.prev ?? null, next: rows[0]?.next ?? null };
 }
 
 /** How many jobs match a filter, for the page links. */

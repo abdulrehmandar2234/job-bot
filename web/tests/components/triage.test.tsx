@@ -215,6 +215,11 @@ describe('bulk skip', () => {
     await waitFor(() => expect(screen.queryByText('2 selected')).toBeNull());
     expect(card('job:a').dataset.selected).toBeUndefined();
     expect(card('job:c').dataset.selected).toBeUndefined();
+    // The bar is gone, so the page says what happened, until the next selection starts.
+    expect(await screen.findByRole('status')).toHaveTextContent('Skipped 2 jobs');
+    await user.click(card('job:a'));
+    await user.keyboard('x');
+    await waitFor(() => expect(screen.queryByText('Skipped 2 jobs')).toBeNull());
   });
 
   it('x on a selected card unselects it, Escape and Clear empty the selection', async () => {

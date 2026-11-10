@@ -83,7 +83,7 @@ describe('expired postings on the dashboard', () => {
     await insertJob({ id: 'exp-2', title: 'TG open one', status: 'new' });
     await renderList({ status: 'expired' });
     expect(tab('Expired')).toHaveTextContent(`Expired ${(before.expired ?? 0) + 1}`);
-    expect(tab('Expired')).toHaveAttribute('href', '/?status=expired');
+    expect(tab('Expired')).toHaveAttribute('href', '/?status=expired&days=1');
     // Tab order: Skipped, Expired, Filtered out.
     const labels = within(screen.getByRole('navigation'))
       .getAllByRole('link')
