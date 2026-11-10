@@ -202,6 +202,17 @@ describe('guessFromTitle', () => {
     assert.deepEqual(guessFromTitle('Backend Engineer at Acme | LinkedIn', 'LinkedIn'), { title: 'Backend Engineer', company: 'Acme' });
   });
 
+  it('keeps a hyphen inside the title when the page says "at company" (Greenhouse), without "Job Application for"', () => {
+    assert.deepEqual(guessFromTitle('Job Application for Assistant Manager - Internal Audit at Groww'), {
+      title: 'Assistant Manager - Internal Audit',
+      company: 'Groww',
+    });
+    assert.deepEqual(guessFromTitle('Apply for Senior Engineer - Payments at Acme | Careers', 'Careers'), {
+      title: 'Senior Engineer - Payments',
+      company: 'Acme',
+    });
+  });
+
   it('takes the first two parts otherwise', () => {
     assert.deepEqual(guessFromTitle('Laravel Developer - Beta Corp - Careers'), { title: 'Laravel Developer', company: 'Beta Corp' });
     assert.deepEqual(guessFromTitle('Full-Stack Developer'), { title: 'Full-Stack Developer', company: '' });
@@ -223,6 +234,10 @@ describe('jobFromPage', () => {
     const r = jobFromPage({ ...page, jsonLd: [JSON.stringify(posting())] });
     assert.equal(r.method, 'jsonld');
     assert.equal(r.job.title, 'Senior Backend Engineer');
+  });
+
+  it('takes the location from the page when there is no JobPosting data', () => {
+    assert.equal(jobFromPage({ ...page, locationText: '  Bengaluru-VTP,  India ' }).job.location, 'Bengaluru-VTP, India');
   });
 
   it('falls back to the page title and the selected text', () => {
