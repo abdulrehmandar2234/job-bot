@@ -39,8 +39,8 @@ jobs:
       JOB_BOT_NOTIFY: "off"
       JOB_BOT_CHROME: /usr/bin/google-chrome
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
@@ -84,8 +84,8 @@ jobs:
       JOB_BOT_CLAUDE: tests/fixtures/fake-claude.mjs
       JOB_BOT_NOTIFY: "off"
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
