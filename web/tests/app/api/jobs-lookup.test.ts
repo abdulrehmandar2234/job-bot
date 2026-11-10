@@ -1,7 +1,8 @@
+import { existsSync } from 'node:fs';
 import { NextRequest } from 'next/server';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { GET, OPTIONS } from '@/app/api/jobs/lookup/route';
-import { cvFileName } from '@/lib/cv-templates';
+import { cvFileName, cvPath } from '@/lib/cv-templates';
 import { EXTENSION_ID, fillProfile } from '@/lib/extension';
 import { cleanupDb, closeDb, ensureSchema, insertJob, PREFIX } from '../../helpers/db';
 
@@ -30,12 +31,13 @@ describe('GET /api/jobs/lookup', () => {
     await insertJob({ id: 'a', url: `${SITE}/1`, cover_letter: 'secret' });
     const res = await get(`${SITE}/1`, origin);
     expect(res.status).toBe(403);
-    expect(await res.json()).toEqual({ error: 'Forbidden origin' });
+    expect(await res.json()).toEqual({ app: 'job-bot', error: 'Forbidden origin' });
   });
 
   it.each([null, '', 'not a url', 'javascript:alert(1)', 'chrome://extensions'])('rejects url %j with 400', async (url) => {
     const res = await get(url);
     expect(res.status).toBe(400);
+    expect((await res.json()).app).toBe('job-bot');
   });
 
   it('returns null for an unknown job', async () => {
@@ -43,7 +45,61 @@ describe('GET /api/jobs/lookup', () => {
     expect(res.status).toBe(200);
     expect(res.headers.get('access-control-allow-origin')).toBe(EXT);
     expect(res.headers.get('cache-control')).toBe('no-store');
-    expect(await res.json()).toEqual({ job: null });
+    // The profile and the original CV, for "Fill profile + CV only" on a page with no known job.
+    expect(await res.json()).toEqual({
+      app: 'job-bot',
+      job: null,
+      basics: {
+        profile: fillProfile(),
+        cv_url: existsSync(cvPath('default')) ? 'http://localhost:3100/api/cv/default?download' : null,
+        cv_file_name: cvFileName(),
+      },
+    });
+  });
+
+  it('marks every answer as job-bot, with or without a job', async () => {
+    await insertJob({ id: 'a', url: `${SITE}/1` });
+    expect((await (await get(`${SITE}/1`)).json()).app).toBe('job-bot');
+  });
+
+  it.each([
+    ['Lever', 'https://jobs.lever.co/acme/5f1c-9a', 'https://jobs.lever.co/acme/5f1c-9a/apply'],
+    ['Lever (trailing slash, tracking)', 'https://jobs.lever.co/acme/5f1c-9a', 'https://jobs.lever.co/acme/5f1c-9a/apply/?lever-source=li'],
+    ['Ashby', 'https://jobs.ashbyhq.com/acme/7c2e-41', 'https://jobs.ashbyhq.com/acme/7c2e-41/application'],
+    ['Greenhouse', 'https://job-boards.greenhouse.io/acme/jobs/123', 'https://job-boards.greenhouse.io/acme/jobs/123#app'],
+    [
+      'Workday apply',
+      'https://acme.wd3.myworkdayjobs.com/en-US/External/job/Dubai/Engineer_R123',
+      'https://acme.wd3.myworkdayjobs.com/en-US/External/job/Dubai/Engineer_R123/apply',
+    ],
+    [
+      'Workday apply step',
+      'https://acme.wd3.myworkdayjobs.com/en-US/External/job/Dubai/Engineer_R123',
+      'https://acme.wd3.myworkdayjobs.com/en-US/External/job/Dubai/Engineer_R123/apply/applyManually',
+    ],
+  ])('finds the job from its %s application page', async (_name, posting, form) => {
+    await insertJob({ id: 'a', url: posting, cover_letter: 'Prepared letter' });
+    expect((await (await get(form)).json()).job).toMatchObject({ id: `${PREFIX}a`, cover_letter: 'Prepared letter' });
+  });
+
+  it('does not take an apply suffix off unrelated paths or hosts', async () => {
+    await insertJob({ id: 'lever', url: 'https://jobs.lever.co/acme/1' });
+    await insertJob({ id: 'site', url: `${SITE}/jobs/1` });
+    await insertJob({ id: 'ashby', url: 'https://jobs.ashbyhq.com/acme/2' });
+    const lookup = async (url: string) => (await (await get(url)).json()).job;
+    expect(await lookup('https://jobs.lever.co/acme/1/apply/thanks')).toBeNull();
+    expect(await lookup('https://jobs.lever.co/acme/1/applyx')).toBeNull();
+    expect(await lookup(`${SITE}/jobs/1/apply`)).toBeNull(); // not a known ATS host
+    expect(await lookup('https://jobs.ashbyhq.com/acme/2/apply')).toBeNull(); // Ashby's form is /application
+    expect(await lookup('https://jobs.lever.co/acme/2/apply')).toBeNull(); // another job
+  });
+
+  it('keeps the job id parameter rule when it strips an apply suffix', async () => {
+    await insertJob({ id: 'one', url: 'https://acme.wd1.myworkdayjobs.com/c/job/x?jobId=1' });
+    await insertJob({ id: 'two', url: 'https://acme.wd1.myworkdayjobs.com/c/job/x?jobId=2' });
+    const lookup = async (url: string) => (await (await get(url)).json()).job;
+    expect((await lookup('https://acme.wd1.myworkdayjobs.com/c/job/x/apply?jobId=2&utm=1')).id).toBe(`${PREFIX}two`);
+    expect(await lookup('https://acme.wd1.myworkdayjobs.com/c/job/x/apply?jobId=3')).toBeNull();
   });
 
   it('returns the prepared material of an exact match', async () => {

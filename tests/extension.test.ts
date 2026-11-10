@@ -1,11 +1,41 @@
 // Pure logic of the Chrome extension (extension/lib/*.js): no browser, no chrome.* and no dashboard needed.
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { describeResult, fetchCv, lookupJob, missingFields, OFFLINE, sendJob } from '../extension/lib/api.js';
-import { pickOption, planFill, planFrameFills, similarity, splitName } from '../extension/lib/fill.js';
+import {
+  dashboardOrigin,
+  describeResult,
+  fetchCv,
+  jobPageUrl,
+  lookupJob,
+  missingFields,
+  OFFLINE,
+  sendJob,
+  useDashboard,
+  wrongAppMessage,
+} from '../extension/lib/api.js';
+import { fillData, fillSummary, pickOption, planFill, planFrameFills, similarity, splitName } from '../extension/lib/fill.js';
 import { findJobPosting, guessFromTitle, jobFromPage, jobFromPosting, postingLocation } from '../extension/lib/jobposting.js';
 import { cleanText, decodeEntities, htmlToText } from '../extension/lib/text.js';
-import { frameOrigins, isHttpUrl, normalizeUrl, sameTab, sourceFromUrl } from '../extension/lib/url.js';
+import { DEFAULT_DASHBOARD, parseDashboardOrigin, readDashboard, saveDashboard } from '../extension/lib/settings.js';
+import { forgetTab, inScope, jobScope, recallJob, rememberJob, saveFillResult } from '../extension/lib/tab-memory.js';
+import { frameOrigins, isHttpUrl, normalizeUrl, postingUrl, sameTab, sourceFromUrl } from '../extension/lib/url.js';
+
+/** A stand-in for chrome.storage.session / .sync: get(key), set(object), remove(key). */
+function fakeArea() {
+  const data = new Map<string, unknown>();
+  return {
+    data,
+    async get(k: string) {
+      return data.has(k) ? { [k]: structuredClone(data.get(k)) } : {};
+    },
+    async set(o: Record<string, unknown>) {
+      for (const [k, v] of Object.entries(o)) data.set(k, structuredClone(v));
+    },
+    async remove(k: string) {
+      data.delete(k);
+    },
+  };
+}
 
 const posting = (over: Record<string, unknown> = {}) => ({
   '@context': 'https://schema.org',
@@ -256,18 +286,65 @@ describe('api', () => {
 
   it('looks up a tab url', async () => {
     const calls: Call[] = [];
-    assert.deepEqual(await lookupJob('https://a.example/1?x=1&y=2', fake(200, { job: { id: 'a' } }, calls)), {
+    assert.deepEqual(await lookupJob('https://a.example/1?x=1&y=2', fake(200, { app: 'job-bot', job: { id: 'a' } }, calls)), {
       ok: true,
       job: { id: 'a' },
+      basics: null,
     });
     assert.equal(calls[0].url, 'http://localhost:3100/api/jobs/lookup?url=https%3A%2F%2Fa.example%2F1%3Fx%3D1%26y%3D2');
-    assert.deepEqual(await lookupJob('https://a.example/2', fake(200, { job: null })), { ok: true, job: null });
-    assert.deepEqual(await lookupJob('https://a.example/2', fake(400, { error: 'url must be an http(s) URL' })), {
+    const basics = { profile: { name: 'Sara Khan' }, cv_url: null, cv_file_name: 'CV.pdf' };
+    assert.deepEqual(await lookupJob('https://a.example/2', fake(200, { app: 'job-bot', job: null, basics })), {
+      ok: true,
+      job: null,
+      basics,
+    });
+    assert.deepEqual(await lookupJob('https://a.example/2', fake(400, { app: 'job-bot', error: 'url must be an http(s) URL' })), {
       ok: false,
       status: 400,
       error: 'url must be an http(s) URL',
     });
     assert.deepEqual(await lookupJob('https://a.example/2', offline), { ok: false, error: OFFLINE });
+  });
+
+  it('says another app answers when the reply has no job-bot marker', async () => {
+    const wrong = { ok: false, error: wrongAppMessage() };
+    assert.match(
+      wrongAppMessage(),
+      /^Something else is answering on http:\/\/localhost:3100 — check the dashboard port in the extension options\.$/,
+    );
+    assert.deepEqual(await lookupJob('https://a.example/2', fake(200, { job: null })), wrong);
+    assert.deepEqual(await lookupJob('https://a.example/2', fake(404, '<!doctype html><h1>Not found</h1>')), wrong);
+    assert.deepEqual(await lookupJob('https://a.example/2', fake(200, '<html></html>')), wrong);
+    assert.deepEqual(await lookupJob('https://a.example/2', fake(403, { error: 'Forbidden origin' })), wrong);
+    // job-bot's own refusal keeps its message.
+    assert.deepEqual(await lookupJob('https://a.example/2', fake(403, { app: 'job-bot', error: 'Forbidden origin' })), {
+      ok: false,
+      status: 403,
+      error: 'Forbidden origin',
+    });
+    // /api/import never answers 404 in job-bot.
+    assert.deepEqual(await sendJob(job, fake(404, 'Not found')), { ok: false, status: 404, error: wrongAppMessage() });
+  });
+
+  it('talks to the dashboard address from the options', async () => {
+    const calls: Call[] = [];
+    try {
+      useDashboard('http://127.0.0.1:3200');
+      assert.equal(dashboardOrigin(), 'http://127.0.0.1:3200');
+      await lookupJob('https://a.example/1', fake(200, { app: 'job-bot', job: null }, calls));
+      await sendJob(job, fake(200, { results: [{ outcome: 'added' }] }, calls));
+      assert.deepEqual(
+        calls.map((c) => c.url.split('?')[0]),
+        ['http://127.0.0.1:3200/api/jobs/lookup', 'http://127.0.0.1:3200/api/import'],
+      );
+      assert.equal(jobPageUrl('a b'), 'http://127.0.0.1:3200/jobs/a%20b');
+      assert.match((await lookupJob('https://a.example/1', offline)).error as string, /not running at http:\/\/127\.0\.0\.1:3200/);
+      assert.match(wrongAppMessage(), /answering on http:\/\/127\.0\.0\.1:3200/);
+      useDashboard('https://evil.example'); // never another host
+      assert.equal(dashboardOrigin(), DEFAULT_DASHBOARD);
+    } finally {
+      useDashboard(DEFAULT_DASHBOARD);
+    }
   });
 
   it('describes each import outcome', () => {
@@ -537,6 +614,104 @@ describe('auto-fill plan', () => {
     });
     assert.deepEqual(fills, []);
   });
+
+  it('never types into autocomplete inputs, and lists them as "pick from the list"', () => {
+    const fields = [
+      field(0, { label: 'Country', combobox: true }), // react-select: would look filled, choose nothing
+      field(1, { label: 'Location (City)', combobox: true }), // a profile label, still never typed
+      field(2, { label: 'Why do you want to work at Acme?', combobox: true }),
+      field(3, { label: 'School', combobox: true, empty: false }), // an option is chosen
+      field(4, { label: 'Email' }),
+    ];
+    const plan = planFill(fields, data);
+    assert.deepEqual(
+      plan.fills.map((f) => f.index),
+      [4],
+    );
+    assert.deepEqual(plan.skipped, [
+      'Country (pick from the list)',
+      'Location (City) (pick from the list)',
+      'Why do you want to work at Acme? (pick from the list)',
+    ]);
+  });
+
+  it('lists required custom controls that are not answered, and never plans a fill for one', () => {
+    const custom = (index: number, over: Record<string, unknown>) => field(index, { type: 'custom', tag: 'div', ...over });
+    const plan = planFill(
+      [
+        custom(0, { label: 'Country', custom: 'dropdown', tag: 'button', required: true }), // Workday "Select One"
+        custom(1, { label: 'Are you authorized to work in the UAE?', custom: 'buttons', required: true }), // Ashby Yes/No
+        custom(2, { label: 'Gender', custom: 'radiogroup', required: true }),
+        custom(3, { label: 'Pronouns', custom: 'listbox', required: false }), // optional: not listed
+        custom(4, { label: 'Phone device type', custom: 'dropdown', required: true, empty: false }), // answered
+        custom(5, { label: 'Email', custom: 'listbox', required: true }), // a profile label still gets no fill
+      ],
+      data,
+    );
+    assert.deepEqual(plan.fills, []);
+    assert.deepEqual(plan.skipped, [
+      'Country (pick from the list)',
+      'Are you authorized to work in the UAE? (pick from the list)',
+      'Gender (pick from the list)',
+      'Email (pick from the list)',
+    ]);
+  });
+
+  it('plans profile + CV only for a page with no known job: no letter, no answers', () => {
+    const job = {
+      profile: data.profile,
+      cover_letter: 'Dear Acme',
+      form_answers: data.answers,
+      cv_url: 'http://localhost:3100/api/cv/default?download',
+      cv_file_name: 'Sara_Khan_CV.pdf',
+    };
+    const only = fillData(job, { profileOnly: true });
+    assert.deepEqual(only, { profile: data.profile, cover_letter: '', answers: [], cv: { name: 'Sara_Khan_CV.pdf' } });
+    const fields = [
+      field(0, { label: 'Email' }),
+      field(1, { tag: 'textarea', type: 'textarea', label: 'Cover letter' }),
+      field(2, { tag: 'textarea', type: 'textarea', label: 'Why do you want to work at Acme?' }),
+      field(3, { type: 'file', label: 'Resume' }),
+    ];
+    const plan = planFill(fields, only);
+    assert.deepEqual(
+      plan.fills.map((f) => [f.index, f.source]),
+      [
+        [0, 'profile'],
+        [3, 'CV'],
+      ],
+    );
+    assert.ok(!plan.fills.some((f) => f.source === 'cover letter' || f.source === 'answer'));
+    // The full plan for a known job does fill them.
+    const full = planFill(fields, fillData(job));
+    assert.deepEqual(
+      full.fills.map((f) => f.source),
+      ['profile', 'cover letter', 'answer', 'CV'],
+    );
+    assert.deepEqual(fillData({ profile: {}, cv_url: null }), { profile: {}, cover_letter: '', answers: [], cv: null });
+  });
+
+  it('summarizes a fill as lines the panel can keep and show again', () => {
+    assert.deepEqual(
+      fillSummary({ filled: ['Email', 'Phone'], skipped: ['Country (pick from the list)', 'Country (pick from the list)'], needInput: 1 }),
+      [
+        { text: 'Filled 2 fields (outlined in orange): Email, Phone.', kind: 'plain' },
+        { text: 'Left for you: Country (pick from the list).', kind: 'needs' },
+        { text: '1 drafted answers need your input, so they were not filled.', kind: 'needs' },
+        { text: 'Check every field, then submit the form yourself.', kind: 'hint' },
+      ],
+    );
+    // Nothing filled is not "complete" when custom controls are left.
+    assert.deepEqual(
+      fillSummary({ filled: [], skipped: ['Country (pick from the list)'] }).map((l) => l.text),
+      [
+        'No empty fields here that job-bot knows how to fill.',
+        'Left for you: Country (pick from the list).',
+        'Check every field, then submit the form yourself.',
+      ],
+    );
+    assert.deepEqual(fillSummary({}), [{ text: 'No empty fields here that job-bot knows how to fill.', kind: 'plain' }]);
+  });
 });
 
 describe('fetchCv', () => {
@@ -583,5 +758,139 @@ describe('frameOrigins', () => {
     );
     assert.deepEqual(frameOrigins('https://careers.acme.com/jobs/1', []), []);
     assert.deepEqual(frameOrigins('chrome://extensions', ['https://x.example/']), []);
+  });
+});
+
+describe('dashboard address', () => {
+  it('accepts localhost and 127.0.0.1 with any port, and defaults when empty', () => {
+    assert.equal(DEFAULT_DASHBOARD, 'http://localhost:3100');
+    for (const [input, origin] of [
+      ['', 'http://localhost:3100'],
+      [undefined, 'http://localhost:3100'],
+      ['http://localhost:3100', 'http://localhost:3100'],
+      ['http://localhost:3200/', 'http://localhost:3200'],
+      ['localhost:3200', 'http://localhost:3200'],
+      ['127.0.0.1:4000', 'http://127.0.0.1:4000'],
+      ['  3300 ', 'http://localhost:3300'],
+      ['HTTP://LOCALHOST:3100', 'http://localhost:3100'],
+      ['http://localhost', 'http://localhost'],
+    ] as const)
+      assert.deepEqual(parseDashboardOrigin(input), { ok: true, origin }, String(input));
+  });
+
+  it('rejects every other host, a path, a login and other schemes', () => {
+    for (const input of [
+      'https://evil.example',
+      'evil.example:3100',
+      'http://localhost.evil.example:3100',
+      'http://192.168.1.5:3100',
+      'http://0.0.0.0:3100',
+      'http://[::2]:3100',
+      'http://user:pw@localhost:3100',
+      'http://localhost:3100/api',
+      'http://localhost:3100/?x=1',
+      'ftp://localhost:3100',
+      'javascript:alert(1)',
+      'http://localhost:99999',
+      'not a url',
+    ])
+      assert.equal(parseDashboardOrigin(input).ok, false, input);
+  });
+
+  it('reads and saves the address in the storage area, falling back to the default', async () => {
+    const area = fakeArea();
+    assert.equal(await readDashboard(area), DEFAULT_DASHBOARD);
+    assert.deepEqual(await saveDashboard(area, 'localhost:3200'), { ok: true, origin: 'http://localhost:3200' });
+    assert.equal(await readDashboard(area), 'http://localhost:3200');
+    assert.equal((await saveDashboard(area, 'https://evil.example')).ok, false);
+    assert.equal(await readDashboard(area), 'http://localhost:3200'); // nothing saved
+    area.data.set('dashboard', 'https://evil.example'); // tampered storage
+    assert.equal(await readDashboard(area), DEFAULT_DASHBOARD);
+    const broken = {
+      get: async () => {
+        throw new Error('no storage');
+      },
+    };
+    assert.equal(await readDashboard(broken), DEFAULT_DASHBOARD);
+  });
+});
+
+describe('postingUrl', () => {
+  it('takes the application step off Lever, Ashby and Workday URLs only', () => {
+    assert.equal(postingUrl('https://jobs.lever.co/acme/5f1c/apply'), 'https://jobs.lever.co/acme/5f1c');
+    assert.equal(postingUrl('https://jobs.ashbyhq.com/acme/7c2e/application?utm=1#x'), 'https://jobs.ashbyhq.com/acme/7c2e?utm=1');
+    assert.equal(postingUrl('https://a.wd3.myworkdayjobs.com/c/job/x/apply/applyManually'), 'https://a.wd3.myworkdayjobs.com/c/job/x');
+    assert.equal(postingUrl('https://jobs.lever.co/acme/5f1c'), null);
+    assert.equal(postingUrl('https://careers.acme.com/jobs/1/apply'), null);
+    assert.equal(postingUrl('chrome://extensions'), null);
+  });
+});
+
+describe('tab memory', () => {
+  const lever = { id: 'lever:1', company: 'Acme', title: 'Dev', url: 'https://jobs.lever.co/acme/5f1c' };
+  const result = { filled: ['Email'], skipped: ['Country (pick from the list)'], needInput: 0 };
+
+  it('keeps the job through the steps of its application form, with the last fill result', async () => {
+    const area = fakeArea();
+    await rememberJob(area, 7, 'https://jobs.lever.co/acme/5f1c', lever);
+    // The lookup also finds it on /apply: same job, in scope, so the result is not lost.
+    await saveFillResult(area, 7, lever.id, result);
+    assert.deepEqual((await rememberJob(area, 7, 'https://jobs.lever.co/acme/5f1c/apply', lever)).result, result);
+    // A step URL the lookup does not know is recalled from memory.
+    const step = await recallJob(area, 7, 'https://jobs.lever.co/acme/5f1c/apply?step=2#top');
+    assert.deepEqual(step, { job: lever, scope: { host: 'jobs.lever.co', path: '/acme/5f1c', ids: [] }, result });
+    // Another tab knows nothing.
+    assert.equal(await recallJob(area, 8, 'https://jobs.lever.co/acme/5f1c/apply'), null);
+  });
+
+  it('scopes a job found on the application page to its posting', async () => {
+    const area = fakeArea();
+    await rememberJob(area, 1, 'https://a.wd3.myworkdayjobs.com/c/job/x/apply/applyManually', {
+      id: 'w',
+      url: 'https://a.wd3.myworkdayjobs.com/c/job/x',
+    });
+    assert.ok(await recallJob(area, 1, 'https://a.wd3.myworkdayjobs.com/c/job/x/apply/useMyLastApplication'));
+  });
+
+  it('forgets the job when the tab leaves its host or its job, or closes', async () => {
+    const area = fakeArea();
+    for (const away of [
+      'https://www.google.com/search?q=x', // another host
+      'https://jobs.lever.co/other/9a', // another company on the same ATS host
+      'https://jobs.lever.co/acme/5f1d/apply', // another job of the same company
+      'chrome://newtab',
+    ]) {
+      await rememberJob(area, 7, 'https://jobs.lever.co/acme/5f1c', lever);
+      assert.equal(await recallJob(area, 7, away), null, away);
+      assert.equal(area.data.size, 0, away); // forgotten, not just hidden
+      // Coming back does not bring it back: the lookup finds it again on a known page.
+      assert.equal(await recallJob(area, 7, 'https://jobs.lever.co/acme/5f1c/apply'), null);
+    }
+    await rememberJob(area, 7, 'https://jobs.lever.co/acme/5f1c', lever);
+    await forgetTab(area, 7);
+    assert.equal(await recallJob(area, 7, 'https://jobs.lever.co/acme/5f1c'), null);
+  });
+
+  it('starts over when the tab shows another job, and keeps a result only for its own job', async () => {
+    const area = fakeArea();
+    await rememberJob(area, 7, 'https://jobs.lever.co/acme/5f1c', lever);
+    await saveFillResult(area, 7, lever.id, result);
+    const other = { id: 'lever:2', url: 'https://jobs.lever.co/acme/5f1c' }; // same page, another row
+    assert.equal((await rememberJob(area, 7, 'https://jobs.lever.co/acme/5f1c', other)).result, null);
+    await saveFillResult(area, 7, lever.id, result); // a late result of the old job is dropped
+    assert.equal((await recallJob(area, 7, 'https://jobs.lever.co/acme/5f1c'))?.result, null);
+    await saveFillResult(area, 9, lever.id, result); // nothing remembered for that tab
+    assert.equal(area.data.has('tab:9'), false);
+  });
+
+  it('tells jobs on one careers page apart by their job id parameter', () => {
+    const scope = jobScope('https://acme.com/careers?gh_jid=1&utm_source=li');
+    assert.equal(inScope(scope, 'https://acme.com/careers?gh_jid=1#app'), true);
+    assert.equal(inScope(scope, 'https://acme.com/careers/apply'), true); // no job id: the same form
+    assert.equal(inScope(scope, 'https://acme.com/careers?gh_jid=2'), false);
+    assert.equal(inScope(scope, 'https://acme.com/about'), false);
+    assert.equal(inScope(scope, 'https://acme.com/careers-old'), false); // only a prefix of the name
+    assert.equal(inScope(null, 'https://acme.com/careers'), false);
+    assert.equal(jobScope('chrome://newtab'), null);
   });
 });

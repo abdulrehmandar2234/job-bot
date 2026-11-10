@@ -3,7 +3,10 @@
 //
 // Rules: only empty, enabled, visible text fields, textareas, selects and CV file inputs are filled. Checkboxes,
 // radios, passwords and anything already filled are left alone. Drafted answers that need the user's input
-// ([FILL: ...] or needs_input) are never filled.
+// ([FILL: ...] or needs_input) are never filled. Custom dropdowns are never typed into: an autocomplete input
+// (role=combobox, aria-autocomplete) would look filled while no option is chosen. Those, and required custom
+// controls (Workday's button dropdowns, ARIA listboxes and radio groups, Ashby's Yes/No buttons), are listed under
+// "Left for you" as "pick from the list" instead, so the form never looks complete when it is not.
 
 const norm = (s) =>
   String(s ?? '')
@@ -129,6 +132,11 @@ export function planFill(fields, data, usedAnswers = new Set()) {
     const short = profileTexts(f);
     const label = f.label || f.aria || f.placeholder || f.name || 'field';
 
+    if (f.combobox || f.custom) {
+      if (f.combobox || f.required) skipped.push(`${label} (pick from the list)`);
+      continue;
+    }
+
     if (type === 'file') {
       if (data.cv && all.some((t) => CV_FILE.test(t)))
         fills.push({ index: f.index, kind: 'file', value: data.cv.name, label, source: 'CV' });
@@ -168,6 +176,37 @@ export function planFill(fields, data, usedAnswers = new Set()) {
     } else fills.push({ index: f.index, kind: 'text', value: String(value), label, source });
   }
   return { fills, skipped };
+}
+
+/**
+ * What the fill may use for a job from the lookup (`j`): its profile, cover letter, drafted answers and CV name.
+ * `profileOnly` (a page with no known job: "Fill profile + CV only") keeps the profile and the CV and drops the
+ * letter and the answers, which belong to one job.
+ */
+export function fillData(j, { profileOnly = false } = {}) {
+  return {
+    profile: j?.profile ?? {},
+    cover_letter: profileOnly ? '' : (j?.cover_letter ?? ''),
+    answers: profileOnly ? [] : (j?.form_answers ?? []),
+    cv: j?.cv_url ? { name: j.cv_file_name } : null,
+  };
+}
+
+/**
+ * The result lines of a fill, as data so the side panel can keep them for the tab (lib/tab-memory.js) and show them
+ * again on the next step of a form: [{ text, kind: 'plain' | 'needs' | 'hint' }].
+ * `result`: { filled: [labels], skipped: [labels], needInput: number of drafted answers that need the user }.
+ * @param {{ filled?: string[], skipped?: string[], needInput?: number }} [result]
+ */
+export function fillSummary({ filled = [], skipped = [], needInput = 0 } = {}) {
+  const left = [...new Set(skipped)];
+  const lines = [];
+  if (filled.length) lines.push({ text: `Filled ${filled.length} fields (outlined in orange): ${filled.join(', ')}.`, kind: 'plain' });
+  else lines.push({ text: 'No empty fields here that job-bot knows how to fill.', kind: 'plain' });
+  if (left.length) lines.push({ text: `Left for you: ${left.join(', ')}.`, kind: 'needs' });
+  if (needInput > 0) lines.push({ text: `${needInput} drafted answers need your input, so they were not filled.`, kind: 'needs' });
+  if (filled.length || left.length) lines.push({ text: 'Check every field, then submit the form yourself.', kind: 'hint' });
+  return lines;
 }
 
 /**

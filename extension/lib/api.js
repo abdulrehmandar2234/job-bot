@@ -1,20 +1,39 @@
 // Calls to the local dashboard. `fetchImpl` is injectable so node:test can test this without a server.
+// The dashboard address comes from the options page (lib/settings.js); popup and panel set it with useDashboard().
+import { DEFAULT_DASHBOARD, parseDashboardOrigin } from './settings.js';
 
-export const DASHBOARD = 'http://localhost:3100';
+let dashboard = DEFAULT_DASHBOARD;
 
-export const OFFLINE = 'The job-bot dashboard is not running. Start it with `npm run web` in the job-bot folder, then try again.';
+/** Sets the dashboard address for the calls below (an invalid one falls back to the default). */
+export function useDashboard(origin) {
+  const parsed = parseDashboardOrigin(origin);
+  dashboard = parsed.ok ? parsed.origin : DEFAULT_DASHBOARD;
+}
 
-export const jobPageUrl = (id) => `${DASHBOARD}/jobs/${encodeURIComponent(id)}`;
+/** The dashboard address in use. */
+export const dashboardOrigin = () => dashboard;
+
+/** The message for a dashboard that does not answer at `origin`. */
+export const offlineMessage = (origin = dashboard) =>
+  `The job-bot dashboard is not running at ${origin}. Start it with \`npm run web\` in the job-bot folder (or check the dashboard address in the extension options), then try again.`;
+
+export const OFFLINE = offlineMessage(DEFAULT_DASHBOARD);
+
+/** The message for an app at `origin` that answers but is not job-bot (another app on that port). */
+export const wrongAppMessage = (origin = dashboard) =>
+  `Something else is answering on ${origin} — check the dashboard port in the extension options.`;
+
+export const jobPageUrl = (id) => `${dashboard}/jobs/${encodeURIComponent(id)}`;
 
 async function call(fetchImpl, path, init) {
   let res;
   try {
-    res = await fetchImpl(`${DASHBOARD}${path}`, init);
+    res = await fetchImpl(`${dashboard}${path}`, init);
   } catch {
-    return { ok: false, error: OFFLINE };
+    return { ok: false, error: offlineMessage() };
   }
   const body = await res.json().catch(() => null);
-  if (!res.ok) return { ok: false, status: res.status, error: body?.error ?? `The dashboard answered ${res.status}.` };
+  if (!res.ok) return { ok: false, status: res.status, body, error: body?.error ?? `The dashboard answered ${res.status}.` };
   return { ok: true, body };
 }
 
@@ -25,18 +44,27 @@ export async function sendJob(job, fetchImpl = fetch) {
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify([job]),
   });
-  if (!r.ok) return r;
+  if (!r.ok && !('status' in r)) return r; // not running
+  // job-bot's /api/import never answers 404: that comes from another app on the dashboard's port.
+  if (r.status === 404) return { ok: false, status: 404, error: wrongAppMessage() };
+  if (!r.ok) return { ok: false, status: r.status, error: r.error };
   const result = r.body?.results?.[0];
   return result
     ? { ok: true, result }
     : { ok: false, error: 'The dashboard did not accept this job (it needs a title, a company and an http(s) URL).' };
 }
 
-/** Looks up the job for a tab URL. Resolves to { ok, job } (job is null when the bot does not know it) or { ok: false, error }. */
+/**
+ * Looks up the job for a tab URL. Resolves to { ok, job, basics } (job is null when the bot does not know it; basics
+ * then holds { profile, cv_url, cv_file_name } for "Fill profile + CV only") or { ok: false, error }. An answer
+ * without job-bot's `app` marker comes from another app on the dashboard's port.
+ */
 export async function lookupJob(url, fetchImpl = fetch) {
   const r = await call(fetchImpl, `/api/jobs/lookup?url=${encodeURIComponent(url)}`);
-  if (!r.ok) return r;
-  return { ok: true, job: r.body?.job ?? null };
+  if (!r.ok && !('status' in r)) return r; // not running
+  if (r.body?.app !== 'job-bot') return { ok: false, error: wrongAppMessage() };
+  if (!r.ok) return { ok: false, status: r.status, error: r.error };
+  return { ok: true, job: r.body.job ?? null, basics: r.body.basics ?? null };
 }
 
 const scoreText = (r) => (r.ai_score != null ? `AI score ${r.ai_score}, keyword score ${r.score}` : `score ${r.score}`);

@@ -279,3 +279,88 @@ describe('listFrameUrls', () => {
     expect(listFrameUrls()).toEqual(['https://job-boards.greenhouse.io/embed/job_app?for=acme']);
   });
 });
+
+describe('custom widgets', () => {
+  type Field = { index: number; label: string; empty: boolean; combobox?: boolean; custom?: string; required?: boolean };
+  const PROFILE = { name: 'Sara Khan', email: 'sara@example.com', phone: '+971 50 000 0000', linkedin: '', location: 'Dubai, UAE' };
+  const WIDGETS = `
+    <form>
+      <label for="email">Email</label><input id="email">
+      <label for="loc">Location (City) *</label><input id="loc" role="combobox" aria-autocomplete="list">
+      <div class="select__control">
+        <div class="select__value-container">
+          <div class="select__single-value">United Arab Emirates</div>
+          <label for="ctry">Country</label><input id="ctry" role="combobox" aria-autocomplete="list" value="">
+        </div>
+      </div>
+      <div role="combobox"><label for="school">School</label><input id="school"></div>
+      <label id="wd-l" for="wd">Country *</label><button type="button" id="wd" aria-haspopup="listbox">Select One</button>
+      <label for="wd2">Phone device type</label><button type="button" id="wd2" aria-haspopup="listbox" aria-required="true">Mobile</button>
+      <div class="field">
+        <label class="question _required_x">Are you authorized to work in the UAE?</label>
+        <div class="yesno"><button type="button">Yes</button><button type="button">No</button></div>
+      </div>
+      <div class="field">
+        <label class="question">Will you relocate?</label>
+        <div class="yesno"><button type="button">Yes</button><button type="button">No</button></div>
+      </div>
+      <div class="field">
+        <label class="question">Remote OK? *</label>
+        <div class="yesno"><button type="button" class="_option_ _active_x">Yes</button><button type="button" class="_option_">No</button></div>
+      </div>
+      <div role="radiogroup" aria-required="true" aria-label="Gender"><div role="radio" aria-checked="false">F</div></div>
+      <div role="radiogroup" aria-required="true" aria-label="Veteran"><div role="radio" aria-checked="true">No</div></div>
+      <div class="nav"><button type="button">Back</button><button type="button">Save and continue</button></div>
+      <div role="listbox" aria-required="true" aria-label="Hidden list" style="display:none"></div>
+    </form>`;
+
+  it('flags autocomplete inputs and lists custom controls with their labels and required state', () => {
+    document.body.innerHTML = WIDGETS;
+    const fields = describeFields() as Field[];
+    const by = (label: string) => fields.find((f) => f.label === label);
+    expect(by('Email')).toMatchObject({ empty: true });
+    expect(by('Email')?.combobox).toBeUndefined();
+    expect(by('Location (City)')).toMatchObject({ combobox: true, empty: true });
+    expect(by('Country')).toMatchObject({ combobox: true, empty: false }); // react-select shows the chosen option
+    expect(by('School')).toMatchObject({ combobox: true, empty: true }); // inside an ARIA 1.1 combobox
+    const customs = fields.filter((f) => f.custom).map(({ label, custom, empty, required }) => ({ label, custom, empty, required }));
+    expect(customs).toEqual([
+      { label: 'Gender', custom: 'radiogroup', empty: true, required: true },
+      { label: 'Veteran', custom: 'radiogroup', empty: false, required: true },
+      { label: 'Country', custom: 'dropdown', empty: true, required: true },
+      { label: 'Phone device type', custom: 'dropdown', empty: false, required: true },
+      { label: 'Are you authorized to work in the UAE?', custom: 'buttons', empty: true, required: true },
+      { label: 'Will you relocate?', custom: 'buttons', empty: true, required: false },
+      { label: 'Remote OK?', custom: 'buttons', empty: false, required: true },
+    ]);
+    // Only native fields are tagged for applyFill; custom controls are only ever listed.
+    expect(document.querySelectorAll('[data-jobbot-field]')).toHaveLength(4);
+  });
+
+  it('fills the plain field, never types into a combobox, never clicks, and leaves the rest for the user', () => {
+    document.body.innerHTML = WIDGETS;
+    const click = vi.fn();
+    for (const b of document.querySelectorAll('button')) b.addEventListener('click', click);
+    const plan = planFill(describeFields(), { profile: PROFILE, cover_letter: '', answers: [], cv: null });
+    expect(plan.fills.map((f: { label: string }) => f.label)).toEqual(['Email']);
+    expect(plan.skipped).toEqual([
+      'Location (City) (pick from the list)',
+      'School (pick from the list)',
+      'Gender (pick from the list)',
+      'Country (pick from the list)',
+      'Are you authorized to work in the UAE? (pick from the list)',
+    ]);
+    expect(applyFill(plan.fills, null)).toBe(1);
+    expect((document.getElementById('email') as HTMLInputElement).value).toBe('sara@example.com');
+    expect((document.getElementById('loc') as HTMLInputElement).value).toBe('');
+    expect(click).not.toHaveBeenCalled();
+  });
+
+  it('refuses to type into a combobox even when a plan says so', () => {
+    document.body.innerHTML = WIDGETS;
+    const fields = describeFields() as Field[];
+    const loc = fields.find((f) => f.label === 'Location (City)')!;
+    expect(applyFill([{ index: loc.index, kind: 'text', value: 'Dubai, UAE', label: 'Location', source: 'profile' }], null)).toBe(0);
+    expect((document.getElementById('loc') as HTMLInputElement).value).toBe('');
+  });
+});
