@@ -82,7 +82,7 @@ Every posting is checked by `src/match.ts`. Jobs that fail a rule are kept with 
 - Free-text notes per job (recruiter name, contacts, follow-ups).
 - **Contacts per job** (`bot contacts` / `contact:add`, and on the job page): recruiters, hiring managers and referrals, plus people you know at the same company, with a "ask for a referral before applying" reminder on jobs you have not applied to.
 - **Skip reasons:** skipping a job asks why (`mark <id> skipped --reason stack|seniority|salary|location|company|language|other`, or the Skip button), and `/analytics` shows the patterns.
-- **Database backup:** the daily fetch keeps a `pg_dump` of the last 14 days in `data/backups/` (`bot backup`; gzip in Node, so only `pg_dump` is needed, on any OS).
+- **Database backup and restore:** the daily fetch keeps a `pg_dump` of the last 14 days in `data/backups/` (`bot backup`; gzip in Node, so only `pg_dump` is needed, on any OS). `bot restore <file>` loads one back with `psql`, in one transaction, after a fresh backup of the database it replaces ([how](docs/troubleshooting.md#restore-a-backup)). Backups hold the database only, not `config.json`, `cv/` or `applications/`.
 
 ### Dashboard
 
@@ -315,6 +315,7 @@ npm run bot -- task:run <id>                  # run a queued background task (th
 npm run bot -- daily                         # the scheduled morning run: fetch, check:open, ai:score, notification, backup
 npm run bot -- schedule:print [--os macos|linux|windows]   # the scheduler setup for this clone and OS
 npm run bot -- backup                        # pg_dump into data/backups/<db>-YYYY-MM-DD.sql.gz (keeps 14)
+npm run bot -- restore <file> [--into db] [--yes]  # load a backup with psql; a database with tables needs --yes (backed up first)
 ```
 
 `add` JSON format:
@@ -401,7 +402,7 @@ src/
   profile.ts        your profile from cv/applicant.json (+ cv/master.json fallbacks), visa and remote-from rules
   tasks.ts          background task queue (claim, run, time out, clean up)
   notify.ts         desktop notifications per OS (macOS, Linux, Windows) for strong matches and the daily run
-  backup.ts         pg_dump + gzip of the database, keeping 14
+  backup.ts         pg_dump + gzip of the database, keeping 14; restore of a backup with psql
   followup.ts       follow-up reminders and template
   cover.ts          template cover letter
   sponsors.ts       IND recognised-sponsor register
@@ -434,7 +435,7 @@ npm run lint         # Biome lint + format check; npm run format fixes it
 - Some tests pin the original author's letters and filter results against the repository's `config.json` and `cv/master.json` (`tests/fixtures/owner-golden.json`), so they fail once you replace those files with your own.
 - Job-site requests are mocked, a fake script (`tests/fixtures/fake-claude.mjs`) stands in for Claude, and the API providers answer from mocked fetch with a dummy key, so tests run offline and use none of your Claude plan or API credit.
 - Every new feature or change ships with its tests (see `CLAUDE.md`).
-- `npm install` points git at `.githooks/`, so each commit runs Biome on the staged files. GitHub Actions runs lint, typecheck and both suites on Ubuntu on every push, and lint, typecheck and the tests that need no database on Windows.
+- `npm install` points git at `.githooks/`, so each commit runs Biome on the staged files. GitHub Actions runs on every pull request and on pushes to main (plus once a month): lint, typecheck, both suites and a build of the dashboard on Ubuntu, and typecheck and the tests that need no database on Windows.
 - The npm scripts use no shell syntax, so they run in PowerShell and cmd.exe too: `npm test -- tests/match.test.ts` runs one file on any OS (`scripts/run-tests.mjs` sets `DATABASE_URL`).
 
 ## Tech stack

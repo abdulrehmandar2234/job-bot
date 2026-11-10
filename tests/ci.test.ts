@@ -33,6 +33,14 @@ describe('.github/workflows/test.yml jobs', () => {
     assert.match(workflow, /- run: npm test\n {6}- run: npm run test:web/);
   });
 
+  it('builds the dashboard on Ubuntu, so a bundling break of its ../src imports fails CI, not the user', () => {
+    const job = workflow.slice(workflow.indexOf('\n  test:'), workflow.indexOf('\n  portable:'));
+    assert.match(
+      job,
+      /- run: npm --prefix web run build\n {8}env:\n {10}DATABASE_URL: postgres:\/\/postgres@127\.0\.0\.1:5432\/job_bot_test\n/,
+    );
+  });
+
   it('runs install, typecheck and the database-free tests on Windows, but not Biome (Ubuntu lints already)', () => {
     const job = workflow.slice(workflow.indexOf('\n  portable:'));
     assert.match(job, /os: \[windows-latest\]/);
@@ -48,9 +56,16 @@ describe('.github/workflows/test.yml jobs', () => {
 });
 
 describe('.github/dependabot.yml', () => {
-  it('opens monthly npm update PRs for the bot and the dashboard', () => {
+  it('opens monthly update PRs for the bot, the dashboard and the GitHub Actions', () => {
     for (const dir of ['"/"', '"/web"']) assert.ok(dependabot.includes(`directory: ${dir}`), dir);
-    assert.equal([...dependabot.matchAll(/interval: monthly/g)].length, 2);
-    assert.match(dependabot, /package-ecosystem: npm/);
+    assert.equal([...dependabot.matchAll(/interval: monthly/g)].length, 3);
+    assert.equal([...dependabot.matchAll(/package-ecosystem: npm/g)].length, 2);
+    assert.match(dependabot, /package-ecosystem: github-actions/);
+  });
+
+  it('groups packages that must move together into one PR (react with react-dom, vitest with its plugins)', () => {
+    const web = dependabot.slice(dependabot.indexOf('directory: "/web"'), dependabot.indexOf('github-actions'));
+    assert.match(web, /react:\n {8}patterns: \[.*"react".*"react-dom".*\]/);
+    assert.match(web, /vitest:\n {8}patterns: \[.*"vitest".*"@vitest\/\*".*\]/);
   });
 });
