@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { existsSync, mkdtempSync, readFileSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { mockFetch } from './helpers.ts';
+import { mockFetch, OWNER_MASTER } from './helpers.ts';
 import { aiAnswers, aiCoverLetter, aiHeadline, aiScore, aiSummary, applicantFacts, cvText } from '../src/ai.ts';
 import { AI_BUDGET, AiError, askClaude, CLI_KILL_GRACE_MS } from '../src/ai-providers.ts';
 import { aiScore as aiScoreCommand, MAX_TIMEOUTS_IN_A_ROW } from '../src/commands/ai.ts';
@@ -152,7 +152,7 @@ describe('prompts', () => {
       utimesSync(file, later, later);
       assert.match(cvText(), /Changed Title For The Cache Test/);
     } finally {
-      delete process.env.JOB_BOT_MASTER;
+      process.env.JOB_BOT_MASTER = OWNER_MASTER; // what tests/helpers.ts set, for the tests after this one
     }
   });
 

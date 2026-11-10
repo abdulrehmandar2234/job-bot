@@ -13,7 +13,7 @@ import { validateConfig } from '../src/settings.ts';
 import { legacyCvHtml } from './fixtures/cv-classic-legacy.ts';
 
 const read = (f: string) => JSON.parse(readFileSync(path('cv', f), 'utf8')) as Cv;
-const master = read('master.json');
+const master = JSON.parse(readFileSync(path('tests', 'fixtures', 'master-owner.json'), 'utf8')) as Cv;
 const example = read('master.example.json');
 const hasChrome = Boolean(resolveChrome(config.chromePath));
 const text = (html: string) =>

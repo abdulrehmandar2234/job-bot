@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import './owner-cv.ts'; // the master CV for match.ts's skill list
 import { path } from '../src/config.ts';
 import { SKILLS } from '../src/match.ts';
 import { addSkills, backupDir, confirmSkills, cvItem, groupFor, OTHER_GROUP, parseSkills, SKILL_NAMES } from '../src/cv/confirm-skills.ts';

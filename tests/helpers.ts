@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { mock } from 'node:test';
 import type { RawJob } from '../src/sources/index.ts';
+import './owner-cv.ts';
 
 // Tests run against their own database (see package.json "test"); refuse anything else so the real job_bot is never touched.
 // A suffix (job_bot_test_bot_<name>) lets parallel worktrees use separate databases.
@@ -19,10 +20,8 @@ process.env.JOB_BOT_NOTIFY ||= 'off';
 // letters, prompts and filters they check do not depend on whoever runs them. Suites that test other profiles set
 // JOB_BOT_APPLICANT themselves (src/profile.ts reads it on every call).
 process.env.JOB_BOT_APPLICANT ||= join(import.meta.dirname, 'fixtures', 'applicant-owner.json');
-// The CV likewise: cv/master.json is the user's own and gitignored. Tests use the owner's CV with placeholder contact
-// details (tests/fixtures/master-owner.json); suites about other CVs set JOB_BOT_MASTER themselves.
-export const OWNER_MASTER = join(import.meta.dirname, 'fixtures', 'master-owner.json');
-process.env.JOB_BOT_MASTER ||= OWNER_MASTER;
+// The CV likewise (tests/owner-cv.ts); suites about other CVs set JOB_BOT_MASTER themselves.
+export { OWNER_MASTER } from './owner-cv.ts';
 
 // config.json is personal and gitignored too: tests use a temp copy of the shipped config.default.json, so they never
 // depend on (or write) whoever runs them. Suites that test other settings set JOB_BOT_CONFIG themselves.
