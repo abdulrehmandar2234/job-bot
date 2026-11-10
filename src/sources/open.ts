@@ -8,7 +8,7 @@ import type { Job } from '../types.ts';
 
 export type OpenState = 'open' | 'closed' | 'unknown';
 export type OpenResult = { state: OpenState; reason: string };
-export type OpenJob = Pick<Job, 'id' | 'source' | 'url'> & { title?: string };
+export type OpenJob = Pick<Job, 'id' | 'source' | 'url'> & { title?: string; company?: string };
 
 const open = (reason: string): OpenResult => ({ state: 'open', reason });
 const closed = (reason: string): OpenResult => ({ state: 'closed', reason });
@@ -170,14 +170,14 @@ export function openCheck(job: OpenJob): { url: string; run: () => Promise<OpenR
       // Himalayas answers its job pages to bots with a 403, but its public search API lists open jobs: a job found
       // there by its title is open. Not found proves nothing (the search returns a limited page), so that stays unknown.
       if (!job.title) break;
-      const url = `https://himalayas.app/jobs/api/search?q=${encodeURIComponent(job.title)}`;
+      const url = himalayasSearchUrl(job.title, job.company);
       const guid = `https://himalayas.app/companies/${job.id.replace(/^himalayas:/, '')}`;
       return via(url, async () => {
         const res = await request(url, OPTS);
         const jobs: { guid?: string }[] = JSON.parse(res.body).jobs ?? [];
         return jobs.some((j) => j.guid === guid)
           ? open('listed in a Himalayas search')
-          : unknown('not found by a Himalayas search for its title');
+          : unknown('not found by a Himalayas search for its title and company');
       });
     }
     case 'linkedin': {
@@ -187,6 +187,13 @@ export function openCheck(job: OpenJob): { url: string; run: () => Promise<OpenR
   }
   return via(job.url, () => page(job.url));
 }
+
+/**
+ * Himalayas' search for one job: its title and company. The title alone matches hundreds of jobs and the API returns
+ * only the first 20, so a job with a common title ("Senior Software Engineer") was not found; the company narrows it.
+ */
+export const himalayasSearchUrl = (title: string, company?: string) =>
+  `https://himalayas.app/jobs/api/search?q=${encodeURIComponent(company ? `${title} ${company}` : title)}`;
 
 /** Is the posting still open? Never throws: anything unclear is `unknown`. */
 export async function isOpen(job: OpenJob): Promise<OpenResult> {
