@@ -8,9 +8,10 @@ export type { RawJob };
 
 /**
  * A source's postings. `partialError` is set when a later page or detail call failed: the postings collected
- * before it are still returned (and saved), and fetch records the failure in fetch_runs.errors.
+ * before it are still returned (and saved), and fetch records the failure in fetch_runs.errors. `skipped` says why
+ * a source did not run at all (e.g. no API key): fetch prints it instead of "0 postings".
  */
-export type Fetched = RawJob[] & { partialError?: string };
+export type Fetched = RawJob[] & { partialError?: string; skipped?: string };
 
 /** Keeps what a source collected before `e`; with nothing collected yet, the error is simply rethrown. */
 export function partial(jobs: RawJob[], e: unknown): Fetched {

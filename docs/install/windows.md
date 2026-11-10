@@ -229,7 +229,7 @@ Open <http://localhost:3100>. Leave the PowerShell window with `npm run web` ope
 
 ## 12. Schedule the daily run
 
-`npm run bot -- daily` is the morning run: fetch, check which postings have closed, AI review, a notification and a database backup, logged to `data\fetch.log`. On Windows, Task Scheduler starts it at 9:00, and `-StartWhenAvailable` runs a missed 9:00 as soon as the computer is on again. Print the setup for this clone, with your paths and your Node filled in:
+`npm run bot -- daily` is the morning run: fetch, check which postings have closed, AI review, a notification, a database backup and a cleanup of leftover files, logged to `data\fetch.log`. On Windows, Task Scheduler starts it at 9:00, and `-StartWhenAvailable` runs a missed 9:00 as soon as the computer is on again. Print the setup for this clone, with your paths and your Node filled in:
 
 ```powershell
 npm run bot -- schedule:print

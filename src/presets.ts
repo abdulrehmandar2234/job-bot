@@ -12,7 +12,7 @@ import { path, type SettingsError } from './settings.ts';
 export const PRESETS_DIR = path('presets');
 
 /** Title words every software role matches, whatever the stack. */
-export const BASE_ROLE_INCLUDE = 'engineer|developer|full.?stack|back.?end|front.?end|software|web';
+export const BASE_ROLE_INCLUDE = 'engineer|developer|full.?stack|back.?end|front.?end|software|web|\\bsde\\b';
 
 const text = z.string().min(1);
 const regex = text.refine((s) => {

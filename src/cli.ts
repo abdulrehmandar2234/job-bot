@@ -86,15 +86,13 @@ const NO_CONFIG = [
 // A fresh clone has config.default.json only: every command (setup and settings:check too) starts from a copy.
 ensureConfigFile();
 
-const load = commands[cmd ?? ''];
-if (!load) {
-  console.log(`Commands:
+const HELP = `Commands:
   setup                           first run: questions for your profile and target countries (cv/applicant.json, config.json)
   sponsors:update                 download Dutch IND recognised-sponsor register
   fetch [--company name]          pull jobs from company boards, filter + score
   rescore                         re-apply filters/scoring to stored jobs (after config changes)
   discover <slug...> [--add]      find a company's job board (6 ATS, or a myworkdayjobs URL); --add saves hits
-  list [--status new] [--country AE|SA|NL] [--min 60] [--limit 30]
+  list [--status new] [--country NL] [--min 60] [--limit 30]
   show <id> [--full]              details (+ full description)
   prepare <id> [--cv cluster]     default CV (or --cv version); checks the posting is still open first (--force
                                   skips that); --letter also writes the cover letter
@@ -107,7 +105,8 @@ if (!load) {
   cv:templates                    list the CV designs (default: config.json cvTemplate, else classic)
   cv:template <id> <template>     use a CV design for this job and re-render its CV as a new version
   cv:preview <template> [--pdf]   the master CV in a design (HTML, or data/previews/<template>.pdf)
-  cv:feedback <id> --feedback "…" AI revises the job's CV with your feedback (master CV content only, a new version)
+  cv:feedback <id> --feedback "…"
+                                  AI revises the job's CV with your feedback (master CV content only, a new version)
          [--add-skills "Docker,GraphQL"]  first add job skills you confirm you have to the master CV (with a backup)
   cv:review <id>                  AI suggests how to improve the job's CV for this job (stored on the job)
   letter:pdf <id>                 print the cover letter to cover-letter.pdf in the job's applications/ folder
@@ -137,14 +136,51 @@ if (!load) {
   settings:check --kind config|applicant [--file x.json]   validate settings (JSON result)
   settings:save --kind config|applicant [--file x.json]    validate, then save if valid
   task:run <id>                   run a queued background task (the dashboard starts these)
-  daily                           the scheduled morning run: fetch, check:open, ai:score, a notification, backup
-                                  (output in data/fetch.log)
+  daily                           the scheduled morning run: fetch, check:open, ai:score, a notification, backup,
+                                  cleanup (output in data/fetch.log)
   schedule:print [--os macos|linux|windows]
                                   print the scheduler setup (launchd, systemd/cron, Task Scheduler) for this clone
   backup                          pg_dump of the database into data/backups/<db>-YYYY-MM-DD.sql.gz (keeps 14)
   restore <file> [--into db] [--yes]
                                   load a backup with psql (the database only, not config.json or cv/); a database
-                                  that has tables needs --yes, and is backed up first`);
+                                  that has tables needs --yes, and is backed up first`;
+
+/** A command's own line of HELP without its description, e.g. "show <id> [--full]". */
+const usageLine = (name: string) => (HELP.split('\n').find((l) => l.startsWith(`  ${name} `)) ?? name).trim().split(/\s{2,}/)[0];
+
+// Commands whose first argument is a job id: without it they print their line of the help below and exit 1.
+const NEEDS_ID = [
+  'show',
+  'prepare',
+  'letter',
+  'summary',
+  'headline',
+  'cv:tailor',
+  'cv:template',
+  'cv:feedback',
+  'cv:review',
+  'letter:pdf',
+  'answer',
+  'prep',
+  'follow-up',
+  'followed-up',
+  'custom',
+  'mark',
+  'contacts',
+  'contact:add',
+  'ats',
+];
+
+const load = commands[cmd ?? ''];
+if (cmd && !load) {
+  console.error(`Unknown command: ${cmd}`);
+  process.exitCode = 1;
+}
+if (!load) {
+  console.log(HELP);
+} else if (NEEDS_ID.includes(cmd) && !args[0]) {
+  console.error(`Usage: npm run bot -- ${usageLine(cmd)}`);
+  process.exitCode = 1;
 } else {
   try {
     if (!NO_CONFIG.includes(cmd)) loadConfig();

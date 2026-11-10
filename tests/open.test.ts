@@ -66,6 +66,25 @@ describe('isOpen: company ATS APIs', () => {
     assert.equal((await isOpen(job('smartrecruiters:acme:99'))).state, 'closed');
   });
 
+  it('himalayas: its search API, not the job page that answers bots with a 403; not found stays unknown', async () => {
+    net = mockFetch({
+      'himalayas.app/jobs/api/search?q=Senior%20Frontend%20Engineer': {
+        jobs: [{ guid: 'https://himalayas.app/companies/acme/jobs/senior-frontend-engineer-1' }],
+      },
+      'himalayas.app/companies/': status(403),
+    });
+    const h = (slug: string) => ({
+      ...job(`himalayas:acme/jobs/${slug}`, `https://himalayas.app/companies/acme/jobs/${slug}`),
+      title: 'Senior Frontend Engineer',
+    });
+    assert.deepEqual(await isOpen(h('senior-frontend-engineer-1')), { state: 'open', reason: 'listed in a Himalayas search' });
+    assert.equal((await isOpen(h('senior-frontend-engineer-2'))).state, 'unknown');
+    assert.ok(
+      net.calls.every((u) => u.includes('/jobs/api/search')),
+      'the job page is never requested',
+    );
+  });
+
   it('ashby: checks the board list, loaded once for all jobs of a company', async () => {
     net = mockFetch({ 'api.ashbyhq.com/posting-api/job-board/acme': { jobs: [{ id: 'q1' }] } });
     assert.equal((await isOpen(job('ashby:acme:q1'))).state, 'open');

@@ -243,7 +243,7 @@ Open <http://localhost:3100>. Leave the Terminal window with `npm run web` open:
 
 ## 12. Schedule the daily run
 
-`npm run bot -- daily` is the morning run: fetch, check which postings have closed, AI review, a notification and a database backup, logged to `data/fetch.log`. On macOS, launchd starts it at 9:00 through `scripts/daily-fetch.sh`, a small wrapper that gives launchd a PATH.
+`npm run bot -- daily` is the morning run: fetch, check which postings have closed, AI review, a notification, a database backup and a cleanup of leftover files, logged to `data/fetch.log`. On macOS, launchd starts it at 9:00 through `scripts/daily-fetch.sh`, a small wrapper that gives launchd a PATH.
 
 Print the setup for this clone, with your paths filled in:
 

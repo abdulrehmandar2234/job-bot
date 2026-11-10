@@ -196,7 +196,10 @@ describe('recording a sent follow-up', () => {
     const id = await insertJob('fu:cli');
     assert.match(await bot(['followed-up', id]), /fu:cli: follow-up 1 recorded\. Next reminder in 7 days/);
     assert.match(await bot(['followed-up', id]), /follow-up 2 recorded\. No more reminders for this job\./);
-    assert.match(await bot(['followed-up', 'nope']), /Usage: followed-up <id>/);
+    await assert.rejects(
+      bot(['followed-up', 'nope']),
+      (e: { code: number; stderr: string }) => e.code === 1 && /Not found: nope/.test(e.stderr),
+    );
   });
 
   it('follow-ups lists the due jobs with their wait', async () => {

@@ -557,6 +557,6 @@ describe('task:run (CLI worker)', () => {
     await claim(task.id);
     assert.match(await taskRun(task.id), /is not queued/);
     assert.equal((await getTask(task.id)).pid, process.pid);
-    assert.match(await taskRun('abc'), /Usage: task:run <id>/);
+    await assert.rejects(taskRun('abc'), (e: { code: number; stderr: string }) => e.code === 1 && /Usage: task:run <id>/.test(e.stderr));
   });
 });

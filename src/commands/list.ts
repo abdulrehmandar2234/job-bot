@@ -1,9 +1,11 @@
-import { getJob, pool, type Job } from '../db.ts';
-import { row, type Flags, notFound } from './shared.ts';
+import { getJob, JOB_STATUSES, pool, type Job, type JobStatus } from '../db.ts';
+import { row, type Flags, notFound, usage } from './shared.ts';
 
 /** list [--status new] [--country AE] [--min 60] [--limit 30] */
 export async function list(_args: string[], flags: Flags) {
   const status = flags.status ?? 'new';
+  if (!JOB_STATUSES.includes(status as JobStatus))
+    return usage(`list [--status ${JOB_STATUSES.join('|')}] [--country NL] [--min 60] [--limit 30]`);
   const where = ['status = $1'];
   const params: (string | number)[] = [status];
   if (flags.country) {

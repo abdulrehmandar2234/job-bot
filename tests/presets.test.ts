@@ -97,6 +97,14 @@ describe('presets', () => {
     assert.equal(new RegExp(cfg.roleInclude, 'i').test('Senior Python Developer'), true);
   });
 
+  it('every stack keeps "SDE" titles (common in India) and not words that merely contain it', () => {
+    for (const cfg of [DEFAULTS, ...loadStacks().map((st) => applyStacks(DEFAULTS, [st]) as typeof DEFAULTS)]) {
+      const include = new RegExp(cfg.roleInclude, 'i');
+      for (const title of ['SDE II', 'SDE-3 (Backend)', 'Senior SDE']) assert.equal(include.test(title), true, title);
+      assert.equal(include.test('Inside Sales Lead'), false);
+    }
+  });
+
   it("india: the tech hubs match India, and Pakistan's Hyderabad (Sindh) stays Pakistan", () => {
     const [india, pk] = pick(loadMarkets(), ['india', 'pakistan'], 'markets');
     const inMatch = new RegExp(india.countries.IN.match as string, 'i');

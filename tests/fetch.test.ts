@@ -191,6 +191,43 @@ describe('fetch run row', () => {
     assert.doesNotMatch(out, /All \d+ sources failed/);
   });
 
+  it('prints a source that did not run as skipped, not as 0 postings, and leaves it out of "all failed"', async () => {
+    const boards = config.remote.boards;
+    const keys = { id: process.env.ADZUNA_APP_ID, key: process.env.ADZUNA_APP_KEY };
+    delete process.env.ADZUNA_APP_ID;
+    delete process.env.ADZUNA_APP_KEY;
+    const out: string[] = [];
+    const log = mock.method(console, 'log', (l: string) => out.push(l));
+    const err = mock.method(console, 'error', (l: string) => out.push(l));
+    const net = mockFetch({ 'boards/offone/jobs': offline });
+    const scale = timing.scale;
+    timing.scale = 0;
+    noSources();
+    config.companies = [{ name: 'One', ats: 'greenhouse', token: 'offone' }];
+    config.remote.enabled = true;
+    config.remote.boards = ['adzuna'];
+    let code: typeof process.exitCode;
+    try {
+      await fetch([], {});
+    } finally {
+      code = process.exitCode;
+      process.exitCode = undefined;
+      timing.scale = scale;
+      net.restore();
+      config.remote.boards = boards;
+      restore();
+      log.mock.restore();
+      err.mock.restore();
+      if (keys.id !== undefined) process.env.ADZUNA_APP_ID = keys.id;
+      if (keys.key !== undefined) process.env.ADZUNA_APP_KEY = keys.key;
+    }
+    const text = out.join('\n');
+    assert.match(text, /^- adzuna: skipped \(set ADZUNA_APP_ID and ADZUNA_APP_KEY/m);
+    assert.doesNotMatch(text, /adzuna: 0 postings/);
+    assert.match(text, /^✗ All 1 sources failed/m);
+    assert.equal(code, 1);
+  });
+
   it('a full fetch prunes old filtered postings; a --company fetch does not, nor one where every source failed', async () => {
     const addOld = () =>
       pool.query(

@@ -61,6 +61,11 @@ async function fetchAll(_args: string[], flags: Flags): Promise<{ allFailed: boo
         ran++;
         try {
           const jobs = await c.load();
+          if (jobs.skipped) {
+            ran--; // not run, so it neither failed nor counts towards "all sources failed"
+            console.log(`- ${c.name}: skipped (${jobs.skipped})`);
+            continue;
+          }
           if (!jobs.length && jobs.partialError) failed.push({ company: c.name, error: jobs.partialError });
           // One posting the database rejects must not cost the rest of the source.
           let skipped = 0;
