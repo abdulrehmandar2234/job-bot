@@ -275,6 +275,37 @@ ${signature(loadProfile())}
 }
 
 /**
+ * Writes the CV headline for one job: the line under the candidate's name ("Senior Full Stack Engineer · Laravel,
+ * React & Node.js"), from the CV and the job description. With `feedback`, rewrites the job's current headline
+ * (job.cv_headline) to follow it. The headline command checks the result against the master CV in code.
+ */
+export async function aiHeadline(job: Job, feedback?: string): Promise<Revised<'headline'>> {
+  const revising = !!feedback?.trim();
+  const system = `You write the headline of one candidate's CV, tailored to one job: the one line under the name. Rules:
+- Use ONLY facts in the CV. Never name a skill, technology, employer, certification or number the CV does not show.
+- A role title the CV supports, worded the way this job names the role where that is true (e.g. "Full Stack Engineer"
+  for a "Full Stack Developer" CV only if the CV shows full stack work), then 2-4 of the job's main technologies that
+  the CV shows, e.g. "Senior Full Stack Engineer · Laravel, React & Node.js".
+- Keep the seniority the CV shows (Senior, Lead, ...); never raise it.
+- One line, at most 90 characters, plain text: no quotes, no full stop at the end, no emoji, no company name.
+- No clichés ("passionate", "rockstar", "ninja", "results-driven").${revising ? feedbackRules('headline') : ''}`;
+  const res = await askAi<{ headline: string; note?: string }>(
+    `CV:\n${cvText()}\n\nJOB:\n${jobText(job)}${revising ? feedbackPrompt('headline', job.cv_headline, feedback!) : ''}`,
+    textSchema('headline', revising),
+    'letter',
+    system,
+  );
+  return {
+    headline: res.headline
+      .replace(/\s+/g, ' ')
+      .trim()
+      .replace(/^["“]|["”]$/g, '')
+      .replace(/\.$/, ''),
+    note: (res.note ?? '').trim(),
+  };
+}
+
+/**
  * Writes the professional summary at the top of the CV for one job, from the CV and the job description. With
  * `feedback`, rewrites the job's current summary (job.cv_summary) to follow it.
  */

@@ -26,6 +26,7 @@ export const TASK_TIMEOUT_MS: Record<TaskKind, number> = {
   follow_up: AI_TASK_MS,
   letter: AI_TASK_MS,
   summary: AI_TASK_MS,
+  headline: AI_TASK_MS,
   tailored_cv: 4 * 60_000,
   cv_template: 4 * 60_000,
   cv_feedback: AI_TASK_MS,
@@ -120,6 +121,8 @@ export function cliArgs(task: Pick<Task, 'kind' | 'job_id' | 'args'>, questionsF
       return ['letter', job(), ...feedbackArgs(task.args)];
     case 'summary':
       return ['summary', job(), ...feedbackArgs(task.args)];
+    case 'headline':
+      return ['headline', job(), ...feedbackArgs(task.args)];
     case 'tailored_cv':
       return ['cv:tailor', job()];
     case 'cv_template': {

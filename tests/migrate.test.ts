@@ -187,7 +187,7 @@ describe('migration 014 (CV templates)', () => {
     await runMigrations(db, d);
     await db.query(`INSERT INTO jobs (id, source, company, title, url, cv_summary) VALUES ('a', 's', 'c', 't', 'u', 'Kept.')`);
     await db.query(`INSERT INTO tasks (kind, job_id) VALUES ('tailored_cv', 'a')`);
-    assert.deepEqual(await runMigrations(db), ['014_cv_templates', '015_cover_letter_ai_error']);
+    assert.deepEqual(await runMigrations(db), ['014_cv_templates', '015_cover_letter_ai_error', '016_cv_headline']);
     assert.deepEqual((await db.query('SELECT kind FROM tasks')).rows, [{ kind: 'tailored_cv' }]);
     assert.deepEqual((await db.query('SELECT cv_summary FROM jobs')).rows, [{ cv_summary: 'Kept.' }]);
   });
@@ -199,9 +199,25 @@ describe('migration 015 (why the AI letter failed)', () => {
     for (const f of migrationFiles().filter((f) => f < '015')) writeFileSync(join(d, f), readFileSync(join(MIGRATIONS_DIR, f), 'utf8'));
     await runMigrations(db, d);
     await db.query(`INSERT INTO jobs (id, source, company, title, url, cover_letter) VALUES ('a', 's', 'c', 't', 'u', 'Dear c')`);
-    assert.deepEqual(await runMigrations(db), ['015_cover_letter_ai_error']);
+    assert.deepEqual(await runMigrations(db), ['015_cover_letter_ai_error', '016_cv_headline']);
     assert.deepEqual((await db.query('SELECT cover_letter, cover_letter_ai_error FROM jobs')).rows, [
       { cover_letter: 'Dear c', cover_letter_ai_error: null },
     ]);
+  });
+});
+
+describe('migration 016 (CV headline)', () => {
+  it('adds the headline columns and the headline task kind to a database at 015, keeping its summaries', async () => {
+    const d = dir({});
+    for (const f of migrationFiles().filter((f) => f < '016')) writeFileSync(join(d, f), readFileSync(join(MIGRATIONS_DIR, f), 'utf8'));
+    await runMigrations(db, d);
+    await db.query(`INSERT INTO jobs (id, source, company, title, url, cv_summary) VALUES ('a', 's', 'c', 't', 'u', 'Kept.')`);
+    await db.query(`INSERT INTO tasks (kind, job_id) VALUES ('summary', 'a')`);
+    assert.deepEqual(await runMigrations(db), ['016_cv_headline']);
+    const { rows } = await db.query('SELECT cv_summary, cv_headline, cv_headline_at, cv_headline_edited_at FROM jobs');
+    assert.deepEqual(rows, [{ cv_summary: 'Kept.', cv_headline: null, cv_headline_at: null, cv_headline_edited_at: null }]);
+    await db.query(`INSERT INTO tasks (kind, job_id) VALUES ('headline', 'a')`);
+    assert.deepEqual((await db.query('SELECT kind FROM tasks ORDER BY id')).rows, [{ kind: 'summary' }, { kind: 'headline' }]);
+    await assert.rejects(db.query(`INSERT INTO tasks (kind) VALUES ('bogus')`), /tasks_kind_check/);
   });
 });

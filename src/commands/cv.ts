@@ -70,21 +70,24 @@ function baseCluster(j: { cv_version: string | null; cluster: string | null }): 
 }
 
 /**
- * cv:tailor <id>: a one-off CV version for the job whose summary is the job's CV summary (`bot summary <id>`), in a
- * new folder every time. Sets it as the job's CV, which "Download CV" on the job page serves.
+ * cv:tailor <id>: a one-off CV version for the job with the job's CV headline (`bot headline <id>`) as its title and
+ * the job's CV summary (`bot summary <id>`), whichever of the two it has, in a new folder every time. Sets it as the
+ * job's CV, which "Download CV" on the job page serves.
  */
 export async function cvTailor(args: string[]) {
   const j = await getJob(args[0]);
   if (!j) return console.log('Not found');
-  if (!j.cv_summary) {
-    console.error(`No CV summary for this job yet: npm run bot -- summary ${j.id}`);
+  if (!j.cv_summary && !j.cv_headline) {
+    console.error(`No CV headline or summary for this job yet: npm run bot -- headline ${j.id} (or summary ${j.id})`);
     process.exitCode = 1;
     return;
   }
-  const meta = await customVersion(jobSlug(j), baseCluster(j), j.id, { summary: j.cv_summary }, jobTemplate(j));
+  const overrides = { ...(j.cv_headline && { title: j.cv_headline }), ...(j.cv_summary && { summary: j.cv_summary }) };
+  const meta = await customVersion(jobSlug(j), baseCluster(j), j.id, overrides, jobTemplate(j));
   await pool.query('UPDATE jobs SET cv_version = $2 WHERE id = $1', [j.id, meta.id]);
+  const used = [j.cv_headline && 'headline', j.cv_summary && 'summary'].filter(Boolean).join(' and ');
   console.log(`${j.company} — ${j.title}`);
-  console.log(`CV version : ${meta.id} (with the CV summary for this job)`);
+  console.log(`CV version : ${meta.id} (with the CV ${used} for this job)`);
   console.log(`Template   : ${jobTemplate(j)}`);
   console.log(`CV file    : ${cvFile(meta.id)}`);
 }

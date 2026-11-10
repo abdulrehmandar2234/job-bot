@@ -286,6 +286,48 @@ describe('CLI', () => {
     assert.deepEqual([j.cv_summary, j.cv_summary_edited_at], ['Laravel engineer.', null]);
   });
 
+  it('headline writes a CV headline for the job, rewrites it with feedback, and cv:tailor puts it in a CV', async () => {
+    const id = idOf(await bot(['add', '--file', addFile([posting()])]));
+    const env = { JOB_BOT_MASTER: path('cv', 'master.example.json') };
+    const out = await bot(['headline', id], {
+      ...env,
+      FAKE_CLAUDE_OUT: JSON.stringify({ headline: 'Senior Full Stack Engineer · React & Node.js' }),
+    });
+    assert.match(out, /CV headline: \(written by AI for this job\)\nSenior Full Stack Engineer · React & Node\.js\n/);
+    let j = await getJob(id);
+    assert.equal(j.cv_headline, 'Senior Full Stack Engineer · React & Node.js');
+    assert.ok(j.cv_headline_at instanceof Date);
+
+    await pool.query('UPDATE jobs SET cv_headline_edited_at = now() WHERE id = $1', [id]);
+    const again = await bot(['headline', id, '--feedback=shorter'], {
+      ...env,
+      FAKE_CLAUDE_OUT: JSON.stringify({ headline: 'Full Stack Engineer', note: '' }),
+    });
+    assert.match(again, /CV headline: \(rewritten by AI with your feedback\)\nFull Stack Engineer\n/);
+    j = await getJob(id);
+    assert.deepEqual([j.cv_headline, j.cv_headline_edited_at], ['Full Stack Engineer', null]);
+  });
+
+  it('headline keeps the current one when the AI names a skill the CV does not show, or fails', async () => {
+    const id = idOf(await bot(['add', '--file', addFile([posting()])]));
+    await pool.query(`UPDATE jobs SET cv_headline = 'Kept' WHERE id = $1`, [id]);
+    const env = { JOB_BOT_MASTER: path('cv', 'master.example.json') };
+    for (const [extra, why] of [
+      [
+        { FAKE_CLAUDE_OUT: JSON.stringify({ headline: 'Senior Engineer · Kafka & React' }) },
+        /The AI headline was not used, the headline is unchanged: it names Kafka, which your CV does not show/,
+      ],
+      [{ FAKE_CLAUDE_FAIL: 'offline' }, /AI headline failed, the headline is unchanged: .*offline/],
+    ] as const) {
+      await assert.rejects(bot(['headline', id], { ...env, ...extra }), (e: { stderr: string; code: number }) => {
+        assert.match(e.stderr, why);
+        assert.equal(e.code, 1);
+        return true;
+      });
+    }
+    assert.equal((await getJob(id)).cv_headline, 'Kept');
+  });
+
   it('summary leaves the current summary alone when the AI fails', async () => {
     const id = idOf(await bot(['add', '--file', addFile([posting()])]));
     await pool.query(`UPDATE jobs SET cv_summary = 'Kept.' WHERE id = $1`, [id]);
@@ -298,10 +340,10 @@ describe('CLI', () => {
     assert.match(await bot(['summary', 'nope']), /Not found/);
   });
 
-  it('cv:tailor refuses a job without a CV summary', async () => {
+  it('cv:tailor refuses a job without a CV headline or summary', async () => {
     const id = idOf(await bot(['add', '--file', addFile([posting()])]));
     await assert.rejects(bot(['cv:tailor', id]), (e: { stderr: string; code: number }) => {
-      assert.match(e.stderr, /No CV summary for this job yet: npm run bot -- summary/);
+      assert.match(e.stderr, /No CV headline or summary for this job yet: npm run bot -- headline \S+ \(or summary \S+\)/);
       assert.equal(e.code, 1);
       return true;
     });
