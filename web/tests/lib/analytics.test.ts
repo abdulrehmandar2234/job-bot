@@ -68,6 +68,21 @@ describe('funnel', () => {
     expect(delta).toEqual({ matched: 2, prepared: 2, applied: 1, interview: 0, offer: 0, rejected: 0, skipped: 0 });
   });
 
+  it('does not count an undone "Mark applied" with a follow-up logged before the Undo', async () => {
+    const before = await funnel();
+    const undone = await insertJob({ id: 'undone-fu', status: 'prepared' });
+    await history(
+      undone,
+      ['new', 'prepared', 11],
+      ['prepared', 'applied', 10],
+      ['applied', 'applied', 9, 'Follow-up 1 sent'],
+      ['applied', 'prepared', 8, UNDO_NOTE],
+    );
+    const after = await funnel();
+    expect(after.applied - before.applied).toBe(0);
+    expect(after.prepared - before.prepared).toBe(1);
+  });
+
   it('rate divides, and is null for an empty base', () => {
     expect(rate(1, 4)).toBe(0.25);
     expect(rate(0, 0)).toBeNull();
@@ -169,6 +184,42 @@ describe('weeklyActivity', () => {
     expect(delta[11]).toBe(1);
     expect(delta.reduce((s, d) => s + d, 0)).toBe(1);
     expect((await funnel()).applied - f.applied).toBe(1);
+  });
+});
+
+describe('follow-up entries (applied → applied)', () => {
+  it('an undone move to applied with a follow-up before the Undo is not an application in any week', async () => {
+    const before = await weeklyActivity();
+    const undone = await insertJob({ id: 'fu-undone', status: 'prepared' });
+    await history(
+      undone,
+      ['prepared', 'applied', 10],
+      ['applied', 'applied', 3, 'Follow-up 1 sent'],
+      ['applied', 'prepared', 2, UNDO_NOTE],
+    );
+    const after = await weeklyActivity();
+    expect(after.reduce((n, w, i) => n + w.applied - before[i].applied, 0)).toBe(0);
+  });
+
+  it('an application with follow-ups counts once, dated by the move to applied, and its reply time still measures', async () => {
+    const before = await weeklyActivity();
+    const f = await funnel();
+    // applied_at was reset to today (e.g. a later status set again); the history keeps the real date, 21 days back.
+    const j = await insertJob({ id: 'fu-kept', status: 'interview', applied_at: new Date() });
+    await history(
+      j,
+      ['new', 'applied', 21],
+      ['applied', 'applied', 14, 'Follow-up 1 sent'],
+      ['applied', 'applied', 7, 'Follow-up 2 sent'],
+      ['applied', 'interview', 1],
+    );
+    const after = await weeklyActivity();
+    const delta = after.map((w, i) => w.applied - before[i].applied);
+    expect(delta[8]).toBe(1);
+    expect(delta.reduce((s, d) => s + d, 0)).toBe(1);
+    expect((await funnel()).applied - f.applied).toBe(1);
+    expect((await funnel()).interview - f.interview).toBe(1);
+    expect((await responseDays()).find((r) => r.id === j)!.days).toBeCloseTo(20, 0);
   });
 });
 

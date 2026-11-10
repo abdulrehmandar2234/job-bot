@@ -34,13 +34,11 @@ export async function setStatus(_prev: TextFormState, formData: FormData): Promi
         `UPDATE jobs SET status = $2, applied_at = CASE WHEN $2 = 'applied' THEN now() ELSE applied_at END WHERE id = $1`,
         [id, status],
       );
-      await client.query('INSERT INTO job_events (job_id, from_status, to_status, note, reason) VALUES ($1, $2, $3, $4, $5)', [
-        id,
-        job.status,
-        status,
-        note,
-        reason,
-      ]);
+      // prev_applied_at: applied_at before this change (the locked row), which Undo puts back.
+      await client.query(
+        'INSERT INTO job_events (job_id, from_status, to_status, note, reason, prev_applied_at) VALUES ($1, $2, $3, $4, $5, $6)',
+        [id, job.status, status, note, reason, job.applied_at],
+      );
     });
     refresh();
   });
@@ -51,7 +49,8 @@ const changedElsewhere = (status: string) => `This job changed to ${status} in a
 /**
  * Undo on the job page's History: moves the job back along its latest status change (canUndo), in one transaction
  * with the job locked, and logs that as a change with the note "undo". `event` is the history row the button showed;
- * when a newer change came in since, nothing changes. Undoing a move to applied puts applied_at back as it was, and
+ * when a newer change came in since, nothing changes. Undoing a move to applied puts applied_at back as it was (the
+ * reverted row's prev_applied_at, or replayed from the history for rows older than migration 018), and
  * undoing a move away from skipped keeps that skip's reason.
  */
 export async function undoStatus(_prev: TextFormState, formData: FormData): Promise<TextFormState> {
@@ -74,19 +73,21 @@ export async function undoStatus(_prev: TextFormState, formData: FormData): Prom
         if (e.note === UNDO_NOTE) kept.pop();
         else kept.push(e);
       }
-      // Every move to applied stamps applied_at = now() in the transaction that logs it, so the row's `at` is that
-      // stamp: before `last`, applied_at was the latest kept move to applied's, or never set.
-      const appliedAt = last.to_status === 'applied' ? (kept.findLast((e) => e.to_status === 'applied')?.at ?? null) : job.applied_at;
+      // Only a move to applied changes applied_at. Rows since migration 018 keep the value from before the change
+      // (prev_applied_at). An older row has NULL there, so the value is rebuilt from the history: every move to
+      // applied stamps applied_at = now() in the transaction that logs it, so the row's `at` is that stamp, and before
+      // `last` applied_at was the latest kept move to applied's, or never set.
+      const appliedAt =
+        last.to_status === 'applied'
+          ? (last.prev_applied_at ?? kept.findLast((e) => e.to_status === 'applied')?.at ?? null)
+          : job.applied_at;
       const reason = last.from_status === 'skipped' ? (kept.findLast((e) => e.to_status === 'skipped')?.reason ?? null) : null;
 
       await client.query('UPDATE jobs SET status = $2, applied_at = $3 WHERE id = $1', [id, last.from_status, appliedAt]);
-      await client.query('INSERT INTO job_events (job_id, from_status, to_status, note, reason) VALUES ($1, $2, $3, $4, $5)', [
-        id,
-        last.to_status,
-        last.from_status,
-        UNDO_NOTE,
-        reason,
-      ]);
+      await client.query(
+        'INSERT INTO job_events (job_id, from_status, to_status, note, reason, prev_applied_at) VALUES ($1, $2, $3, $4, $5, $6)',
+        [id, last.to_status, last.from_status, UNDO_NOTE, reason, job.applied_at],
+      );
     });
     refresh();
   });

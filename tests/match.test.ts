@@ -3,11 +3,14 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { daysAgo, raw } from './helpers.ts'; // first: it points the bot at a temp config before src/ loads one
-import { isIndSponsor } from '../src/sponsors.ts';
+import { daysAgo, raw, seedIndRegister } from './helpers.ts'; // first: it points the bot at a temp config before src/ loads one
+import { indFile, isIndSponsor } from '../src/sponsors.ts';
 import { languageRules, pickCluster, remoteOpenToCandidate, scoreJob, SKILLS, titleOk } from '../src/match.ts';
 import { config } from '../src/config.ts';
 import { ConfigError } from '../src/errors.ts';
+
+// A small IND register in the test data dir (never the downloaded one in data/), so the register tests always run.
+seedIndRegister(indFile(), ['Adyen B.V.', 'Booking.com B.V.']);
 
 describe('scoreJob: location', () => {
   it('matches onsite jobs in the target countries', () => {
@@ -222,6 +225,22 @@ describe('scoreJob: visa', () => {
   it('filters NL jobs at companies not on the IND sponsor register', () => {
     const s = scoreJob(raw({ company: 'Totally Unknown Startup Xyz', location: 'Amsterdam, Netherlands' }));
     assert.equal(s.filterReason, 'NL job but company not on IND sponsor register');
+    // Read from the seeded register, not "register not downloaded".
+    assert.equal(isIndSponsor('Totally Unknown Startup Xyz'), false);
+    assert.ok(s.flags.includes('company name not found on IND register — verify manually'), s.flags.join('; '));
+  });
+
+  it('a sponsor on the register whose posting offers visa support is "offered" and says so', () => {
+    const s = scoreJob(
+      raw({
+        company: 'Booking.com',
+        location: 'Amsterdam, Netherlands',
+        description: `${raw().description} We offer visa sponsorship and relocation support.`,
+      }),
+    );
+    assert.equal(s.filterReason, null);
+    assert.equal(s.visaEvidence, 'offered');
+    assert.equal(s.visa, 'Netherlands: posting offers visa/relocation support (IND recognised sponsor)');
   });
 
   it('accepts NL jobs that mention visa sponsorship', () => {
@@ -237,8 +256,9 @@ describe('scoreJob: visa', () => {
     assert.equal(s.visaEvidence, 'offered');
   });
 
-  it('an IND recognised sponsor whose posting is silent is "can-sponsor", not "offered"', (t) => {
-    if (isIndSponsor('Adyen') === null) return t.skip('IND register not downloaded');
+  it('an IND recognised sponsor whose posting is silent is "can-sponsor", not "offered"', () => {
+    assert.ok(indFile().startsWith(process.env.JOB_BOT_DATA_DIR!), 'the seeded register, not the downloaded one');
+    assert.equal(isIndSponsor('Adyen'), true);
     const s = scoreJob(raw({ company: 'Adyen', location: 'Amsterdam, Netherlands' }));
     assert.equal(s.filterReason, null);
     assert.equal(s.visaEvidence, 'can-sponsor');

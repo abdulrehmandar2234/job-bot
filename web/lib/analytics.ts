@@ -15,17 +15,21 @@ const stage = (col: string) =>
 const STATUS_CHANGE = `(from_status IS NOT NULL AND from_status <> to_status)`;
 
 /**
- * The history rows of job `jobCol` that still count: an Undo (note UNDO_NOTE) and the status change it reverted are
- * both left out, so a "Mark applied" that was undone never counts as applied. An Undo always reverts the status change
- * right before it, and an Undo is never undone itself (canUndo in lib/job-lock.ts), so a change is reverted exactly
- * when the next status change of its job is an Undo. Filtered on the job first, so the window only sees its rows.
+ * The history rows of job `jobCol` that still count and moved the job: an Undo (note UNDO_NOTE) and the status change
+ * it reverted are both left out, so a "Mark applied" that was undone never counts as applied. An Undo always reverts
+ * the status change right before it, and an Undo is never undone itself (canUndo in lib/job-lock.ts), so a change is
+ * reverted exactly when the next status change of its job is an Undo. Rows that kept the status (a follow-up logs
+ * applied → applied) are left out too: one logged between an undone move and its Undo would otherwise still say the
+ * job reached that stage. Rows with no from_status (a job's first entry) stay. Filtered on the job first, so the
+ * window only sees its rows.
  */
 const kept = (jobCol: string) => `(
   SELECT at, from_status, to_status FROM (
     SELECT at, from_status, to_status, note, ${STATUS_CHANGE} AS change,
       lead(note) OVER (PARTITION BY ${STATUS_CHANGE} ORDER BY id) AS next_note
     FROM job_events WHERE job_id = ${jobCol}
-  ) h WHERE NOT (change AND coalesce(note = '${UNDO_NOTE}' OR next_note = '${UNDO_NOTE}', false))
+  ) h WHERE from_status IS DISTINCT FROM to_status
+    AND NOT (change AND coalesce(note = '${UNDO_NOTE}' OR next_note = '${UNDO_NOTE}', false))
 )`;
 
 /**
@@ -42,7 +46,7 @@ const REACHED = `
   ) r`;
 
 // When you applied: the first move to `applied` in the history that was not undone (applied_at is reset if the status
-// is set again).
+// is set again). Follow-up rows (applied → applied) are not moves, so they never set this date.
 const APPLIED_AT = `coalesce((SELECT min(e.at) FROM ${kept('j.id')} e WHERE e.to_status = 'applied'), j.applied_at)`;
 
 export type Funnel = {

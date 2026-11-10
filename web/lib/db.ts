@@ -170,16 +170,35 @@ export async function listJobs(f: JobFilter, page = 1, pageSize = PAGE_SIZE) {
 }
 
 /**
- * The jobs before and after one job in the list a filter gives, in the list's order (the job page's Previous / Next):
- * null at either end, both null when the job is not in that list (any more).
+ * The jobs before and after one job in the list a filter gives, in the list's order (the job page's Previous / Next),
+ * null at either end (both null when the job does not exist).
+ *
+ * The job itself is always in the window, even when it no longer matches the filter: marking it applied or skipping
+ * it moves it out of the list the user came from, and that is exactly when they want Next. It sits where the list's
+ * order puts it, so Previous / Next stay the jobs that were around it (a job opened from a list it never was in gets
+ * the list's jobs around where it would sort). A status change leaves its place alone in every order but one: a move
+ * to applied stamps applied_at, which the applied / skipped / ... tabs sort by, so a job that left the list that way
+ * is placed by applied_at as it was before the move (the latest job_events row's prev_applied_at). Sending a follow-up
+ * does move a job in the follow-up list (followed_up_at = now() sorts last); the old value is not kept anywhere.
+ * lag / lead run over distinct ids, so neither is ever the job itself.
  */
 export async function jobNeighbours(f: JobFilter, id: string) {
   const { where, params } = jobWhere(f);
   params.push(id);
+  const me = `$${params.length}`;
   const { rows } = await pool.query<{ prev: string | null; next: string | null }>(
-    `SELECT prev, next FROM (
-       SELECT id, lag(id) OVER w AS prev, lead(id) OVER w AS next FROM jobs WHERE ${where} WINDOW w AS (ORDER BY ${jobOrder(f)}, id)
-     ) t WHERE id = $${params.length}`,
+    `WITH last AS (
+       SELECT job_id, to_status, prev_applied_at FROM job_events WHERE job_id = ${me} ORDER BY at DESC, id DESC LIMIT 1
+     )
+     SELECT prev, next FROM (
+       SELECT id, lag(id) OVER w AS prev, lead(id) OVER w AS next FROM (
+         SELECT jobs.id, ai_score, score, posted_at, first_seen_at, followed_up_at,
+           CASE WHEN last.to_status = 'applied' AND (${where}) IS NOT TRUE THEN last.prev_applied_at ELSE applied_at END
+             AS applied_at
+         FROM jobs LEFT JOIN last ON last.job_id = jobs.id
+         WHERE (${where}) OR jobs.id = ${me}
+       ) jobs WINDOW w AS (ORDER BY ${jobOrder(f)}, id)
+     ) t WHERE id = ${me}`,
     params,
   );
   return { prev: rows[0]?.prev ?? null, next: rows[0]?.next ?? null };

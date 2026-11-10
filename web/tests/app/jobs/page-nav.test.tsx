@@ -4,6 +4,7 @@ import { isValidElement, type ReactElement, type ReactNode } from 'react';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import Page from '@/app/jobs/[id]/page';
 import NotFound from '@/app/not-found';
+import { pool } from '@/lib/db';
 import { cleanupDb, closeDb, dateDaysAgo, ensureSchema, insertJob } from '../../helpers/db';
 
 vi.mock('@/app/actions', () => ({
@@ -94,10 +95,22 @@ describe('job page navigation', () => {
     expect(nav().getByRole('link', { name: 'Next →' })).toHaveAttribute('href', href(weak, from));
   });
 
-  it('has no Previous / Next when the job is not in that list', async () => {
-    await renderJob(mid, '/?status=applied&q=navzz&in=tab&days=1');
-    expect(nav().getByRole('link', { name: '← All jobs' })).toHaveAttribute('href', '/?status=applied&q=navzz&in=tab&days=1');
-    expect(nav().queryByRole('link', { name: '← Previous' })).toBeNull();
+  it('keeps Previous / Next after the job is marked applied and leaves the list it came from', async () => {
+    const from = '/?status=new&min=60&q=navzz&in=tab&days=1';
+    // What the dashboard's setStatus does: the status, applied_at, and the event.
+    await pool.query(`UPDATE jobs SET status = 'applied', applied_at = now() WHERE id = $1`, [mid]);
+    await pool.query(`INSERT INTO job_events (job_id, from_status, to_status) VALUES ($1, 'new', 'applied')`, [mid]);
+    await renderJob(mid, from);
+    expect(nav().getByRole('link', { name: '← Previous' })).toHaveAttribute('href', href(top, from));
+    expect(nav().getByRole('link', { name: 'Next →' })).toHaveAttribute('href', href(low, from));
+  });
+
+  it('places a job that was never in the list by the list order', async () => {
+    // The applied tab holds only nav-applied; mid sorts after it (coalesce(applied_at, first_seen_at), newest first).
+    const from = '/?status=applied&q=navzz&in=tab&days=1';
+    await renderJob(mid, from);
+    expect(nav().getByRole('link', { name: '← All jobs' })).toHaveAttribute('href', from);
+    expect(nav().getByRole('link', { name: '← Previous' })).toHaveAttribute('href', href('webtest:nav-applied', from));
     expect(nav().queryByRole('link', { name: 'Next →' })).toBeNull();
   });
 
