@@ -4,7 +4,8 @@ import { daysAgo, mockFetch } from './helpers.ts';
 import { fetch } from '../src/commands/fetch.ts';
 import { config } from '../src/config.ts';
 import { timing } from '../src/sources/http.ts';
-import { dedupe, getJob, migrate, pool, setStatus, upsertJob, type ScoredJob } from '../src/db.ts';
+import { dedupe, getJob, migrate, pool, pruneFiltered, setStatus, upsertJob, type ScoredJob } from '../src/db.ts';
+import { saveAgain } from '../src/commands/fetch.ts';
 import { isIndSponsor } from '../src/sponsors.ts';
 
 const job = (o: Partial<ScoredJob> = {}): ScoredJob => ({
@@ -256,5 +257,78 @@ describe('IND sponsor register', () => {
     // A company list passed in replaces config.json's: without the mapping, "Elastic" is not on the register.
     assert.equal(isIndSponsor('Elastic', []), false);
     assert.equal(isIndSponsor('Acme', [{ name: 'Acme', indName: 'Adyen' }]), true);
+  });
+});
+
+describe('fetched_at', () => {
+  const age = (id: string) =>
+    pool
+      .query<{ days: number }>(`SELECT round(extract(epoch FROM now() - fetched_at) / 86400)::int days FROM jobs WHERE id = $1`, [id])
+      .then((r) => r.rows[0].days);
+
+  it('a fetch (upsert) moves it; rescore (saveAgain) and seen: false leave it alone', async () => {
+    await upsertJob(job());
+    await pool.query(`UPDATE jobs SET fetched_at = now() - interval '5 days'`);
+    await saveAgain(await getJob('test:db1'));
+    assert.equal(await age('test:db1'), 5);
+    await upsertJob(job({ seen: false, title: 'Changed' }));
+    assert.equal(await age('test:db1'), 5);
+    assert.equal((await getJob('test:db1')).title, 'Changed');
+    await upsertJob(job());
+    assert.equal(await age('test:db1'), 0);
+  });
+});
+
+describe('pruneFiltered', () => {
+  const old = { status: 'filtered' as const, filter_reason: 'posted 99 days ago', posted_at: daysAgo(100) };
+  /** A filtered posting, its dates set as given (days ago). */
+  async function add(id: string, o: Partial<ScoredJob> = {}, dates: { firstSeen?: number; fetched?: number } = {}) {
+    await upsertJob(job({ id, url: `https://x/${id}`, ...old, ...o }));
+    await pool.query(
+      `UPDATE jobs SET first_seen_at = now() - make_interval(days => $2::int), fetched_at = now() - make_interval(days => $3::int)
+       WHERE id = $1`,
+      [id, dates.firstSeen ?? 100, dates.fetched ?? 10],
+    );
+  }
+  const ids = async () => (await pool.query<{ id: string }>('SELECT id FROM jobs ORDER BY id')).rows.map((r) => r.id);
+
+  it('deletes only old, unseen filtered postings without history, contacts, tasks or copies', async () => {
+    await add('p:old');
+    await add('p:old-undated', { posted_at: null });
+    await add('p:recent', { posted_at: daysAgo(10) });
+    await add('p:recent-undated', { posted_at: null }, { firstSeen: 10 });
+    await add('p:still-listed', {}, { fetched: 1 });
+    await add('p:new', { status: 'new', filter_reason: null });
+    await add('p:event');
+    await setStatus('p:event', 'filtered', 'kept for its history');
+    await add('p:contact');
+    await pool.query(`INSERT INTO contacts (job_id, name) VALUES ('p:contact', 'Recruiter')`);
+    await add('p:task');
+    await pool.query(`INSERT INTO tasks (kind, job_id, status) VALUES ('prepare', 'p:task', 'done')`);
+    await add('p:primary');
+    await add('p:copy', { status: 'new', filter_reason: null });
+    await pool.query(`UPDATE jobs SET duplicate_of = 'p:primary' WHERE id = 'p:copy'`);
+
+    assert.equal(await pruneFiltered(14), 2);
+    assert.deepEqual(await ids(), [
+      'p:contact',
+      'p:copy',
+      'p:event',
+      'p:new',
+      'p:primary',
+      'p:recent',
+      'p:recent-undated',
+      'p:still-listed',
+      'p:task',
+    ]);
+  });
+
+  it('keeps postings for twice maxAgeDays when that is longer than 30 days', async () => {
+    await add('p:100', { posted_at: daysAgo(100) });
+    await add('p:130', { posted_at: daysAgo(130) });
+    assert.equal(await pruneFiltered(60), 1); // cutoff 120 days
+    assert.deepEqual(await ids(), ['p:100']);
+    assert.equal(await pruneFiltered(14), 1); // cutoff 30 days
+    assert.deepEqual(await ids(), []);
   });
 });

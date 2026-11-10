@@ -46,6 +46,9 @@ It only runs while `npm run web` is running, and nothing starts it after a reboo
 Run it by hand any time with `npm run bot -- daily`, or **Fetch new jobs** on the dashboard. Then check `data/fetch.log`:
 
 - `Fetch failed — is PostgreSQL running?`: the database was down at 9:00.
+- `Fetch failed: N of N sources failed — is the network up?`: no source answered (offline, or a VPN/proxy blocking them); the first error follows. `N of M sources failed.` after a normal summary means only some did; their errors are in the log.
+- `<step> timed out after N min`: a step hung and was stopped (limits: fetch 30 min, check:open 15, ai:score 60, backup 10, the IND register refresh 10); the steps after it still ran, and the notification says `Timed out: ...`.
+- `sponsors:update failed`: the weekly IND register refresh did not work; the old register stays and the run goes on.
 - `A fetch is already running; skipping.`: a fetch from the dashboard was running at the same time.
 - Nothing new in the log at all: the scheduler did not start it; see your OS below.
 
@@ -59,7 +62,7 @@ Look at the reasons first: the **Filtered out** tab, or `npm run bot -- list --s
 - "title is not an engineering role" / "title excluded": your titles are not in `roleInclude`, or `roleExclude` catches them (the repository's list excludes Python, Java, Go, mobile, DevOps, QA, management and more).
 - "remote, region does not include ...": check `remote.fromCode` (Settings → Remote boards). If your country is right and the region should include you, add it to `remote.allow` or open an issue so it goes into `src/regions.ts` ([Remote regions](configuration.md#remote-regions)).
 - "score N below minScore": lower `minScore`, or add the skills you have to `cv/master.json`.
-- "NL job but company not on IND sponsor register": run `npm run bot -- sponsors:update`.
+- "NL job but company not on IND sponsor register": the daily run downloads the register again once it is a week old (only when a country uses `ind-register`); `npm run bot -- sponsors:update` does it now.
 - "no recognisable tech stack": your stack is not in the keyword list in `src/match.ts`; rely on the AI score and keep `minScore` low.
 - `location (AI): ...`: the AI review read the description and found you cannot take the job from where you live. `npm run bot -- ai:score --location-filtered` re-checks those jobs (after you changed your profile or `remote.*`) and brings back the ones that pass.
 

@@ -39,7 +39,12 @@ export type ScoredJob = Pick<
   | 'flags'
   | 'status'
   | 'filter_reason'
-> & { posted_at: string | null } & Partial<Pick<Job, 'salary_min' | 'salary_max' | 'salary_currency' | 'salary_period' | 'visa_evidence'>>;
+> & { posted_at: string | null } & Partial<
+    Pick<Job, 'salary_min' | 'salary_max' | 'salary_currency' | 'salary_period' | 'visa_evidence'>
+  > & {
+    /** false: scored again from the stored row (rescore, check:open), not seen by a fetch, so fetched_at stays. */
+    seen?: boolean;
+  };
 
 if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL missing — add it to .env');
 export const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 4 });
@@ -172,7 +177,10 @@ export function duplicateLinks(rows: DedupeRow[]): [string, string][] {
   return links;
 }
 
-/** Inserts new jobs; for existing ones refreshes the posting but never touches user-owned fields (status, cv_version, notes). */
+/**
+ * Inserts new jobs; for existing ones refreshes the posting but never touches user-owned fields (status, cv_version, notes).
+ * fetched_at means "last seen by a fetch": it moves only when `seen` is not false.
+ */
 export async function upsertJob(j: ScoredJob): Promise<'inserted' | 'updated'> {
   const { rows } = await pool.query<{ inserted: boolean }>(
     `
@@ -182,7 +190,8 @@ export async function upsertJob(j: ScoredJob): Promise<'inserted' | 'updated'> {
     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
     ON CONFLICT (id) DO UPDATE SET
       title = EXCLUDED.title, location = EXCLUDED.location, country = EXCLUDED.country, url = EXCLUDED.url,
-      description = EXCLUDED.description, posted_at = EXCLUDED.posted_at, fetched_at = now(),
+      description = EXCLUDED.description, posted_at = EXCLUDED.posted_at,
+      fetched_at = CASE WHEN $23 THEN now() ELSE jobs.fetched_at END,
       score = EXCLUDED.score, cluster = EXCLUDED.cluster, matched = EXCLUDED.matched, missing = EXCLUDED.missing,
       visa = EXCLUDED.visa, visa_evidence = EXCLUDED.visa_evidence, flags = EXCLUDED.flags,
       -- A job the AI review found closed to the candidate's location stays filtered, whatever the keyword rules say.
@@ -219,9 +228,35 @@ export async function upsertJob(j: ScoredJob): Promise<'inserted' | 'updated'> {
       j.salary_currency ?? null,
       j.salary_period ?? null,
       j.visa_evidence ?? null,
+      j.seen !== false,
     ],
   );
   return rows[0].inserted ? 'inserted' : 'updated';
+}
+
+/** Filtered postings stay at least this many days (or twice maxAgeDays, if longer) before pruneFiltered deletes them. */
+export const PRUNE_FILTERED_MIN_DAYS = 30;
+/** ...and only once no fetch has seen them for this many days: a posting still listed would come back as "new". */
+export const PRUNE_FILTERED_UNSEEN_DAYS = 7;
+
+/**
+ * Deletes filtered jobs nobody needs any more, so their descriptions stop filling the table, rescore and every backup:
+ * posted (or, without a date, first seen) more than max(maxAgeDays * 2, 30) days ago, not seen by a fetch for 7 days,
+ * with no history, contacts or tasks, and not the primary of another row. Returns how many went.
+ */
+export async function pruneFiltered(maxAgeDays: number, db: Pick<pg.Pool, 'query'> = pool): Promise<number> {
+  const days = Math.max(maxAgeDays * 2, PRUNE_FILTERED_MIN_DAYS);
+  const { rowCount } = await db.query(
+    `DELETE FROM jobs j WHERE j.status = 'filtered'
+      AND coalesce(j.posted_at, j.first_seen_at) < now() - make_interval(days => $1::int)
+      AND j.fetched_at < now() - make_interval(days => $2::int)
+      AND NOT EXISTS (SELECT 1 FROM job_events e WHERE e.job_id = j.id)
+      AND NOT EXISTS (SELECT 1 FROM contacts c WHERE c.job_id = j.id)
+      AND NOT EXISTS (SELECT 1 FROM tasks t WHERE t.job_id = j.id)
+      AND NOT EXISTS (SELECT 1 FROM jobs d WHERE d.duplicate_of = j.id)`,
+    [days, PRUNE_FILTERED_UNSEEN_DAYS],
+  );
+  return rowCount ?? 0;
 }
 
 export async function getJob(id: string) {

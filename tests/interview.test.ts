@@ -230,7 +230,7 @@ describe('strong-match alerts (ai:score)', () => {
   });
 
   it('the daily run (bot daily) runs ai:score, so it alerts with no extra step', () => {
-    assert.match(readFileSync(path('src', 'commands', 'daily.ts'), 'utf8'), /d\.run\(\['ai:score'\]\)/);
+    assert.match(readFileSync(path('src', 'commands', 'daily.ts'), 'utf8'), /step\(.ai:score.\)/);
   });
 });
 
