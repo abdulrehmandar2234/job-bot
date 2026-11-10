@@ -1,12 +1,15 @@
-import { afterEach, beforeEach, describe, it } from 'node:test';
+import { after, afterEach, before, beforeEach, describe, it, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, mkdtempSync, readFileSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import './helpers.ts';
+import { mockFetch } from './helpers.ts';
 import { aiAnswers, aiCoverLetter, aiHeadline, aiScore, aiSummary, applicantFacts, cvText } from '../src/ai.ts';
-import { askClaude, CLI_KILL_GRACE_MS } from '../src/ai-providers.ts';
-import type { Job } from '../src/db.ts';
+import { AI_BUDGET, AiError, askClaude, CLI_KILL_GRACE_MS } from '../src/ai-providers.ts';
+import { aiScore as aiScoreCommand, MAX_TIMEOUTS_IN_A_ROW } from '../src/commands/ai.ts';
+import { config } from '../src/config.ts';
+import { migrate, pool, type Job } from '../src/db.ts';
+import { timing } from '../src/sources/http.ts';
 
 const FAKE = join(import.meta.dirname, 'fixtures', 'fake-claude.mjs');
 let log: string;
@@ -16,6 +19,7 @@ beforeEach(() => {
   Object.assign(process.env, { JOB_BOT_CLAUDE: FAKE, FAKE_CLAUDE_LOG: log });
   delete process.env.FAKE_CLAUDE_FAIL;
   delete process.env.FAKE_CLAUDE_HANG;
+  delete process.env.FAKE_CLAUDE_EXIT_EARLY;
 });
 afterEach(() => {
   delete process.env.JOB_BOT_CLAUDE;
@@ -57,14 +61,48 @@ describe('askClaude', () => {
     assert.equal(arg(argv, '--system-prompt'), 'be brief');
   });
 
-  it('rejects when the CLI reports an error', async () => {
-    process.env.FAKE_CLAUDE_FAIL = 'usage limit reached';
-    await assert.rejects(askClaude('x', {}, 'haiku', ''), /usage limit reached/);
+  /** The AiError askClaude rejects with (never a plain Error: the CLI would print a stack trace). */
+  const failure = async (p: Promise<unknown>) => {
+    const e = await p.then(
+      () => assert.fail('expected a rejection'),
+      (x) => x,
+    );
+    assert.ok(e instanceof AiError, `not an AiError: ${e}`);
+    return e as AiError;
+  };
+
+  it('a CLI error is an AiError with its message and the sign-in hint; signed out or a usage limit is fatal', async () => {
+    process.env.FAKE_CLAUDE_FAIL = 'Not logged in · Please run /login';
+    let e = await failure(askClaude('x', {}, 'haiku', ''));
+    assert.equal(
+      e.message,
+      'Claude CLI error: Not logged in · Please run /login. If you are signed out, run `claude` once in a terminal to sign in.',
+    );
+    assert.deepEqual([e.fatal, e.timedOut], [true, false]);
+    process.env.FAKE_CLAUDE_FAIL = 'Claude AI usage limit reached|1700000000';
+    e = await failure(askClaude('x', {}, 'haiku', ''));
+    assert.match(e.message, /usage limit reached/);
+    assert.equal(e.fatal, true);
+    // Anything else may be about this one prompt: not fatal, a batch goes on.
+    process.env.FAKE_CLAUDE_FAIL = 'Prompt is too long';
+    e = await failure(askClaude('x', {}, 'haiku', ''));
+    assert.match(e.message, /^Claude CLI error: Prompt is too long\. If you are signed out/);
+    assert.equal(e.fatal, false);
   });
 
-  it('rejects when the CLI cannot be started', async () => {
+  it('a CLI that is not installed is a fatal AiError naming the path and ai.claudePath', async () => {
     process.env.JOB_BOT_CLAUDE = '/nonexistent/claude';
-    await assert.rejects(askClaude('x', {}, 'haiku', ''), /ENOENT/);
+    const e = await failure(askClaude('x', {}, 'haiku', ''));
+    assert.match(e.message, /^Claude CLI not found at \/nonexistent\/claude: install Claude Code, or set ai\.claudePath in config\.json/);
+    assert.equal(e.fatal, true);
+  });
+
+  it('a CLI that exits before reading the prompt fails cleanly (no EPIPE crash), with its stderr', async () => {
+    process.env.FAKE_CLAUDE_EXIT_EARLY = 'Error: not logged in';
+    // A prompt larger than the pipe buffer, so writing it really hits the closed pipe.
+    const e = await failure(askClaude('x'.repeat(4 * 1024 * 1024), {}, 'haiku', ''));
+    assert.match(e.message, /^Claude CLI error: Claude CLI exited 1 Error: not logged in\. If you are signed out/);
+    assert.equal(e.fatal, true);
   });
 
   it('a timed-out CLI that ignores SIGTERM is SIGKILLed after the grace', async () => {
@@ -78,7 +116,9 @@ describe('askClaude', () => {
         return false;
       }
     };
-    await assert.rejects(askClaude('x', {}, 'haiku', '', undefined, 300), /Claude CLI timed out/);
+    const e = await failure(askClaude('x', {}, 'haiku', '', undefined, 300));
+    assert.equal(e.message, 'Claude CLI gave no answer within 0.3s');
+    assert.deepEqual([e.timedOut, e.fatal], [true, false]);
     // The fake logged its pid before hanging; SIGTERM alone must not have ended it, SIGKILL after the grace does.
     const until = Date.now() + CLI_KILL_GRACE_MS + 5000;
     while (!existsSync(log) && Date.now() < until) await wait(25);
@@ -253,5 +293,113 @@ describe('prompts', () => {
     process.env.FAKE_CLAUDE_OUT = JSON.stringify({ answers: [] });
     await aiAnswers(job({ country: 'RM' }), 'Salary?');
     assert.match(arg(calls()[0].argv, '--system-prompt'), /expectedSalary for "remote"/);
+  });
+});
+
+describe('ai:score stops early', () => {
+  const ids = Array.from({ length: 6 }, (_, i) => `aitest:${i + 1}`);
+  const savedAi = { ...config.ai };
+  let out: string[];
+  let err: string[];
+
+  before(migrate);
+  after(() => pool.end());
+  beforeEach(async () => {
+    await pool.query('TRUNCATE jobs, job_events CASCADE');
+    for (const id of ids) {
+      await pool.query(
+        `INSERT INTO jobs (id, source, company, title, country, url, status, score, description)
+         VALUES ($1, 'greenhouse', 'Aico', 'Senior Laravel Developer', 'AE', 'https://example.com/' || $1, 'new', 60, 'Laravel and PHP.')`,
+        [id],
+      );
+    }
+    out = [];
+    err = [];
+    mock.method(console, 'log', (...a: unknown[]) => out.push(a.join(' ')));
+    mock.method(console, 'error', (...a: unknown[]) => err.push(a.join(' ')));
+    config.ai = { ...savedAi, enabled: true, concurrency: 2, maxScorePerRun: ids.length };
+  });
+  afterEach(() => {
+    mock.restoreAll();
+    config.ai = { ...savedAi };
+    process.exitCode = undefined; // the runs below exit 1 on purpose; the test file itself must not
+    delete process.env.AI_API_KEY;
+  });
+  const scored = async () => (await pool.query('SELECT count(*)::int AS n FROM jobs WHERE ai_scored_at IS NOT NULL')).rows[0].n;
+
+  it('a signed-out Claude CLI: one call per worker, not one per job, one line, exit 1', async () => {
+    process.env.FAKE_CLAUDE_FAIL = 'Not logged in · Please run /login';
+    await aiScoreCommand([], {});
+    assert.equal(calls().length, 2, 'one call per worker (concurrency 2)');
+    assert.equal(process.exitCode, 1);
+    assert.equal(err.length, 1, err.join('\n'));
+    assert.match(
+      err[0],
+      /^AI review failed for 2 of 6 jobs; stopped early: Claude CLI error: Not logged in · Please run \/login\. If you are signed out, run `claude` once/,
+    );
+    assert.ok(out.includes('0 jobs scored, 2 failed, 4 not tried.'), out.join('\n'));
+    assert.ok(!out.some((l) => l.includes('✗')), 'no per-job error lines');
+    assert.equal(await scored(), 0);
+  });
+
+  it('a rejected API key (401): one request per worker, the key never printed, exit 1', async () => {
+    const key = 'sk-test-ai-score-secret-123';
+    process.env.AI_API_KEY = key;
+    config.ai = { ...config.ai, provider: 'api', api: {} };
+    const net = mockFetch({ 'chat/completions': () => Response.json({ error: { message: 'Incorrect API key' } }, { status: 401 }) });
+    try {
+      await aiScoreCommand([], {});
+    } finally {
+      net.restore();
+    }
+    assert.equal(net.calls.length, 2, 'one request per worker');
+    assert.equal(process.exitCode, 1);
+    assert.equal(err.length, 1);
+    assert.match(err[0], /^AI review failed for 2 of 6 jobs; stopped early: OpenAI rejected the API key \(AI_API_KEY\): 401/);
+    assert.ok(![...out, ...err].some((l) => l.includes(key)));
+  });
+
+  it(`a provider that keeps timing out: stops after ${MAX_TIMEOUTS_IN_A_ROW} in a row`, async () => {
+    process.env.AI_API_KEY = 'sk-test-dummy';
+    config.ai = { ...config.ai, provider: 'api', api: {}, concurrency: 1 };
+    const saved = AI_BUDGET.ms;
+    AI_BUDGET.ms = 30;
+    timing.scale = 0;
+    const net = mockFetch({
+      'chat/completions': (_u: string, init?: RequestInit) =>
+        new Promise((_, reject) => init!.signal!.addEventListener('abort', () => reject(init!.signal!.reason))),
+    });
+    try {
+      await aiScoreCommand([], {});
+    } finally {
+      net.restore();
+      AI_BUDGET.ms = saved;
+      timing.scale = 1;
+    }
+    assert.equal(net.calls.length, MAX_TIMEOUTS_IN_A_ROW);
+    assert.equal(process.exitCode, 1);
+    assert.equal(err.length, 1);
+    assert.match(
+      err[0],
+      /^AI review failed for 3 of 6 jobs; stopped early: the AI provider is not answering \(3 reviews in a row timed out\), stopping: OpenAI gave no answer/,
+    );
+    assert.ok(out.includes('0 jobs scored, 3 failed, 3 not tried.'), out.join('\n'));
+  });
+
+  it('one job (--id) just fails with the message, as before', async () => {
+    process.env.FAKE_CLAUDE_FAIL = 'Not logged in · Please run /login';
+    await aiScoreCommand([], { id: ids[0] });
+    assert.equal(calls().length, 1);
+    assert.equal(process.exitCode, 1);
+    assert.equal(err.length, 1);
+    assert.match(err[0], /^AI review failed for 1 of 1 job: Claude CLI error: Not logged in/);
+  });
+
+  it('an error that is not fatal (one bad reply) does not stop the run', async () => {
+    process.env.FAKE_CLAUDE_FAIL = 'Prompt is too long';
+    await aiScoreCommand([], {});
+    assert.equal(calls().length, ids.length, 'every job was tried');
+    assert.equal(process.exitCode, 1, 'the whole queue failed');
+    assert.match(err[0], /^AI review failed for 6 of 6 jobs: Claude CLI error: Prompt is too long/);
   });
 });

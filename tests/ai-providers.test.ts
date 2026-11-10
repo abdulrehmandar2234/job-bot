@@ -4,6 +4,7 @@ import { mockFetch } from './helpers.ts';
 import { API_PRESETS, PRESETS, detectPreset } from '../src/ai-presets.ts';
 import {
   AI_BUDGET,
+  AiError,
   aiLabel,
   aiModel,
   askAi,
@@ -53,6 +54,8 @@ function serve(...answers: (object | Response)[]) {
   });
   return seen;
 }
+/** Timers keeping the process alive: a backoff or budget timer left behind would hold the CLI open after the error. */
+const liveTimers = () => process.getActiveResourcesInfo().filter((r) => r === 'Timeout').length;
 const noKeyIn = (e: Error) => {
   for (const k of [KEY, ANT]) assert.ok(!e.message.includes(k), e.message);
   return true;
@@ -316,6 +319,79 @@ describe('askAi over HTTP', () => {
     } finally {
       AI_BUDGET.ms = saved;
     }
+  });
+
+  it('the budget aborts the request in flight (fetch sees the signal), so nothing keeps the process alive', async () => {
+    const saved = AI_BUDGET.ms;
+    AI_BUDGET.ms = 50;
+    let aborted = false;
+    try {
+      mock = mockFetch({
+        // Never answers on its own; rejects when its signal aborts, like a real fetch.
+        'chat/completions': (_u: string, init?: RequestInit) =>
+          new Promise((_, reject) =>
+            init!.signal!.addEventListener('abort', () => {
+              aborted = true;
+              reject(init!.signal!.reason);
+            }),
+          ),
+      });
+      const timers = liveTimers();
+      const start = Date.now();
+      await assert.rejects(askAi('p', SCHEMA, 'score', 's', api()), (e: Error) => {
+        assert.ok(e instanceof AiError);
+        assert.match(e.message, /OpenAI gave no answer within the 0\.05s AI budget/);
+        assert.deepEqual([e.timedOut, e.fatal], [true, false]);
+        return noKeyIn(e);
+      });
+      assert.ok(Date.now() - start < 2000, 'settled right after the budget');
+      assert.equal(aborted, true, 'the fetch itself was aborted');
+      assert.equal(liveTimers(), timers, 'no budget timer left behind');
+      assert.equal(mock.calls.length, 1);
+    } finally {
+      AI_BUDGET.ms = saved;
+    }
+  });
+
+  it('the budget also cuts a retry backoff short: no further request once it is spent', async () => {
+    const saved = AI_BUDGET.ms;
+    AI_BUDGET.ms = 100;
+    timing.scale = 1; // a real backoff (about 1 s) after the 503
+    try {
+      const seen = serve(new Response('busy', { status: 503 }), reply('{"score":1,"verdict":"poor"}'));
+      const timers = liveTimers();
+      const start = Date.now();
+      await assert.rejects(askAi('p', SCHEMA, 'score', 's', api()), (e: AiError) => e.timedOut && /AI budget/.test(e.message));
+      assert.ok(Date.now() - start < 600, `settled after ${Date.now() - start} ms, not after the backoff`);
+      assert.equal(liveTimers(), timers, 'the backoff timer was cleared, nothing holds the process open');
+      assert.equal(seen.length, 1);
+    } finally {
+      AI_BUDGET.ms = saved;
+    }
+  });
+
+  it('marks errors that would repeat for every call as fatal, and a bad reply as not', async () => {
+    const fatal = async (p: Promise<unknown>) => {
+      const e = (await p.catch((x) => x)) as AiError;
+      assert.ok(e instanceof AiError, String(e));
+      return e.fatal;
+    };
+    for (const status of [401, 403, 402, 404]) {
+      serve(Response.json({ error: { message: 'nope' } }, { status }));
+      assert.equal(await fatal(askAi('p', SCHEMA, 'score', 's', api())), true, String(status));
+      mock!.restore();
+    }
+    delete process.env.AI_API_KEY;
+    assert.equal(await fatal(askAi('p', SCHEMA, 'score', 's', api())), true, 'no key');
+    assert.equal(await fatal(askAi('p', SCHEMA, 'score', 's', api({ preset: 'custom' }))), true, 'no base URL');
+    process.env.AI_API_KEY = KEY;
+    serve(reply('not json'), reply('still not json'));
+    const bad = (await askAi('p', SCHEMA, 'score', 's', api()).catch((x) => x)) as AiError;
+    assert.match(bad.message, /no usable answer after 2 tries/);
+    assert.deepEqual([bad.fatal, bad.timedOut], [false, false]);
+    mock!.restore();
+    serve(new Response('busy', { status: 500 }));
+    assert.equal(await fatal(askAi('p', SCHEMA, 'score', 's', api())), false, 'a server error may pass');
   });
 
   it('fails fast on 401/403 naming AI_API_KEY and the detected provider, never the key', async () => {

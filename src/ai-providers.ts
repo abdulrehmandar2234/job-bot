@@ -20,9 +20,19 @@ export type AiKind = 'score' | 'letter';
 /**
  * An AI call that failed for a reason the user can fix (a rejected key, no credit, no key, a bad setting). The CLI
  * prints only its message, never a stack trace, so the dashboard shows that message as the task's error.
+ * `fatal`: the same error will come back for every call until the user acts (key rejected, no credit, no key or a
+ * missing setting, the Claude CLI missing or signed out), so a batch (ai:score) stops at the first one.
+ * `timedOut`: the provider gave no answer in time; a batch stops after a few of these in a row.
  */
 export class AiError extends Error {
   override name = 'AiError';
+  readonly fatal: boolean;
+  readonly timedOut: boolean;
+  constructor(message: string, opts: { fatal?: boolean; timedOut?: boolean } = {}) {
+    super(message);
+    this.fatal = opts.fatal ?? false;
+    this.timedOut = opts.timedOut ?? false;
+  }
 }
 
 /** Where each provider's keys and credit are managed, for the messages of a rejected key (401/403) or no credit (402). */
@@ -120,6 +130,7 @@ export function resolveApi(ai: AiSettings = config.ai, env: Env = process.env): 
       key
         ? `${AI_KEY_ENV} does not look like a key of a known provider: set ai.api.preset in config.json (or ${AI_BASE_URL_ENV} in .env)`
         : `No AI API key: set ${AI_KEY_ENV} in .env (in the job-bot folder), or set ai.provider to "claude-cli" in config.json`,
+      { fatal: true },
     );
   }
   const p = PRESETS[preset];
@@ -128,10 +139,16 @@ export function resolveApi(ai: AiSettings = config.ai, env: Env = process.env): 
   const scoreModel = cfg.scoreModel || old.scoreModel || p.scoreModel || fallback.scoreModel;
   const letterModel = cfg.letterModel || old.letterModel || p.letterModel || fallback.letterModel;
   const base = (baseOverride || p.baseUrl).replace(/\/+$/, '');
-  if (!base) throw new AiError(`${p.name} needs a base URL: set ${AI_BASE_URL_ENV} in .env or ai.api.baseUrl in config.json`);
-  if (!scoreModel || !letterModel) throw new AiError(`${p.name} needs models: set ai.api.scoreModel and ai.api.letterModel in config.json`);
+  if (!base) {
+    throw new AiError(`${p.name} needs a base URL: set ${AI_BASE_URL_ENV} in .env or ai.api.baseUrl in config.json`, { fatal: true });
+  }
+  if (!scoreModel || !letterModel) {
+    throw new AiError(`${p.name} needs models: set ai.api.scoreModel and ai.api.letterModel in config.json`, { fatal: true });
+  }
   if (p.needsKey && !key) {
-    throw new AiError(`${p.name} needs an API key: set ${AI_KEY_ENV} in .env (in the job-bot folder), or set ai.provider to "claude-cli"`);
+    throw new AiError(`${p.name} needs an API key: set ${AI_KEY_ENV} in .env (in the job-bot folder), or set ai.provider to "claude-cli"`, {
+      fatal: true,
+    });
   }
   return {
     preset,
@@ -196,8 +213,15 @@ export function resolveClaude(
   return claudePath;
 }
 
+/** Added to every error the Claude CLI reports itself: the usual cause is a signed-out CLI. */
+export const CLAUDE_SIGN_IN_HINT = 'If you are signed out, run `claude` once in a terminal to sign in.';
+
+// What the Claude CLI says when every call will fail until the user acts: signed out, a bad or expired login, or a
+// usage limit / no credit. Such an error is fatal (a batch stops at the first one).
+const CLAUDE_FATAL = /log ?in|logged (in|out)|sign(ed)? ?(in|out)|auth|api key|credential|oauth|expired|usage limit|credit|billing|quota/i;
+
 // JOB_BOT_CLAUDE swaps in another executable (tests use a fake one). Calls are headless: no tools, no MCP servers,
-// no session saved.
+// no session saved. Every failure is an AiError with what to do about it.
 export function askClaude<T>(
   prompt: string,
   schema: object,
@@ -207,8 +231,9 @@ export function askClaude<T>(
   timeoutMs = AI_TIMEOUT_MS,
 ): Promise<T> {
   return new Promise((resolve, reject) => {
+    const cmd = process.env.JOB_BOT_CLAUDE || resolveClaude(claudePath);
     const child = spawn(
-      process.env.JOB_BOT_CLAUDE || resolveClaude(claudePath),
+      cmd,
       [
         '-p',
         '--model',
@@ -237,26 +262,46 @@ export function askClaude<T>(
       child.kill();
       hardKill = setTimeout(() => child.kill('SIGKILL'), CLI_KILL_GRACE_MS);
       hardKill.unref();
-      reject(new Error('Claude CLI timed out'));
+      reject(new AiError(`Claude CLI gave no answer within ${timeoutMs / 1000}s`, { timedOut: true }));
     }, timeoutMs);
     child.stdout.on('data', (d) => (out += d));
     child.stderr.on('data', (d) => (err += d));
-    child.on('error', (e) => {
+    child.on('error', (e: NodeJS.ErrnoException) => {
       clearTimeout(timer);
       clearTimeout(hardKill);
-      reject(e);
+      reject(
+        new AiError(
+          e.code === 'ENOENT'
+            ? `Claude CLI not found at ${cmd}: install Claude Code, or set ai.claudePath in config.json to its path ` +
+                '(`which claude`; Windows: `where.exe claude`).'
+            : `Claude CLI at ${cmd} could not be started: ${e.message}`,
+          { fatal: true },
+        ),
+      );
     });
     child.on('close', (code) => {
       clearTimeout(timer);
       clearTimeout(hardKill);
+      const stderr = err.trim().slice(0, 300);
+      let res: { is_error?: boolean; result?: string; structured_output?: unknown } | null = null;
       try {
-        const res = JSON.parse(out);
-        if (res.is_error || !res.structured_output) throw new Error(res.result || `claude exited ${code}`);
-        resolve(res.structured_output as T);
-      } catch (e) {
-        reject(new Error(`${(e as Error).message} ${err.slice(0, 300)}`.trim()));
+        res = JSON.parse(out);
+      } catch {}
+      if (res && !res.is_error && res.structured_output) return resolve(res.structured_output as T);
+      if (res?.is_error || !res) {
+        // The CLI's own error (or, with no JSON at all, its exit code and stderr), plus the usual fix.
+        const said = [(typeof res?.result === 'string' && res.result.trim()) || `Claude CLI exited ${code}`, stderr]
+          .filter(Boolean)
+          .join(' ')
+          .slice(0, 500)
+          .replace(/[.\s]+$/, '');
+        return reject(new AiError(`Claude CLI error: ${said}. ${CLAUDE_SIGN_IN_HINT}`, { fatal: CLAUDE_FATAL.test(said) }));
       }
+      reject(new AiError(`Claude CLI gave no structured answer${stderr ? `: ${stderr}` : ''}`));
     });
+    // A CLI that exits before reading the prompt (not installed right, signed out) closes the pipe: EPIPE here must
+    // not crash the bot, the 'close' handler above reports what happened.
+    child.stdin.on('error', () => {});
     child.stdin.end(prompt);
   });
 }
@@ -270,6 +315,16 @@ type ChatReply = { choices?: { message?: { content?: string | null; refusal?: st
 class BadReply extends Error {}
 
 const redact = (s: string, key: string) => (key ? s.split(key).join('***') : s);
+
+/** `s` with every AI key from the environment (AI_API_KEY and the older names) replaced by ***. For text that may
+ * have come from a child process, such as a task's last error line. */
+export function redactKeys(s: string, env: Env = process.env): string {
+  for (const name of [AI_KEY_ENV, ...Object.values(LEGACY_KEY_ENV)]) {
+    const key = env[name]?.trim();
+    if (key) s = redact(s, key);
+  }
+  return s;
+}
 
 /** The request body for the target's response format; without json_schema the schema goes into the system prompt. */
 export function chatBody(t: Pick<ApiTarget, 'format' | 'temperature'>, req: ApiRequest, model: string): Record<string, unknown> {
@@ -377,18 +432,20 @@ function apiMessage(body: string): string {
 /** Thrown when the overall AI budget runs out while a request is still in flight. */
 class BudgetExceeded extends Error {}
 
-/** `p`, rejected with BudgetExceeded when it has not settled after `ms`. The timer never keeps the process alive. */
-function within<T>(ms: number, p: Promise<T>): Promise<T> {
+/** `p`, or a rejection with the signal's reason as soon as `signal` aborts, whichever comes first. postJson stops on
+ * the same signal; this also settles when something does not honour it. */
+function untilAborted<T>(signal: AbortSignal, p: Promise<T>): Promise<T> {
   return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => reject(new BudgetExceeded(`no answer within the ${AI_BUDGET.ms / 1000}s AI budget`)), ms);
-    timer.unref?.();
+    const onAbort = () => reject(signal.reason);
+    if (signal.aborted) return onAbort();
+    signal.addEventListener('abort', onAbort, { once: true });
     p.then(
       (v) => {
-        clearTimeout(timer);
+        signal.removeEventListener('abort', onAbort);
         resolve(v);
       },
       (e) => {
-        clearTimeout(timer);
+        signal.removeEventListener('abort', onAbort);
         reject(e);
       },
     );
@@ -398,14 +455,32 @@ function within<T>(ms: number, p: Promise<T>): Promise<T> {
 export async function askApi<T>(req: ApiRequest, ai: AiSettings = config.ai, env: Env = process.env): Promise<T> {
   const t = resolveApi(ai, env);
   const body = chatBody(t, req, req.kind === 'score' ? t.scoreModel : t.letterModel);
-  const headers: Record<string, string> = t.key ? { authorization: `Bearer ${t.key}` } : {};
   const deadline = Date.now() + AI_BUDGET.ms;
+  // The budget aborts the request itself (the fetch, a backoff wait, further retries), so nothing is left running
+  // once the AiError is thrown and the CLI can exit right away. Cleared on every way out.
+  const budget = new AbortController();
+  const timer = setTimeout(() => budget.abort(new BudgetExceeded(`no answer within the ${AI_BUDGET.ms / 1000}s AI budget`)), AI_BUDGET.ms);
+  try {
+    return await askApiWithin<T>(req, t, body, deadline, budget.signal);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function askApiWithin<T>(
+  req: ApiRequest,
+  t: ApiTarget,
+  body: Record<string, unknown>,
+  deadline: number,
+  signal: AbortSignal,
+): Promise<T> {
+  const headers: Record<string, string> = t.key ? { authorization: `Bearer ${t.key}` } : {};
   let last = '';
   // One more try when the reply is not the JSON asked for, told what was wrong so the model can correct itself;
   // HTTP retries (429, 5xx) happen inside postJson. Everything stops at the overall AI budget (AI_BUDGET).
   for (let attempt = 0; attempt < 2; attempt++) {
     const remaining = deadline - Date.now();
-    if (remaining <= 0) break;
+    if (remaining <= 0 || signal.aborted) break;
     const ask = !attempt
       ? body
       : {
@@ -420,22 +495,23 @@ export async function askApi<T>(req: ApiRequest, ai: AiSettings = config.ai, env
         };
     let reply: ChatReply;
     try {
-      reply = await within(
-        remaining,
-        postJson<ChatReply>(t.url, ask, { headers, attempts: 3, timeoutMs: Math.min(AI_TIMEOUT_MS, remaining) }),
+      reply = await untilAborted(
+        signal,
+        postJson<ChatReply>(t.url, ask, { headers, attempts: 3, timeoutMs: Math.min(AI_TIMEOUT_MS, remaining), signal }),
       );
     } catch (e) {
       if (e instanceof BudgetExceeded) {
-        throw new AiError(redact(`${t.name} gave ${e.message}${last ? ` (last problem: ${last})` : ''}`, t.key));
+        throw new AiError(redact(`${t.name} gave ${e.message}${last ? ` (last problem: ${last})` : ''}`, t.key), { timedOut: true });
       }
       if (e instanceof HttpError && (e.status === 401 || e.status === 403)) {
         // The provider's own words help ("api key is invalid", "no access to this model"), redacted like the rest.
         const said = apiMessage(e.body).trim();
-        throw new AiError(redact(keyRejected(t, e.status, said ? `(${said})` : ''), t.key));
+        throw new AiError(redact(keyRejected(t, e.status, said ? `(${said})` : ''), t.key), { fatal: true });
       }
-      if (e instanceof HttpError && e.status === 402) throw new AiError(noCredit(t));
+      if (e instanceof HttpError && e.status === 402) throw new AiError(noCredit(t), { fatal: true });
       const detail = e instanceof HttpError ? `${e.status} ${apiMessage(e.body)}` : (e as Error).message;
-      throw new AiError(redact(`${t.name} request failed: ${detail}`, t.key));
+      // 404: a wrong base URL or model name, which fails the same way for every call until the setting is fixed.
+      throw new AiError(redact(`${t.name} request failed: ${detail}`, t.key), { fatal: e instanceof HttpError && e.status === 404 });
     }
     try {
       return parseReply<T>(reply, req.schema);
@@ -444,6 +520,7 @@ export async function askApi<T>(req: ApiRequest, ai: AiSettings = config.ai, env
       last = e.message;
     }
   }
-  const why = Date.now() >= deadline ? `no usable answer within the ${AI_BUDGET.ms / 1000}s AI budget` : 'no usable answer after 2 tries';
-  throw new AiError(redact(`${t.name} gave ${why}: ${last}`, t.key));
+  const outOfTime = signal.aborted || Date.now() >= deadline;
+  const why = outOfTime ? `no usable answer within the ${AI_BUDGET.ms / 1000}s AI budget` : 'no usable answer after 2 tries';
+  throw new AiError(redact(`${t.name} gave ${why}: ${last}`, t.key), { timedOut: outOfTime });
 }

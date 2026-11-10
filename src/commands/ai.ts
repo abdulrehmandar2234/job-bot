@@ -2,9 +2,12 @@ import { readFileSync } from 'node:fs';
 import { config } from '../config.ts';
 import { getJob, pool, setStatus, withLock, type Job } from '../db.ts';
 import { aiAnswers, aiScore as review } from '../ai.ts';
-import { aiLabel } from '../ai-providers.ts';
+import { AiError, aiLabel } from '../ai-providers.ts';
 import { notify, strongAlerts, type AlertJob } from '../notify.ts';
 import { AI_OFF, type Flags } from './shared.ts';
+
+/** After this many reviews in a row ran out of time, the provider is taken to be down and the run stops. */
+export const MAX_TIMEOUTS_IN_A_ROW = 3;
 
 /** AI review of matching jobs via the configured AI provider (config.json ai.provider): ai:score [--id <job>] [--limit 80] [--all] */
 export async function aiScore(_args: string[], flags: Flags) {
@@ -36,6 +39,14 @@ async function scoreQueue(flags: Flags) {
   let done = 0;
   let failed = 0;
   let firstError = '';
+  // Why the run stopped early: an error that would come back for every job (a rejected key, no credit, the Claude
+  // CLI missing or signed out), or a provider that keeps timing out. Emptying the queue stops every worker.
+  let stopped = '';
+  let timeoutsInARow = 0;
+  const stop = (why: string) => {
+    stopped ||= why;
+    queue.length = 0;
+  };
   const strong: string[] = [];
   const worker = async () => {
     for (let j = queue.shift(); j; j = queue.shift()) {
@@ -60,17 +71,33 @@ async function scoreQueue(flags: Flags) {
           }`,
         );
         done++;
+        timeoutsInARow = 0;
         if (r.verdict === 'strong' && where !== 'no' && (j.status === 'new' || restored)) strong.push(j.id);
       } catch (e) {
         failed++;
-        firstError ||= (e as Error).message;
-        console.log(`  ✗ ${j.company} — ${j.title}: ${(e as Error).message.slice(0, 120)}`);
+        const message = (e as Error).message;
+        firstError ||= message;
+        const ai = e instanceof AiError ? e : null;
+        timeoutsInARow = ai?.timedOut ? timeoutsInARow + 1 : 0;
+        // A single job (--id) just fails with the message below; a bulk run stops instead of failing every job.
+        if (!flags.id && ai?.fatal) stop(message);
+        else if (!flags.id && timeoutsInARow >= MAX_TIMEOUTS_IN_A_ROW) {
+          stop(`the AI provider is not answering (${timeoutsInARow} reviews in a row timed out), stopping: ${message}`);
+        }
+        // Once stopped, the jobs other workers still had in flight fail silently: the one stop line says it all.
+        if (!stopped) console.log(`  ✗ ${j.company} — ${j.title}: ${message.slice(0, 120)}`);
       }
     }
   };
   await Promise.all(Array.from({ length: config.ai.concurrency }, worker));
-  console.log(`${done} jobs scored${failed ? `, ${failed} failed` : ''}.`);
+  console.log(`${done} jobs scored${failed ? `, ${failed} failed` : ''}${stopped ? `, ${total - done - failed} not tried` : ''}.`);
   await alertStrong(strong);
+  // A run that stopped early exits 1 with one line saying why, so the daily run and a dashboard task report it.
+  if (stopped) {
+    console.error(`AI review failed for ${failed} of ${total} job${total === 1 ? '' : 's'}; stopped early: ${stopped.slice(0, 500)}`);
+    process.exitCode = 1;
+    return;
+  }
   // A failed review must not look like success: the job asked for with --id, or the whole queue, failing exits 1,
   // so a dashboard task ends as failed and the scheduled run reports the error.
   if (failed && (flags.id || failed === total)) {

@@ -5,7 +5,26 @@ import { fileURLToPath } from 'node:url';
 
 // Shared pacing for job-site requests. Tests set `timing.scale = 0` so paced loops run instantly.
 export const timing = { scale: 1 };
-export const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms * timing.scale));
+
+/**
+ * Waits `ms` (scaled by `timing.scale`). With a `signal`, the wait ends at once when it aborts: the promise rejects
+ * with the signal's reason and the timer is cleared, so an aborted caller (the AI budget) never waits out a backoff.
+ */
+export function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    if (signal?.aborted) return reject(signal.reason);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(signal!.reason);
+    };
+    signal?.addEventListener('abort', onAbort, { once: true });
+    timer = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms * timing.scale);
+  });
+}
 
 // Polite HTTP: one honest User-Agent, retries with backoff for 429/5xx/network errors (honouring
 // Retry-After), and an on-disk ETag/Last-Modified cache so unchanged boards answer 304 instead of a full body.
@@ -29,6 +48,9 @@ export type RequestOptions = {
   method?: 'GET' | 'POST';
   /** Request body for POST, sent as JSON. */
   body?: unknown;
+  /** Stops the whole request (the current attempt, a backoff wait and any further retry) when it aborts; the request
+   * then rejects with the signal's reason. Each attempt still has its own `timeoutMs`. */
+  signal?: AbortSignal;
 };
 
 /** A final non-2xx answer. The message starts with the status, e.g. "404 https://...". */
@@ -117,7 +139,7 @@ export async function request(
   url: string,
   opts: RequestOptions = {},
 ): Promise<{ status: number; body: string; fromCache: boolean; url: string }> {
-  const { attempts = 4, baseDelayMs = 1000, retryOn = retryable, timeoutMs = 30_000, method = 'GET' } = opts;
+  const { attempts = 4, baseDelayMs = 1000, retryOn = retryable, timeoutMs = 30_000, method = 'GET', signal } = opts;
   const cache = method === 'GET' && (opts.cache ?? true);
   const host = new URL(url).host;
   const cached = cache ? readCache(url) : null;
@@ -129,17 +151,20 @@ export async function request(
 
   let last = '';
   for (let attempt = 0; attempt < attempts; attempt++) {
+    signal?.throwIfAborted();
     let res: Response;
     try {
       res = await fetch(url, {
         method,
         headers,
-        signal: AbortSignal.timeout(timeoutMs),
+        signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)]) : AbortSignal.timeout(timeoutMs),
         body: method === 'POST' ? JSON.stringify(opts.body ?? {}) : undefined,
       });
     } catch (e) {
+      // Aborted from outside: no retry, and the caller gets its own reason back (not fetch's generic AbortError).
+      if (signal?.aborted) throw signal.reason;
       last = (e as Error).message;
-      if (attempt + 1 < attempts) await sleep(retryDelay(attempt, baseDelayMs));
+      if (attempt + 1 < attempts) await sleep(retryDelay(attempt, baseDelayMs), signal);
       continue;
     }
     if (res.status === 304 && cached) return { status: 304, body: cached.body, fromCache: true, url };
@@ -160,7 +185,7 @@ export async function request(
     if (wait > MAX_RETRY_AFTER_MS) {
       throw new HttpError(res.status, url, `${res.status} ${host} asked to retry after ${Math.round(wait / 1000)}s; giving up on ${url}`);
     }
-    if (attempt + 1 < attempts) await sleep(wait);
+    if (attempt + 1 < attempts) await sleep(wait, signal);
   }
   throw new Error(`${host}: gave up after ${attempts} attempts (last: ${last}) ${url}`);
 }
