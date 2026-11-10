@@ -102,7 +102,8 @@ describe('job list page', () => {
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Job Bot');
     expect(screen.getByRole('button', { name: 'Fetch new jobs' })).toHaveAttribute('type', 'submit');
     expect(screen.getByText('Add jobs from Bayt')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Open Bayt ↗' })).toHaveAttribute('href', 'https://www.bayt.com/en/uae/jobs/laravel-jobs/');
+    // The board of the first target country Bayt serves (config.default.json starts with the UAE), no stack in it.
+    expect(screen.getByRole('link', { name: 'Open Bayt ↗' })).toHaveAttribute('href', 'https://www.bayt.com/en/uae/jobs/');
   });
 
   it("describes the target markets from config.json, the owner's as before", async () => {
@@ -129,6 +130,8 @@ describe('job list page', () => {
       expect(within(screen.getByRole('banner')).getByText('Germany onsite, plus remote roles open to Portugal')).toBeInTheDocument();
       const countries = [...document.querySelectorAll('select[name="country"] option')].map((o) => o.textContent);
       expect(countries).toEqual(['All countries', '🇩🇪 Germany', '🌍 Remote (from Portugal)']);
+      // No target country Bayt serves: Bayt's home page, never the owner's country or stack.
+      expect(screen.getByRole('link', { name: 'Open Bayt ↗' })).toHaveAttribute('href', 'https://www.bayt.com/en/');
     } finally {
       vi.unstubAllEnvs();
     }
@@ -207,7 +210,8 @@ describe('job list page', () => {
     expect(tab('Applied')).toHaveTextContent(`Applied ${n('applied', 1)}`);
     expect(tab('Filtered out')).toHaveTextContent(`Filtered out ${n('filtered', 1)}`);
     expect(tab('Offer')).toHaveTextContent(`Offer ${n('offer', 0)}`);
-    expect(tab('Matching')).toHaveAttribute('href', '/?status=new');
+    // Every tab link carries `days`, so proxy.ts never has to redirect it to put the saved filters back.
+    expect(tab('Matching')).toHaveAttribute('href', '/?status=new&days=1');
     expect(tab('Matching')).toHaveClass('font-medium');
     expect(tab('Applied')).not.toHaveClass('font-medium');
 
@@ -348,7 +352,7 @@ describe('job list page', () => {
     await insertJob({ id: 'fb-1', title: 'TG matching', status: 'new' });
     await renderPage({ status: 'bogus', country: 'XX', min: 'abc', sort: 'weird' });
     expect(tab('Matching')).toHaveClass('font-medium');
-    expect(tab('Matching')).toHaveAttribute('href', '/?status=new');
+    expect(tab('Matching')).toHaveAttribute('href', '/?status=new&days=1');
     expect(titles()).toContain('TG matching');
     expect(tab('Matching')).toHaveAttribute('aria-current', 'page');
     expect(screen.getByRole('combobox', { name: 'Country' })).toHaveValue('');
@@ -408,7 +412,7 @@ describe('job list page', () => {
     await renderPage({});
     expect(titles()).toEqual(['TG today']);
     expect(screen.getByRole('combobox', { name: 'Posted within' })).toHaveValue('1');
-    expect(tab('Applied')).toHaveAttribute('href', '/?status=applied');
+    expect(tab('Applied')).toHaveAttribute('href', '/?status=applied&days=1');
 
     document.body.innerHTML = '';
     await renderPage({ days: '0' });
@@ -443,7 +447,10 @@ describe('job list page', () => {
     await renderPage();
     expect(titles()).toEqual(['TG shared']);
     const card = cards()[0];
-    expect(within(card).getByRole('link', { name: 'TG shared · Acme' })).toHaveAttribute('href', `/jobs/${encodeURIComponent(primary)}`);
+    expect(within(card).getByRole('link', { name: 'TG shared · Acme' })).toHaveAttribute(
+      'href',
+      `/jobs/${encodeURIComponent(primary)}?from=${encodeURIComponent('/?status=new&days=1')}`,
+    );
     expect(card).toHaveTextContent('Posted on:');
     expect(within(card).getByRole('link', { name: 'Company site ↗' })).toHaveAttribute('href', 'https://boards.greenhouse.io/acme/1');
     expect(within(card).getByRole('link', { name: 'LinkedIn ↗' })).toHaveAttribute('href', 'https://linkedin.com/jobs/9');
@@ -499,6 +506,41 @@ describe('job list page', () => {
     await renderPage({ q: 'no-such-company-xyz' });
     expect(screen.getByText('No jobs here.')).toBeInTheDocument();
     expect(cards()).toHaveLength(0);
+  });
+
+  it('says how many jobs the filters hide when the list is empty, with "Show any time" and "Reset filters"', async () => {
+    await insertJob({ id: 'e-hidden', title: 'TG emptyzz', status: 'new', score: 50, posted_at: dateDaysAgo(5) });
+    await renderPage({ q: 'emptyzz', in: 'tab', min: '80' });
+    expect(cards()).toHaveLength(0);
+    expect(screen.getByText('No jobs here.')).toBeInTheDocument();
+    expect(screen.getByText('1 job matches without the date and score filters.')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Show any time' })).toHaveAttribute('href', '/?status=new&min=80&q=emptyzz&in=tab&days=0');
+    // proxy.ts clears the remembered filters on reset=1 and redirects to the same tab and search.
+    expect(screen.getByRole('link', { name: 'Reset filters' })).toHaveAttribute('href', '/?status=new&q=emptyzz&reset=1');
+  });
+
+  it('offers only "Reset filters" when the date is not one of the filters, and says when they hide nothing', async () => {
+    await renderPage({ status: 'applied', q: 'nosuchjobzz', in: 'tab', min: '80' });
+    expect(screen.getByText('None without the score filter either.')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Show any time' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Reset filters' })).toHaveAttribute('href', '/?status=applied&q=nosuchjobzz&reset=1');
+  });
+
+  it('links each card to its job page with the list it came from, filters and page included', async () => {
+    const id = await insertJob({ id: 'from-1', title: 'TG fromzz', status: 'applied' });
+    await renderPage({ status: 'applied', q: 'fromzz', in: 'tab', country: 'AE', sort: 'newest' });
+    const link = within(cards()[0]).getByRole('link', { name: /TG fromzz/ });
+    const url = new URL(link.getAttribute('href')!, 'http://localhost');
+    expect(url.pathname).toBe(`/jobs/${encodeURIComponent(id)}`);
+    expect(url.searchParams.get('from')).toBe('/?status=applied&country=AE&q=fromzz&in=tab&days=1&sort=newest');
+  });
+
+  it('leaves room under the list for the bulk-skip bar where it can show', async () => {
+    const view = await renderPage({ status: 'new' });
+    expect(screen.getByTestId('job-list')).toHaveClass('pb-28');
+    view.unmount();
+    await renderPage({ status: 'applied' });
+    expect(screen.getByTestId('job-list')).not.toHaveClass('pb-28');
   });
 
   it('shows running tasks and failures above the stats, and the job card in progress', async () => {

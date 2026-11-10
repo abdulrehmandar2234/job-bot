@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>job-bot options</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="popup">
+  <h1>job-bot options</h1>
+  <form id="form">
+    <label>Dashboard address
+      <input id="dashboard" name="dashboard" placeholder="http://localhost:3100" autocomplete="off">
+    </label>
+    <p class="hint">Where your job-bot dashboard runs on this computer (<code>npm run web</code>). Only localhost and 127.0.0.1 are allowed. Leave it empty for http://localhost:3100.</p>
+    <div class="actions">
+      <button type="submit">Save</button>
+      <button type="button" id="check" class="secondary">Check connection</button>
+    </div>
+    <p id="status" class="status"></p>
+  </form>
+  <script type="module" src="options.js"></script>
+</body>
+</html>

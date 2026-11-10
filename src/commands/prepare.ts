@@ -7,10 +7,10 @@ import { PROFILES } from '../cv/profiles.ts';
 import { coverLetter } from '../cover.ts';
 import { aiCoverLetter, aiHeadline, aiSummary } from '../ai.ts';
 import { unsupportedClaims } from '../cv/feedback.ts';
-import { FEEDBACK_CAP } from '../tasks.ts';
+import { FEEDBACK_CAP } from '../types.ts';
 import { isOpen } from '../sources/open.ts';
 import { record } from './open.ts';
-import { slug, today, type Flags } from './shared.ts';
+import { slug, today, type Flags, notFound } from './shared.ts';
 
 /** Statuses that `prepare` moves to `prepared`; later stages keep their status. */
 export const PREPARABLE: readonly JobStatus[] = ['new', 'filtered', 'skipped', 'expired'];
@@ -89,7 +89,7 @@ export async function letter(args: string[], flags: Flags) {
   const feedback = feedbackFlag(flags);
   if (feedback === null) return;
   const j = await getJob(args[0]);
-  if (!j) return console.log('Not found');
+  if (!j) return notFound();
   let res: Awaited<ReturnType<typeof writeLetter>>;
   try {
     res = await writeLetter(j, flags, feedback);
@@ -113,7 +113,7 @@ export async function summary(args: string[], flags: Flags) {
   const feedback = feedbackFlag(flags);
   if (feedback === null) return;
   const j = await getJob(args[0]);
-  if (!j) return console.log('Not found');
+  if (!j) return notFound();
   if (!config.ai.enabled) {
     console.error('The CV summary is written by the AI, and it is off (config.json ai.enabled).');
     process.exitCode = 1;
@@ -151,7 +151,7 @@ export async function headline(args: string[], flags: Flags) {
   const feedback = feedbackFlag(flags);
   if (feedback === null) return;
   const j = await getJob(args[0]);
-  if (!j) return console.log('Not found');
+  if (!j) return notFound();
   if (!config.ai.enabled) {
     console.error('The CV headline is written by the AI, and it is off (config.json ai.enabled).');
     process.exitCode = 1;
@@ -190,7 +190,7 @@ export async function headline(args: string[], flags: Flags) {
  */
 export async function letterPdf(args: string[]) {
   const j = await getJob(args[0]);
-  if (!j) return console.log('Not found');
+  if (!j) return notFound();
   if (!j.cover_letter) {
     console.log(`No cover letter yet: npm run bot -- letter ${j.id}`);
     process.exitCode = 1;
@@ -208,7 +208,7 @@ export async function letterPdf(args: string[]) {
  */
 export async function prepare(args: string[], flags: Flags) {
   const j = await getJob(args[0]);
-  if (!j) return console.log('Not found');
+  if (!j) return notFound();
   // A closed posting is not worth a CV and letter. --force skips the check (e.g. the site blocks the bot).
   if (!flags.force) {
     const r = await isOpen(j);

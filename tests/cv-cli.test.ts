@@ -100,7 +100,10 @@ describe('cv:template', () => {
     assert.equal(bad.code, 1);
     assert.match(bad.stderr, /Usage: cv:template <id> <template>/);
     assert.equal((await getJob(id))!.cv_template, null);
-    assert.match(await bot(['cv:template', 'nope', 'modern']), /Not found/);
+    await assert.rejects(
+      bot(['cv:template', 'nope', 'modern']),
+      (e: { code: number; stderr: string }) => e.code === 1 && /Not found/.test(e.stderr),
+    );
   });
 
   it('only sets the template for a job without a CV; prepare then builds the CV in it', { skip: noChrome }, async () => {
@@ -236,7 +239,10 @@ describe('cv:feedback', () => {
     const failed = await fails(['cv:feedback', id, '--feedback', 'shorter'], { FAKE_CLAUDE_FAIL: 'offline' });
     assert.match(failed.stderr, /AI CV revision failed, the CV is unchanged: .*offline/);
     assert.equal((await getJob(id))!.cv_version, 'default');
-    assert.match(await bot(['cv:feedback', 'nope', '--feedback', 'shorter']), /Not found/);
+    await assert.rejects(
+      bot(['cv:feedback', 'nope', '--feedback', 'shorter']),
+      (e: { code: number; stderr: string }) => e.code === 1 && /Not found/.test(e.stderr),
+    );
   });
 });
 

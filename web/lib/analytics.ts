@@ -1,4 +1,5 @@
 import { pool } from '@/lib/db';
+import { UNDO_NOTE } from '@/lib/job-lock';
 
 // Read-only queries for the /analytics page. Copies of a job found on other sites (duplicate_of) never count:
 // only the primary row does.
@@ -10,6 +11,23 @@ export const MIN_N = 5;
 const stage = (col: string) =>
   `CASE ${col} WHEN 'prepared' THEN 1 WHEN 'applied' THEN 2 WHEN 'interview' THEN 3 WHEN 'offer' THEN 4 ELSE 0 END`;
 
+/** isStatusChange (lib/job-lock.ts) as SQL, over job_events' own columns. */
+const STATUS_CHANGE = `(from_status IS NOT NULL AND from_status <> to_status)`;
+
+/**
+ * The history rows of job `jobCol` that still count: an Undo (note UNDO_NOTE) and the status change it reverted are
+ * both left out, so a "Mark applied" that was undone never counts as applied. An Undo always reverts the status change
+ * right before it, and an Undo is never undone itself (canUndo in lib/job-lock.ts), so a change is reverted exactly
+ * when the next status change of its job is an Undo. Filtered on the job first, so the window only sees its rows.
+ */
+const kept = (jobCol: string) => `(
+  SELECT at, from_status, to_status FROM (
+    SELECT at, from_status, to_status, note, ${STATUS_CHANGE} AS change,
+      lead(note) OVER (PARTITION BY ${STATUS_CHANGE} ORDER BY id) AS next_note
+    FROM job_events WHERE job_id = ${jobCol}
+  ) h WHERE NOT (change AND coalesce(note = '${UNDO_NOTE}' OR next_note = '${UNDO_NOTE}', false))
+)`;
+
 /**
  * One row per primary job with the furthest stage it ever reached: its current status, every status in its
  * history (job_events) and applied_at. A job that got an interview and was later rejected still counts as
@@ -19,12 +37,13 @@ const REACHED = `
   SELECT id, source, country, cv_version, ai_verdict, status, first_seen_at, stage, status <> 'filtered' OR stage > 0 AS matched
   FROM (
     SELECT j.id, j.source, j.country, j.cv_version, j.ai_verdict, j.status, j.first_seen_at, greatest(${stage('j.status')}, CASE WHEN j.applied_at IS NOT NULL THEN 2 ELSE 0 END,
-      coalesce((SELECT max(greatest(${stage('e.to_status')}, ${stage('e.from_status')})) FROM job_events e WHERE e.job_id = j.id), 0)) AS stage
+      coalesce((SELECT max(greatest(${stage('e.to_status')}, ${stage('e.from_status')})) FROM ${kept('j.id')} e), 0)) AS stage
     FROM jobs j WHERE j.duplicate_of IS NULL
   ) r`;
 
-// When you applied: the first move to `applied` in the history (applied_at is reset if the status is set again).
-const APPLIED_AT = `coalesce((SELECT min(e.at) FROM job_events e WHERE e.job_id = j.id AND e.to_status = 'applied'), j.applied_at)`;
+// When you applied: the first move to `applied` in the history that was not undone (applied_at is reset if the status
+// is set again).
+const APPLIED_AT = `coalesce((SELECT min(e.at) FROM ${kept('j.id')} e WHERE e.to_status = 'applied'), j.applied_at)`;
 
 export type Funnel = {
   matched: number;
@@ -89,8 +108,8 @@ export async function weeklyActivity(weeks = 12) {
 export async function responseDays() {
   const { rows } = await pool.query<{ id: string; days: number }>(`
     SELECT id, extract(epoch FROM replied - applied)::float8 / 86400 AS days FROM (
-      SELECT j.id, a.applied, (SELECT min(e.at) FROM job_events e
-        WHERE e.job_id = j.id AND e.to_status IN ('interview', 'rejected') AND e.at >= a.applied) AS replied
+      SELECT j.id, a.applied, (SELECT min(e.at) FROM ${kept('j.id')} e
+        WHERE e.to_status IN ('interview', 'rejected') AND e.at >= a.applied) AS replied
       FROM jobs j CROSS JOIN LATERAL (SELECT ${APPLIED_AT} AS applied) a WHERE j.duplicate_of IS NULL
     ) x WHERE replied IS NOT NULL`);
   return rows;

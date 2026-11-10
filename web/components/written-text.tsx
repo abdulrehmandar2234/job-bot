@@ -1,35 +1,11 @@
 'use client';
 
-import { type FormEvent, type ReactNode, startTransition, useActionState, useEffect, useState } from 'react';
+import { type FormEvent, type ReactNode, useEffect, useState } from 'react';
 import { AiOffNote } from './ai-off';
+import { Problem, useTextForm } from './form-state';
 import { FEEDBACK_CAP, TEXT_CAP, type TextFormState, type WrittenKind } from '@/lib/written-text';
 
 type Action = (prev: TextFormState, fd: FormData) => Promise<TextFormState>;
-
-/**
- * Submits through useActionState from onSubmit rather than <form action>, because React resets a form after an
- * action prop runs, which would wipe the typed text when the action answers with an error (as in settings.tsx).
- */
-export function useTextForm(action: Action) {
-  const [state, dispatch, pending] = useActionState(action, null);
-  const onSubmit = (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const fd = new FormData(e.currentTarget);
-    startTransition(() => dispatch(fd));
-  };
-  // `action` is for the form's action prop: before hydration (or without JS) the form still posts to the server
-  // action; once hydrated, onSubmit takes over and keeps the controls' values when the action answers an error.
-  return { state, pending, onSubmit, action: dispatch };
-}
-
-export function Problem({ state }: { state: TextFormState }) {
-  if (!state || state.ok) return null;
-  return (
-    <p role="alert" className="text-sm text-rose-700 dark:text-rose-400">
-      {state.message}
-    </p>
-  );
-}
 
 /**
  * Asks before the form inside it submits, for a click that destroys text the user wrote (a rewrite of an edited

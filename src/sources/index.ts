@@ -2,9 +2,7 @@ import { getJson, postJson, sleep } from './http.ts';
 import { config, type Company } from '../config.ts';
 import type { RawJob, SalaryPeriod } from '../types.ts';
 import { structuredSalary } from '../salary.ts';
-import { titleOk } from '../match.ts';
-import { loadProfile, remoteFrom, remoteFromCode } from '../profile.ts';
-import { effectiveRemoteRules } from '../regions.ts';
+import { remoteOpenToCandidate, titleOk } from '../match.ts';
 
 export type { RawJob };
 
@@ -241,14 +239,11 @@ async function smartrecruiters(c: Company): Promise<RawJob[]> {
   return out;
 }
 
-/** The location text of a remote posting, as match.ts reads it ("Remote — Worldwide", "Anywhere", "Work from home"). */
-const REMOTE_WORDS = /\bremote\b|anywhere|worldwide|work from home/i;
-
 /**
  * Cheap checks on list data, so detail pages are only loaded for postings that could pass match.ts: the same title
- * rule (titleOk), and a location in a target country, Workday's "3 Locations" (which hides where the job is), or,
- * when remote jobs are on, a remote posting whose region is open to the candidate (match.ts remoteCountry: no
- * region, "not stated", or one the remote allow rule takes; "Remote — US" is dropped here as it would be there).
+ * rule (titleOk), and a location in a target country, Workday's "3 Locations" (which hides where the job is), or a
+ * remote posting open to the candidate by match.ts's own rule (remoteOpenToCandidate: "Remote — US" is dropped here
+ * as it would be there).
  */
 function prefilter() {
   const countries = new RegExp(
@@ -257,17 +252,7 @@ function prefilter() {
       .join('|'),
     'i',
   );
-  let allow: RegExp | null = null;
-  if (config.remote.enabled) {
-    const profile = loadProfile();
-    allow = new RegExp(effectiveRemoteRules(config.remote, remoteFromCode(config, profile), remoteFrom(config, profile)).allow, 'i');
-  }
-  const remoteOk = (l: string) => {
-    if (!allow || !REMOTE_WORDS.test(l)) return false;
-    const region = l.replace(/\bremote\b|[—–\-(),:|/]/gi, ' ').trim();
-    return !region || /not stated/i.test(region) || allow.test(region);
-  };
-  const where = (l = '') => countries.test(l) || /^\d+ locations$/i.test(l.trim()) || remoteOk(l);
+  const where = (l = '') => countries.test(l) || /^\d+ locations$/i.test(l.trim()) || remoteOpenToCandidate(l, config) === true;
   return { roleOk: titleOk(config), where };
 }
 

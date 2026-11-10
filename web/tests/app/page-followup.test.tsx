@@ -84,7 +84,7 @@ describe('follow-up reminders on the dashboard', () => {
     await insertJob({ id: 'fu-fresh', title: 'TG fresh', status: 'applied', applied_at: dateDaysAgo(1) });
     await renderList({ view: 'followup' });
     expect(tab('Needs follow-up')).toHaveTextContent(`Needs follow-up ${before + 1}`);
-    expect(tab('Needs follow-up')).toHaveAttribute('href', '/?view=followup');
+    expect(tab('Needs follow-up')).toHaveAttribute('href', '/?view=followup&days=1');
     const labels = within(screen.getByRole('navigation'))
       .getAllByRole('link')
       .map((a) => a.textContent!.replace(/ \d+$/, ''));
@@ -103,6 +103,36 @@ describe('follow-up reminders on the dashboard', () => {
     await insertJob({ id: 'fu-fresh', title: 'TG fresh', status: 'applied', applied_at: dateDaysAgo(1) });
     await renderList({ status: 'applied' });
     expect(cardTitles().sort()).toEqual(['TG fresh · Acme ', 'TG waiting · Acme Follow up · 9 days']);
+  });
+
+  it('puts the follow-up actions on the "Needs follow-up" cards: draft, copy the draft, "I sent a follow-up"', async () => {
+    const drafted = await insertJob({
+      id: 'fu-drafted',
+      title: 'TG drafted',
+      status: 'applied',
+      applied_at: dateDaysAgo(10),
+      follow_up_draft: 'Dear Acme,\nStill keen.',
+      follow_up_draft_at: new Date(),
+    });
+    const bare = await insertJob({ id: 'fu-bare', title: 'TG bare', status: 'applied', applied_at: dateDaysAgo(9) });
+    await renderList({ view: 'followup', q: 'TG ', in: 'tab' });
+    const card = (title: string) => screen.getAllByRole('listitem').find((li) => li.textContent!.includes(title))!;
+    const formId = (b: HTMLElement) => (b.closest('form')!.querySelector('input[name="id"]') as HTMLInputElement).value;
+
+    const withDraft = within(within(card('TG drafted')).getByTestId('follow-up-actions'));
+    expect(formId(withDraft.getByRole('button', { name: 'Redraft' }))).toBe(drafted);
+    expect(withDraft.getByRole('button', { name: 'Copy draft' })).toBeInTheDocument();
+    expect(formId(withDraft.getByRole('button', { name: 'I sent a follow-up' }))).toBe(drafted);
+
+    const noDraft = within(within(card('TG bare')).getByTestId('follow-up-actions'));
+    expect(formId(noDraft.getByRole('button', { name: 'Draft follow-up' }))).toBe(bare);
+    expect(noDraft.queryByRole('button', { name: 'Copy draft' })).toBeNull();
+    expect(formId(noDraft.getByRole('button', { name: 'I sent a follow-up' }))).toBe(bare);
+
+    // The plain Applied tab keeps its cards short.
+    document.body.innerHTML = '';
+    await renderList({ status: 'applied', q: 'TG ', in: 'tab' });
+    expect(screen.queryByTestId('follow-up-actions')).toBeNull();
   });
 
   it('says so when nothing is due', async () => {

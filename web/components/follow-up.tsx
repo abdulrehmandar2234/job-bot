@@ -20,6 +20,40 @@ export function FollowUpBadge({ job }: { job: FollowUpInfo }) {
   );
 }
 
+type FollowUpJob = Pick<Job, 'id' | 'status' | 'follow_up_draft' | 'follow_ups'>;
+
+function DraftButton({ job, busy }: { job: FollowUpJob; busy: readonly TaskKind[] }) {
+  if (busy.includes('follow_up')) return <Busy>Drafting follow-up…</Busy>;
+  return (
+    <ActionForm
+      action={draftFollowUp}
+      fields={{ id: job.id }}
+      pendingText="Starting…"
+      label={job.follow_up_draft ? 'Redraft' : 'Draft follow-up'}
+    />
+  );
+}
+
+const SentButton = ({ id }: { id: string }) => (
+  <ActionForm action={markFollowedUp} fields={{ id }} pendingText="Saving…" label="I sent a follow-up" />
+);
+
+/**
+ * The "Needs follow-up" cards on the list: the same actions as the job page's Follow-up section in one compact row
+ * (draft, copy the draft, "I sent a follow-up"), so a due job needs no page visit.
+ */
+export function FollowUpActions({ job, busy = [] }: { job: FollowUpJob; busy?: readonly TaskKind[] }) {
+  if (job.status !== 'applied') return null;
+  return (
+    <div data-testid="follow-up-actions" className="flex flex-wrap items-center gap-2 text-sm">
+      <span className="text-xs text-zinc-500">Follow-up:</span>
+      <DraftButton job={job} busy={busy} />
+      {job.follow_up_draft && <CopyButton text={job.follow_up_draft} label="Copy draft" />}
+      {job.follow_ups < MAX_FOLLOW_UPS && <SentButton id={job.id} />}
+    </div>
+  );
+}
+
 /**
  * Job page, for applied jobs (and any job with a draft): whether a follow-up is due, the drafted message to copy,
  * and "I sent it" to record it. The bot never sends anything.
@@ -42,17 +76,8 @@ export function FollowUp({ job, busy = [] }: { job: Job; busy?: readonly TaskKin
         </h2>
         {job.status === 'applied' && (
           <div className="flex gap-2">
-            {busy.includes('follow_up') ? (
-              <Busy>Drafting follow-up…</Busy>
-            ) : (
-              <ActionForm
-                action={draftFollowUp}
-                fields={{ id: job.id }}
-                pendingText="Starting…"
-                label={job.follow_up_draft ? 'Redraft' : 'Draft follow-up'}
-              />
-            )}
-            {!done && <ActionForm action={markFollowedUp} fields={{ id: job.id }} pendingText="Saving…" label="I sent a follow-up" />}
+            <DraftButton job={job} busy={busy} />
+            {!done && <SentButton id={job.id} />}
           </div>
         )}
       </div>

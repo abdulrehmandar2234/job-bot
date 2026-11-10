@@ -51,6 +51,29 @@ export function normalizeUrl(url) {
   return `${u.protocol}//${u.host}${path}${ids.length ? `?${new URLSearchParams(ids)}` : ''}`;
 }
 
+// Application forms that live at another URL than the posting, per ATS host: Lever `/apply`, Ashby
+// `/application`, Workday `/apply` and its steps (`/apply/applyManually`). Greenhouse's `#app` needs no rule (the hash
+// is dropped anyway). Kept tight on purpose: a rule on every host would make `/apply` pages of unrelated sites
+// match. Same list as APPLY_STEPS in web/lib/extension.ts (web/tests/lib/extension-url.test.ts checks).
+export const APPLY_STEPS = [
+  { host: /(^|\.)lever\.co$/, path: /\/apply$/ },
+  { host: /(^|\.)ashbyhq\.com$/, path: /\/application$/ },
+  { host: /(^|\.)(myworkdayjobs|myworkdaysite)\.com$/, path: /\/apply(\/[^/]+){0,2}$/ },
+];
+
+/**
+ * The posting URL of an application-form URL (`.../apply` → `...`), keeping the query and dropping the hash, or
+ * null when the URL is not a known application step.
+ */
+export function postingUrl(url) {
+  if (!isHttpUrl(url)) return null;
+  const u = new URL(url);
+  const path = u.pathname.replace(/\/+$/, '');
+  const rule = APPLY_STEPS.find((r) => r.host.test(u.hostname.toLowerCase()) && r.path.test(path));
+  if (!rule) return null;
+  return `${u.protocol}//${u.host}${path.replace(rule.path, '')}${u.search}`;
+}
+
 /**
  * Whether the tab a job was shown for is still the active tab, on the same job page (ignoring tracking parameters
  * and hash, but not a job id parameter: another ?gh_jid= on the same careers page is another job).

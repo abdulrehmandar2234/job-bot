@@ -1,5 +1,8 @@
 import { after, afterEach, before, beforeEach, describe, it, mock } from 'node:test';
 import assert from 'node:assert/strict';
+import { execFile } from 'node:child_process';
+import { join } from 'node:path';
+import { promisify } from 'node:util';
 import { daysAgo, mockFetch } from './helpers.ts';
 import { fetch } from '../src/commands/fetch.ts';
 import { config } from '../src/config.ts';
@@ -330,5 +333,27 @@ describe('pruneFiltered', () => {
     assert.deepEqual(await ids(), ['p:100']);
     assert.equal(await pruneFiltered(14), 1); // cutoff 30 days
     assert.deepEqual(await ids(), []);
+  });
+});
+
+describe('the pool is created on first use', () => {
+  it('importing db.ts without DATABASE_URL works; the first query throws the one-line UserError', async () => {
+    const root = join(import.meta.dirname, '..');
+    const script = `
+      const { pool, getPool } = await import('./src/db.ts');
+      const { UserError } = await import('./src/errors.ts');
+      await pool.end(); // never created: a no-op, so a finally after a failed start does not hide the first error
+      for (const f of [() => pool.query('SELECT 1'), () => getPool()]) {
+        try { await f(); console.log('no error'); } catch (e) { console.log(e instanceof UserError, e.message); }
+      }`;
+    const env: NodeJS.ProcessEnv = { ...process.env };
+    delete env.DATABASE_URL;
+    const { stdout } = await promisify(execFile)(process.execPath, ['--no-warnings', '--input-type=module', '-e', script], {
+      cwd: root,
+      env,
+      timeout: 30_000,
+    });
+    const line = 'true DATABASE_URL is not set: put it in .env in the job-bot folder';
+    assert.deepEqual(stdout.trim().split('\n'), [line, line]);
   });
 });

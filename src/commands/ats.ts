@@ -4,7 +4,7 @@ import { getJob } from '../db.ts';
 import { atsReport, versionCv, type AtsReport } from '../ats.ts';
 import { masterRaw, type VersionMeta } from '../cv/versions.ts';
 import type { Cv } from '../cv/render.ts';
-import type { Flags } from './shared.ts';
+import { notFound, type Flags } from './shared.ts';
 
 /**
  * The CV content to check: a built version (cv/versions/<id>/cv.json, e.g. laravel-v2 or custom-x) as it was sent,
@@ -25,7 +25,7 @@ const list = (items: string[]) => items.join(', ') || '-';
 /** ats <id> [--cv cluster] [--json]: which job keywords the CV version shows, hides or lacks. */
 export async function ats(args: string[], flags: Flags) {
   const j = await getJob(args[0]);
-  if (!j) return console.log('Not found');
+  if (!j) return notFound();
   const id = flags.cv && flags.cv !== 'true' ? flags.cv : (j.cv_version ?? j.cluster ?? 'default');
   const source = flags.cv && flags.cv !== 'true' ? 'chosen with --cv' : j.cv_version ? 'prepared' : 'suggested';
   const master = JSON.parse(masterRaw()) as Cv;

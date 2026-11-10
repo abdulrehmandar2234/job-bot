@@ -113,7 +113,40 @@ const normalizedOrNull = (url: string) => {
 // index (src/migrations/009_url_index.sql), and normalizeUrl then keeps those with the same job id parameters.
 const NORMALIZED = `rtrim(split_part(split_part(url, '#', 1), '?', 1), '/')`;
 
+/**
+ * Application forms that live at another URL than the posting, per ATS host: Lever `/apply`, Ashby `/application`,
+ * Workday `/apply` and its steps (`/apply/applyManually`). Greenhouse's `#app` needs no rule (the hash is dropped
+ * anyway). Kept tight on purpose: a rule on every host would make `/apply` pages of unrelated sites match.
+ * Same list as APPLY_STEPS in extension/lib/url.js (web/tests/lib/extension-url.test.ts checks).
+ */
+export const APPLY_STEPS: ReadonlyArray<{ host: RegExp; path: RegExp }> = [
+  { host: /(^|\.)lever\.co$/, path: /\/apply$/ },
+  { host: /(^|\.)ashbyhq\.com$/, path: /\/application$/ },
+  { host: /(^|\.)(myworkdayjobs|myworkdaysite)\.com$/, path: /\/apply(\/[^/]+){0,2}$/ },
+];
+
+/** The posting URL of an application-form URL (`.../apply` → `...`), keeping the query, or null when it is not one. */
+export function postingUrl(url: string): string | null {
+  const u = new URL(url);
+  const path = u.pathname.replace(/\/+$/, '');
+  const rule = APPLY_STEPS.find((r) => r.host.test(u.hostname.toLowerCase()) && r.path.test(path));
+  if (!rule) return null;
+  return `${u.protocol}//${u.host}${path.replace(rule.path, '')}${u.search}`;
+}
+
 type Candidate = Pick<Job, 'id' | 'url' | 'duplicate_of'>;
+
+/**
+ * The job posted at `url`, or, for an application form at another URL than the posting (Lever `/apply`, Ashby
+ * `/application`, a Workday apply step: postingUrl), the job posted at the posting URL. The job id parameter rule
+ * of normalizeUrl applies to both.
+ */
+export async function findJobByUrl(url: string): Promise<Job | null> {
+  const job = await findJobAt(url);
+  if (job) return job;
+  const posting = postingUrl(url);
+  return posting ? findJobAt(posting) : null;
+}
 
 /**
  * The job posted at `url`: an exact url match first, else one whose url only differs in tracking parameters, hash
@@ -121,7 +154,7 @@ type Candidate = Pick<Job, 'id' | 'url' | 'duplicate_of'>;
  * normalizeUrl drops) there is no telling which one the page shows, so the answer is null, never a guess.
  * A copy found on another site resolves to its primary row, which holds the prepared material.
  */
-export async function findJobByUrl(url: string): Promise<Job | null> {
+async function findJobAt(url: string): Promise<Job | null> {
   const { rows } = await pool.query<Candidate>(
     `SELECT id, url, duplicate_of FROM jobs WHERE url = $1 OR ${NORMALIZED} = $2
      ORDER BY (url = $1) DESC, (duplicate_of IS NULL) DESC, first_seen_at DESC`,

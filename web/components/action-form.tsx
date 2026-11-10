@@ -2,13 +2,14 @@
 
 import type { ReactNode } from 'react';
 import type { TextFormState } from '@/lib/written-text';
-import { Problem, useTextForm } from './written-text';
+import { Problem, useTextForm } from './form-state';
 
 type Action = (prev: TextFormState, fd: FormData) => Promise<TextFormState>;
 
 /**
  * A form for a one-click server action that answers with a TextFormState instead of throwing: the error is
- * shown next to the button (role=alert, see <Problem>) and the page keeps the user's place, instead of being
+ * shown next to the button (role=alert, see <Problem>), as is a success's message (role=status, e.g. "Saved"),
+ * and the page keeps the user's place, instead of being
  * replaced by app/error.tsx. Submits through useActionState from onSubmit (useTextForm), so extra controls
  * in `children` (a select, a textarea) keep what the user chose or typed when the action answers with an error.
  */

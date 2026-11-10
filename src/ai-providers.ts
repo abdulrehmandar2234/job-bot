@@ -5,6 +5,7 @@ import { posix, win32 } from 'node:path';
 import { z } from 'zod';
 import { AI_BASE_URL_ENV, AI_KEY_ENV, LEGACY_KEY_ENV, PRESETS, detectPreset, type ApiPreset, type ResponseFormat } from './ai-presets.ts';
 import { config } from './config.ts';
+import { UserError } from './errors.ts';
 import type { AiSettings } from './settings.ts';
 import { HttpError, postJson } from './sources/http.ts';
 
@@ -24,7 +25,7 @@ export type AiKind = 'score' | 'letter';
  * missing setting, the Claude CLI missing or signed out), so a batch (ai:score) stops at the first one.
  * `timedOut`: the provider gave no answer in time; a batch stops after a few of these in a row.
  */
-export class AiError extends Error {
+export class AiError extends UserError {
   override name = 'AiError';
   readonly fatal: boolean;
   readonly timedOut: boolean;

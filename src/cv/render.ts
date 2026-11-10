@@ -1,5 +1,6 @@
 import { chromium } from 'playwright-core';
 import { config } from '../config.ts';
+import { UserError } from '../errors.ts';
 import { classicHtml } from './templates/classic.ts';
 import { DEFAULT_TEMPLATE, templateHtml, type TemplateId } from './templates/index.ts';
 import { resolveChrome } from './chrome.ts';
@@ -62,7 +63,7 @@ export function letterHtml(cv: Pick<Cv, 'name' | 'title' | 'contact'>, letter: s
 export async function htmlToPdf(html: string, outFile: string) {
   const executablePath = resolveChrome(config.chromePath);
   if (!executablePath)
-    throw new Error('No Chrome found: run `npx playwright-core install chromium-headless-shell`, or set config.json chromePath');
+    throw new UserError('No Chrome found: run `npx playwright-core install chromium-headless-shell`, or set config.json chromePath');
   const browser = await chromium.launch({ executablePath, headless: true });
   try {
     const page = await browser.newPage();

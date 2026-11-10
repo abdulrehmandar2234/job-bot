@@ -1,5 +1,5 @@
 import { getJob, pool, type Job } from '../db.ts';
-import { row, type Flags } from './shared.ts';
+import { row, type Flags, notFound } from './shared.ts';
 
 /** list [--status new] [--country AE] [--min 60] [--limit 30] */
 export async function list(_args: string[], flags: Flags) {
@@ -31,7 +31,7 @@ export async function list(_args: string[], flags: Flags) {
 /** show <id> [--full] */
 export async function show(args: string[], flags: Flags) {
   const j = await getJob(args[0]);
-  if (!j) return console.log('Not found');
+  if (!j) return notFound();
   console.log(`${j.company} — ${j.title}\n${j.location} (${j.country ?? '?'})\n${j.url}\n`);
   console.log(`Score ${j.score} | status ${j.status} | CV cluster ${j.cluster} | CV version ${j.cv_version ?? '-'}`);
   console.log(`Visa: ${j.visa ?? 'unknown'}`);

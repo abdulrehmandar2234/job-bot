@@ -59,10 +59,12 @@ export function withCv<T extends Omit<Skill, 'have'>>(skills: T[], cvText: strin
 // The stacks whose skills and CV clusters drive scoring: config.json `stacks`, missing or empty = the stacks
 // config.default.json is built from, so existing config files behave as before. Stack preset files are read once.
 let allStacks: Stack[] | null = null;
-const stacksKey = () => (config.stacks?.length ? config.stacks : DEFAULT_STACKS).join(',');
-function activeStacks(): Stack[] {
+type StackSettings = Pick<Config, 'stacks'>;
+const stackIds = (cfg: StackSettings) => (cfg.stacks?.length ? cfg.stacks : DEFAULT_STACKS);
+const stacksKey = (cfg: StackSettings) => stackIds(cfg).join(',');
+function activeStacks(cfg: StackSettings): Stack[] {
   allStacks ??= loadStacks();
-  return pick(allStacks, config.stacks?.length ? config.stacks : DEFAULT_STACKS, 'stacks');
+  return pick(allStacks, stackIds(cfg), 'stacks');
 }
 
 // Skills the keyword score looks for whatever the stack; the active stacks' skills (presets/stacks/*.json) come
@@ -129,27 +131,29 @@ function buildSkillPatterns(stacks: Stack[]): Omit<Skill, 'have'>[] {
 
 // Loaded on first use, not at import time: src/cli.ts imports each command lazily, so commands that never score
 // (list, mark, settings:check, ...) still run while cv/master.json is missing — only scoring itself fails loudly.
-// Rebuilt only when config `stacks` changes (tests swap it in place), so skill patterns stay compiled once, never
-// per posting.
-const skillsTarget: Skill[] = [];
-let skillsFor: string | null = null;
-function loadSkills(): Skill[] {
-  const key = stacksKey();
-  if (skillsFor !== key) {
-    const built = withCv(buildSkillPatterns(activeStacks()), cvSkills());
-    skillsTarget.length = 0;
-    skillsTarget.push(...built);
-    skillsFor = key;
+// Built once per `stacks` value (the settings' own, so a cfg passed to scoreJob gets its stacks' skills; tests swap
+// config.stacks in place), so skill patterns stay compiled once, never per posting.
+const skillsByStacks = new Map<string, Skill[]>();
+function loadSkills(cfg: StackSettings): Skill[] {
+  const key = stacksKey(cfg);
+  let skills = skillsByStacks.get(key);
+  if (!skills) {
+    skills = withCv(buildSkillPatterns(activeStacks(cfg)), cvSkills());
+    skillsByStacks.set(key, skills);
   }
-  return skillsTarget;
+  return skills;
 }
 
-// A lazy array: reading it the first time loads the master CV (and reports a missing or corrupt one).
-export const SKILLS: Skill[] = new Proxy(skillsTarget, {
-  get: (_t, p, r) => Reflect.get(loadSkills(), p, r),
-  has: (_t, p) => Reflect.has(loadSkills(), p),
-  ownKeys: () => Reflect.ownKeys(loadSkills()),
-  getOwnPropertyDescriptor: (_t, p) => Reflect.getOwnPropertyDescriptor(loadSkills(), p),
+// A lazy array of the CLI config's skills: reading it the first time loads the master CV (and reports a missing or
+// corrupt one). Callers that have settings of their own pass them to scoreJob instead.
+export const SKILLS: Skill[] = new Proxy([] as Skill[], {
+  get: (_t, p) => {
+    const skills = loadSkills(config);
+    return Reflect.get(skills, p, skills);
+  },
+  has: (_t, p) => Reflect.has(loadSkills(config), p),
+  ownKeys: () => Reflect.ownKeys(loadSkills(config)),
+  getOwnPropertyDescriptor: (_t, p) => Reflect.getOwnPropertyDescriptor(loadSkills(config), p),
 });
 
 // Which CV version (cluster) fits a job. 'default' = the original PDF, untouched. The active stacks' clusters come
@@ -164,14 +168,14 @@ const BASE_CLUSTERS: Cluster[] = [
 
 // Like the skill list: built once per `stacks` value, and sorted so the first matching cluster is the winner
 // (highest priority first, then the most `all` conditions, merge order on ties).
-let clustersFor: string | null = null;
-let clusterList: Cluster[] = [];
-function loadClusters(): Cluster[] {
-  const key = stacksKey();
-  if (clustersFor !== key) {
-    const merged = [
+const clustersByStacks = new Map<string, Cluster[]>();
+function loadClusters(cfg: StackSettings): Cluster[] {
+  const key = stacksKey(cfg);
+  let merged = clustersByStacks.get(key);
+  if (!merged) {
+    merged = [
       ...BASE_CLUSTERS,
-      ...activeStacks().flatMap((st) =>
+      ...activeStacks(cfg).flatMap((st) =>
         st.clusters.map((c) => ({
           id: c.id,
           priority: c.priority ?? 0,
@@ -181,10 +185,9 @@ function loadClusters(): Cluster[] {
       ),
     ];
     merged.sort((a, b) => b.priority - a.priority || b.all.length - a.all.length);
-    clusterList = merged;
-    clustersFor = key;
+    clustersByStacks.set(key, merged);
   }
-  return clusterList;
+  return merged;
 }
 
 export type Scored = {
@@ -242,7 +245,7 @@ const REMOTE_DESC_DENY =
 /** The settings scoring reads: passed in, or the CLI's config.json when scoreJob gets none. */
 export type MatchSettings = Pick<
   Config,
-  'countries' | 'remote' | 'linkedin' | 'roleInclude' | 'roleExclude' | 'maxAgeDays' | 'minScore' | 'companies'
+  'countries' | 'remote' | 'linkedin' | 'roleInclude' | 'roleExclude' | 'maxAgeDays' | 'minScore' | 'companies' | 'stacks'
 >;
 
 /**
@@ -258,26 +261,53 @@ export function titleOk(cfg: Pick<MatchSettings, 'roleInclude' | 'roleExclude'> 
 /** The remote-from country for messages: "Pakistan", or "your country" when the profile does not say. */
 const fromName = (cfg: MatchSettings) => remoteFrom(cfg, loadProfile()) ?? 'your country';
 
+/** Location words that mark a posting as remote ("Remote — Worldwide", "Anywhere", "Work from home"). */
+const REMOTE_WORDS = /\bremote\b|anywhere|worldwide|work from home/i;
+
+/** The region of a remote location ("Remote — EMEA" → "EMEA", "" for plain "Remote"), or null for a non-remote one. */
+function remoteRegion(location: string): string | null {
+  return REMOTE_WORDS.test(location) ? location.replace(/\bremote\b|[—–\-(),:|/]/gi, ' ').trim() : null;
+}
+
+/** The remote allow / deny / flag rules for the candidate's country, compiled (from the shared cache). */
+function remoteRules(cfg: MatchSettings) {
+  const profile = loadProfile();
+  const rules = effectiveRemoteRules(cfg.remote, remoteFromCode(cfg, profile), remoteFrom(cfg, profile));
+  return { allow: re(rules.allow), deny: re(rules.deny), flag: re(rules.flag) };
+}
+
+/** A remote region the candidate may work from: none stated, "not stated", or one the allow rule takes. */
+const regionOpen = (region: string, allow: RegExp) => !region || /not stated/i.test(region) || allow.test(region);
+
+/**
+ * Whether a posting's location is a remote job open to the candidate's country, by the location text alone (the
+ * description's "US-based only" and the like are checked by scoreJob): 'not-remote' when remote jobs are off or the
+ * location is not remote. The sources' prefilter uses it, so it drops exactly the remote postings scoreJob would.
+ */
+export function remoteOpenToCandidate(location: string, cfg: MatchSettings = config): boolean | 'not-remote' {
+  if (!cfg.remote.enabled) return 'not-remote';
+  const region = remoteRegion(location);
+  if (region === null) return 'not-remote';
+  return regionOpen(region, remoteRules(cfg).allow);
+}
+
 /** 'RM' = remote job that can be done from the candidate's country. Returns a reason when it is limited to other regions. */
 function remoteCountry(
   cfg: MatchSettings,
   location: string,
   description: string,
 ): { country: string | null; reason?: string; flag?: string } | null {
-  if (!cfg.remote.enabled || !/\bremote\b|anywhere|worldwide|work from home/i.test(location)) return null;
-  const region = location.replace(/\bremote\b|[—–\-(),:|/]/gi, ' ').trim();
+  if (!cfg.remote.enabled) return null;
+  const region = remoteRegion(location);
+  if (region === null) return null;
+  const { allow, deny, flag: flagRe } = remoteRules(cfg);
   // "Remote — Dubai" means living in Dubai: treat as an on-site country, not as remote from the candidate's country.
-  const profile = loadProfile();
-  const rules = effectiveRemoteRules(cfg.remote, remoteFromCode(cfg, profile), remoteFrom(cfg, profile));
-  const allow = re(rules.allow);
-  const deny = re(rules.deny);
-  const flagRe = re(rules.flag);
   for (const [code, c] of Object.entries(cfg.countries)) {
     if (re(c.match).test(region) && !allow.test(region)) return { country: code };
   }
-  if (region && !/not stated/i.test(region)) {
-    if (!allow.test(region) && deny.test(region)) return { country: null, reason: `remote, but only for: ${region.slice(0, 80)}` };
-    if (!allow.test(region)) return { country: null, reason: `remote, region does not include ${fromName(cfg)}: ${region.slice(0, 80)}` };
+  if (!regionOpen(region, allow)) {
+    if (deny.test(region)) return { country: null, reason: `remote, but only for: ${region.slice(0, 80)}` };
+    return { country: null, reason: `remote, region does not include ${fromName(cfg)}: ${region.slice(0, 80)}` };
   }
   const hit = description.match(REMOTE_DESC_DENY);
   if (hit) return { country: null, reason: `remote, but: "${hit[0].slice(0, 80)}"` };
@@ -383,7 +413,7 @@ function skillScore(
   const missing: string[] = [];
   let got = 0;
   let total = 0;
-  for (const s of loadSkills()) {
+  for (const s of loadSkills(cfg)) {
     if (!s.re.test(text)) continue;
     const w = s.weight ?? 1;
     total += w;
@@ -412,11 +442,11 @@ function skillScore(
 
   if (score < cfg.minScore) return out(`score ${score} below minScore ${cfg.minScore}`, { score, matched, missing, visa, visaEvidence });
 
-  return { country, score, cluster: pickCluster(text), matched, missing, visa, visaEvidence, flags, filterReason: null };
+  return { country, score, cluster: pickCluster(text, cfg), matched, missing, visa, visaEvidence, flags, filterReason: null };
 }
 
 /** The most specific CV variant for a posting (the active stacks' clusters). Falls back to the untouched default CV. */
-export function pickCluster(text: string): string {
-  const hit = loadClusters().find((c) => c.all.every((r) => r.test(text)) && !c.none.some((r) => r.test(text)));
+export function pickCluster(text: string, cfg: StackSettings = config): string {
+  const hit = loadClusters(cfg).find((c) => c.all.every((r) => r.test(text)) && !c.none.some((r) => r.test(text)));
   return hit?.id ?? 'default';
 }

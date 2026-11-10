@@ -4,7 +4,7 @@ import { getJob, pool, setStatus, withLock, type Job } from '../db.ts';
 import { aiAnswers, aiScore as review } from '../ai.ts';
 import { AiError, aiLabel } from '../ai-providers.ts';
 import { notify, strongAlerts, type AlertJob } from '../notify.ts';
-import { AI_OFF, type Flags } from './shared.ts';
+import { AI_OFF, type Flags, notFound } from './shared.ts';
 
 /** After this many reviews in a row ran out of time, the provider is taken to be down and the run stops. */
 export const MAX_TIMEOUTS_IN_A_ROW = 3;
@@ -156,7 +156,7 @@ async function alertStrong(ids: string[]) {
 /** Drafts answers to application-form questions: answer <id> [--file questions.txt] (or stdin) [--clear]. Never submits. */
 export async function answer(args: string[], flags: Flags) {
   const j = await getJob(args[0]);
-  if (!j) return console.log('Not found');
+  if (!j) return notFound();
   if (flags.clear) {
     await pool.query(`UPDATE jobs SET form_answers = '[]' WHERE id = $1`, [j.id]);
     return console.log('Answers cleared.');

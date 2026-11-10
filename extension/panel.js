@@ -2,16 +2,27 @@
 // with Copy buttons, and "Fill this form", which types them into the form's empty fields (lib/fill.js plans it,
 // lib/page-fill.js applies it). Nothing is ever clicked on or submitted on the job site: the user checks the
 // form and submits it.
+// A tab keeps its job while it moves through the steps of the application form (lib/tab-memory.js, in
+// chrome.storage.session), together with the last fill result. A page with no known job gets "Fill profile + CV
+// only". The dashboard address comes from the options page (lib/settings.js).
 import { copyButton, h, link } from './dom.js';
-import { fetchCv, lookupJob } from './lib/api.js';
-import { planFrameFills } from './lib/fill.js';
+import { fetchCv, lookupJob, useDashboard } from './lib/api.js';
+import { fillData, fillSummary, planFrameFills } from './lib/fill.js';
 import { applyFill, describeFields, listFrameUrls } from './lib/page-fill.js';
+import { readDashboard } from './lib/settings.js';
+import { forgetTab, recallJob, rememberJob, saveFillResult } from './lib/tab-memory.js';
 import { frameOrigins, isHttpUrl, sameTab } from './lib/url.js';
 import { readTab, renderSendForm } from './send.js';
 
 const main = document.getElementById('main');
+const session = chrome.storage.session;
 let current = null; // the active tab
 let seq = 0; // drops answers that arrive after the user switched tabs
+
+useDashboard(await readDashboard(chrome.storage.sync));
+
+const optionsButton = () =>
+  h('button', { type: 'button', className: 'secondary', onclick: () => chrome.runtime.openOptionsPage() }, 'Extension options');
 
 async function refresh() {
   const n = ++seq;
@@ -22,14 +33,34 @@ async function refresh() {
     main.replaceChildren(h('p', {}, 'Open a job page to see what job-bot prepared for it.'));
     return;
   }
-  const r = await lookupJob(current.url);
+  const tab = { id: current.id, url: current.url };
+  const r = await lookupJob(tab.url);
   if (n !== seq) return;
-  if (!r.ok) main.replaceChildren(h('p', { className: 'box' }, r.error), h('button', { type: 'button', onclick: refresh }, 'Try again'));
-  else if (r.job) main.replaceChildren(...renderJob(r.job, { id: current.id, url: current.url }).flat().filter(Boolean));
-  else renderUnknown();
+  if (!r.ok) {
+    main.replaceChildren(
+      h('p', { className: 'box' }, r.error),
+      h('div', { className: 'actions' }, h('button', { type: 'button', onclick: refresh }, 'Try again'), optionsButton()),
+    );
+    return;
+  }
+  // The job found here is remembered for the tab; on a later step of its form (another URL) it is recalled.
+  const entry = r.job ? await rememberJob(session, tab.id, tab.url, r.job) : await recallJob(session, tab.id, tab.url);
+  if (n !== seq) return;
+  if (!entry) {
+    renderUnknown(r.basics, tab);
+    return;
+  }
+  main.replaceChildren(
+    ...[
+      !r.job && h('p', { className: 'hint' }, 'The job this tab is applying for (found on an earlier page of this application).'),
+      ...renderJob(entry.job, tab, entry.result),
+    ]
+      .flat()
+      .filter(Boolean),
+  );
 }
 
-function renderJob(j, tab) {
+function renderJob(j, tab, lastResult) {
   const verdict =
     j.ai_score != null ? `AI ${j.ai_score}${j.ai_verdict ? ` (${j.ai_verdict})` : ''} · keyword ${j.score}` : `score ${j.score}`;
   const answers = j.form_answers ?? [];
@@ -44,7 +75,7 @@ function renderJob(j, tab) {
       // Applying is recorded on the dashboard, where the user also confirms it.
       j.status !== 'applied' && link(j.dashboard_url, 'Mark applied (in dashboard)'),
     ),
-    fillSection(j, tab),
+    fillSection(j, tab, { lastResult }),
     h('h2', {}, 'CV'),
     j.cv_url
       ? h('p', {}, `Version: ${j.cv_version} · `, link(j.cv_url, 'Download PDF'))
@@ -76,14 +107,24 @@ function renderJob(j, tab) {
 /** Asks once per site (from the user's click) to let the panel work in the page. */
 const askForSite = (url) => chrome.permissions.request({ origins: [`${new URL(url).origin}/*`] }).catch(() => false);
 
-function fillSection(j, tab) {
-  const status = h('div', { className: 'status' });
-  const button = h('button', { type: 'button' }, 'Fill this form');
+const summaryNodes = (result) => fillSummary(result).map((l) => h('p', { className: l.kind === 'plain' ? '' : l.kind }, l.text));
+
+/**
+ * The Auto-fill box. `profileOnly`: a page with no known job, where only the profile and the original CV are
+ * filled. `lastResult`: the last fill result kept for this tab, shown again after a step of the form changed the URL.
+ */
+function fillSection(j, tab, { profileOnly = false, lastResult = null } = {}) {
+  const status = h('div', { className: 'status' }, ...(lastResult ? summaryNodes(lastResult) : []));
+  const button = h('button', { type: 'button' }, profileOnly ? 'Fill profile + CV only' : 'Fill this form');
   const run = async () => {
     button.disabled = true;
     status.replaceChildren(h('p', {}, 'Filling…'));
     try {
-      status.replaceChildren(...(await fillForm(j, tab, run)));
+      const out = await fillForm(j, tab, run, profileOnly);
+      if (out.result) {
+        status.replaceChildren(...summaryNodes(out.result));
+        if (!profileOnly) await saveFillResult(session, tab.id, j.id, out.result);
+      } else status.replaceChildren(...out.nodes);
     } catch (e) {
       status.replaceChildren(h('p', { className: 'needs' }, `Could not fill this page: ${e.message}`));
     } finally {
@@ -98,21 +139,24 @@ function fillSection(j, tab) {
     h(
       'p',
       { className: 'hint' },
-      'Types your details, the cover letter, drafted answers and the CV into empty fields. It never submits: check every field, then submit yourself.',
+      profileOnly
+        ? 'Types your name, contact details and your original CV into empty fields. No cover letter or answers: this page is not a job in job-bot. It never submits: check every field, then submit yourself.'
+        : 'Types your details, the cover letter, drafted answers and the CV into empty fields. It never submits: check every field, then submit yourself.',
     ),
     status,
   );
 }
 
-/** Fills the form in the active tab, frame by frame. Returns the result lines for the panel. */
 /**
- * Fills the form in the job's tab, frame by frame. Returns the result lines for the panel. `retry` runs the fill
- * again, from the "Allow" button shown when the form sits in an iframe from another site.
+ * Fills the form in the job's tab, frame by frame. Resolves to { result } ({ filled, skipped, needInput }, see
+ * lib/fill.js fillSummary) or { nodes } (a message, or the "Allow" button shown when the form sits in an iframe from
+ * another site; `retry` runs the fill again from it).
  */
-async function fillForm(j, tab, retry) {
+async function fillForm(j, tab, retry, profileOnly) {
   const [active] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (!sameTab(tab, active)) return [h('p', { className: 'needs' }, 'The tab changed since this job was shown. Press Refresh, then fill.')];
-  if (!(await askForSite(tab.url))) return [h('p', {}, 'Without access to this site the panel cannot fill the form.')];
+  if (!sameTab(tab, active))
+    return { nodes: [h('p', { className: 'needs' }, 'The tab changed since this job was shown. Press Refresh, then fill.')] };
+  if (!(await askForSite(tab.url))) return { nodes: [h('p', {}, 'Without access to this site the panel cannot fill the form.')] };
   // A form embedded from another site needs access to that site too. Chrome only asks from a click, so a missing
   // one gets its own "Allow" button (a fresh click) instead of failing silently.
   const [top] = await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: listFrameUrls });
@@ -126,15 +170,10 @@ async function fillForm(j, tab, retry) {
     allow.addEventListener('click', async () => {
       if (await chrome.permissions.request({ origins: missing }).catch(() => false)) retry();
     });
-    return [h('p', {}, `Part of this form comes from ${sites}. Allow job-bot there too, so it can fill the whole form.`), allow];
+    return { nodes: [h('p', {}, `Part of this form comes from ${sites}. Allow job-bot there too, so it can fill the whole form.`), allow] };
   }
   // The CV PDF is downloaded only when a form has a CV field; planning needs just its name.
-  const data = {
-    profile: j.profile,
-    cover_letter: j.cover_letter,
-    answers: j.form_answers,
-    cv: j.cv_url ? { name: j.cv_file_name } : null,
-  };
+  const data = fillData(j, { profileOnly });
   let cv = null;
   // Forms are often in an iframe (Greenhouse, Workday embeds). If Chrome still refuses a frame, fill the top one.
   const frames = await chrome.scripting
@@ -154,39 +193,49 @@ async function fillForm(j, tab, retry) {
     const fills = cv ? plan.fills : plan.fills.filter((f) => f.kind !== 'file');
     if (!fills.length) continue;
     await chrome.scripting.executeScript({ target: { tabId: tab.id, frameIds: [frameId] }, func: applyFill, args: [fills, cv] });
-    filled.push(...fills);
+    filled.push(...fills.map((f) => f.label));
   }
-  if (!filled.length) return [h('p', {}, 'No empty fields here that job-bot knows how to fill.')];
-  const needInput = (j.form_answers ?? []).filter((a) => a.needs_input).length;
-  return [
-    h('p', {}, `Filled ${filled.length} fields (outlined in orange): ${filled.map((f) => f.label).join(', ')}.`),
-    skipped.length > 0 && h('p', { className: 'needs' }, `Left for you: ${[...new Set(skipped)].join(', ')}.`),
-    needInput > 0 && h('p', { className: 'needs' }, `${needInput} drafted answers need your input, so they were not filled.`),
-    h('p', { className: 'hint' }, 'Check every field, then submit the form yourself.'),
-  ].filter(Boolean);
+  const needInput = data.answers.filter((a) => a.needs_input).length;
+  return { result: { filled, skipped: [...new Set(skipped)], needInput } };
 }
 
-function renderUnknown() {
+/** A page with no known job: send it to job-bot, or fill just the profile and the original CV. */
+function renderUnknown(basics, tab) {
   const form = h('div');
   const read = h('button', { type: 'button' }, 'Read this page');
   read.addEventListener('click', async () => {
     // The panel has no activeTab grant, so ask once per site (from this click) to let it read the page.
-    if (!(await askForSite(current.url))) {
+    if (!(await askForSite(tab.url))) {
       form.replaceChildren(h('p', {}, 'Without access to this site the panel cannot read the job. Use the toolbar button instead.'));
       return;
     }
     try {
-      renderSendForm(form, await readTab(current.id), () => setTimeout(refresh, 1500));
+      renderSendForm(form, await readTab(tab.id), () => setTimeout(refresh, 1500));
     } catch (e) {
       form.replaceChildren(h('p', {}, `Could not read this page: ${e.message}`));
     }
   });
-  main.replaceChildren(h('p', {}, 'This job is not in job-bot yet.'), read, form);
+  const profile = basics?.profile ?? {};
+  const canFill = Object.values(profile).some(Boolean) || Boolean(basics?.cv_url);
+  main.replaceChildren(
+    ...[
+      h('p', {}, 'This job is not in job-bot yet.'),
+      read,
+      form,
+      canFill && fillSection({ profile, cv_url: basics.cv_url, cv_file_name: basics.cv_file_name }, tab, { profileOnly: true }),
+    ].filter(Boolean),
+  );
 }
 
 document.getElementById('refresh').addEventListener('click', refresh);
 chrome.tabs.onActivated.addListener(refresh);
 chrome.tabs.onUpdated.addListener((tabId, info) => {
   if (tabId === current?.id && (info.url || info.status === 'complete')) refresh();
+});
+chrome.tabs.onRemoved.addListener((tabId) => forgetTab(session, tabId));
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== 'sync' || !changes.dashboard) return;
+  useDashboard(changes.dashboard.newValue);
+  refresh();
 });
 refresh();

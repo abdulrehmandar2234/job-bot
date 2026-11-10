@@ -1,7 +1,7 @@
 'use client';
 
 import { FEEDBACK_CAP, type TextFormState } from '@/lib/written-text';
-import { Problem, useTextForm } from './written-text';
+import { Problem, useTextForm } from './form-state';
 
 type Action = (prev: TextFormState, fd: FormData) => Promise<TextFormState>;
 

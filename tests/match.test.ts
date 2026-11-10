@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { daysAgo, raw } from './helpers.ts'; // first: it points the bot at a temp config before src/ loads one
 import { isIndSponsor } from '../src/sponsors.ts';
-import { languageRules, pickCluster, scoreJob, SKILLS, titleOk } from '../src/match.ts';
+import { languageRules, pickCluster, remoteOpenToCandidate, scoreJob, SKILLS, titleOk } from '../src/match.ts';
 import { config } from '../src/config.ts';
 import { ConfigError } from '../src/errors.ts';
 
@@ -124,6 +124,35 @@ describe('scoreJob: remote from Pakistan', () => {
     const s = scoreJob(raw({ location: 'Remote — EMEA' }));
     assert.equal(s.country, 'RM');
     assert.ok(s.flags.some((f) => /confirm Pakistan/.test(f)));
+  });
+});
+
+describe('remoteOpenToCandidate', () => {
+  it('agrees with scoreJob on every remote location (the sources prefilter relies on it)', () => {
+    const where = [
+      'Remote — Worldwide',
+      'Remote',
+      'Anywhere',
+      'Work from home',
+      'Remote (not stated)',
+      'Remote — South Asia',
+      'Remote (APAC)',
+      'Remote, GMT+5',
+      'Remote — EMEA',
+      'Remote — USA, Canada',
+      'Remote — Japan',
+      'Remote — Kenya',
+      'Remote — India',
+    ];
+    for (const location of where) {
+      const s = scoreJob(raw({ location }));
+      assert.equal(remoteOpenToCandidate(location), s.country === 'RM', location);
+    }
+  });
+
+  it("is 'not-remote' for onsite locations and when remote jobs are off", () => {
+    assert.equal(remoteOpenToCandidate('Dubai, UAE'), 'not-remote');
+    assert.equal(remoteOpenToCandidate('Remote — Worldwide', { ...config, remote: { ...config.remote, enabled: false } }), 'not-remote');
   });
 });
 
@@ -374,6 +403,19 @@ describe('skills and clusters follow the stack presets (config.stacks)', () => {
       assert.equal(pickCluster('PHP developer'), 'default');
     });
     assert.equal(pickCluster('Laravel, Livewire and Tailwind'), 'tall', 'the default stacks are back');
+  });
+
+  it('scoreJob and pickCluster use the stacks of the settings they are given, not config.json', () => {
+    const before = config.stacks;
+    const python = { ...config, stacks: ['python'] };
+    const posting = raw({ title: 'Senior Software Engineer', description: 'Laravel back end with a React front end.' });
+    const names = (s: ReturnType<typeof scoreJob>) => [...s.matched, ...s.missing];
+    assert.ok(!names(scoreJob(posting, python)).includes('Laravel'), 'the python stack has no granular Laravel skill');
+    assert.ok(names(scoreJob(posting)).includes('Laravel'), 'config.json keeps its own stacks');
+    assert.equal(pickCluster('Laravel, Livewire and Tailwind', python), 'default');
+    assert.equal(pickCluster('Laravel, Livewire and Tailwind'), 'tall');
+    assert.equal(scoreJob(raw({ description: 'Laravel, Livewire and Tailwind CSS.' }), python).cluster, 'default');
+    assert.equal(config.stacks, before, 'config.json is left alone');
   });
 
   it('an unknown stack id fails loudly and names the known ones', () => {

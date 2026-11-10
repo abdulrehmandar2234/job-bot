@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: 'Job Bot',
-  description: 'Matching jobs in UAE, Saudi Arabia and the Netherlands',
+  description: 'Finds, scores and prepares jobs for the countries in your settings',
 };
 
 // suppressHydrationWarning: browser extensions add attributes to <html> and <body> before React loads (ColorZilla's

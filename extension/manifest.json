@@ -4,7 +4,7 @@
   "version": "0.2.0",
   "description": "Send the job you are looking at to your local job-bot, and fill its prepared details, letter and answers into application forms. You submit them yourself.",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAo5jVsR4Dm2rHzFP75ovocrl2j/L7AqL3wOIvwo2Xfchi3w9hOoCnDk4jtMM2JJv7PCGy8y5akqDhO3gKTsbgo7bzjNVnGagzYX3PZb+G+AK6vk8oi/uyWo/PggV+RdOH2J+KQMGH90tgaSfsItrhHYigQaOhXM1nS3XtMJn1Hodofe9H6CVz0pKacI8hpw97F8/+hhtwQZ1vSkfoiikctWd2w65BEZmS0TrrGvlDxbEEoJR2rmVqASp9rUxm5nhSHyJ9r3u91N3dmrYwAmI3JGPgXKfzRZjoeyiqxyc24h2Ir++DxmnkFPbwRVURHxGRV11LjDtJ48DSmqBebPJGnwIDAQAB",
-  "permissions": ["activeTab", "scripting", "sidePanel", "tabs", "clipboardWrite"],
+  "permissions": ["activeTab", "scripting", "sidePanel", "tabs", "clipboardWrite", "storage"],
   "optional_host_permissions": ["http://*/*", "https://*/*"],
   "action": {
     "default_title": "Send to job-bot",
@@ -14,6 +14,10 @@
       "48": "icons/icon48.png",
       "128": "icons/icon128.png"
     }
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": false
   },
   "side_panel": {
     "default_path": "panel.html"

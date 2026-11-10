@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { NextRequest } from 'next/server';
+import { baytCountries } from '@/lib/bayt';
 import { BOT_ROOT } from '@/lib/bot';
 import { importToken } from '@/lib/extension';
 import { readConfig } from '@/lib/settings';
@@ -8,16 +9,6 @@ import { readConfig } from '@/lib/settings';
 // The Bayt collector, loaded into a bayt.com tab by the dashboard's bookmarklet. The script in the repo holds no
 // personal values and no credentials: this route injects the user's search settings from config.json, the
 // dashboard's own origin (whatever port it runs on) and the import token that POST /api/import requires.
-
-/** Bayt's country slugs for the Gulf markets it serves; target countries Bayt has no board for are left out. */
-const BAYT_COUNTRY: Record<string, string> = {
-  AE: 'uae',
-  SA: 'saudi-arabia',
-  QA: 'qatar',
-  KW: 'kuwait',
-  BH: 'bahrain',
-  OM: 'oman',
-};
 
 /** A Bayt search slug: "full stack developer" and "node.js" become "full-stack-developer" and "node-js". */
 const slug = (s: string) =>
@@ -42,7 +33,7 @@ function settings(dashboard: string) {
     dashboard,
     token: importToken(),
     keywords: [...new Set(keywords.map(slug).filter(Boolean))],
-    countries: countries.map((c) => BAYT_COUNTRY[c.toUpperCase()]).filter(Boolean),
+    countries: baytCountries(countries),
     maxAgeDays: typeof config.maxAgeDays === 'number' && config.maxAgeDays > 0 ? config.maxAgeDays : 0,
   };
 }
