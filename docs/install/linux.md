@@ -156,7 +156,7 @@ The key is read from `.env` only; never put it in `config.json`. In step 8 you a
 
 ## 7. Put in your CV
 
-`cv/master.json` is your CV as data. Every PDF, letter and AI prompt is built from it, and the bot never adds anything that is not in it. The repository's copy is the original owner's CV, so replace it with the fictional example and then with yourself:
+`cv/master.json` is your CV as data. Every PDF, letter and AI prompt is built from it, and the bot never adds anything that is not in it. A fresh clone has none (it is gitignored, like everything personal). The setup wizard (step 8) offers to start it from the fictional example; or copy it yourself now and replace the example person with yourself:
 
 ```bash
 cp cv/master.example.json cv/master.json
@@ -325,6 +325,8 @@ It talks only to your local dashboard, `http://localhost:3100` by default; if yo
 **Success:** on any job page, the job-bot button opens a popup with the job's title and company read from the page.
 
 ## 15. Check that it works
+
+`npm run bot -- doctor` checks most of this at once (Node, packages, settings, your CV and profile, the database, the PDF renderer and the AI) and prints how to fix each problem; it changes nothing.
 
 - [ ] `node --version` is v24 or newer.
 - [ ] `psql "postgres://jobbot:<password>@127.0.0.1:5432/job_bot" -c "SELECT 1;"` answers.

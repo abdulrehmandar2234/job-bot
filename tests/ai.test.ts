@@ -138,7 +138,7 @@ describe('prompts', () => {
 
   it('cvText is cached per master file and mtime, so concurrent scoring workers do not re-read it', () => {
     const file = join(mkdtempSync(join(tmpdir(), 'jobbot-master-')), 'master.json');
-    const original = readFileSync(join(import.meta.dirname, '..', 'cv', 'master.json'), 'utf8');
+    const original = readFileSync(join(import.meta.dirname, 'fixtures', 'master-owner.json'), 'utf8');
     const stamp = new Date('2026-01-01T00:00:00Z');
     writeFileSync(file, original);
     utimesSync(file, stamp, stamp);

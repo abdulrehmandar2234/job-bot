@@ -40,7 +40,7 @@ The repository is a working copy of one person's setup. These tracked files hold
 
 - `config.default.json`: the default settings, which are the owner's search settings with nothing personal in them: target markets (the UAE, Saudi Arabia, the Netherlands, Pakistan, remote from Pakistan), about 55 company boards, job-title rules and search keywords for a Laravel / PHP / Node / React developer. Your own `config.json` starts as a copy of it on the first run and is never committed.
 - `presets/`: ready-made markets (`gulf`, `india`, `netherlands`, `pakistan`) and stacks (`php-laravel`, `javascript`, `python`). `npm run bot -- setup` offers them, then asks for the markets, AI and CV file name; the rest you review yourself (see [configuration.md](configuration.md#presets)).
-- `cv/master.json`: the owner's CV. You replace it with yours, starting from `cv/master.example.json`.
+- `cv/master.json`: your CV, gitignored (a fresh clone has none). Start from `cv/master.example.json`; `setup` offers to copy it.
 - `src/cv/profiles.ts`: per-stack CV headlines and summaries written for the owner's CV (see [your-cv-and-profile.md](your-cv-and-profile.md#cv-versions-and-the-per-stack-framings)).
 
 Wherever these docs show the owner's values, they are labelled as examples.

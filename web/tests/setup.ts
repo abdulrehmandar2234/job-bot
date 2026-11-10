@@ -19,6 +19,9 @@ if (!process.env.JOB_BOT_CONFIG) {
 // test: the dashboard and the bot runs it starts write there through dataDir() (src/settings.ts), which reads this.
 process.env.JOB_BOT_DATA_DIR ||= mkdtempSync(join(tmpdir(), 'job-bot-web-data-'));
 
+// cv/master.json is the user's own and gitignored: tests read the owner's CV with placeholder contact details.
+process.env.JOB_BOT_MASTER ||= join(import.meta.dirname, '..', '..', 'tests', 'fixtures', 'master-owner.json');
+
 if (typeof document !== 'undefined') {
   const { cleanup } = await import('@testing-library/react');
   afterEach(cleanup);

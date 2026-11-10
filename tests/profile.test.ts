@@ -146,7 +146,7 @@ describe('profile: the files', () => {
   it('the example files are valid and hold no personal data of the owner', () => {
     for (const f of ['cv/applicant.example.json', 'cv/master.example.json']) {
       const text = readFileSync(join(import.meta.dirname, '..', f), 'utf8');
-      assert.doesNotMatch(text, /Abdul|Rehman|Lahore|Pakistan|4979646|abdulrehmandar/i, f);
+      assert.doesNotMatch(text, /Abdul|Rehman|Lahore|Pakistan|abdulrehmandar/i, f);
     }
     assert.equal(
       validateApplicant(JSON.parse(readFileSync(join(import.meta.dirname, '..', 'cv', 'applicant.example.json'), 'utf8'))).ok,

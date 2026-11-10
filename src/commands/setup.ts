@@ -1,10 +1,12 @@
-import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline';
 import { blankApplicant, buildProfile, profileGaps, readMaster, type MasterContact } from '../profile.ts';
 import { AI_BASE_URL_ENV, AI_KEY_ENV, API_PRESETS, PRESETS, type ApiPreset } from '../ai-presets.ts';
 import { applyMarkets, applyStacks, loadMarkets, loadStacks, pick, PRESETS_DIR, type PresetKind } from '../presets.ts';
-import { APPLICANT_FILE, CONFIG_FILE, path, ROOT, UTC_OFFSET, validate, type SettingsError } from '../settings.ts';
+import { APPLICANT_FILE, CONFIG_FILE, masterFile, path, ROOT, UTC_OFFSET, validate, type SettingsError } from '../settings.ts';
+import type { DbState } from '../db-check.ts';
+import { UserError } from '../errors.ts';
 import type { Flags } from './shared.ts';
 
 // `npm run bot -- setup`: a question-and-answer wizard that fills in the profile (cv/applicant.json) and the target
@@ -26,6 +28,11 @@ export type SetupFiles = {
   env?: string;
   webEnv?: string;
   envExample?: string;
+  /** cv/master.json and the example CV: when the first is missing, the wizard offers to copy the second to it. */
+  masterPath?: string;
+  masterExample?: string;
+  /** Checks and creates the database in DATABASE_URL (src/db-check.ts); left out, the step is skipped. */
+  database?: { check: (url: string) => Promise<DbState>; create: (url: string) => Promise<void> };
 };
 
 const isObj = (v: unknown): v is Json => !!v && typeof v === 'object' && !Array.isArray(v);
@@ -57,7 +64,7 @@ function prompter({ input, output }: SetupIO) {
       const error = check?.(value) ?? null;
       if (!error) return value;
       say(`  ${error}`);
-      if (ended) throw new Error(`no valid answer for "${label}"`);
+      if (ended) throw new UserError(`Setup stopped: the input ended without a valid answer for "${label}". Nothing was saved.`);
     }
   }
   const yes = async (label: string, def: boolean) => {
@@ -119,6 +126,7 @@ const CLAUDE_PATH_HINT = claudePathHint();
 
 export const NEXT_STEPS = [
   'Next: put your CV in cv/master.json (see cv/master.example.json), then `npm run bot -- cv:default` and `npm run bot -- fetch`.',
+  'Check the whole setup at any time: `npm run bot -- doctor`.',
   "PDFs (CV and letters) need Chrome's headless shell, once: `npx playwright-core install chromium-headless-shell`.",
   'Daily fetch: `npm run bot -- schedule:print` prints the scheduler setup for this computer (docs/install/<your OS>.md, step 12).',
 ];
@@ -151,7 +159,7 @@ function writeNew(file: string, text: string): boolean {
  * Offers to write the missing .env files with DATABASE_URL (the install guides' step 4), asking first. An existing
  * file is never touched, and no API key is ever asked for or written.
  */
-async function offerEnvFiles(p: ReturnType<typeof prompter>, files: SetupFiles) {
+async function offerEnvFiles(p: ReturnType<typeof prompter>, files: SetupFiles): Promise<string | undefined> {
   const missing = [files.env, files.webEnv].filter((f): f is string => !!f && !existsSync(f));
   if (!missing.length) return;
   p.say(
@@ -171,6 +179,40 @@ async function offerEnvFiles(p: ReturnType<typeof prompter>, files: SetupFiles) 
   }
   if (files.env && missing.includes(files.env)) p.say('Optional keys (Adzuna, an AI API key) go in .env later; see .env.example.');
   p.say('');
+  return url;
+}
+
+/** Offers to create the database DATABASE_URL names when the server answers but the database does not exist. */
+async function offerDatabase(p: ReturnType<typeof prompter>, files: SetupFiles, url: string | undefined) {
+  if (!files.database || !url) return;
+  const db = await files.database.check(url);
+  if (db.state === 'ok') return;
+  if (db.state === 'error') {
+    p.say(`Could not reach the database (${db.message}). Fix that, then check with \`npm run bot -- doctor\`.\n`);
+    return;
+  }
+  if (!(await p.yes(`The database "${db.name}" does not exist yet. Create it now?`, true))) {
+    p.say(`Not created. Create it as your install guide shows (step 2), e.g. createdb -h 127.0.0.1 -U postgres ${db.name}\n`);
+    return;
+  }
+  try {
+    await files.database.create(url);
+    p.say(`Created the database "${db.name}". Its tables are made by the first command that uses it.\n`);
+  } catch (e) {
+    p.say(`Could not create it: ${(e as Error).message}. Create it as your install guide shows (step 2).\n`);
+  }
+}
+
+/** Offers to start cv/master.json from the example CV when it is missing (a fresh clone has none). */
+async function offerMasterCv(p: ReturnType<typeof prompter>, files: SetupFiles) {
+  if (!files.masterPath || !files.masterExample || existsSync(files.masterPath) || !existsSync(files.masterExample)) return;
+  p.say(`== Your CV ==\n${files.masterPath} is missing. It is your CV as data; every PDF, letter and AI prompt is built from it.`);
+  if (!(await p.yes('Start it from the example CV (Jane Doe), to replace with your own?', true))) {
+    p.say('Not created. Write it yourself (see cv/master.example.json) before building CVs.\n');
+    return;
+  }
+  copyFileSync(files.masterExample, files.masterPath);
+  p.say(`Wrote ${files.masterPath}. Replace Jane Doe with yourself before you build CVs or apply (docs/your-cv-and-profile.md).\n`);
 }
 
 /** Runs the wizard. Returns true when the files were written. */
@@ -182,12 +224,14 @@ export async function runSetup(io: SetupIO, files: SetupFiles = { config: CONFIG
       p.say(`${files.config} is missing or not a JSON object. Start again from the shipped settings: copy config.default.json to it.`);
       return false;
     }
+    p.say('job-bot setup. Press Enter to keep the value in [brackets], type "-" to clear it.\n');
+    const url = (await offerEnvFiles(p, files)) ?? process.env.DATABASE_URL;
+    await offerDatabase(p, files, url);
+    await offerMasterCv(p, files);
     const app: Json = readJson(files.applicant) ?? (blankApplicant() as Json);
     const master = files.master ?? readMaster();
     const cur = buildProfile(app, master);
 
-    p.say('job-bot setup. Press Enter to keep the value in [brackets], type "-" to clear it.\n');
-    await offerEnvFiles(p, files);
     p.say('== Your profile (cv/applicant.json) ==');
     app.fullName = (await p.ask('Full name', text(app.fullName) || text(cur.fullName))) || null;
     app.email = (await p.ask('Email', text(app.email) || text(cur.email), checks.email)) || null;
@@ -401,6 +445,9 @@ export async function setup(_args: string[], _flags: Flags) {
     env: process.env.JOB_BOT_ENV_FILE || path('.env'),
     webEnv: process.env.JOB_BOT_WEB_ENV_FILE || join(ROOT, 'web', '.env.local'),
     envExample: path('.env.example'),
+    masterPath: masterFile(),
+    masterExample: path('cv', 'master.example.json'),
+    database: await import('../db-check.ts').then((m) => ({ check: m.checkDatabase, create: m.createDatabase })),
   };
   if (!(await runSetup({ input: process.stdin, output: process.stdout }, files))) process.exitCode = 1;
 }

@@ -11,7 +11,7 @@ import { migrate, pool } from '../src/db.ts';
 import { save } from '../src/commands/shared.ts';
 import type { Cv } from '../src/cv/render.ts';
 
-const master = JSON.parse(readFileSync(path('cv', 'master.json'), 'utf8')) as Cv;
+const master = JSON.parse(readFileSync(path('tests', 'fixtures', 'master-owner.json'), 'utf8')) as Cv;
 const check = (job: string, version: string) => atsCheck(job, master, versionCv(master, version), version);
 const report = (job: string, version: string) => atsReport(job, master, versionCv(master, version), version);
 
