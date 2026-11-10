@@ -1,7 +1,8 @@
 import { parsePayRange } from '../salary.ts';
 import { HttpError, getText, sleep } from './http.ts';
 import { config } from '../config.ts';
-import { partial, type Fetched, type RawJob } from './index.ts';
+import { titleOk } from '../match.ts';
+import { decodeEntities, partial, stripHtml, type Fetched, type RawJob } from './index.ts';
 
 // LinkedIn public ("guest") job search — the same endpoints linkedin.com/jobs uses when logged out.
 // No account is involved. Requests are paced so a daily run stays small.
@@ -9,18 +10,8 @@ import { partial, type Fetched, type RawJob } from './index.ts';
 const BASE = 'https://www.linkedin.com/jobs-guest/jobs/api';
 export const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36';
 
-const decode = (s: string) =>
-  s
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&#x27;/g, "'")
-    .replace(/\s+/g, ' ')
-    .trim();
-const strip = (html: string) =>
-  decode(html.replace(/<\/(p|li|h\d|div)>|<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, ' ')).replace(/ ?\n ?/g, '\n');
+/** A card field (title, company, location): entities decoded, whitespace collapsed to one line. */
+const decode = (s: string) => decodeEntities(s).replace(/\s+/g, ' ').trim();
 
 // A 429 from LinkedIn means the guest endpoints are throttling this IP: stop LinkedIn for today
 // (no retries, which would only prolong the block). Network errors and 5xx are still retried.
@@ -60,8 +51,7 @@ function parseCards(html: string): Card[] {
 export async function linkedin(): Promise<Fetched> {
   const li = config.linkedin;
   const days = config.maxAgeDays;
-  const include = new RegExp(config.roleInclude, 'i');
-  const exclude = new RegExp(config.roleExclude, 'i');
+  const roleOk = titleOk(config);
   // Onsite searches per country, plus remote searches located in the candidate's own country.
   const searches = [
     ...li.locations.map((location) => ({ location, remote: false })),
@@ -80,15 +70,15 @@ export async function linkedin(): Promise<Fetched> {
         try {
           html = await get(`${BASE}/seeMoreJobPostings/search?${q}`);
         } catch (e) {
-          // A 429 (or a search page that kept failing) mid-search must not discard the cards already
-          // collected: stop searching and go on to their details, carrying the error as a partial result.
+          // Stop searching. A search page that kept failing (404, 5xx after retries) keeps the cards already
+          // collected and goes on to their details, as a partial result; a 429 stops LinkedIn at once (below).
           searchError = e as Error;
           break search;
         }
         const page = parseCards(html);
-        // A non-empty answer in which no card parses means LinkedIn changed its markup: record it,
-        // otherwise the breakage would look like a quiet "0 postings" success.
-        if (!page.length && html.trim()) unparsed.push(`"${keywords}" in ${s.location}`);
+        // List markup in which no card parses means LinkedIn changed its card markup: record it, otherwise the
+        // breakage would look like a quiet "0 postings" success. A page with no list items is just no results.
+        if (!page.length && /<li[\s>]/i.test(html)) unparsed.push(`"${keywords}" in ${s.location}`);
         for (const c of page) if (!cards.has(c.id)) cards.set(c.id, { ...c, remote: s.remote });
         await sleep(1200);
         if (page.length < 10) break;
@@ -102,7 +92,7 @@ export async function linkedin(): Promise<Fetched> {
   if (searchError instanceof RateLimited) return partial(out, searchError);
   for (const c of cards.values()) {
     // Same title rules as scoring, applied before the (slower) detail request.
-    if (!include.test(c.title) || exclude.test(c.title)) continue;
+    if (!roleOk(c.title)) continue;
     let html: string;
     try {
       html = await get(`${BASE}/jobPosting/${c.id}`);
@@ -126,7 +116,7 @@ export async function linkedin(): Promise<Fetched> {
       title: c.title,
       location: c.remote ? `Remote — ${c.location || li.remoteFrom}` : c.location,
       url: `https://www.linkedin.com/jobs/view/${c.id}/`,
-      description: strip(markup),
+      description: stripHtml(markup),
       posted_at: c.date ? new Date(`${c.date}T00:00:00Z`).toISOString() : null,
       salary: parsePayRange(pay),
     });

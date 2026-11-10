@@ -245,6 +245,16 @@ export type MatchSettings = Pick<
   'countries' | 'remote' | 'linkedin' | 'roleInclude' | 'roleExclude' | 'maxAgeDays' | 'minScore' | 'companies'
 >;
 
+/**
+ * The title rule scoring applies (matches roleInclude, not roleExclude) as a predicate, so the sources can skip a
+ * posting before its (slower) detail request. Both patterns come from the shared cache, compiled once.
+ */
+export function titleOk(cfg: Pick<MatchSettings, 'roleInclude' | 'roleExclude'> = config): (title: string) => boolean {
+  const include = re(cfg.roleInclude);
+  const exclude = re(cfg.roleExclude);
+  return (title) => include.test(title) && !exclude.test(title);
+}
+
 /** The remote-from country for messages: "Pakistan", or "your country" when the profile does not say. */
 const fromName = (cfg: MatchSettings) => remoteFrom(cfg, loadProfile()) ?? 'your country';
 
