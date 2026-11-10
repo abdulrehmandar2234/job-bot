@@ -251,19 +251,19 @@ describe('dedupe', () => {
     await upsertJob(job({ id: 'gh:1' }));
     await upsertJob(job({ id: 'li:1', source: 'linkedin', company: 'Acme Inc' }));
     await upsertJob(job({ id: 'other', title: 'Frontend Engineer' }));
-    assert.equal(await dedupe(), 1);
+    assert.equal((await dedupe()).grouped, 1);
     assert.equal((await getJob('li:1')).duplicate_of, 'gh:1');
     assert.equal((await getJob('other')).duplicate_of, null);
 
     await pool.query(`UPDATE jobs SET title = 'Data Engineer' WHERE id = 'li:1'`);
-    assert.equal(await dedupe(), 0);
+    assert.equal((await dedupe()).grouped, 0);
     assert.equal((await getJob('li:1')).duplicate_of, null);
   });
 
   it('ignores filtered jobs', async () => {
     await upsertJob(job({ id: 'gh:1' }));
     await upsertJob(job({ id: 'li:1', source: 'linkedin', status: 'filtered', filter_reason: 'x' }));
-    assert.equal(await dedupe(), 0);
+    assert.equal((await dedupe()).grouped, 0);
   });
 
   it('two dedupes at once leave every duplicate grouped', async () => {
@@ -272,7 +272,7 @@ describe('dedupe', () => {
     await upsertJob(job({ id: 'bayt:1', source: 'bayt' }));
     await dedupe(); // links exist, so the concurrent runs both check the same rows
     const [a, b] = await Promise.all([dedupe(), dedupe()]);
-    assert.deepEqual([a, b], [2, 2]);
+    assert.deepEqual([a.grouped, b.grouped], [2, 2]);
     assert.equal((await getJob('li:1')).duplicate_of, 'gh:1');
     assert.equal((await getJob('bayt:1')).duplicate_of, 'gh:1');
   });
@@ -285,9 +285,9 @@ describe('dedupe', () => {
     await upsertJob(job({ id: 'li:1', source: 'linkedin' }));
     await upsertJob(job({ id: 'bayt:1', source: 'bayt' }));
     await upsertJob(job({ id: 'other', title: 'Frontend Engineer' }));
-    assert.equal(await dedupe(), 2);
+    assert.deepEqual(await dedupe(), { grouped: 2, changed: 2 });
     const before = await versions();
-    assert.equal(await dedupe(), 2);
+    assert.deepEqual(await dedupe(), { grouped: 2, changed: 0 }, 'nothing to write, and nothing for the CLI to say');
     assert.deepEqual(await versions(), before);
     assert.equal((await getJob('li:1')).duplicate_of, 'gh:1');
   });
@@ -300,7 +300,7 @@ describe('dedupe', () => {
     const before = new Map((await versions()).map((r) => [r.id, r.xmin]));
     await pool.query(`UPDATE jobs SET status = 'filtered', filter_reason = 'x' WHERE id = 'bayt:1'`);
     const filteredAt = (await versions()).find((r) => r.id === 'bayt:1')!.xmin;
-    assert.equal(await dedupe(), 1);
+    assert.equal((await dedupe()).grouped, 1);
     assert.equal((await getJob('bayt:1')).duplicate_of, null);
     const after = new Map((await versions()).map((r) => [r.id, r.xmin]));
     assert.equal(after.get('gh:1'), before.get('gh:1'));

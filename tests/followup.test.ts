@@ -156,6 +156,17 @@ describe('drafting', () => {
     assert.match(system, /This is their first follow-up/);
   });
 
+  it("tells the AI the applied date on the user's own calendar, not in UTC", async () => {
+    // 00:40 on 11 November in Lahore is still 10 November in UTC.
+    const id = await insertJob('fu:tz', { applied_at: '2026-11-10T19:40:00Z' });
+    await bot(['follow-up', id], {
+      TZ: 'Asia/Karachi',
+      FAKE_CLAUDE_OUT: JSON.stringify({ message: 'Dear Acme Hiring Team,\nStill keen.' }),
+    });
+    const calls = claudeCalls();
+    assert.match(calls[calls.length - 1].stdin, /APPLIED ON: 2026-11-11\n/);
+  });
+
   it('falls back to the template when Claude fails, or with --template (no AI call)', async () => {
     const id = await insertJob('fu:fallback');
     const out = await bot(['follow-up', id], { FAKE_CLAUDE_FAIL: 'usage limit reached' });

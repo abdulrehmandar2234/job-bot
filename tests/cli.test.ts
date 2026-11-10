@@ -451,6 +451,8 @@ describe('CLI', () => {
       addFile([posting(), posting({ source: 'linkedin', url: 'https://www.linkedin.com/jobs/view/1/' })]),
     ]);
     assert.match(out, /1 duplicate postings grouped/);
+    // The next command changes nothing in the grouping, so it does not say it again.
+    assert.doesNotMatch(await bot(['rescore']), /duplicate postings grouped/);
   });
 
   it('prints help for unknown commands', async () => {

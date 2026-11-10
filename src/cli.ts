@@ -209,8 +209,9 @@ if (!load) {
         await run(args, flags);
         // Any command that adds jobs or changes their status can change which copy of a job is the primary.
         if (['fetch', 'add', 'rescore', 'mark', 'prepare', 'check:open', 'dedupe'].includes(cmd)) {
-          const n = await dedupe();
-          if (n) console.log(`${n} duplicate postings grouped under their primary job.`);
+          // Said only when this command changed the grouping, not after every command while duplicates exist.
+          const { grouped, changed } = await dedupe();
+          if (changed) console.log(`${grouped} duplicate postings grouped under their primary job.`);
         }
       } finally {
         await pool.end();
