@@ -56,10 +56,14 @@ export async function setStatus(_prev: TextFormState, formData: FormData): Promi
 
 // At most a page of jobs can be selected at once (the triage layer selects from the rendered cards).
 const BULK_CAP = Math.max(...PAGE_SIZES);
+// The statuses a bulk skip may move: jobs still being triaged. Applied, interview, offer and rejected jobs are the
+// user's pipeline, and skipped ones are already there, so a selection that includes them leaves them as they are.
+const BULK_SKIPPABLE: readonly Status[] = ['new', 'prepared', 'filtered', 'expired'];
 
 /**
- * Skips every selected job in one transaction, with one optional reason for them all (the bulk-skip bar,
- * components/triage.tsx). Ids that vanished mid-click (dedupe) are ignored; the answer says how many were skipped.
+ * Skips every selected job that is still being triaged (BULK_SKIPPABLE) in one transaction, with one optional reason
+ * for them all (the bulk-skip bar, components/triage.tsx). Ids that vanished mid-click (dedupe) are ignored, and jobs
+ * in the pipeline or already skipped are left as they were; the answer says how many were skipped and how many left.
  */
 export async function skipSelected(_prev: TextFormState, formData: FormData): Promise<TextFormState> {
   return guarded(async () => {
@@ -70,6 +74,7 @@ export async function skipSelected(_prev: TextFormState, formData: FormData): Pr
 
     const client = await pool.connect();
     let skipped = 0;
+    let left = 0;
     try {
       await client.query('BEGIN');
       const { rows } = await client.query<{ id: string; status: string }>(
@@ -77,14 +82,20 @@ export async function skipSelected(_prev: TextFormState, formData: FormData): Pr
         [ids],
       );
       if (!rows.length) throw new ActionError('Unknown jobs');
-      await client.query(`UPDATE jobs SET status = 'skipped' WHERE id = ANY($1)`, [rows.map((r) => r.id)]);
+      const eligible = rows.filter((r) => BULK_SKIPPABLE.includes(r.status as Status));
+      left = rows.length - eligible.length;
+      if (!eligible.length)
+        throw new ActionError(
+          `Nothing skipped: ${rows.length === 1 ? 'the selected job is' : 'the selected jobs are'} already applied or skipped`,
+        );
+      await client.query(`UPDATE jobs SET status = 'skipped' WHERE id = ANY($1)`, [eligible.map((r) => r.id)]);
       await client.query(
         `INSERT INTO job_events (job_id, from_status, to_status, reason)
          SELECT unnest($1::text[]), unnest($2::text[]), 'skipped', $3`,
-        [rows.map((r) => r.id), rows.map((r) => r.status), reason],
+        [eligible.map((r) => r.id), eligible.map((r) => r.status), reason],
       );
       await client.query('COMMIT');
-      skipped = rows.length;
+      skipped = eligible.length;
     } catch (e) {
       await client.query('ROLLBACK');
       throw e;
@@ -92,7 +103,8 @@ export async function skipSelected(_prev: TextFormState, formData: FormData): Pr
       client.release();
     }
     refresh();
-    return { ok: true, message: `Skipped ${skipped} job${skipped === 1 ? '' : 's'}` };
+    const kept = left ? ` (${left} left as ${left === 1 ? 'it was' : 'they were'}: already applied or skipped)` : '';
+    return { ok: true, message: `Skipped ${skipped} job${skipped === 1 ? '' : 's'}${kept}` };
   });
 }
 

@@ -352,7 +352,13 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<'/'>['searc
       </ul>
 
       <Pager page={page} total={total} pageSize={size} href={pageHref} />
-      <Triage ids={jobs.map((j) => j.id)} skip={skipSelected} />
+      {/* Bulk skip only where every card is still being triaged: not the pipeline tabs, and not a search across every
+          tab, which mixes in applied and skipped jobs (skipSelected leaves those as they are anyway). */}
+      <Triage
+        ids={jobs.map((j) => j.id)}
+        skip={skipSelected}
+        selectable={!followUp && !everyTab && (status === 'new' || status === 'prepared')}
+      />
     </>
   );
 }

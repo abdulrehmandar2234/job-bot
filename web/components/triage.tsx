@@ -15,16 +15,21 @@ type SkipAction = (prev: TextFormState, fd: FormData) => Promise<TextFormState>;
  *
  * Keys (see KEYS below; ? shows them): j/k or the arrows move a visible focus between cards, Enter opens the
  * posting, o the job page, a marks applied, p prepares, s moves into the card's skip-reason select (Enter there
- * confirms the skip, Escape comes back). x selects the focused card and shift-click selects a range; the bar at
- * the bottom then skips them all with one optional reason (the `skip` server action, app/actions.ts skipSelected).
- * Everything is off while an input, select or textarea has focus, so typing in the filters never triggers actions.
+ * confirms the skip, Escape comes back). The action keys only work while focus is inside a card, so they always hit
+ * the card the user sees highlighted; when a refresh removes the focused card (marked applied, skipped), focus moves
+ * to the card that took its place. Where `selectable` (the Matching and Prepared tabs, app/page.tsx), x selects the
+ * focused card and shift-click selects a range; the bar at the bottom then skips them all with one optional reason
+ * (the `skip` server action, app/actions.ts skipSelected). Everything is off while an input, select or textarea has
+ * focus, so typing in the filters never triggers actions.
  */
-export function Triage({ ids, skip }: { ids: readonly string[]; skip: SkipAction }) {
+export function Triage({ ids, skip, selectable }: { ids: readonly string[]; skip: SkipAction; selectable: boolean }) {
   const [selected, setSelected] = useState<readonly string[]>([]);
   const [help, setHelp] = useState(false);
   // The focused card (index into ids) and the last card selected with x, the start of a shift-click range.
   const cursor = useRef(-1);
   const anchor = useRef(-1);
+  // The id of the card focus was last in, to notice when a refresh removes it.
+  const focused = useRef<string | null>(null);
 
   const card = useCallback(
     (i: number) => (ids[i] ? document.querySelector<HTMLElement>(`[data-job-id="${CSS.escape(ids[i])}"]`) : null),
@@ -53,15 +58,27 @@ export function Triage({ ids, skip }: { ids: readonly string[]; skip: SkipAction
     }
   }, [ids, selected, card]);
 
-  // A new page or filter change renders other cards: drop selected ids that are no longer shown.
-  useEffect(() => {
-    setSelected((sel) => {
-      const kept = sel.filter((id) => ids.includes(id));
-      return kept.length === sel.length ? sel : kept;
-    });
+  // After a refresh the cards may have changed. If the focused card is still there, the cursor follows it (a card
+  // above it may have left). If it left (marked applied, skipped), focus fell to <body>: move it to the card now in
+  // its place, so the next key acts on a card the user can see. A layout effect, so no frame shows a lost focus.
+  useLayoutEffect(() => {
+    const active = document.activeElement as HTMLElement | null;
+    const inCard = (active?.closest?.('[data-job-id]') as HTMLElement | null)?.dataset.jobId;
+    if (inCard && ids.includes(inCard)) cursor.current = ids.indexOf(inCard);
+    else if (focused.current && !ids.includes(focused.current) && (!active || active === document.body) && ids.length)
+      focusCard(Math.min(Math.max(cursor.current, 0), ids.length - 1));
     if (cursor.current >= ids.length) cursor.current = ids.length - 1;
     if (anchor.current >= ids.length) anchor.current = -1;
-  }, [ids]);
+  }, [ids, focusCard]);
+
+  // A new page or filter change renders other cards: drop selected ids that are no longer shown, and everything
+  // when the list is not selectable (a tab where a bulk skip makes no sense).
+  useEffect(() => {
+    setSelected((sel) => {
+      const kept = selectable ? sel.filter((id) => ids.includes(id)) : [];
+      return kept.length === sel.length ? sel : kept;
+    });
+  }, [ids, selectable]);
 
   useEffect(() => {
     const indexOf = (target: EventTarget | null) => {
@@ -77,10 +94,13 @@ export function Triage({ ids, skip }: { ids: readonly string[]; skip: SkipAction
     const onFocusIn = (e: FocusEvent) => {
       const i = indexOf(e.target);
       if (i >= 0) cursor.current = i;
+      focused.current = i >= 0 ? ids[i] : null;
     };
 
     const onClick = (e: MouseEvent) => {
-      if (!e.shiftKey) return;
+      if (!e.shiftKey || !selectable) return;
+      // Shift-click on a link or control keeps its own meaning (open in a new window, ...).
+      if ((e.target as HTMLElement | null)?.closest?.('a, button, select, input, textarea, label')) return;
       const to = indexOf(e.target);
       if (to < 0) return;
       e.preventDefault(); // no text selection from the shift-click
@@ -114,7 +134,10 @@ export function Triage({ ids, skip }: { ids: readonly string[]; skip: SkipAction
         else setSelected([]);
         return;
       }
-      const trigger = (key: string) => card(cursor.current)?.querySelector<HTMLElement>(`[data-shortcut="${key}"]`)?.click();
+      // The action keys act on the card focus is in, and on nothing when focus is elsewhere (on <body> after a
+      // click on the page background): never on a card the user cannot see highlighted.
+      const at = indexOf(document.activeElement);
+      const trigger = (key: string) => (at >= 0 ? card(at)?.querySelector<HTMLElement>(`[data-shortcut="${key}"]`)?.click() : undefined);
       switch (e.key) {
         case 'j':
         case 'ArrowDown':
@@ -140,10 +163,10 @@ export function Triage({ ids, skip }: { ids: readonly string[]; skip: SkipAction
           trigger('p');
           break;
         case 's':
-          card(cursor.current)?.querySelector<HTMLElement>('[data-shortcut="s"]')?.focus();
+          if (at >= 0) card(at)?.querySelector<HTMLElement>('[data-shortcut="s"]')?.focus();
           break;
         case 'x':
-          if (cursor.current >= 0 && cursor.current < ids.length) toggle(cursor.current);
+          if (selectable && at >= 0) toggle(at);
           break;
       }
     };
@@ -156,16 +179,26 @@ export function Triage({ ids, skip }: { ids: readonly string[]; skip: SkipAction
       document.removeEventListener('click', onClick);
       document.removeEventListener('keydown', onKey);
     };
-  }, [ids, help, card, focusCard]);
+  }, [ids, help, selectable, card, focusCard]);
 
   if (ids.length === 0) return null;
   return (
     <>
       <p className="mt-4 text-center text-xs text-zinc-500 max-sm:hidden">
-        Keyboard triage: <Kbd>j</Kbd>/<Kbd>k</Kbd> move · <Kbd>x</Kbd> selects for bulk skip · <Kbd>?</Kbd> shows every shortcut
+        Keyboard triage: <Kbd>j</Kbd>/<Kbd>k</Kbd> move ·{' '}
+        {selectable ? (
+          <>
+            <Kbd>x</Kbd> selects for bulk skip
+          </>
+        ) : (
+          <>
+            <Kbd>a</Kbd>, <Kbd>p</Kbd>, <Kbd>s</Kbd> act on the focused job
+          </>
+        )}{' '}
+        · <Kbd>?</Kbd> shows every shortcut
       </p>
-      {selected.length > 0 && <BulkBar selected={selected} skip={skip} onClear={() => setSelected([])} />}
-      {help && <Help onClose={() => setHelp(false)} />}
+      {selectable && selected.length > 0 && <BulkBar selected={selected} skip={skip} onClear={() => setSelected([])} />}
+      {help && <Help selectable={selectable} onClose={() => setHelp(false)} />}
     </>
   );
 }
@@ -211,21 +244,25 @@ function BulkBar({ selected, skip, onClear }: { selected: readonly string[]; ski
   );
 }
 
-const KEYS: readonly (readonly [string, string])[] = [
-  ['j / ↓', 'Next job'],
-  ['k / ↑', 'Previous job'],
-  ['Enter', 'Open the posting ↗'],
-  ['o', 'Open the job page'],
-  ['a', 'Mark applied'],
-  ['p', 'Prepare CV (or download it)'],
-  ['s', 'Skip: pick a reason, Enter confirms, Esc backs out'],
-  ['x', 'Select for bulk skip'],
-  ['Shift+click', 'Select a range'],
-  ['Esc', 'Clear the selection / close this'],
-  ['?', 'Show or hide this list'],
+// `bulk` marks the keys that only work where the list is selectable (the Matching and Prepared tabs).
+const KEYS: readonly { key: string; what: string; bulk?: true }[] = [
+  { key: 'j / ↓', what: 'Next job' },
+  { key: 'k / ↑', what: 'Previous job' },
+  { key: 'Enter', what: 'Open the posting ↗' },
+  { key: 'o', what: 'Open the job page' },
+  { key: 'a', what: 'Mark applied' },
+  { key: 'p', what: 'Prepare CV (or download it)' },
+  { key: 's', what: 'Skip: pick a reason, Enter confirms, Esc backs out' },
+  { key: 'x', what: 'Select for bulk skip', bulk: true },
+  { key: 'Shift+click', what: 'Select a range', bulk: true },
+  { key: 'Esc', what: 'Clear the selection / close this', bulk: true },
+  { key: 'Esc', what: 'Close this' },
+  { key: '?', what: 'Show or hide this list' },
 ];
 
-function Help({ onClose }: { onClose: () => void }) {
+function Help({ selectable, onClose }: { selectable: boolean; onClose: () => void }) {
+  // Esc has two rows: the one that mentions the selection where there is one, the other elsewhere.
+  const keys = KEYS.filter((k) => (selectable ? !(k.key === 'Esc' && !k.bulk) : !k.bulk));
   return (
     <div
       role="dialog"
@@ -239,7 +276,7 @@ function Help({ onClose }: { onClose: () => void }) {
         </button>
       </div>
       <dl className="space-y-1 text-sm">
-        {KEYS.map(([key, what]) => (
+        {keys.map(({ key, what }) => (
           <div key={key} className="flex items-baseline justify-between gap-3">
             <dt className="whitespace-nowrap">
               <Kbd>{key}</Kbd>
@@ -248,6 +285,11 @@ function Help({ onClose }: { onClose: () => void }) {
           </div>
         ))}
       </dl>
+      {!selectable && (
+        <p className="mt-2 text-xs text-zinc-500">
+          Bulk skip (<Kbd>x</Kbd>, <Kbd>Shift</Kbd>+click) works in the Matching and Prepared tabs.
+        </p>
+      )}
     </div>
   );
 }

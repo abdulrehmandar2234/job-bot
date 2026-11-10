@@ -1,4 +1,5 @@
 import { refresh } from 'next/cache';
+import { DatabaseError, type PoolClient } from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { aiReview, clearAnswers, dismissTask, draftAnswers, fetchNow, prepare, saveNotes, setStatus, skipSelected } from '@/app/actions';
 import { spawnBot } from '@/lib/bot';
@@ -135,6 +136,80 @@ describe('skipSelected (bulk skip)', () => {
     const many = ids(...Array.from({ length: 101 }, (_, i) => `${PREFIX}many${i}`));
     expect(await skipSelected(null, many)).toEqual({ ok: false, message: 'At most 100 jobs can be skipped at once' });
     expect((await getJob(id))!.status).toBe('new');
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it('skips expired and filtered-out jobs too, the other statuses still being triaged', async () => {
+    const expired = await insertJob({ id: 'act-expired', status: 'expired' });
+    const filtered = await insertJob({ id: 'act-filtered', status: 'filtered' });
+    expect(await skipSelected(null, ids(expired, filtered))).toEqual({ ok: true, message: 'Skipped 2 jobs' });
+    expect((await getJob(expired))!.status).toBe('skipped');
+    expect((await jobEvents(filtered))[0]).toMatchObject({ from_status: 'filtered', to_status: 'skipped' });
+  });
+
+  it('leaves applied, interview, offer, rejected and skipped jobs as they were, logging nothing for them', async () => {
+    // A search across every tab can put pipeline jobs in the selection: a bulk skip must never move them.
+    const kept = ['applied', 'interview', 'offer', 'rejected', 'skipped'] as const;
+    const keptIds = await Promise.all(kept.map((status) => insertJob({ id: `act-${status}`, status })));
+    expect(await skipSelected(null, ids(id, ...keptIds))).toEqual({
+      ok: true,
+      message: 'Skipped 1 job (5 left as they were: already applied or skipped)',
+    });
+    expect((await getJob(id))!.status).toBe('skipped');
+    for (const [i, keptId] of keptIds.entries()) {
+      expect((await getJob(keptId))!.status).toBe(kept[i]);
+      expect(await jobEvents(keptId)).toEqual([]);
+    }
+    const one = await insertJob({ id: 'act-new2', status: 'new' });
+    expect(await skipSelected(null, ids(one, keptIds[0]))).toEqual({
+      ok: true,
+      message: 'Skipped 1 job (1 left as it was: already applied or skipped)',
+    });
+  });
+
+  it('answers an error and changes nothing when none of the selected jobs can be skipped', async () => {
+    const applied = await insertJob({ id: 'act-applied', status: 'applied' });
+    const skipped = await insertJob({ id: 'act-skipped', status: 'skipped' });
+    expect(await skipSelected(null, ids(applied, skipped))).toEqual({
+      ok: false,
+      message: 'Nothing skipped: the selected jobs are already applied or skipped',
+    });
+    expect(await skipSelected(null, ids(applied))).toEqual({
+      ok: false,
+      message: 'Nothing skipped: the selected job is already applied or skipped',
+    });
+    expect((await getJob(applied))!.status).toBe('applied');
+    expect(await jobEvents(skipped)).toEqual([]);
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it('rolls everything back when a statement fails mid-transaction', async () => {
+    const other = await insertJob({ id: 'act2', status: 'prepared' });
+    // The job_events insert fails after the UPDATE ran: the transaction must leave both jobs untouched.
+    const connect = pool.connect.bind(pool) as () => Promise<PoolClient>;
+    let restore = () => {};
+    const connectSpy = vi.spyOn(pool, 'connect').mockImplementationOnce((async () => {
+      const client = await connect();
+      const query = client.query.bind(client) as (...args: unknown[]) => Promise<unknown>;
+      const spy = vi
+        .spyOn(client, 'query')
+        .mockImplementation(((text: unknown, ...rest: unknown[]) =>
+          typeof text === 'string' && text.includes('INSERT INTO job_events')
+            ? Promise.reject(new DatabaseError('forced failure', 0, 'error'))
+            : query(text, ...rest)) as never);
+      restore = () => spy.mockRestore(); // the client goes back to the pool: later queries must not hit the spy
+      return client;
+    }) as never);
+    try {
+      expect(await skipSelected(null, ids(id, other))).toEqual({ ok: false, message: 'Database error: forced failure. Try again.' });
+    } finally {
+      restore();
+      connectSpy.mockRestore();
+    }
+    expect((await getJob(id))!.status).toBe('new');
+    expect((await getJob(other))!.status).toBe('prepared');
+    expect(await jobEvents(id)).toEqual([]);
+    expect(await jobEvents(other)).toEqual([]);
     expect(refresh).not.toHaveBeenCalled();
   });
 });
