@@ -12,6 +12,7 @@ import {
   weeklyActivity,
   type Funnel,
 } from '@/lib/analytics';
+import { UNDO_NOTE } from '@/lib/job-lock';
 import { cleanupDb, closeDb, dateDaysAgo, ensureSchema, insertFetchRun, insertJob, PREFIX } from '../helpers/db';
 
 beforeAll(ensureSchema);
@@ -20,14 +21,15 @@ afterAll(closeDb);
 
 const id = (s: string) => PREFIX + s;
 
-/** Adds status changes to a job's history, as [from, to, days ago]. */
-async function history(jobId: string, ...events: [string | null, string, number][]) {
-  for (const [from, to, days] of events) {
-    await pool.query('INSERT INTO job_events (job_id, from_status, to_status, at) VALUES ($1, $2, $3, $4)', [
+/** Adds status changes to a job's history, as [from, to, days ago, note?]. */
+async function history(jobId: string, ...events: [string | null, string, number, string?][]) {
+  for (const [from, to, days, note] of events) {
+    await pool.query('INSERT INTO job_events (job_id, from_status, to_status, at, note) VALUES ($1, $2, $3, $4, $5)', [
       jobId,
       from,
       to,
       dateDaysAgo(days),
+      note ?? null,
     ]);
   }
 }
@@ -50,6 +52,20 @@ describe('funnel', () => {
     const after = await funnel();
     const delta = Object.fromEntries(Object.keys(after).map((k) => [k, after[k as keyof Funnel] - before[k as keyof Funnel]]));
     expect(delta).toEqual({ matched: 6, prepared: 4, applied: 3, interview: 2, offer: 1, rejected: 1, skipped: 1 });
+  });
+
+  it('leaves out an undone status change together with its Undo', async () => {
+    const before = await funnel();
+    // Marked applied, then undone (the Undo puts status and applied_at back): never applied.
+    const undone = await insertJob({ id: 'undone', status: 'prepared' });
+    await history(undone, [null, 'new', 12], ['new', 'prepared', 11], ['prepared', 'applied', 10], ['applied', 'prepared', 9, UNDO_NOTE]);
+    // An undone interview still leaves the application in place.
+    const back = await insertJob({ id: 'interview-undone', status: 'applied', applied_at: dateDaysAgo(8) });
+    await history(back, ['new', 'applied', 8], ['applied', 'interview', 7], ['interview', 'applied', 7, UNDO_NOTE]);
+
+    const after = await funnel();
+    const delta = Object.fromEntries(Object.keys(after).map((k) => [k, after[k as keyof Funnel] - before[k as keyof Funnel]]));
+    expect(delta).toEqual({ matched: 2, prepared: 2, applied: 1, interview: 0, offer: 0, rejected: 0, skipped: 0 });
   });
 
   it('rate divides, and is null for an empty base', () => {
@@ -140,6 +156,19 @@ describe('weeklyActivity', () => {
     expect(delta[8]).toEqual({ applied: 1, matches: 0 }); // exactly 3 weeks back
     expect(delta.reduce((s, d) => s + d.applied, 0)).toBe(2);
     expect(delta.reduce((s, d) => s + d.matches, 0)).toBe(3); // + w-old, first seen 30 days ago
+  });
+
+  it('counts an application that was undone and applied again once, in the week of the later move', async () => {
+    const before = await weeklyActivity();
+    const f = await funnel();
+    const again = await insertJob({ id: 'w-again', status: 'applied', applied_at: dateDaysAgo(0) });
+    await history(again, ['new', 'applied', 21], ['applied', 'new', 21, UNDO_NOTE], ['new', 'applied', 0]);
+
+    const after = await weeklyActivity();
+    const delta = after.map((w, i) => w.applied - before[i].applied);
+    expect(delta[11]).toBe(1);
+    expect(delta.reduce((s, d) => s + d, 0)).toBe(1);
+    expect((await funnel()).applied - f.applied).toBe(1);
   });
 });
 

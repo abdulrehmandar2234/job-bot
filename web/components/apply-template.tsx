@@ -3,7 +3,7 @@
 import { applyCvTemplate } from '@/app/actions';
 import { TEMPLATES, type TemplateId } from '@/lib/cv-template-list';
 import type { TaskKind } from '@/lib/tasks';
-import { Problem, useTextForm } from './written-text';
+import { Problem, useTextForm } from './form-state';
 
 /**
  * The template select with "Apply template" (`bot cv:template`, used by CvPanel). A client form (useTextForm), so a

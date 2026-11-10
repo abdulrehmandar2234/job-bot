@@ -49,6 +49,26 @@ describe('ActionForm', () => {
     expect(screen.getByRole('button', { name: 'Prepare CV' })).toBeEnabled();
   });
 
+  it("shows a success's message as a status line, not an alert", async () => {
+    action.mockResolvedValue({ ok: true, message: 'Saved' });
+    const user = userEvent.setup();
+    render(<ActionForm action={action} fields={{ id: 'job:1' }} label="Save notes" />);
+    await user.click(screen.getByRole('button', { name: 'Save notes' }));
+    expect(await screen.findByRole('status')).toHaveTextContent('Saved');
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('shows nothing for a success without a message', async () => {
+    action.mockResolvedValue({ ok: true, message: '' });
+    const user = userEvent.setup();
+    render(<ActionForm action={action} fields={{ id: 'job:1' }} label="Skip" />);
+    await user.click(screen.getByRole('button', { name: 'Skip' }));
+    await vi.waitFor(() => expect(action).toHaveBeenCalledTimes(1));
+    await vi.waitFor(() => expect(screen.getByRole('button', { name: 'Skip' })).toBeEnabled());
+    expect(screen.queryByRole('status')).toBeNull();
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
   it('shows the error next to the button when the action answers with one, and the button stays usable', async () => {
     action.mockResolvedValue({ ok: false, message: 'Unknown job' });
     const user = userEvent.setup();
