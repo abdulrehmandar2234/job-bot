@@ -45,11 +45,18 @@ export function CvAction({ job, busy = [] }: { job: Job; busy?: Running }) {
 
 /**
  * AI review (until the job has one, and only while config.json `ai.enabled` is on: `ai`) and the buttons that move a
- * job along the pipeline, including Skip.
+ * job along the pipeline, including Skip. Each sends the status this card shows (`from`), so a stale tab's click is
+ * refused instead of moving a job that has moved on since (setStatus).
  */
 export function StatusActions({ job, busy = [], ai = true }: { job: Job; busy?: Running; ai?: boolean }) {
   const status = (to: string, label: string, extra = '', shortcut?: string) => (
-    <ActionForm action={setStatus} fields={{ id: job.id, status: to }} buttonClass={extra} shortcut={shortcut} label={label} />
+    <ActionForm
+      action={setStatus}
+      fields={{ id: job.id, status: to, from: job.status }}
+      buttonClass={extra}
+      shortcut={shortcut}
+      label={label}
+    />
   );
 
   return (
@@ -63,7 +70,7 @@ export function StatusActions({ job, busy = [], ai = true }: { job: Job; busy?: 
       {(job.status === 'new' || job.status === 'prepared') && (
         <>
           {status('applied', 'Mark applied ✓', 'btn-good', 'a')}
-          <SkipButton id={job.id} />
+          <SkipButton id={job.id} from={job.status} />
         </>
       )}
       {job.status === 'applied' && (

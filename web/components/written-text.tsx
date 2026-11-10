@@ -1,6 +1,6 @@
 'use client';
 
-import { startTransition, useActionState, useEffect, useState, type FormEvent } from 'react';
+import { type FormEvent, type ReactNode, startTransition, useActionState, useEffect, useState } from 'react';
 import { AiOffNote } from './ai-off';
 import { FEEDBACK_CAP, TEXT_CAP, type TextFormState, type WrittenKind } from '@/lib/written-text';
 
@@ -28,6 +28,24 @@ export function Problem({ state }: { state: TextFormState }) {
     <p role="alert" className="text-sm text-rose-700 dark:text-rose-400">
       {state.message}
     </p>
+  );
+}
+
+/**
+ * Asks before the form inside it submits, for a click that destroys text the user wrote (a rewrite of an edited
+ * letter, "Clear all" answers). With `when` false it does nothing. It catches the submit before the form's own
+ * handler (capture phase), so a "Cancel" sends nothing; `display: contents` keeps the form's place in the layout.
+ */
+export function ConfirmFirst({ message, when = true, children }: { message: string; when?: boolean; children: ReactNode }) {
+  const onSubmitCapture = (e: FormEvent) => {
+    if (!when || window.confirm(message)) return;
+    e.preventDefault();
+    e.stopPropagation();
+  };
+  return (
+    <div className="contents" onSubmitCapture={onSubmitCapture}>
+      {children}
+    </div>
   );
 }
 

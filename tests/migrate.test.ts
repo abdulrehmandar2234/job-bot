@@ -17,6 +17,11 @@ const tables = async () =>
   (
     await db.query<{ table_name: string }>(`SELECT table_name FROM information_schema.tables WHERE table_schema = $1 ORDER BY 1`, [SCHEMA])
   ).rows.map((r) => r.table_name);
+/** The versions from `first` on, in order: what a database at the migration before `first` still has to apply. */
+const from = (first: string) =>
+  migrationFiles()
+    .filter((f) => f >= first)
+    .map((f) => f.replace(/\.sql$/, ''));
 const recorded = async () =>
   (await db.query<{ version: string }>('SELECT version FROM schema_migrations ORDER BY 1')).rows.map((r) => r.version);
 
@@ -187,7 +192,7 @@ describe('migration 014 (CV templates)', () => {
     await runMigrations(db, d);
     await db.query(`INSERT INTO jobs (id, source, company, title, url, cv_summary) VALUES ('a', 's', 'c', 't', 'u', 'Kept.')`);
     await db.query(`INSERT INTO tasks (kind, job_id) VALUES ('tailored_cv', 'a')`);
-    assert.deepEqual(await runMigrations(db), ['014_cv_templates', '015_cover_letter_ai_error', '016_cv_headline']);
+    assert.deepEqual(await runMigrations(db), from('014'));
     assert.deepEqual((await db.query('SELECT kind FROM tasks')).rows, [{ kind: 'tailored_cv' }]);
     assert.deepEqual((await db.query('SELECT cv_summary FROM jobs')).rows, [{ cv_summary: 'Kept.' }]);
   });
@@ -199,7 +204,7 @@ describe('migration 015 (why the AI letter failed)', () => {
     for (const f of migrationFiles().filter((f) => f < '015')) writeFileSync(join(d, f), readFileSync(join(MIGRATIONS_DIR, f), 'utf8'));
     await runMigrations(db, d);
     await db.query(`INSERT INTO jobs (id, source, company, title, url, cover_letter) VALUES ('a', 's', 'c', 't', 'u', 'Dear c')`);
-    assert.deepEqual(await runMigrations(db), ['015_cover_letter_ai_error', '016_cv_headline']);
+    assert.deepEqual(await runMigrations(db), from('015'));
     assert.deepEqual((await db.query('SELECT cover_letter, cover_letter_ai_error FROM jobs')).rows, [
       { cover_letter: 'Dear c', cover_letter_ai_error: null },
     ]);
@@ -213,11 +218,43 @@ describe('migration 016 (CV headline)', () => {
     await runMigrations(db, d);
     await db.query(`INSERT INTO jobs (id, source, company, title, url, cv_summary) VALUES ('a', 's', 'c', 't', 'u', 'Kept.')`);
     await db.query(`INSERT INTO tasks (kind, job_id) VALUES ('summary', 'a')`);
-    assert.deepEqual(await runMigrations(db), ['016_cv_headline']);
+    assert.deepEqual(await runMigrations(db), from('016'));
     const { rows } = await db.query('SELECT cv_summary, cv_headline, cv_headline_at, cv_headline_edited_at FROM jobs');
     assert.deepEqual(rows, [{ cv_summary: 'Kept.', cv_headline: null, cv_headline_at: null, cv_headline_edited_at: null }]);
     await db.query(`INSERT INTO tasks (kind, job_id) VALUES ('headline', 'a')`);
     assert.deepEqual((await db.query('SELECT kind FROM tasks ORDER BY id')).rows, [{ kind: 'summary' }, { kind: 'headline' }]);
     await assert.rejects(db.query(`INSERT INTO tasks (kind) VALUES ('bogus')`), /tasks_kind_check/);
+  });
+});
+
+describe('migration 017 (job list index)', () => {
+  it('the job list and the ai:score queue read primaries of one status in AI-score order through jobs_list_idx', async () => {
+    const d = dir({});
+    for (const f of migrationFiles().filter((f) => f < '017')) writeFileSync(join(d, f), readFileSync(join(MIGRATIONS_DIR, f), 'utf8'));
+    await runMigrations(db, d);
+    await db.query(`INSERT INTO jobs (id, source, company, title, url) VALUES ('kept', 's', 'c', 't', 'u')`);
+    assert.equal((await runMigrations(db))[0], '017_jobs_list_index');
+    assert.equal((await db.query('SELECT count(*)::int n FROM jobs')).rows[0].n, 1);
+    await db.query(
+      `INSERT INTO jobs (id, source, company, title, url, status, score, ai_score, duplicate_of)
+       SELECT 'j' || n, 's', 'c', 't', 'u' || n, (ARRAY['new', 'filtered', 'applied'])[n % 3 + 1], n % 100,
+         CASE WHEN n % 4 = 0 THEN NULL ELSE n % 90 END, CASE WHEN n % 10 = 0 THEN 'j1' END
+       FROM generate_series(1, 300) n`,
+    );
+    await db.query('ANALYZE jobs');
+    const client = await db.connect();
+    try {
+      await client.query('SET enable_seqscan = off');
+      await client.query('SET enable_sort = off');
+      const { rows } = await client.query<{ 'QUERY PLAN': string }>(
+        `EXPLAIN SELECT id FROM jobs WHERE duplicate_of IS NULL AND status = $1 ORDER BY ai_score DESC NULLS LAST, score DESC LIMIT 50`,
+        ['new'],
+      );
+      const plan = rows.map((r) => r['QUERY PLAN']).join('\n');
+      assert.match(plan, /jobs_list_idx/, plan);
+      assert.doesNotMatch(plan, /Sort/, plan);
+    } finally {
+      client.release();
+    }
   });
 });

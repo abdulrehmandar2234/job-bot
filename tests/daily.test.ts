@@ -1,10 +1,20 @@
 import { after, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { appendFileSync, chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { AI_FAILED, childEnv, cliRunner, FETCH_FAILED, runDaily, type StepResult } from '../src/commands/daily.ts';
+import {
+  AI_FAILED,
+  childEnv,
+  cliRunner,
+  type DailyDeps,
+  FETCH_FAILED,
+  rotateLogs,
+  runDaily,
+  STEP_TIMEOUT_MIN,
+  type StepResult,
+} from '../src/commands/daily.ts';
 import { scheduleSnippet } from '../src/commands/schedule.ts';
 import type { Note } from '../src/notify.ts';
 
@@ -17,13 +27,15 @@ const root = mkdtempSync(join(tmpdir(), 'job-bot-daily-'));
 after(() => rmSync(root, { recursive: true, force: true }));
 
 /** runDaily with fake steps: `results` maps a command name to its exit code and output. */
-async function fakeDaily(results: Record<string, Partial<StepResult>> = {}, prune: () => number = () => 0) {
+async function fakeDaily(results: Record<string, Partial<StepResult>> = {}, prune: () => number = () => 0, more: Partial<DailyDeps> = {}) {
   const calls: string[] = [];
   const notes: Note[] = [];
+  const limits: Record<string, number> = {};
   let log = '';
   await runDaily({
-    run: async (args) => {
+    run: async (args, timeoutMs) => {
       calls.push(args.join(' '));
+      limits[args[0]] = timeoutMs;
       const r = { code: 0, output: '', ...results[args[0]] };
       log += r.output;
       return r;
@@ -40,8 +52,9 @@ async function fakeDaily(results: Record<string, Partial<StepResult>> = {}, prun
       return prune();
     },
     now: new Date(2026, 9, 30, 9, 5),
+    ...more,
   });
-  return { calls, notes, log };
+  return { calls, notes, log, limits };
 }
 
 describe('runDaily', () => {
@@ -77,6 +90,102 @@ describe('runDaily', () => {
     assert.equal(notes[0].message, FETCH_FAILED);
   });
 
+  it('a fetch where every source failed blames the network, not PostgreSQL, and names the first error', async () => {
+    const output =
+      '✗ One: fetch failed\n✗ Two: fetch failed\n\n0 postings checked, 0 new. 4 matching jobs waiting (status=new).\n' +
+      '✗ All 2 sources failed — is the network up? First error: One: fetch failed\n';
+    const { calls, notes } = await fakeDaily({ fetch: { code: 1, output } });
+    assert.deepEqual(calls, ['fetch', 'notify', 'backup', 'prune']);
+    assert.equal(notes[0].message, 'Fetch failed: 2 of 2 sources failed — is the network up? First error: One: fetch failed');
+    assert.doesNotMatch(notes[0].message, /PostgreSQL/);
+  });
+
+  it('the database being down keeps the PostgreSQL message; any other failure shows its last line', async () => {
+    const down = await fakeDaily({ fetch: { code: 1, output: 'Error: connect ECONNREFUSED 127.0.0.1:5432\n' } });
+    assert.equal(down.notes[0].message, FETCH_FAILED);
+    const other = await fakeDaily({ fetch: { code: 1, output: 'config.json: stacks: unknown stack preset "pyhton"\n' } });
+    assert.equal(other.notes[0].message, 'Fetch failed: config.json: stacks: unknown stack preset "pyhton" See data/fetch.log');
+  });
+
+  it('a fetch where some sources failed says how many in the notification', async () => {
+    const { notes } = await fakeDaily({
+      fetch: {
+        output: '10 postings checked, 1 new. 2 matching jobs waiting (status=new).\n! 3 of 20 sources failed (first error: X: 500)\n',
+      },
+      'ai:score': { output: '1 jobs scored, 0 failed.\n' },
+    });
+    assert.equal(
+      notes[0].message,
+      '10 postings checked, 1 new. 2 matching jobs waiting (status=new). 3 of 20 sources failed. 1 jobs scored, 0 failed.',
+    );
+  });
+
+  it('gives every step its time limit', async () => {
+    const { limits } = await fakeDaily({}, () => 0, { indStale: () => true });
+    assert.deepEqual(limits, {
+      'sponsors:update': STEP_TIMEOUT_MIN['sponsors:update'] * 60_000,
+      fetch: 30 * 60_000,
+      'check:open': 15 * 60_000,
+      'ai:score': 60 * 60_000,
+      backup: 10 * 60_000,
+    });
+  });
+
+  it('a step that times out is logged, the later steps still run, and the notification names it', async () => {
+    const { calls, notes, log } = await fakeDaily({
+      fetch: { output: '10 postings checked, 1 new.' },
+      'ai:score': { code: 124, timedOut: true, output: 'scoring...' },
+    });
+    assert.deepEqual(calls, ['fetch', 'check:open --limit 100', 'ai:score', 'notify', 'backup', 'prune']);
+    assert.match(log, /\nai:score timed out after 60 min\n/);
+    assert.equal(notes[0].message, '10 postings checked, 1 new. Timed out: ai:score (see data/fetch.log).');
+  });
+
+  it('a fetch that times out says so instead of blaming PostgreSQL, and the backup still runs', async () => {
+    const { calls, notes, log } = await fakeDaily({ fetch: { code: 124, timedOut: true } });
+    assert.deepEqual(calls, ['fetch', 'notify', 'backup', 'prune']);
+    assert.equal(notes[0].message, 'Fetch timed out after 30 min. See data/fetch.log');
+    assert.match(log, /fetch timed out after 30 min/);
+  });
+
+  it('refreshes the IND register first when it is stale, and not when it is fresh', async () => {
+    const stale = await fakeDaily({}, () => 0, { indStale: () => true });
+    assert.deepEqual(stale.calls, ['sponsors:update', 'fetch', 'check:open --limit 100', 'ai:score', 'notify', 'backup', 'prune']);
+    const fresh = await fakeDaily({}, () => 0, { indStale: () => false });
+    assert.equal(fresh.calls[0], 'fetch');
+  });
+
+  it('a failed IND refresh only shows in the log; the fetch still runs', async () => {
+    const { calls, notes, log } = await fakeDaily(
+      { 'sponsors:update': { code: 1, output: 'IND register looks wrong' }, fetch: { output: '5 postings checked' } },
+      () => 0,
+      { indStale: () => true },
+    );
+    assert.equal(calls[1], 'fetch');
+    assert.match(log, /sponsors:update failed \(see above\); the IND register stays as it was/);
+    assert.match(notes[0].message, /^5 postings checked/);
+  });
+
+  it('rotates logs before writing and logs which ones', async () => {
+    const order: string[] = [];
+    let log = '';
+    await runDaily({
+      run: async () => ({ code: 0, output: '' }),
+      notify: async () => {},
+      log: (t) => {
+        order.push('log');
+        log += t;
+      },
+      prune: () => 0,
+      rotate: () => {
+        order.push('rotate');
+        return ['rotated data/fetch.log to data/fetch.log.1'];
+      },
+    });
+    assert.deepEqual(order.slice(0, 2), ['rotate', 'log']);
+    assert.match(log, /=====\nrotated data\/fetch\.log to data\/fetch\.log\.1\n/);
+  });
+
   it('a failed backup only shows in the log', async () => {
     const { calls, log } = await fakeDaily({ backup: { code: 1 } });
     assert.deepEqual(calls.slice(-2), ['backup', 'prune']);
@@ -95,6 +204,23 @@ describe('runDaily', () => {
     });
     assert.match(log, /http-cache prune failed: disk gone\n$/);
     assert.equal(notes.length, 1); // the notification already went out
+  });
+});
+
+describe('rotateLogs', () => {
+  it('renames logs over the limit to .1, replacing an older .1, and leaves small or missing ones alone', () => {
+    const dir = mkdtempSync(join(root, 'logs-'));
+    const big = join(dir, 'fetch.log');
+    const small = join(dir, 'tasks.log');
+    writeFileSync(big, 'x'.repeat(20));
+    writeFileSync(`${big}.1`, 'older');
+    writeFileSync(small, 'y'.repeat(5));
+    const lines = rotateLogs([big, small, join(dir, 'missing.log')], 10);
+    assert.deepEqual(lines, [`rotated ${big} to ${big}.1`]);
+    assert.equal(existsSync(big), false);
+    assert.equal(readFileSync(`${big}.1`, 'utf8'), 'x'.repeat(20));
+    assert.equal(readFileSync(small, 'utf8'), 'yyyyy');
+    assert.equal(existsSync(`${small}.1`), false);
   });
 });
 
@@ -121,6 +247,59 @@ process.exitCode = Number(process.argv[3] ?? 0);`,
   it('returns the exit code of a failing command', async () => {
     const r = await cliRunner(join(root, 'fetch2.log'), fakeCli)(['ai:score', '3']);
     assert.equal(r.code, 3);
+  });
+
+  // A step that never ends: `hang` waits forever, `stubborn` also ignores SIGTERM (so only SIGKILL stops it).
+  const hangCli = join(root, 'hang-cli.mjs');
+  writeFileSync(
+    hangCli,
+    `const [step, mode] = process.argv.slice(2);
+console.log('started ' + step);
+if (mode === 'stubborn') process.on('SIGTERM', () => console.log('ignoring SIGTERM'));
+if (mode === 'hang' || mode === 'stubborn') setInterval(() => {}, 1000);
+else console.log('done ' + step);`,
+  );
+
+  it('stops a step that runs past its time limit and reports it as timed out', async () => {
+    const log = join(root, 'hang.log');
+    const started = Date.now();
+    const r = await cliRunner(log, hangCli, process.env, 200)(['fetch', 'hang'], 300);
+    assert.equal(r.timedOut, true);
+    assert.equal(r.code, 124);
+    assert.match(readFileSync(log, 'utf8'), /started fetch/);
+    assert.ok(Date.now() - started < 5000, 'stopped promptly');
+  });
+
+  it('kills a step that ignores SIGTERM after the grace period', { skip: process.platform === 'win32' }, async () => {
+    const r = await cliRunner(join(root, 'stubborn.log'), hangCli, process.env, 200)(['ai:score', 'stubborn'], 1000);
+    assert.equal(r.timedOut, true);
+    assert.match(r.output, /ignoring SIGTERM/);
+  });
+
+  it('a step that ends in time is not marked timed out', async () => {
+    const r = await cliRunner(join(root, 'quick.log'), hangCli, process.env, 200)(['backup', 'quick'], 10_000);
+    assert.equal(r.code, 0);
+    assert.equal(r.timedOut, undefined);
+  });
+
+  it('runDaily with a hung ai:score: it is killed, the backup still runs and the notification names it', async () => {
+    const log = join(root, 'daily-hang.log');
+    const run = cliRunner(log, hangCli, process.env, 200);
+    const notes: Note[] = [];
+    await runDaily({
+      // Only ai:score hangs; every other step ends at once.
+      run: (args, ms) => run([args[0], args[0] === 'ai:score' ? 'hang' : 'quick'], ms),
+      notify: async (n) => {
+        notes.push(n);
+      },
+      log: (t) => appendFileSync(log, t),
+      prune: () => 0,
+      timeouts: { 'ai:score': 300 },
+    });
+    const text = readFileSync(log, 'utf8');
+    assert.match(text, /ai:score timed out after 0\.3 s/);
+    assert.match(text, /done backup/);
+    assert.match(notes[0].message, /Timed out: ai:score/);
   });
 });
 

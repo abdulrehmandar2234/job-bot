@@ -151,6 +151,9 @@ describe('JobActions', () => {
     render(<JobActions job={job({ status, cv_version: 'default', ai_score: 70 })} />);
     expect(buttons()).toEqual(moves.map(([label]) => label));
     for (const [label, to] of moves) expect(targetOf(label)).toBe(to);
+    // Every move sends the status the card shows, so a stale tab's click is refused (setStatus).
+    for (const [label] of moves)
+      expect(screen.getByRole('button', { name: label }).closest('form')!.querySelector('input[name="from"]')).toHaveValue(status);
   });
 
   it('styles the positive moves', () => {

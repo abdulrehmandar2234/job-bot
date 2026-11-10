@@ -8,15 +8,6 @@ import { loadProfile, remoteFromCode } from '../profile.ts';
 // Remote job boards. Unlike company ATS boards these list many companies, and the location
 // field says where a remote hire may live, e.g. "Remote — Worldwide" or "Remote — USA, Canada".
 
-const strip = (html: string) =>
-  html
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/[ \t]+/g, ' ')
-    .replace(/\n\s*\n+/g, '\n')
-    .trim();
-
 /** A UTC offset such as "GMT+5", "UTC-3" or "GMT+5:30" as hours, or null. */
 export function utcHours(offset: string | null | undefined): number | null {
   const m = /([+−-])\s*(\d{1,2})(?::(\d{2}))?/.exec(offset ?? '');
@@ -92,7 +83,7 @@ async function himalayas(): Promise<Fetched> {
           title: j.title,
           location: `Remote — ${where}`,
           url: j.applicationLink ?? j.guid,
-          description: strip(j.description ?? ''),
+          description: stripHtml(j.description ?? ''),
           posted_at: posted === null ? null : new Date(posted).toISOString(),
           salary: structuredSalary(
             j.minSalary,
@@ -117,7 +108,7 @@ async function remotive(): Promise<RawJob[]> {
     title: j.title,
     location: `Remote — ${j.candidate_required_location || 'not stated'}`,
     url: j.url,
-    description: strip(j.description ?? ''),
+    description: stripHtml(j.description ?? ''),
     // publication_date is usually zoneless UTC ("2026-10-27T10:00:00"); one that is already zoned,
     // or unparseable, must not throw and kill the board.
     posted_at: j.publication_date ? (toIso(`${j.publication_date}Z`) ?? toIso(j.publication_date)) : null,
@@ -135,7 +126,7 @@ async function remoteok(): Promise<RawJob[]> {
       title: j.position,
       location: `Remote — ${j.location || 'not stated'}`,
       url: j.url,
-      description: strip(`${j.description ?? ''}\n${(j.tags ?? []).join(', ')}`),
+      description: stripHtml(`${j.description ?? ''}\n${(j.tags ?? []).join(', ')}`),
       posted_at: j.date ?? null,
       salary: structuredSalary(j.salary_min, j.salary_max, 'USD'), // yearly USD, 0 when not given
     }));
@@ -169,7 +160,7 @@ async function arbeitnow(): Promise<Fetched> {
         title: j.title,
         location: j.remote ? `Remote — ${j.location || 'not stated'}` : j.location,
         url: j.url,
-        description: stripHtml(j.description ?? ''), // escaped HTML, which stripHtml decodes
+        description: stripHtml(j.description ?? ''), // escaped HTML, which stripHtml unescapes
         posted_at: posted === null ? null : new Date(posted).toISOString(),
       });
     }
@@ -220,10 +211,10 @@ async function adzuna(): Promise<Fetched> {
             id: `adzuna:${country}:${j.id}`,
             source: 'adzuna',
             company: j.company?.display_name ?? 'Unknown',
-            title: strip(j.title ?? ''),
+            title: stripHtml(j.title ?? ''),
             location: [j.location?.display_name, ADZUNA_COUNTRY[country] ?? country.toUpperCase()].filter(Boolean).join(', '),
             url: j.redirect_url,
-            description: strip(j.description ?? ''),
+            description: stripHtml(j.description ?? ''),
             posted_at: j.created ?? null,
             // Yearly, in the country's currency (src/currencies.json). Adzuna estimates a salary when the ad has none (salary_is_predicted "1"); those are skipped.
             salary: String(j.salary_is_predicted) === '1' ? null : structuredSalary(j.salary_min, j.salary_max, currencyOf(country)),

@@ -5,7 +5,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { daysAgo, mockFetch } from './helpers.ts';
 import { timing } from '../src/sources/http.ts';
-import { fetchCompany, workdayAgeDays, workdayList, workdaySite } from '../src/sources/index.ts';
+import { decodeEntities, fetchCompany, stripHtml, workdayAgeDays, workdayList, workdaySite } from '../src/sources/index.ts';
+import { languageRules } from '../src/match.ts';
 import { BOARDS } from '../src/sources/boards.ts';
 import { linkedin } from '../src/sources/linkedin.ts';
 import { discover, workdayToken } from '../src/discover.ts';
@@ -21,6 +22,40 @@ let net: ReturnType<typeof mockFetch>;
 afterEach(() => net?.restore());
 
 const co = (ats: Company['ats']): Company => ({ name: 'Acme', ats, token: 'acme' });
+
+describe('stripHtml', () => {
+  it('ends a line at every block tag (and keeps line breaks already there), collapsing whitespace per line', () => {
+    assert.equal(
+      stripHtml(
+        '<h2>About</h2><div>We \u00a0 build \t things\n\n \n</div><ul><li>PHP</li><li>Node<br>React</li></ul><table><tr><td>a</td></tr><tr><td>b</td></tr></table>',
+      ),
+      'About\nWe build things\nPHP\nNode\nReact\na\nb',
+    );
+    assert.equal(stripHtml('<p>Fluent German</p><p>is a plus for our team</p>'), 'Fluent German\nis a plus for our team');
+    assert.equal(stripHtml('Plain <b>bold</b> and <i>italic</i> text'), 'Plain bold and italic text');
+  });
+
+  it('decodes named, decimal and hex entities', () => {
+    assert.equal(
+      stripHtml('<p>R&amp;D &lt;3 &quot;fast&quot; it&#39;s &#x27;ok&#x27; &#8364;5&nbsp;k &ndash; &rsquo;</p>'),
+      "R&D <3 \"fast\" it's 'ok' €5 k – ’",
+    );
+    assert.equal(decodeEntities('&unknown; &#0; &constructor;'), '&unknown; &#0; &constructor;');
+  });
+
+  it('unescapes double-escaped HTML (Greenhouse, Arbeitnow) and keeps escaped text in real HTML', () => {
+    assert.equal(stripHtml('&lt;p&gt;Node &amp;amp; React&lt;/p&gt;&lt;ul&gt;&lt;li&gt;PHP&lt;/li&gt;&lt;/ul&gt;'), 'Node & React\nPHP');
+    assert.equal(stripHtml('<p>Use a &lt;div&gt; here</p>'), 'Use a <div> here');
+  });
+
+  it('keeps list items apart, so the language rule does not join a skill line to the next item', () => {
+    // "Strong … German" across two bullets read as one sentence by the old boards strip (tags to spaces).
+    const html = '<ul><li>Strong Laravel skills</li><li>Our team speaks German and English</li></ul>';
+    const { required } = languageRules(['English', 'Urdu']);
+    assert.ok(required.test(html.replace(/<[^>]+>/g, ' ')), 'the old joined text is the regression');
+    assert.ok(!required.test(stripHtml(html)));
+  });
+});
 
 describe('company job boards (ATS)', () => {
   it('greenhouse: uses first_published as the post date and strips HTML', async () => {
@@ -240,6 +275,115 @@ describe('company job boards (ATS)', () => {
     });
     net = mockFetch({ 'postings?limit=100': { totalFound: 1, content: [p('p1')] } });
     await assert.rejects(fetchCompany(co('smartrecruiters')), /1 of 1 details failed/);
+  });
+
+  it('smartrecruiters: remote postings are not fetched while remote jobs are off', async () => {
+    const was = config.remote.enabled;
+    config.remote.enabled = false;
+    try {
+      net = mockFetch({
+        'postings?limit=100': {
+          totalFound: 2,
+          content: [
+            { id: 'r1', name: 'Backend Engineer', location: { fullLocation: 'Remote' }, releasedDate: daysAgo(1) },
+            { id: 'p1', name: 'Backend Engineer', location: { fullLocation: 'Riyadh, Saudi Arabia' }, releasedDate: daysAgo(1) },
+          ],
+        },
+        'postings/p1': { postingUrl: 'https://s/p1', jobAd: { sections: {} } },
+      });
+      const jobs = await fetchCompany(co('smartrecruiters'));
+      assert.deepEqual(
+        jobs.map((j) => j.id),
+        ['smartrecruiters:acme:p1'],
+      );
+      assert.ok(!net.calls.some((u) => u.includes('postings/r1')));
+    } finally {
+      config.remote.enabled = was;
+    }
+  });
+
+  it('smartrecruiters: remote postings limited to other regions are skipped by the remote rules, as match.ts would', async () => {
+    const r = (id: string, fullLocation: string) => ({
+      id,
+      name: 'Backend Engineer',
+      location: { fullLocation },
+      releasedDate: daysAgo(1),
+    });
+    net = mockFetch({
+      'postings?limit=100': {
+        totalFound: 6,
+        content: [
+          r('us', 'Remote — United States'),
+          r('de', 'Berlin, Germany (Remote)'),
+          r('ww', 'Remote, Worldwide'),
+          r('pk', 'Remote, Pakistan'),
+          r('emea', 'Remote - EMEA'),
+          r('any', 'Anywhere'),
+        ],
+      },
+      'postings/': (url: string) => ({ postingUrl: url, jobAd: { sections: {} } }),
+    });
+    const jobs = await fetchCompany(co('smartrecruiters'));
+    // The owner works from Pakistan (config.default.json remote.fromCode PK): worldwide, Pakistan and EMEA are open.
+    assert.deepEqual(
+      jobs.map((j) => j.id),
+      ['smartrecruiters:acme:ww', 'smartrecruiters:acme:pk', 'smartrecruiters:acme:emea', 'smartrecruiters:acme:any'],
+    );
+    assert.ok(!net.calls.some((u) => /postings\/(us|de)$/.test(u)));
+  });
+
+  it('smartrecruiters: details are capped per company (the newest kept) and paced', async () => {
+    // Oldest first in the list, so the cap has to pick the newest 40 itself.
+    const content = Array.from({ length: 45 }, (_, i) => ({
+      id: `p${44 - i}`,
+      name: 'Senior Backend Engineer',
+      location: { fullLocation: 'Riyadh, Saudi Arabia' },
+      releasedDate: daysAgo((44 - i) * 0.1),
+    }));
+    net = mockFetch({
+      'postings?limit=100': { totalFound: 45, content },
+      'postings/': (url: string) => ({ postingUrl: url, jobAd: { sections: {} } }),
+    });
+    const scale = timing.scale;
+    timing.scale = 0.001; // short but non-zero pauses, so they can be told apart from other timers
+    const timers = mock.method(globalThis, 'setTimeout');
+    try {
+      const jobs = await fetchCompany(co('smartrecruiters'));
+      const details = net.calls.filter((u) => /postings\/p\d+$/.test(u));
+      assert.equal(details.length, 40);
+      assert.deepEqual(
+        jobs.map((j) => j.id),
+        Array.from({ length: 40 }, (_, i) => `smartrecruiters:acme:p${i}`),
+      );
+      const pauses = timers.mock.calls.filter((c) => c.arguments[1] === 300 * timing.scale);
+      assert.equal(pauses.length, 40);
+    } finally {
+      timers.mock.restore();
+      timing.scale = scale;
+    }
+  });
+
+  it('smartrecruiters: a posting without a usable releasedDate is kept with a null posted_at; an old one is skipped', async () => {
+    const p = (id: string, releasedDate?: string) => ({
+      id,
+      name: 'Senior Backend Engineer',
+      location: { fullLocation: 'Riyadh, Saudi Arabia' },
+      ...(releasedDate === undefined ? {} : { releasedDate }),
+    });
+    net = mockFetch({
+      'postings?limit=100': { totalFound: 4, content: [p('new', daysAgo(1)), p('none'), p('bad', 'soon'), p('old', daysAgo(60))] },
+      'postings/': (url: string) => ({ postingUrl: url, jobAd: { sections: {} } }),
+    });
+    const jobs = await fetchCompany(co('smartrecruiters'));
+    assert.deepEqual(
+      jobs.map((j) => [j.id, j.posted_at === null ? null : 'date']),
+      [
+        ['smartrecruiters:acme:new', 'date'],
+        ['smartrecruiters:acme:none', null],
+        ['smartrecruiters:acme:bad', null],
+      ],
+    );
+    assert.ok(!net.calls.some((u) => u.endsWith('postings/old')));
   });
 
   it('throws on HTTP errors so the fetch run records them', async () => {
@@ -462,6 +606,25 @@ describe('remote boards', () => {
     const [j] = await BOARDS.remotive();
     assert.equal(j.location, 'Remote — not stated');
     assert.equal(j.posted_at, '2026-10-27T10:00:00.000Z');
+  });
+
+  it('remotive: descriptions keep one line per block and decode entities, like the ATS sources', async () => {
+    net = mockFetch({
+      'remotive.com': {
+        jobs: [
+          {
+            id: 1,
+            company_name: 'A',
+            title: 'Dev',
+            url: 'u',
+            description: '<ul><li>Strong Laravel skills</li><li>Our team speaks German</li></ul><p>Pay &gt; market &#8211; ok</p>',
+          },
+        ],
+      },
+    });
+    const [j] = await BOARDS.remotive();
+    assert.equal(j.description, 'Strong Laravel skills\nOur team speaks German\nPay > market – ok');
+    assert.ok(!languageRules(['English']).required.test(j.description));
   });
 
   it('remotive: an already-zoned or unparseable publication_date does not crash the board', async () => {
@@ -786,6 +949,23 @@ describe('linkedin (guest search)', () => {
       ['linkedin:111'],
     );
     assert.match(jobs.partialError ?? '', /no parsable cards \(markup change\? first: "php" in United Arab Emirates\)/);
+  });
+
+  it('an empty-results page (no list markup) is not reported as a markup change', async () => {
+    net = mockFetch({
+      'seeMoreJobPostings/search': (url: string) =>
+        new URL(url).searchParams.get('keywords') === 'laravel'
+          ? card('111', 'Laravel Developer')
+          : '<!-- no results -->\n<div class="no-results">No matching jobs found.</div>',
+      'jobPosting/111': '<div class="show-more-less-html__markup"><p>Laravel</p><ul><li>Vue</li></ul></div>\n<button>',
+    });
+    const jobs = await linkedin();
+    assert.deepEqual(
+      jobs.map((j) => j.id),
+      ['linkedin:111'],
+    );
+    assert.equal(jobs.partialError, undefined);
+    assert.equal(jobs[0].description, 'Laravel\nVue');
   });
 
   it('rejects when every search page has unparsable markup, so the breakage shows in fetch_runs', async () => {

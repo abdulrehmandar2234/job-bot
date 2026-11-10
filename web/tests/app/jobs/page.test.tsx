@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { isValidElement, type ReactElement, type ReactNode } from 'react';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { clearAnswers, writeHeadline, writeLetter, writeSummary } from '@/app/actions';
 import Page from '@/app/jobs/[id]/page';
 import { pool } from '@/lib/db';
 import { cleanupDb, closeDb, ensureSchema, insertJob, PREFIX } from '../../helpers/db';
@@ -28,6 +29,7 @@ vi.mock('@/app/actions', () => ({
   draftAnswers: vi.fn(),
   clearAnswers: vi.fn(),
   dismissTask: vi.fn(),
+  undoStatus: vi.fn(),
 }));
 // TaskWatcher (a client component) needs the app router; the page tests render outside Next.
 vi.mock('next/navigation', async (importOriginal) => ({
@@ -91,6 +93,24 @@ describe('job page', () => {
     expect(history()).toHaveTextContent('new → applied (via site)');
     expect(screen.getByRole('heading', { name: /^History/ })).toHaveTextContent('History · 1 change');
     expect(history()).not.toHaveAttribute('open');
+    // The latest change can be undone from History; the form names the history row it showed.
+    const undo = within(history()).getByRole('button', { name: 'Undo new → applied' });
+    const { rows } = await pool.query<{ id: number }>('SELECT id FROM job_events WHERE job_id = $1', [id]);
+    expect(undo.closest('form')!.querySelector('input[name="event"]')).toHaveValue(String(rows[0].id));
+    expect(undo.closest('form')!.querySelector('input[name="id"]')).toHaveValue(id);
+  });
+
+  it('offers no Undo when the job is no longer where its latest change put it, or that change was an undo', async () => {
+    await insertJob({ id, status: 'interview' });
+    await pool.query(`INSERT INTO job_events (job_id, from_status, to_status) VALUES ($1, 'new', 'applied')`, [id]);
+    await renderJob(id);
+    expect(within(history()).queryByRole('button', { name: /^Undo/ })).toBeNull();
+
+    cleanup();
+    await pool.query(`UPDATE jobs SET status = 'new' WHERE id = $1`, [id]);
+    await pool.query(`INSERT INTO job_events (job_id, from_status, to_status, note) VALUES ($1, 'applied', 'new', 'undo')`, [id]);
+    await renderJob(id);
+    expect(within(history()).queryByRole('button', { name: /^Undo/ })).toBeNull();
   });
 
   it('shows the CV panel with the template select, previews, feedback and suggestions, and hides it while a CV task runs', async () => {
@@ -185,6 +205,17 @@ describe('job page', () => {
     expect(within(section).getByText(/Yellow answers need your input/)).toBeInTheDocument();
     const clear = within(section).getByRole('button', { name: 'Clear all' });
     expect(clear.closest('form')!.querySelector('input[name="id"]')).toHaveValue(id);
+
+    // Clear all deletes them: it asks first, and a Cancel sends nothing.
+    const ask = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    vi.mocked(clearAnswers).mockClear();
+    fireEvent.click(clear);
+    expect(ask).toHaveBeenCalledWith('This deletes all the drafted answers. Clear them?');
+    expect(vi.mocked(clearAnswers)).not.toHaveBeenCalled();
+    ask.mockReturnValue(true);
+    fireEvent.click(clear);
+    await waitFor(() => expect(vi.mocked(clearAnswers)).toHaveBeenCalledOnce());
+    ask.mockRestore();
   });
 
   it('decodes an encoded id from the URL', async () => {
@@ -524,6 +555,40 @@ describe('job page', () => {
       await insertJob({ id, cv_summary: 'Mine.', cv_summary_edited_at: new Date() });
       await renderJob(id);
       expect(within(summarySection()).getByRole('heading')).toHaveTextContent('· edited by you');
+    });
+
+    it('asks before a rewrite replaces text the user edited, and not for an AI text', async () => {
+      const ask = vi.spyOn(window, 'confirm').mockReturnValue(false);
+      for (const action of [writeLetter, writeSummary, writeHeadline]) vi.mocked(action).mockClear();
+      const edited = new Date();
+      await insertJob({
+        id,
+        cover_letter: 'Mine',
+        cover_letter_edited_at: edited,
+        cv_summary: 'Mine.',
+        cv_summary_edited_at: edited,
+        cv_headline: 'Mine',
+        cv_headline_edited_at: edited,
+      });
+      await renderJob(id);
+      for (const [name, what, action] of [
+        ['Rewrite letter', 'letter', writeLetter],
+        ['Rewrite summary', 'summary', writeSummary],
+        ['Rewrite headline', 'headline', writeHeadline],
+      ] as const) {
+        fireEvent.click(screen.getByRole('button', { name }));
+        expect(ask).toHaveBeenLastCalledWith(`This replaces the ${what} you edited. Rewrite anyway?`);
+        expect(vi.mocked(action)).not.toHaveBeenCalled();
+      }
+
+      cleanup();
+      ask.mockClear();
+      await pool.query('UPDATE jobs SET cover_letter_edited_at = NULL WHERE id = $1', [id]);
+      await renderJob(id);
+      fireEvent.click(screen.getByRole('button', { name: 'Rewrite letter' }));
+      expect(ask).not.toHaveBeenCalled();
+      await waitFor(() => expect(vi.mocked(writeLetter)).toHaveBeenCalledOnce()); // the same click goes through
+      ask.mockRestore();
     });
 
     it.each([

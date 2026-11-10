@@ -4,7 +4,7 @@ import { existsSync, mkdtempSync, readdirSync, rmSync, utimesSync, writeFileSync
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { mockFetch } from './helpers.ts';
-import { HttpError, UA, getJson, getText, postJson, pruneCache, request, retryDelay, timing } from '../src/sources/http.ts';
+import { HttpError, UA, getJson, getText, postJson, pruneCache, request, retryDelay, sleep, timing } from '../src/sources/http.ts';
 
 const cacheDir = mkdtempSync(join(tmpdir(), 'job-bot-http-'));
 before(() => {
@@ -135,6 +135,91 @@ describe('request: retries', () => {
     await getText('https://g.test/', { cache: false });
     await getText('https://g.test/', { cache: false, headers: { 'User-Agent': 'Browser' } });
     assert.deepEqual(agents, [UA, 'Browser']);
+  });
+});
+
+describe('request: abort signal', () => {
+  /** Runs fn at real timing scale, so a backoff would really wait. */
+  async function realTime<T>(fn: () => Promise<T>) {
+    timing.scale = 1;
+    try {
+      return await fn();
+    } finally {
+      timing.scale = 0;
+    }
+  }
+
+  it('sleep without a signal still waits and resolves (the pacing callers)', async () => {
+    await realTime(async () => {
+      const start = Date.now();
+      await sleep(30);
+      assert.ok(Date.now() - start >= 25);
+    });
+  });
+
+  it('sleep with a signal ends at once when it aborts, with its reason, and when it was aborted already', async () => {
+    await realTime(async () => {
+      const ac = new AbortController();
+      const reason = new Error('budget spent');
+      const start = Date.now();
+      setTimeout(() => ac.abort(reason), 20);
+      await assert.rejects(sleep(60_000, ac.signal), (e) => e === reason);
+      assert.ok(Date.now() - start < 2000, 'the 60 s wait was cut short');
+      await assert.rejects(sleep(60_000, ac.signal), (e) => e === reason);
+      // A signal that never aborts changes nothing.
+      await sleep(5, new AbortController().signal);
+    });
+  });
+
+  it('an abort during the backoff stops the request there: no further attempt', async () => {
+    const ac = new AbortController();
+    const reason = new Error('stop now');
+    net = mockFetch({
+      'abort1.test': () => {
+        setTimeout(() => ac.abort(reason), 20); // aborts while the request waits to retry
+        return status(503);
+      },
+    });
+    const start = Date.now();
+    await realTime(() =>
+      assert.rejects(
+        request('https://abort1.test/', { cache: false, attempts: 4, baseDelayMs: 60_000, signal: ac.signal }),
+        (e) => e === reason,
+      ),
+    );
+    assert.ok(Date.now() - start < 2000, 'did not wait out the 60 s backoff');
+    assert.equal(net.calls.length, 1);
+  });
+
+  it('an abort cancels the attempt in flight (fetch sees the signal) and is not retried', async () => {
+    const ac = new AbortController();
+    const reason = new Error('budget spent');
+    net = mockFetch({
+      // Never answers; rejects only when its signal aborts, like a real fetch.
+      'abort2.test': (_u: string, init?: RequestInit) =>
+        new Promise((_, reject) => init!.signal!.addEventListener('abort', () => reject(init!.signal!.reason))),
+    });
+    setTimeout(() => ac.abort(reason), 20);
+    await assert.rejects(postJson('https://abort2.test/x', {}, { attempts: 3, signal: ac.signal }), (e) => e === reason);
+    assert.equal(net.calls.length, 1);
+    // Aborted before it starts: no request at all.
+    await assert.rejects(request('https://abort2.test/y', { cache: false, signal: ac.signal }), (e) => e === reason);
+    assert.equal(net.calls.length, 1);
+  });
+
+  it('the per-attempt timeout still applies alongside the signal', async () => {
+    let n = 0;
+    net = mockFetch({
+      'abort3.test': (_u: string, init?: RequestInit) => {
+        n++;
+        return new Promise((_, reject) => init!.signal!.addEventListener('abort', () => reject(init!.signal!.reason)));
+      },
+    });
+    await assert.rejects(
+      request('https://abort3.test/', { cache: false, attempts: 2, timeoutMs: 20, signal: new AbortController().signal }),
+      /abort3\.test: gave up after 2 attempts \(last: .*timeout/i,
+    );
+    assert.equal(n, 2, 'a timed-out attempt is retried while the signal has not aborted');
   });
 });
 

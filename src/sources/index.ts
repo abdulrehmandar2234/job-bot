@@ -2,6 +2,9 @@ import { getJson, postJson, sleep } from './http.ts';
 import { config, type Company } from '../config.ts';
 import type { RawJob, SalaryPeriod } from '../types.ts';
 import { structuredSalary } from '../salary.ts';
+import { titleOk } from '../match.ts';
+import { loadProfile, remoteFrom, remoteFromCode } from '../profile.ts';
+import { effectiveRemoteRules } from '../regions.ts';
 
 export type { RawJob };
 
@@ -17,25 +20,56 @@ export function partial(jobs: RawJob[], e: unknown): Fetched {
   return Object.assign(jobs, { partialError: `partial: kept ${jobs.length} postings, then ${(e as Error).message}` });
 }
 
-export const stripHtml = (html: string) =>
-  html
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&amp;/g, '&')
-    .replace(/<\/(p|li|h\d|div|br)>/gi, '\n')
-    .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/&nbsp;/g, ' ')
-    // Escaped HTML (Greenhouse) leaves a second layer of entities inside the text.
-    .replace(/&amp;/g, '&')
-    .replace(/&#39;/g, "'")
-    .replace(/&quot;/g, '"')
-    .replace(/[ \t]+/g, ' ')
-    .replace(/ ?\n ?/g, '\n')
-    .replace(/\n\s*\n+/g, '\n')
-    .trim();
+// Named entities job boards use; any other one is left as written. Numeric ones (&#39; &#x27;) are all decoded.
+const ENTITIES: Record<string, string> = {
+  amp: '&',
+  lt: '<',
+  gt: '>',
+  quot: '"',
+  apos: "'",
+  nbsp: ' ',
+  ndash: '–',
+  mdash: '—',
+  lsquo: '‘',
+  rsquo: '’',
+  ldquo: '“',
+  rdquo: '”',
+  hellip: '…',
+  bull: '•',
+  middot: '·',
+  euro: '€',
+  pound: '£',
+};
+
+/** Decodes one layer of HTML entities: named (&amp;), decimal (&#39;) and hex (&#x27;). */
+export const decodeEntities = (s: string) =>
+  s.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (whole, e: string) => {
+    if (e[0] !== '#') return Object.hasOwn(ENTITIES, e) ? ENTITIES[e] : whole;
+    const code = e[1] === 'x' || e[1] === 'X' ? Number.parseInt(e.slice(2), 16) : Number.parseInt(e.slice(1), 10);
+    return code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : whole;
+  });
+
+// Block tags end a line: match.ts's language, visa and remote rules read phrases within one line or sentence
+// ([^.\n]{0,N}), so list items and paragraphs must not run together into one.
+const BLOCK_TAG = /<\/?(p|li|ul|ol|div|h[1-6]|tr|table|section|article|blockquote)\b[^>]*>|<br\s*\/?>/gi;
+
+/**
+ * HTML (or escaped HTML) as plain text, one line per block. Escaped HTML, as Greenhouse and Arbeitnow send it
+ * ("&lt;p&gt;Node &amp;amp; React&lt;/p&gt;"), is unescaped first, then its tags are dropped and the second layer
+ * of entities decoded. Real HTML is only decoded after its tags are gone, so "a &lt;b&gt; c" keeps its text.
+ */
+export function stripHtml(html: string): string {
+  const escaped = !/<[a-z!/]/i.test(html) && /&lt;\/?[a-z]/i.test(html);
+  const text = (escaped ? decodeEntities(html) : html)
+    .replace(/<(script|style)\b[\s\S]*?<\/\1>/gi, ' ')
+    .replace(BLOCK_TAG, '\n')
+    .replace(/<[^>]*>/g, ' ');
+  return decodeEntities(text)
+    .split('\n')
+    .map((line) => line.replace(/\s+/g, ' ').trim())
+    .filter(Boolean)
+    .join('\n');
+}
 
 async function greenhouse(c: Company): Promise<RawJob[]> {
   const data = await getJson(`https://boards-api.greenhouse.io/v1/boards/${c.token}/jobs?content=true`);
@@ -138,7 +172,12 @@ async function workable(c: Company): Promise<RawJob[]> {
   }));
 }
 
-// The list endpoint has no descriptions, so details are fetched only for postings that could pass the filters.
+/** Detail requests per company (Workday, SmartRecruiters), and the pause before each one. */
+const MAX_DETAILS = 40;
+const DETAIL_PAUSE_MS = 300;
+
+// The list endpoint has no descriptions, so details are fetched only for postings that could pass the filters,
+// at most MAX_DETAILS of them (the newest), paced like Workday's.
 async function smartrecruiters(c: Company): Promise<RawJob[]> {
   const base = `https://api.smartrecruiters.com/v1/companies/${c.token}/postings`;
   const list: any[] = [];
@@ -155,13 +194,19 @@ async function smartrecruiters(c: Company): Promise<RawJob[]> {
     list.push(...page.content);
     if (offset + 100 >= page.totalFound || offset >= 1000) break;
   }
-  // `where` also accepts remote postings, as for Workday: fullLocation is "Remote" for those.
+  // `where` also accepts remote postings open to the candidate, as for Workday: fullLocation is "Remote" for those.
   const { roleOk, where } = prefilter();
   const maxAge = Date.now() - config.maxAgeDays * 86_400_000;
-  const candidates = list.filter((j) => where(j.location?.fullLocation) && roleOk(j.name) && new Date(j.releasedDate).getTime() > maxAge);
+  // An unknown or unparseable releasedDate keeps the posting (posted_at null), as for the boards.
+  const released = (j: any) => Date.parse(toIso(j.releasedDate) ?? '');
+  let candidates = list.filter((j) => where(j.location?.fullLocation) && roleOk(j.name) && !(released(j) <= maxAge));
+  if (candidates.length > MAX_DETAILS) {
+    candidates = candidates.sort((a, b) => (released(b) || 0) - (released(a) || 0)).slice(0, MAX_DETAILS);
+  }
   const out: Fetched = [];
   const failed: string[] = [];
   for (const j of candidates) {
+    await sleep(DETAIL_PAUSE_MS);
     let d: any;
     try {
       d = await getJson(`${base}/${j.id}`);
@@ -182,7 +227,7 @@ async function smartrecruiters(c: Company): Promise<RawJob[]> {
           .map((s: any) => s?.text ?? '')
           .join('\n'),
       ),
-      posted_at: j.releasedDate ?? null,
+      posted_at: toIso(j.releasedDate),
     });
   }
   const problems = [
@@ -196,7 +241,15 @@ async function smartrecruiters(c: Company): Promise<RawJob[]> {
   return out;
 }
 
-/** Cheap checks on list data, so detail pages are only loaded for postings that could pass match.ts. */
+/** The location text of a remote posting, as match.ts reads it ("Remote — Worldwide", "Anywhere", "Work from home"). */
+const REMOTE_WORDS = /\bremote\b|anywhere|worldwide|work from home/i;
+
+/**
+ * Cheap checks on list data, so detail pages are only loaded for postings that could pass match.ts: the same title
+ * rule (titleOk), and a location in a target country, Workday's "3 Locations" (which hides where the job is), or,
+ * when remote jobs are on, a remote posting whose region is open to the candidate (match.ts remoteCountry: no
+ * region, "not stated", or one the remote allow rule takes; "Remote — US" is dropped here as it would be there).
+ */
 function prefilter() {
   const countries = new RegExp(
     Object.values(config.countries)
@@ -204,18 +257,24 @@ function prefilter() {
       .join('|'),
     'i',
   );
-  const include = new RegExp(config.roleInclude, 'i');
-  const exclude = new RegExp(config.roleExclude, 'i');
-  // Target countries, remote postings, and Workday's "3 Locations" (which hides where the job is).
-  const where = (l = '') => countries.test(l) || /\bremote\b/i.test(l) || /^\d+ locations$/i.test(l.trim());
-  return { countries, roleOk: (title: string) => include.test(title) && !exclude.test(title), where };
+  let allow: RegExp | null = null;
+  if (config.remote.enabled) {
+    const profile = loadProfile();
+    allow = new RegExp(effectiveRemoteRules(config.remote, remoteFromCode(config, profile), remoteFrom(config, profile)).allow, 'i');
+  }
+  const remoteOk = (l: string) => {
+    if (!allow || !REMOTE_WORDS.test(l)) return false;
+    const region = l.replace(/\bremote\b|[—–\-(),:|/]/gi, ' ').trim();
+    return !region || /not stated/i.test(region) || allow.test(region);
+  };
+  const where = (l = '') => countries.test(l) || /^\d+ locations$/i.test(l.trim()) || remoteOk(l);
+  return { roleOk: titleOk(config), where };
 }
 
 // Workday career sites (myworkdayjobs.com) have a public JSON API ("CXS") behind every site: a POST search
 // for listings and a GET per posting for the description. The token is "<tenant>/<wdN>/<site>".
 const WORKDAY_PAGE = 20; // the CXS search rejects larger pages
 const WORKDAY_MAX_PAGES = 25; // 500 newest postings per company
-const WORKDAY_MAX_DETAILS = 40;
 
 export function workdaySite(token: string) {
   const [tenant, wd, site, extra] = token.split('/');
@@ -259,10 +318,10 @@ async function workday(c: Company): Promise<RawJob[]> {
   const fresh = (p: WorkdayPosting) => (workdayAgeDays(p.postedOn) ?? 0) <= config.maxAgeDays;
   const candidates = (await workdayList(c.token))
     .filter((p) => roleOk(p.title) && where(p.locationsText) && fresh(p))
-    .slice(0, WORKDAY_MAX_DETAILS);
+    .slice(0, MAX_DETAILS); // the list is newest first
   const out: RawJob[] = [];
   for (const p of candidates) {
-    await sleep(300);
+    await sleep(DETAIL_PAUSE_MS);
     let info: any;
     try {
       info = (await getJson(`${api}${p.externalPath}`)).jobPostingInfo ?? {};

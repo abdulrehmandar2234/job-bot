@@ -1,6 +1,6 @@
 import { after, before, beforeEach, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { execFile, spawnSync } from 'node:child_process';
+import { type ExecFileException, execFile, spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -28,6 +28,7 @@ import {
 } from '../src/tasks.ts';
 import type { Task, TaskKind } from '../src/types.ts';
 import { AI_BUDGET } from '../src/ai-providers.ts';
+import { failureMessage } from '../src/commands/task.ts';
 
 const FAKE = join(import.meta.dirname, 'fixtures', 'fake-claude.mjs');
 const run = promisify(execFile);
@@ -510,6 +511,36 @@ describe('task:run (CLI worker)', () => {
     assert.match(failed.error!, /AI review failed for 1 of 1 job: .*Not logged in/);
     assert.match(failed.output!, /0 jobs scored, 1 failed/);
     assert.equal((await getJob(JOB))!.ai_scored_at, null);
+  });
+
+  it('a task killed at its timeout keeps the last stderr line (the real error), with the key redacted', () => {
+    const killed = (stderr?: string): ExecFileException & { stderr?: string } =>
+      Object.assign(new Error('Command failed'), { cmd: 'bot', killed: true, stderr });
+    assert.equal(failureMessage(killed(''), 6 * 60_000), 'Timed out after 6 minutes.');
+    assert.equal(failureMessage(killed(undefined), 6 * 60_000), 'Timed out after 6 minutes.');
+    assert.equal(
+      failureMessage(killed('AI scoring 3 jobs...\nOpenAI gave no answer within the 300s AI budget\n\n'), 6 * 60_000),
+      'Timed out after 6 minutes (last error: OpenAI gave no answer within the 300s AI budget)',
+    );
+    const saved = process.env.AI_API_KEY;
+    process.env.AI_API_KEY = 'sk-task-secret-42';
+    try {
+      const msg = failureMessage(killed('request failed for sk-task-secret-42'), 6 * 60_000);
+      assert.equal(msg, 'Timed out after 6 minutes (last error: request failed for ***)');
+      // A child that failed on its own keeps its whole stderr, redacted the same way.
+      assert.equal(
+        failureMessage(
+          Object.assign(new Error('Command failed'), { cmd: 'bot', stderr: 'bad key sk-task-secret-42\n' }) as ExecFileException & {
+            stderr?: string;
+          },
+          60_000,
+        ),
+        'bad key ***',
+      );
+    } finally {
+      if (saved === undefined) delete process.env.AI_API_KEY;
+      else process.env.AI_API_KEY = saved;
+    }
   });
 
   it('fails an answers task without questions', async () => {

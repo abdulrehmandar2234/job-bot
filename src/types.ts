@@ -114,6 +114,7 @@ export type RawJob = {
   description: string;
   posted_at: string | null;
   salary?: Salary | null; // structured salary from the source's API; else save() parses the description
+  seen?: boolean; // false: scored again from the database (rescore), not seen by a fetch, so fetched_at stays
 };
 
 /** An ISO 4217 code from src/currencies.json ("INR", "EUR"); see src/currencies.ts. */

@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { daysAgo, raw } from './helpers.ts'; // first: it points the bot at a temp config before src/ loads one
 import { isIndSponsor } from '../src/sponsors.ts';
-import { languageRules, pickCluster, scoreJob, SKILLS } from '../src/match.ts';
+import { languageRules, pickCluster, scoreJob, SKILLS, titleOk } from '../src/match.ts';
 import { config } from '../src/config.ts';
 import { ConfigError } from '../src/errors.ts';
 
@@ -24,6 +24,47 @@ describe('scoreJob: location', () => {
   it('finds the country in the description for remote EMEA roles', () => {
     const s = scoreJob(raw({ location: 'Europe', description: `${raw().description} Our office is based in Amsterdam.` }));
     assert.equal(s.country, 'NL');
+  });
+});
+
+describe('titleOk', () => {
+  const titles = [
+    'Senior Backend Engineer',
+    'Laravel Developer',
+    'Full-Stack Developer',
+    'Sales Manager',
+    'iOS Engineer',
+    'Senior Python Engineer',
+    'React Native Developer',
+    'Head of Engineering',
+    'Office Assistant',
+    'WEB DEVELOPER',
+  ];
+  // The filter the sources used to compile inline (linkedin.ts, the SmartRecruiters / Workday prefilter).
+  const inline = (cfg: { roleInclude: string; roleExclude: string }) => {
+    const include = new RegExp(cfg.roleInclude, 'i');
+    const exclude = new RegExp(cfg.roleExclude, 'i');
+    return (t: string) => include.test(t) && !exclude.test(t);
+  };
+
+  it('matches the previous inline filter and the title checks of scoreJob', () => {
+    const ok = titleOk(config);
+    const old = inline(config);
+    for (const t of titles) {
+      assert.equal(ok(t), old(t), t);
+      assert.equal(!/^title /.test(scoreJob(raw({ title: t })).filterReason ?? ''), ok(t), t);
+    }
+    assert.deepEqual(titles.filter(ok), ['Senior Backend Engineer', 'Laravel Developer', 'Full-Stack Developer', 'WEB DEVELOPER']);
+  });
+
+  it('uses the settings it is given, and gives the same answer on every call', () => {
+    const cfg = { roleInclude: 'assistant', roleExclude: 'office' };
+    const ok = titleOk(cfg);
+    for (const t of [...titles, 'Executive Assistant']) {
+      assert.equal(ok(t), inline(cfg)(t), t);
+      assert.equal(ok(t), ok(t), t); // no global-flag lastIndex state
+    }
+    assert.equal(ok('Executive Assistant'), true);
   });
 });
 

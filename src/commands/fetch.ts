@@ -1,5 +1,5 @@
 import { config } from '../config.ts';
-import { pool, withLock, type Job } from '../db.ts';
+import { pool, pruneFiltered, withLock, type Job } from '../db.ts';
 import { ConfigError } from '../errors.ts';
 import { fetchCompany, type Fetched } from '../sources/index.ts';
 import { BOARDS } from '../sources/boards.ts';
@@ -15,10 +15,21 @@ const waitingCount = async () => (await pool.query<{ n: number }>(`SELECT count(
  * (the dashboard's Fetch task and the daily script would otherwise hit every board twice).
  */
 export async function fetch(args: string[], flags: Flags) {
-  if (!(await withLock('fetch', () => fetchAll(args, flags)))) console.log('A fetch is already running; skipping.');
+  let allFailed = false;
+  const ran = await withLock('fetch', async () => {
+    allFailed = (await fetchAll(args, flags)).allFailed;
+  });
+  if (!ran) console.log('A fetch is already running; skipping.');
+  // Every source failing (the Mac is offline, say) is a failed fetch, not "0 postings checked": exit non-zero, so
+  // `bot daily` and the dashboard's task report it.
+  if (allFailed) process.exitCode = 1;
 }
 
-async function fetchAll(_args: string[], flags: Flags) {
+/** The line `fetch` prints when no source worked; `bot daily` (src/commands/daily.ts) reads it. */
+export const allSourcesFailed = (n: number, first: { company: string; error: string }) =>
+  `✗ All ${n} sources failed — is the network up? First error: ${first.company}: ${first.error.replace(/\s+/g, ' ')}`;
+
+async function fetchAll(_args: string[], flags: Flags): Promise<{ allFailed: boolean }> {
   const only = flags.company?.toLowerCase();
   const {
     rows: [run],
@@ -28,6 +39,10 @@ async function fetchAll(_args: string[], flags: Flags) {
   let added = 0,
     total = 0;
   let fatal = false;
+  let allFailed = false;
+  // Sources that ran, and those that brought nothing back because of an error (the source's own, not the database's).
+  let ran = 0;
+  const failed: { company: string; error: string }[] = [];
   const errors: { company: string; error: string }[] = [];
   try {
     before = await waitingCount();
@@ -43,8 +58,10 @@ async function fetchAll(_args: string[], flags: Flags) {
     // 4 sources at a time; Workable spaces its own calls inside the adapter.
     const worker = async () => {
       for (let c = queue.shift(); c && !configError; c = queue.shift()) {
+        ran++;
         try {
           const jobs = await c.load();
+          if (!jobs.length && jobs.partialError) failed.push({ company: c.name, error: jobs.partialError });
           // One posting the database rejects must not cost the rest of the source.
           let skipped = 0;
           let firstError = '';
@@ -68,6 +85,7 @@ async function fetchAll(_args: string[], flags: Flags) {
           console.log(`${notes ? '!' : '✓'} ${c.name}: ${jobs.length - skipped} postings${notes ? ` (${notes})` : ''}`);
         } catch (e) {
           errors.push({ company: c.name, error: (e as Error).message });
+          failed.push({ company: c.name, error: (e as Error).message });
           console.log(`✗ ${c.name}: ${(e as Error).message}`);
         }
       }
@@ -76,6 +94,19 @@ async function fetchAll(_args: string[], flags: Flags) {
     if (configError) throw configError;
     waiting = await waitingCount();
     console.log(`\n${total} postings checked, ${added} new. ${waiting} matching jobs waiting (status=new).`);
+    allFailed = ran > 0 && failed.length === ran;
+    if (allFailed) console.error(allSourcesFailed(ran, failed[0]));
+    else if (failed.length)
+      console.log(`! ${failed.length} of ${ran} sources failed (first error: ${failed[0].company}: ${failed[0].error})`);
+    // Housekeeping after a full fetch that reached the sources: old filtered postings nobody needs any more.
+    if (!only && !allFailed) {
+      try {
+        const pruned = await pruneFiltered(config.maxAgeDays);
+        if (pruned) console.log(`${pruned} old filtered postings deleted.`);
+      } catch (e) {
+        console.log(`! pruning old filtered postings failed: ${(e as Error).message}`);
+      }
+    }
   } catch (e) {
     // Recorded on the run row below, so the dashboard shows why the fetch stopped; then rethrown for the CLI.
     fatal = true;
@@ -92,15 +123,19 @@ async function fetchAll(_args: string[], flags: Flags) {
     if (fatal) await update.catch((e: Error) => console.log(`! fetch run ${run.id} not closed: ${e.message}`));
     else await update;
   }
+  return { allFailed };
 }
 
 // A salary that came from a source's API is not in the text, so re-parsing would lose it.
 export const keptSalary = (j: Job) => (SALARY_SOURCES.includes(j.source) ? rowSalary(j) : null) ?? undefined;
 
-/** Re-applies filters and scoring to stored jobs after config.json / match.ts changes (no network). */
-/** Scores a stored new or filtered job again (moving it between the two) and saves it; `location` replaces its own. */
+/**
+ * Scores a stored new or filtered job again (moving it between the two) and saves it; `location` replaces its own.
+ * No fetch saw it, so its fetched_at ("last seen by a fetch") stays as it was.
+ */
 export function saveAgain(j: Job, location = j.location) {
   return save({
+    seen: false,
     id: j.id,
     source: j.source,
     company: j.company,
@@ -113,6 +148,7 @@ export function saveAgain(j: Job, location = j.location) {
   });
 }
 
+/** Re-applies filters and scoring to stored jobs after config.json / match.ts changes (no network). */
 export async function rescore() {
   const { rows } = await pool.query<Job>(`SELECT * FROM jobs WHERE status IN ('new', 'filtered')`);
   for (const j of rows) await saveAgain(j);

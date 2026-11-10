@@ -2,7 +2,8 @@
 
 import { refresh } from 'next/cache';
 import { ActionError, guarded } from '@/lib/action-state';
-import { PAGE_SIZES, pool, STATUSES, type Status } from '@/lib/db';
+import { type JobEvent, PAGE_SIZES, pool, STATUSES, type Status } from '@/lib/db';
+import { assertJob, canUndo, isStatusChange, jobIdOf, UNDO_NOTE, withJobLock } from '@/lib/job-lock';
 import { CvBusyError, dismissTask as dismissFailedTask, enqueueTask, type TaskKind } from '@/lib/tasks';
 import { checkFeedback, checkText, type TextFormState, type WrittenKind } from '@/lib/written-text';
 import { skipReason } from '@/lib/skips';
@@ -13,43 +14,80 @@ import { CV_VERSION, isTemplate } from '@/lib/cv-templates';
 // (components/action-form.tsx) instead of throwing, which would replace the page with app/error.tsx.
 const USER_STATUSES: readonly Status[] = STATUSES.filter((s) => s !== 'filtered');
 
-async function assertJob(id: unknown): Promise<string> {
-  if (typeof id !== 'string' || !id) throw new ActionError('Missing job id');
-  const { rowCount } = await pool.query('SELECT 1 FROM jobs WHERE id = $1', [id]);
-  if (!rowCount) throw new ActionError('Unknown job');
-  return id;
-}
-
+/**
+ * Moves a job along the pipeline and logs the change. The buttons send `from`, the status their card showed: when the
+ * job has moved on since (another tab, the bot), nothing changes and the answer says so, so a stale "Mark applied"
+ * cannot pull an Interview job back to Applied or restart its follow-up clock. Without `from` there is no such check.
+ */
 export async function setStatus(_prev: TextFormState, formData: FormData): Promise<TextFormState> {
   return guarded(async () => {
-    const id = await assertJob(formData.get('id'));
+    const id = jobIdOf(formData.get('id'));
     const status = formData.get('status') as Status;
     if (!USER_STATUSES.includes(status)) throw new ActionError('Invalid status');
+    const from = formData.get('from');
     const note = (formData.get('note') as string | null)?.trim() || null;
     const reason = status === 'skipped' ? skipReason(formData.get('reason')) : null; // optional, see SkipButton
 
-    const client = await pool.connect();
-    try {
-      await client.query('BEGIN');
-      const { rows } = await client.query<{ status: string }>('SELECT status FROM jobs WHERE id = $1 FOR UPDATE', [id]);
+    await withJobLock(id, async (client, job) => {
+      if (from !== null && from !== job.status) throw new ActionError(changedElsewhere(job.status));
       await client.query(
         `UPDATE jobs SET status = $2, applied_at = CASE WHEN $2 = 'applied' THEN now() ELSE applied_at END WHERE id = $1`,
         [id, status],
       );
       await client.query('INSERT INTO job_events (job_id, from_status, to_status, note, reason) VALUES ($1, $2, $3, $4, $5)', [
         id,
-        rows[0].status,
+        job.status,
         status,
         note,
         reason,
       ]);
-      await client.query('COMMIT');
-    } catch (e) {
-      await client.query('ROLLBACK');
-      throw e;
-    } finally {
-      client.release();
-    }
+    });
+    refresh();
+  });
+}
+
+const changedElsewhere = (status: string) => `This job changed to ${status} in another tab — reload to see it`;
+
+/**
+ * Undo on the job page's History: moves the job back along its latest status change (canUndo), in one transaction
+ * with the job locked, and logs that as a change with the note "undo". `event` is the history row the button showed;
+ * when a newer change came in since, nothing changes. Undoing a move to applied puts applied_at back as it was, and
+ * undoing a move away from skipped keeps that skip's reason.
+ */
+export async function undoStatus(_prev: TextFormState, formData: FormData): Promise<TextFormState> {
+  return guarded(async () => {
+    const id = jobIdOf(formData.get('id'));
+    const shown = Number(formData.get('event'));
+    if (!Number.isSafeInteger(shown) || shown < 1) throw new ActionError('Invalid history entry');
+
+    await withJobLock(id, async (client, job) => {
+      const changes = (await client.query<JobEvent>('SELECT * FROM job_events WHERE job_id = $1 ORDER BY id', [id])).rows.filter(
+        isStatusChange,
+      );
+      const last = changes.at(-1);
+      if (last && last.id !== shown) throw new ActionError(changedElsewhere(job.status));
+      if (!last || !canUndo(last, job.status)) throw new ActionError('Nothing to undo');
+
+      // The changes still in effect before `last`: each Undo cancelled the change right before it (canUndo).
+      const kept: JobEvent[] = [];
+      for (const e of changes.slice(0, -1)) {
+        if (e.note === UNDO_NOTE) kept.pop();
+        else kept.push(e);
+      }
+      // Every move to applied stamps applied_at = now() in the transaction that logs it, so the row's `at` is that
+      // stamp: before `last`, applied_at was the latest kept move to applied's, or never set.
+      const appliedAt = last.to_status === 'applied' ? (kept.findLast((e) => e.to_status === 'applied')?.at ?? null) : job.applied_at;
+      const reason = last.from_status === 'skipped' ? (kept.findLast((e) => e.to_status === 'skipped')?.reason ?? null) : null;
+
+      await client.query('UPDATE jobs SET status = $2, applied_at = $3 WHERE id = $1', [id, last.from_status, appliedAt]);
+      await client.query('INSERT INTO job_events (job_id, from_status, to_status, note, reason) VALUES ($1, $2, $3, $4, $5)', [
+        id,
+        last.to_status,
+        last.from_status,
+        UNDO_NOTE,
+        reason,
+      ]);
+    });
     refresh();
   });
 }
@@ -166,8 +204,7 @@ export async function writeHeadline(_prev: TextFormState, formData: FormData): P
 /** Builds a one-off CV with the job's CV headline and summary and makes it the job's CV (`bot cv:tailor <id>`). */
 export async function tailorCv(_prev: TextFormState, formData: FormData): Promise<TextFormState> {
   return guarded(async () => {
-    const id = formData.get('id');
-    if (typeof id !== 'string' || !id) throw new ActionError('Missing job id');
+    const id = jobIdOf(formData.get('id'));
     // One query for the job and its texts, so a job deleted after a separate existence check cannot crash this.
     const { rows } = await pool.query<{ cv_summary: string | null; cv_headline: string | null }>(
       'SELECT cv_summary, cv_headline FROM jobs WHERE id = $1',

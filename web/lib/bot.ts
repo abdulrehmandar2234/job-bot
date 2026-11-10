@@ -2,6 +2,7 @@ import { execFile, spawn } from 'node:child_process';
 import { closeSync, mkdirSync, openSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
+import { pool } from './db';
 
 // The web app lives in job-bot/web; the bot (CLI, CVs, config) is one level up.
 export const BOT_ROOT = resolve(process.cwd(), '..');
@@ -19,14 +20,39 @@ export async function runBot(args: string[], timeoutMs = 60_000) {
   return stdout;
 }
 
+/** The bot could not be started (no log directory, no permission, …): an expected failure shown next to the button. */
+export class BotStartError extends Error {}
+
+/**
+ * Fails a queued task whose worker never started, with the reason, so the dashboard shows it at once instead of
+ * leaving it queued until the stale check. Only a still-queued task: a worker that did start owns its row.
+ */
+export async function failUnstartedTask(id: number, error: string) {
+  await pool.query(`UPDATE tasks SET status = 'failed', finished_at = now(), error = $2 WHERE id = $1 AND status = 'queued'`, [id, error]);
+}
+
 /**
  * Starts the bot CLI in the background and returns at once: a detached process (argument array, never a shell)
  * that outlives this request and the dev server. Its output is appended to data/logs/tasks.log.
+ * When it cannot start, a `task:run <id>` task is marked failed with the reason; a failure before the process
+ * exists (the log file, spawn itself) also throws BotStartError("Could not start the bot: …").
  */
 export function spawnBot(args: string[]) {
-  const dir = join(BOT_ROOT, 'data', 'logs');
-  mkdirSync(dir, { recursive: true });
-  const log = openSync(join(dir, 'tasks.log'), 'a');
+  const taskId = args[0] === 'task:run' && /^\d+$/.test(args[1] ?? '') ? Number(args[1]) : null;
+  const failed = (e: unknown) => {
+    const message = `Could not start the bot: ${e instanceof Error ? e.message : String(e)}`;
+    if (taskId !== null)
+      failUnstartedTask(taskId, message).catch((err) => console.error(`task ${taskId}: ${message} (and could not record it: ${err})`));
+    return message;
+  };
+  let log: number;
+  try {
+    const dir = join(BOT_ROOT, 'data', 'logs');
+    mkdirSync(dir, { recursive: true });
+    log = openSync(join(dir, 'tasks.log'), 'a');
+  } catch (e) {
+    throw new BotStartError(failed(e));
+  }
   try {
     const child = spawn(process.execPath, ['--no-warnings', '--env-file-if-exists=.env', 'src/cli.ts', ...args], {
       cwd: BOT_ROOT,
@@ -34,9 +60,11 @@ export function spawnBot(args: string[]) {
       stdio: ['ignore', log, log],
       windowsHide: true, // a detached child gets its own console window on Windows otherwise
     });
-    // A spawn error leaves the task queued; expire_stale_tasks() fails it after 2 minutes.
-    child.on('error', () => {});
+    // Most spawn failures (EACCES, ENOENT) arrive here, after this request has answered: the task is failed at once.
+    child.on('error', failed);
     child.unref();
+  } catch (e) {
+    throw new BotStartError(failed(e));
   } finally {
     closeSync(log);
   }

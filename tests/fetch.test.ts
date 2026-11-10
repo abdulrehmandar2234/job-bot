@@ -7,6 +7,7 @@ import { mockFetch } from './helpers.ts'; // first: it points the bot at a temp 
 import { fetch } from '../src/commands/fetch.ts';
 import { config } from '../src/config.ts';
 import { migrate, pool } from '../src/db.ts';
+import { timing } from '../src/sources/http.ts';
 
 // The fetch_runs row: finished_at must be stamped even when the fetch itself blows up, or the dashboard shows a
 // fetch that never ends. No network: every source is turned off, and the fatal error fires before any is loaded.
@@ -137,5 +138,77 @@ describe('fetch run row', () => {
         else config.stacks = was.stacks;
       };
     });
+  });
+  // Offline (every source failing) must not look like a quiet morning: fetch exits non-zero with a line that says so,
+  // which `bot daily` turns into its notification (tests/daily.test.ts).
+  const offline = () => {
+    throw new TypeError('fetch failed');
+  };
+  const run = async (routes: Record<string, unknown>, flags: Record<string, string> = {}) => {
+    const out: string[] = [];
+    const log = mock.method(console, 'log', (l: string) => out.push(l));
+    const err = mock.method(console, 'error', (l: string) => out.push(l));
+    const net = mockFetch(routes);
+    const scale = timing.scale;
+    timing.scale = 0;
+    noSources();
+    config.companies = [
+      { name: 'One', ats: 'greenhouse', token: 'offone' },
+      { name: 'Two', ats: 'greenhouse', token: 'offtwo' },
+    ];
+    let code: typeof process.exitCode;
+    try {
+      await fetch([], flags);
+    } finally {
+      code = process.exitCode;
+      process.exitCode = undefined; // the test run's own exit code
+      timing.scale = scale;
+      net.restore();
+      restore();
+      log.mock.restore();
+      err.mock.restore();
+    }
+    return { code, out: out.join('\n') };
+  };
+
+  it('exits non-zero and says so when every source failed', async () => {
+    const { code, out } = await run({ 'boards/offone/jobs': offline, 'boards/offtwo/jobs': offline });
+    assert.equal(code, 1);
+    assert.match(
+      out,
+      /^✗ All 2 sources failed — is the network up\? First error: One: .*gave up after 4 attempts \(last: fetch failed\).*$/m,
+    );
+    assert.deepEqual(
+      (await lastRun()).errors.map((e) => e.company),
+      ['One', 'Two'],
+    );
+  });
+
+  it('exits 0 and counts the failed sources when some worked', async () => {
+    const { code, out } = await run({ 'boards/offone/jobs': offline, 'boards/offtwo/jobs': { jobs: [posting(41)] } });
+    assert.equal(code, undefined);
+    assert.match(out, /^! 1 of 2 sources failed \(first error: One: .*\(last: fetch failed\).*\)$/m);
+    assert.doesNotMatch(out, /All \d+ sources failed/);
+  });
+
+  it('a full fetch prunes old filtered postings; a --company fetch does not, nor one where every source failed', async () => {
+    const addOld = () =>
+      pool.query(
+        `INSERT INTO jobs (id, source, company, title, url, status, posted_at, fetched_at)
+         VALUES ('prune:old', 'greenhouse', 'Gone', 't', 'https://x/prune', 'filtered', now() - interval '400 days', now() - interval '400 days')
+         ON CONFLICT (id) DO NOTHING`,
+      );
+    const exists = async () => (await pool.query(`SELECT 1 FROM jobs WHERE id = 'prune:old'`)).rows.length === 1;
+    await addOld();
+    const empty = { 'boards/offone/jobs': { jobs: [] }, 'boards/offtwo/jobs': { jobs: [] } };
+    await run(empty, { company: 'One' });
+    assert.equal(await exists(), true);
+    const { out } = await run(empty);
+    assert.equal(await exists(), false);
+    assert.match(out, /^\d+ old filtered postings deleted\.$/m);
+    await addOld();
+    await run({ 'boards/offone/jobs': offline, 'boards/offtwo/jobs': offline });
+    assert.equal(await exists(), true);
+    await pool.query(`DELETE FROM jobs WHERE id = $1`, ['prune:old']);
   });
 });

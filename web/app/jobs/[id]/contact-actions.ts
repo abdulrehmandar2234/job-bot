@@ -3,6 +3,7 @@
 import { refresh } from 'next/cache';
 import { ActionError, expectedFailure, guarded } from '@/lib/action-state';
 import { pool } from '@/lib/db';
+import { assertJob } from '@/lib/job-lock';
 import { validateContact } from '@/lib/contacts';
 import type { TextFormState } from '@/lib/written-text';
 
@@ -11,13 +12,6 @@ import type { TextFormState } from '@/lib/written-text';
 // Expected failures come back in the form's state instead of crashing the page into app/error.tsx.
 
 export type ContactState = { ok: boolean; errors: string[] } | null;
-
-async function assertJob(id: unknown): Promise<string> {
-  if (typeof id !== 'string' || !id) throw new ActionError('Missing job id');
-  const { rowCount } = await pool.query('SELECT 1 FROM jobs WHERE id = $1', [id]);
-  if (!rowCount) throw new ActionError('Unknown job');
-  return id;
-}
 
 /** A contact id from the form, as a positive integer. */
 function contactId(v: FormDataEntryValue | null): number {

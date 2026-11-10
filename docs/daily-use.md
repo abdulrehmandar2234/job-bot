@@ -19,6 +19,7 @@ Contents:
 ## A typical day
 
 1. At 9:00 the scheduled daily run (`npm run bot -- daily`) fetches new jobs, marks closed postings expired, lets the AI review the new matches, shows a notification with the result and backs up the database. Jobs the AI rates `strong` get a notification of their own.
+   Housekeeping on the way: the Dutch IND sponsor register is downloaded again when it is a week old (if a country uses `ind-register`), every step has a time limit so one that hangs cannot block the rest, logs over 5 MB (`data/fetch.log`, `data/logs/tasks.log`, `data/launchd.err.log`) move to `<name>.1`, and each full fetch deletes filtered postings older than twice `maxAgeDays` (at least 30 days) that no fetch has seen for a week and that have no history, contacts or tasks.
 2. Start the dashboard (`npm run web`) and open <http://localhost:3100>. The **Matching** tab has the jobs that passed every filter, best match first.
 3. For each job worth it: open it, **Prepare CV**, **Write letter**, check the CV keyword check, and draft answers if the form has questions.
 4. Open the posting, apply on the company's site (the extension's **Fill this form** types in what was prepared), and submit it yourself.

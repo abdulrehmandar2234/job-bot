@@ -1,4 +1,5 @@
 import { DatabaseError } from 'pg';
+import { BotStartError } from './bot';
 import { CvBusyError } from './tasks';
 import type { TextFormState } from './written-text';
 
@@ -11,15 +12,27 @@ import type { TextFormState } from './written-text';
 /** An expected, user-facing failure in a server action. Its message is shown next to the button. */
 export class ActionError extends Error {}
 
+/** System error codes that mean Postgres cannot be reached over the network (connect() rejects with one). */
+const UNREACHABLE_CODES = new Set(['ECONNREFUSED', 'ENOTFOUND', 'ETIMEDOUT', 'ECONNRESET', 'EHOSTUNREACH', 'EAI_AGAIN']);
+/** pg's own errors for a lost or never-made connection: plain Errors with no code. */
+const UNREACHABLE_PG =
+  /^(Connection terminated unexpectedly|Connection terminated due to connection timeout|timeout exceeded when trying to connect)$/;
+
+function unreachable(e: unknown): boolean {
+  if (!(e instanceof Error)) return false;
+  const code = (e as NodeJS.ErrnoException).code;
+  if (typeof code === 'string' && UNREACHABLE_CODES.has(code)) return true;
+  if (e instanceof AggregateError) return e.errors.some(unreachable); // one refusal per address (::1 and 127.0.0.1)
+  return UNREACHABLE_PG.test(e.message);
+}
+
 /** The message for an expected failure, or null when the error is a programmer error and should throw. */
 export function expectedFailure(e: unknown): string | null {
-  if (e instanceof ActionError || e instanceof CvBusyError) return e.message;
+  if (e instanceof ActionError || e instanceof CvBusyError || e instanceof BotStartError) return e.message;
   // A query Postgres refused (bad value, constraint, …).
   if (e instanceof DatabaseError) return `Database error: ${e.message}. Try again.`;
-  // Postgres not reachable: connect() rejects with a system error (ECONNREFUSED…) or an AggregateError.
-  const sys = e as NodeJS.ErrnoException;
-  if (e instanceof AggregateError || (e instanceof Error && typeof sys.code === 'string' && typeof sys.syscall === 'string'))
-    return 'The database is not reachable right now. Try again in a moment.';
+  // Only network failures mean Postgres is down: a file system error (EACCES from mkdir, …) is not the database.
+  if (unreachable(e)) return 'The database is not reachable right now. Try again in a moment.';
   return null;
 }
 
@@ -37,12 +50,19 @@ export async function guarded(work: (() => Promise<TextFormState | undefined>) |
   }
 }
 
+/** Node's notice when the bot's .env is missing: printed before the bot's own output, never the reason it failed. */
+const DOTENV_NOTICE = /\.env not found/i;
+
 /** A short, human line for a failed `runBot` call (non-zero exit, timeout, or spawn failure). */
 export function botFailure(e: unknown): string {
   const err = e as { killed?: boolean; stderr?: unknown } | null;
   if (err && typeof err === 'object' && err.killed) return 'The bot took too long and was stopped. Try again.';
-  const stderr = typeof err?.stderr === 'string' ? err.stderr.trim() : '';
-  // Node prints "Error: <message>" (plus a stack) for a thrown error; a clean one-line message is used as is.
-  const reason = /^[A-Za-z]*Error: (.+)$/m.exec(stderr)?.[1] ?? (stderr && !stderr.includes('\n') ? stderr : null);
+  const lines = (typeof err?.stderr === 'string' ? err.stderr : '')
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l && !DOTENV_NOTICE.test(l));
+  // Node prints "Error: <message>" plus a stack for a thrown error; otherwise the bot's own last line says why.
+  const thrown = lines.map((l) => /^[A-Za-z]*Error: (.+)$/.exec(l)?.[1]).find(Boolean);
+  const reason = thrown ?? lines.filter((l) => !l.startsWith('at ')).at(-1);
   return reason ? `The bot failed: ${reason}` : 'The bot failed to run. Try again (its output is in the dashboard terminal).';
 }

@@ -12,6 +12,7 @@ import {
   saveNotes,
   saveSummary,
   tailorCv,
+  undoStatus,
   writeHeadline,
   writeLetter,
   writeSummary,
@@ -25,7 +26,8 @@ import { Collapsible, FoldedText } from '@/components/collapsible';
 import { InterviewPrep } from '@/components/interview-prep';
 import { FollowUp } from '@/components/follow-up';
 import { Busy, TaskBar } from '@/components/tasks';
-import { WrittenText } from '@/components/written-text';
+import { ConfirmFirst, WrittenText } from '@/components/written-text';
+import { canUndo, isStatusChange } from '@/lib/job-lock';
 import { SalaryTag } from '@/components/salary';
 import { AtsCheck } from '@/components/ats-check';
 import { CV_TASKS, CvPanel } from '@/components/cv-panel';
@@ -134,6 +136,10 @@ async function JobDetail({ params }: { params: PageProps<'/jobs/[id]'>['params']
   const primaryId = job.duplicate_of ?? job.id;
   const postings = (await postingsFor([primaryId])).get(primaryId) ?? [];
   const answers = job.form_answers ?? [];
+  // The latest status change, which History offers to undo (undoStatus checks it again).
+  const lastChange = events
+    .filter(isStatusChange)
+    .reduce<(typeof events)[number] | undefined>((a, e) => (a && a.id > e.id ? a : e), undefined);
   // Same rule as <InterviewPrep>, for the section link.
   const hasPrep = Boolean(job.interview_prep) || job.status === 'applied' || job.status === 'interview';
   // config.json ai.enabled: off hides the AI-only buttons, each with a note linking to Settings. "Write letter" and
@@ -238,6 +244,15 @@ async function JobDetail({ params }: { params: PageProps<'/jobs/[id]'>['params']
                 </>
               }
             >
+              {lastChange && canUndo(lastChange, job.status) && (
+                <ActionForm
+                  action={undoStatus}
+                  fields={{ id: job.id, event: lastChange.id }}
+                  className="mb-2"
+                  pendingText="Undoing…"
+                  label={`Undo ${lastChange.from_status} → ${lastChange.to_status}`}
+                />
+              )}
               <ul className="space-y-1 text-zinc-600 dark:text-zinc-400">
                 {events.map((e) => (
                   <li key={e.id}>
@@ -304,12 +319,14 @@ async function JobDetail({ params }: { params: PageProps<'/jobs/[id]'>['params']
                 {busy.includes('letter') ? (
                   <Busy>{job.cover_letter ? 'Rewriting letter…' : 'Writing letter…'}</Busy>
                 ) : (
-                  <ActionForm
-                    action={writeLetter}
-                    fields={{ id: job.id }}
-                    pendingText="Starting…"
-                    label={job.cover_letter ? 'Rewrite letter' : 'Write letter'}
-                  />
+                  <ConfirmFirst message="This replaces the letter you edited. Rewrite anyway?" when={!!job.cover_letter_edited_at}>
+                    <ActionForm
+                      action={writeLetter}
+                      fields={{ id: job.id }}
+                      pendingText="Starting…"
+                      label={job.cover_letter ? 'Rewrite letter' : 'Write letter'}
+                    />
+                  </ConfirmFirst>
                 )}
                 {job.cover_letter && <CopyButton text={job.cover_letter} />}
                 {job.cover_letter && !busy.includes('letter') && (
@@ -356,12 +373,14 @@ async function JobDetail({ params }: { params: PageProps<'/jobs/[id]'>['params']
                   <Busy>{job.cv_headline ? 'Rewriting headline…' : 'Writing headline…'}</Busy>
                 ) : (
                   ai && (
-                    <ActionForm
-                      action={writeHeadline}
-                      fields={{ id: job.id }}
-                      pendingText="Starting…"
-                      label={job.cv_headline ? 'Rewrite headline' : 'Write headline'}
-                    />
+                    <ConfirmFirst message="This replaces the headline you edited. Rewrite anyway?" when={!!job.cv_headline_edited_at}>
+                      <ActionForm
+                        action={writeHeadline}
+                        fields={{ id: job.id }}
+                        pendingText="Starting…"
+                        label={job.cv_headline ? 'Rewrite headline' : 'Write headline'}
+                      />
+                    </ConfirmFirst>
                   )
                 )}
                 {job.cv_headline && <CopyButton text={job.cv_headline} />}
@@ -409,12 +428,14 @@ async function JobDetail({ params }: { params: PageProps<'/jobs/[id]'>['params']
                   <Busy>{job.cv_summary ? 'Rewriting summary…' : 'Writing summary…'}</Busy>
                 ) : (
                   ai && (
-                    <ActionForm
-                      action={writeSummary}
-                      fields={{ id: job.id }}
-                      pendingText="Starting…"
-                      label={job.cv_summary ? 'Rewrite summary' : 'Write summary'}
-                    />
+                    <ConfirmFirst message="This replaces the summary you edited. Rewrite anyway?" when={!!job.cv_summary_edited_at}>
+                      <ActionForm
+                        action={writeSummary}
+                        fields={{ id: job.id }}
+                        pendingText="Starting…"
+                        label={job.cv_summary ? 'Rewrite summary' : 'Write summary'}
+                      />
+                    </ConfirmFirst>
                   )
                 )}
                 {job.cv_summary && <CopyButton text={job.cv_summary} />}
@@ -457,7 +478,11 @@ async function JobDetail({ params }: { params: PageProps<'/jobs/[id]'>['params']
               <h2 className="font-medium">
                 Application form answers <span className="text-xs font-normal text-zinc-500">· AI drafts, you review and paste</span>
               </h2>
-              {answers.length > 0 && <ActionForm action={clearAnswers} fields={{ id: job.id }} pendingText="Clearing…" label="Clear all" />}
+              {answers.length > 0 && (
+                <ConfirmFirst message="This deletes all the drafted answers. Clear them?">
+                  <ActionForm action={clearAnswers} fields={{ id: job.id }} pendingText="Clearing…" label="Clear all" />
+                </ConfirmFirst>
+              )}
             </div>
             {answers.length > 0 && (
               <ul className="space-y-3">
