@@ -75,7 +75,7 @@ If the password has characters other than letters and digits, percent-encode the
 psql -h 127.0.0.1 -U postgres -d job_bot -c "SELECT version();"   # prints "PostgreSQL 17..." after the password
 ```
 
-The daily backup finds `pg_dump.exe` in `C:\Program Files\PostgreSQL\<version>\bin` by itself, so it does not need to be on the PATH.
+The daily backup finds `pg_dump.exe` in `C:\Program Files\PostgreSQL\<version>\bin` by itself, so it does not need to be on the PATH; `bot restore` finds `psql.exe` the same way.
 
 ## 3. Get the code and install its packages
 

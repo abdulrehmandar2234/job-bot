@@ -87,7 +87,7 @@ You do not create any tables: the bot creates and updates them itself (step 10).
 psql -h 127.0.0.1 -U postgres -d job_bot -c "SELECT version();"   # prints "PostgreSQL 17..." (or your version)
 ```
 
-The daily backup finds `pg_dump` by itself in DBngin's, Postgres.app's and Homebrew's folders, so it does not need to be on the PATH.
+The daily backup finds `pg_dump` by itself in DBngin's, Postgres.app's and Homebrew's folders, so it does not need to be on the PATH; `bot restore` finds `psql` the same way.
 
 ## 3. Get the code and install its packages
 
