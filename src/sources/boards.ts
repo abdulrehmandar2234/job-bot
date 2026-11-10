@@ -1,6 +1,7 @@
 import { getJson, sleep } from './http.ts';
 import { config } from '../config.ts';
 import { epochMs, partial, stripHtml, toIso, type Fetched, type RawJob } from './index.ts';
+import { himalayasSearchUrl } from './open.ts';
 import { structuredSalary } from '../salary.ts';
 import { currencyOf } from '../currencies.ts';
 import { loadProfile, remoteFromCode } from '../profile.ts';
@@ -42,9 +43,9 @@ export const himalayasGuid = (id: string) => `https://himalayas.app/companies/${
  * its title does not find it. A posting's restrictions can change after it was fetched (Worldwide → United States),
  * and the fetch only asks for jobs open to the candidate's country, so it never sees that change; check:open asks.
  */
-export async function himalayasLocation(job: { id: string; title: string }): Promise<string | null> {
+export async function himalayasLocation(job: { id: string; title: string; company?: string }): Promise<string | null> {
   const guid = himalayasGuid(job.id);
-  const data = await getJson(`https://himalayas.app/jobs/api/search?q=${encodeURIComponent(job.title)}`, { cache: false, attempts: 2 });
+  const data = await getJson(himalayasSearchUrl(job.title, job.company), { cache: false, attempts: 2 });
   const j = (data.jobs ?? []).find((x: { guid?: string }) => x.guid === guid);
   if (!j) return null;
   return `Remote — ${himalayasRegion(j.locationRestrictions, j.timezoneRestrictions, utcHours(loadProfile().utcOffset))}`;

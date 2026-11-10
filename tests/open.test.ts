@@ -68,7 +68,7 @@ describe('isOpen: company ATS APIs', () => {
 
   it('himalayas: its search API, not the job page that answers bots with a 403; not found stays unknown', async () => {
     net = mockFetch({
-      'himalayas.app/jobs/api/search?q=Senior%20Frontend%20Engineer': {
+      'himalayas.app/jobs/api/search?q=Senior%20Frontend%20Engineer%20Acme': {
         jobs: [{ guid: 'https://himalayas.app/companies/acme/jobs/senior-frontend-engineer-1' }],
       },
       'himalayas.app/companies/': status(403),
@@ -76,6 +76,7 @@ describe('isOpen: company ATS APIs', () => {
     const h = (slug: string) => ({
       ...job(`himalayas:acme/jobs/${slug}`, `https://himalayas.app/companies/acme/jobs/${slug}`),
       title: 'Senior Frontend Engineer',
+      company: 'Acme',
     });
     assert.deepEqual(await isOpen(h('senior-frontend-engineer-1')), { state: 'open', reason: 'listed in a Himalayas search' });
     assert.equal((await isOpen(h('senior-frontend-engineer-2'))).state, 'unknown');
@@ -569,7 +570,8 @@ describe('himalayasMoved (a Himalayas job whose location changed after the fetch
     const j = await getJob('himalayas:movedco/jobs/us-only');
     assert.equal(j.location, moved!.to);
     assert.equal(j.status, 'filtered');
-    assert.match(net.calls[0], /himalayas\.app\/jobs\/api\/search\?q=Full%20Stack%20TypeScript%20Developer$/);
+    // The title and the company: the title alone matches too many jobs for the API's 20 results.
+    assert.match(net.calls[0], /himalayas\.app\/jobs\/api\/search\?q=Full%20Stack%20TypeScript%20Developer%20Movedco$/);
   });
 
   it('keeps the status of a job further on and changes nothing when the location is the same or not found', async () => {

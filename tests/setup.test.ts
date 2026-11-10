@@ -16,6 +16,7 @@ const OWNER_APPLICANT = join(import.meta.dirname, 'fixtures', 'applicant-owner.j
 const OWNER_MASTER = JSON.parse(readFileSync(join(ROOT, 'tests', 'fixtures', 'master-owner.json'), 'utf8'));
 const JANE_MASTER = JSON.parse(readFileSync(join(ROOT, 'cv', 'master.example.json'), 'utf8'));
 const json = (f: string) => JSON.parse(readFileSync(f, 'utf8'));
+const NOWHERE = 'postgres://nobody@127.0.0.1:1/none';
 
 /** Temp copies of config.json (and optionally an applicant.json): the wizard never touches the real files. */
 function files(applicant?: string) {
@@ -368,7 +369,9 @@ describe('setup wizard', () => {
     const envFile = join(f.config, '..', '.env');
     const webEnvFile = join(f.config, '..', 'web.env.local');
     const out = execFileSync(process.execPath, ['--no-warnings', join(ROOT, 'src', 'cli.ts'), 'setup'], {
-      input: ['y', '', ...JANE].map((a) => `${a}\n`).join(''),
+      // A URL where nothing listens: the wizard's database check then only reports it, and never reaches (or offers to
+      // create) a database on the machine running the tests.
+      input: ['y', NOWHERE, ...JANE].map((a) => `${a}\n`).join(''),
       env: {
         ...process.env,
         JOB_BOT_ENV_FILE: envFile,
@@ -381,11 +384,12 @@ describe('setup wizard', () => {
       encoding: 'utf8',
     });
     assert.match(out, /Saved\./);
+    assert.match(out, /Could not reach the database \(nothing answers at nobody@127\.0\.0\.1:1/);
     assert.match(
       readFileSync(envFile, 'utf8'),
-      /^# Copy to \.env(.|\n)*\nDATABASE_URL=postgres:\/\/postgres@127\.0\.0\.1:5432\/job_bot\n$/,
+      new RegExp(`^# Copy to \\.env(.|\\n)*\\nDATABASE_URL=${NOWHERE.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\n$`),
     );
-    assert.equal(readFileSync(webEnvFile, 'utf8').match(/^DATABASE_URL=.*$/m)?.[0], `DATABASE_URL=${DEFAULT_DATABASE_URL}`);
+    assert.equal(readFileSync(webEnvFile, 'utf8').match(/^DATABASE_URL=.*$/m)?.[0], `DATABASE_URL=${NOWHERE}`);
   });
 });
 
