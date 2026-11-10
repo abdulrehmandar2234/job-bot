@@ -1,7 +1,7 @@
 import { mkdir, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { NextRequest } from 'next/server';
-import { BOT_ROOT, runBot } from '@/lib/bot';
+import { botDataDir, runBot } from '@/lib/bot';
 import { findJobByUrl, isExtensionOrigin, isHttpUrl, isImportToken } from '@/lib/extension';
 
 // Receives jobs collected in the browser and runs them through `bot add`, so the same filters and scoring apply:
@@ -142,7 +142,7 @@ const KEEP_FAILED_MS = 14 * 86_400_000;
  * succeeded; a failed run keeps it for debugging, and prune() clears such leftovers after two weeks.
  */
 async function add(jobs: Valid[]) {
-  const dir = join(BOT_ROOT, 'data', 'imports');
+  const dir = join(botDataDir(), 'imports');
   await mkdir(dir, { recursive: true });
   await prune(dir).catch(() => {}); // best effort: a prune problem must not fail the import
   const file = join(dir, `${new Date().toISOString().replace(/[:.]/g, '-')}.json`);

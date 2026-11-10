@@ -1,6 +1,7 @@
 import { after, afterEach, before, beforeEach, describe, it, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { daysAgo, mockFetch } from './helpers.ts';
@@ -9,7 +10,8 @@ import { config } from '../src/config.ts';
 import { timing } from '../src/sources/http.ts';
 import { dedupe, getJob, migrate, pool, pruneFiltered, setStatus, upsertJob, type ScoredJob } from '../src/db.ts';
 import { saveAgain } from '../src/commands/fetch.ts';
-import { isIndSponsor } from '../src/sponsors.ts';
+import { indFile, isIndSponsor } from '../src/sponsors.ts';
+import { dataDir } from '../src/settings.ts';
 
 const job = (o: Partial<ScoredJob> = {}): ScoredJob => ({
   id: 'test:db1',
@@ -31,6 +33,10 @@ const job = (o: Partial<ScoredJob> = {}): ScoredJob => ({
   filter_reason: null,
   ...o,
 });
+
+// A small IND register in the test data dir (tests/helpers.ts JOB_BOT_DATA_DIR), never the downloaded one in data/.
+mkdirSync(dataDir(), { recursive: true });
+writeFileSync(indFile(), JSON.stringify({ updated: new Date().toISOString(), names: ['Adyen B.V.', 'elasticsearch B.V.'] }));
 
 before(migrate);
 beforeEach(() => pool.query('TRUNCATE jobs, job_events, fetch_runs CASCADE'));
@@ -237,23 +243,53 @@ describe('dedupe', () => {
     assert.equal(await dedupe(), 0);
   });
 
-  it('unlinks and relinks in one transaction: two dedupes at once leave every duplicate grouped', async () => {
+  it('two dedupes at once leave every duplicate grouped', async () => {
     await upsertJob(job({ id: 'gh:1' }));
     await upsertJob(job({ id: 'li:1', source: 'linkedin' }));
     await upsertJob(job({ id: 'bayt:1', source: 'bayt' }));
-    await dedupe(); // links exist, so the concurrent runs both unlink and relink the same rows
+    await dedupe(); // links exist, so the concurrent runs both check the same rows
     const [a, b] = await Promise.all([dedupe(), dedupe()]);
     assert.deepEqual([a, b], [2, 2]);
     assert.equal((await getJob('li:1')).duplicate_of, 'gh:1');
     assert.equal((await getJob('bayt:1')).duplicate_of, 'gh:1');
   });
+
+  // xmin is the id of the transaction that last wrote a row: unchanged means dedupe did not rewrite it.
+  const versions = () => pool.query<{ id: string; xmin: string }>('SELECT id, xmin::text FROM jobs ORDER BY id').then((r) => r.rows);
+
+  it('an unchanged grouping updates no rows', async () => {
+    await upsertJob(job({ id: 'gh:1' }));
+    await upsertJob(job({ id: 'li:1', source: 'linkedin' }));
+    await upsertJob(job({ id: 'bayt:1', source: 'bayt' }));
+    await upsertJob(job({ id: 'other', title: 'Frontend Engineer' }));
+    assert.equal(await dedupe(), 2);
+    const before = await versions();
+    assert.equal(await dedupe(), 2);
+    assert.deepEqual(await versions(), before);
+    assert.equal((await getJob('li:1')).duplicate_of, 'gh:1');
+  });
+
+  it('only rewrites the rows whose link changed, and clears a copy that left its group', async () => {
+    await upsertJob(job({ id: 'gh:1' }));
+    await upsertJob(job({ id: 'li:1', source: 'linkedin' }));
+    await upsertJob(job({ id: 'bayt:1', source: 'bayt' }));
+    await dedupe();
+    const before = new Map((await versions()).map((r) => [r.id, r.xmin]));
+    await pool.query(`UPDATE jobs SET status = 'filtered', filter_reason = 'x' WHERE id = 'bayt:1'`);
+    const filteredAt = (await versions()).find((r) => r.id === 'bayt:1')!.xmin;
+    assert.equal(await dedupe(), 1);
+    assert.equal((await getJob('bayt:1')).duplicate_of, null);
+    const after = new Map((await versions()).map((r) => [r.id, r.xmin]));
+    assert.equal(after.get('gh:1'), before.get('gh:1'));
+    assert.equal(after.get('li:1'), before.get('li:1'));
+    assert.notEqual(after.get('bayt:1'), filteredAt);
+  });
 });
 
 describe('IND sponsor register', () => {
   it('knows recognised sponsors and uses indName from config', () => {
-    const known = isIndSponsor('Adyen');
-    if (known === null) return; // register not downloaded on this machine
-    assert.equal(known, true);
+    assert.ok(indFile().startsWith(dataDir()), 'the register is read from the data dir');
+    assert.equal(isIndSponsor('Adyen'), true);
     assert.equal(isIndSponsor('Elastic'), true); // config maps it to "elasticsearch B.V."
     assert.equal(isIndSponsor('Totally Unknown Startup Xyz'), false);
     assert.equal(isIndSponsor('A'), false);

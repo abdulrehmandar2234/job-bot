@@ -111,6 +111,8 @@ describe('backupOptions', () => {
       port: '5432',
       user: 'postgres',
     });
+    // JOB_BOT_DATA_DIR moves the default; JOB_BOT_BACKUP_DIR still wins over it.
+    assert.equal(backupOptions({ JOB_BOT_BACKUP_DATE: DATE, JOB_BOT_DATA_DIR: root }, '/bin/pg_dump').dir, resolve(root, 'backups'));
     const o = backupOptions(
       { JOB_BOT_BACKUP_DB: 'x', JOB_BOT_BACKUP_DIR: root, JOB_BOT_BACKUP_KEEP: '3', PGHOST: 'h', PGPORT: '1', PGUSER: 'u' },
       'pg',

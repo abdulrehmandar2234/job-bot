@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { promisify } from 'node:util';
 import { redactKeys } from '../ai-providers.ts';
-import { path, ROOT } from '../settings.ts';
+import { dataPath, ROOT } from '../settings.ts';
 import { claim, cliArgs, fail, finish, QUESTIONS_CAP, TASK_TIMEOUT_MS } from '../tasks.ts';
 
 const run = promisify(execFile);
@@ -47,8 +47,9 @@ export async function taskRun(args: string[]) {
         .trim()
         .slice(0, QUESTIONS_CAP);
       if (!questions) throw new Error('No questions given.');
-      mkdirSync(path('data', 'questions'), { recursive: true });
-      file = path('data', 'questions', `${randomUUID()}.txt`);
+      // Removed below; a worker killed before that leaves it to `bot daily`'s cleanup (src/cleanup.ts).
+      mkdirSync(dataPath('questions'), { recursive: true });
+      file = dataPath('questions', `${randomUUID()}.txt`);
       writeFileSync(file, questions);
     }
     const { stdout, stderr } = await run(

@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { refresh } from 'next/cache';
-import { BOT_ROOT, runBot } from '@/lib/bot';
+import { botDataDir, runBot } from '@/lib/bot';
 import { readApplicant, readConfig } from '@/lib/settings';
 import { enqueueTask } from '@/lib/tasks';
 import { skipInsights } from '@/lib/skip-insights';
@@ -28,7 +28,8 @@ function result(stdout: string): { ok: boolean; errors?: SettingsError[] } | nul
 }
 
 async function save(kind: SettingsKind, json: string): Promise<SaveState> {
-  const dir = join(BOT_ROOT, 'data', 'settings');
+  // Removed below; a file left by a crash is removed by `bot daily`'s cleanup a day later (src/cleanup.ts).
+  const dir = join(botDataDir(), 'settings');
   await mkdir(dir, { recursive: true });
   const file = join(dir, `${randomUUID()}.json`);
   await writeFile(file, json);

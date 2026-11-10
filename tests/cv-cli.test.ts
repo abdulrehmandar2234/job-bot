@@ -91,6 +91,18 @@ describe('cv:templates and cv:preview', () => {
     assert.equal(bad.code, 1);
     assert.match(bad.stderr, /one of: classic, modern, compact/);
   });
+
+  it('cv:preview --pdf prints into previews/ in the data dir (JOB_BOT_DATA_DIR)', { skip: noChrome }, async () => {
+    const data = mkdtempSync(join(tmpdir(), 'job-bot-preview-data-'));
+    try {
+      const out = await bot(['cv:preview', 'compact', '--pdf'], { JOB_BOT_DATA_DIR: data });
+      const file = join(data, 'previews', 'compact.pdf');
+      assert.ok(out.includes(`PDF        : ${file}`), out);
+      assert.equal(readFileSync(file).subarray(0, 4).toString(), '%PDF');
+    } finally {
+      rmSync(data, { recursive: true, force: true });
+    }
+  });
 });
 
 describe('cv:template', () => {

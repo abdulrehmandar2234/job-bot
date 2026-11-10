@@ -1,9 +1,10 @@
 import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { createInterface } from 'node:readline';
 import { blankApplicant, buildProfile, profileGaps, readMaster, type MasterContact } from '../profile.ts';
 import { AI_BASE_URL_ENV, AI_KEY_ENV, API_PRESETS, PRESETS, type ApiPreset } from '../ai-presets.ts';
 import { applyMarkets, applyStacks, loadMarkets, loadStacks, pick, PRESETS_DIR, type PresetKind } from '../presets.ts';
-import { APPLICANT_FILE, CONFIG_FILE, UTC_OFFSET, validate, type SettingsError } from '../settings.ts';
+import { APPLICANT_FILE, CONFIG_FILE, path, ROOT, UTC_OFFSET, validate, type SettingsError } from '../settings.ts';
 import type { Flags } from './shared.ts';
 
 // `npm run bot -- setup`: a question-and-answer wizard that fills in the profile (cv/applicant.json) and the target
@@ -13,7 +14,19 @@ import type { Flags } from './shared.ts';
 
 type Json = Record<string, unknown>;
 export type SetupIO = { input: NodeJS.ReadableStream; output: NodeJS.WritableStream };
-export type SetupFiles = { config: string; applicant: string; master?: MasterContact; presets?: string };
+/**
+ * `env` / `webEnv`: the bot's .env and the dashboard's web/.env.local. When given and missing, the wizard offers to
+ * write them with DATABASE_URL (`setup` passes both; tests pass temp paths or leave them out, which skips the step).
+ */
+export type SetupFiles = {
+  config: string;
+  applicant: string;
+  master?: MasterContact;
+  presets?: string;
+  env?: string;
+  webEnv?: string;
+  envExample?: string;
+};
 
 const isObj = (v: unknown): v is Json => !!v && typeof v === 'object' && !Array.isArray(v);
 const text = (v: unknown) => (v == null ? '' : String(v));
@@ -110,6 +123,56 @@ export const NEXT_STEPS = [
   'Daily fetch: `npm run bot -- schedule:print` prints the scheduler setup for this computer (docs/install/<your OS>.md, step 12).',
 ];
 
+/** The connection string the install guides use (docs/install, step 4). */
+export const DEFAULT_DATABASE_URL = 'postgres://postgres@127.0.0.1:5432/job_bot';
+const DATABASE_URL_RE = /^postgres(ql)?:\/\/\S+$/;
+
+/**
+ * The text of a new .env: .env.example (its settings are all empty or commented out, so no key is ever written) and
+ * the DATABASE_URL line. The dashboard's web/.env.local only needs the DATABASE_URL line.
+ */
+export function envText(databaseUrl: string, example: string | null = null): string {
+  const head = example ? `${example.trimEnd()}\n\n` : '';
+  return `${head}# The PostgreSQL database the bot uses.\nDATABASE_URL=${databaseUrl}\n`;
+}
+
+/** Writes `file` only when it does not exist yet (flag wx: never overwrites one, even one made meanwhile). */
+function writeNew(file: string, text: string): boolean {
+  try {
+    writeFileSync(file, text, { flag: 'wx' });
+    return true;
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === 'EEXIST') return false;
+    throw e;
+  }
+}
+
+/**
+ * Offers to write the missing .env files with DATABASE_URL (the install guides' step 4), asking first. An existing
+ * file is never touched, and no API key is ever asked for or written.
+ */
+async function offerEnvFiles(p: ReturnType<typeof prompter>, files: SetupFiles) {
+  const missing = [files.env, files.webEnv].filter((f): f is string => !!f && !existsSync(f));
+  if (!missing.length) return;
+  p.say(
+    `== Database connection ==\nNot found: ${missing.join(', ')}. ${missing.length > 1 ? 'They hold' : 'It holds'} DATABASE_URL, which the bot and the dashboard need.`,
+  );
+  if (!(await p.yes(`Write ${missing.length > 1 ? 'them' : 'it'} now (DATABASE_URL only, no keys)?`, true))) {
+    p.say('Not written. Create them as your install guide shows (step 4).\n');
+    return;
+  }
+  const url = await p.ask('DATABASE_URL', DEFAULT_DATABASE_URL, (v) =>
+    DATABASE_URL_RE.test(v) ? null : 'like postgres://<user>:<password>@127.0.0.1:5432/job_bot',
+  );
+  const example = files.envExample && existsSync(files.envExample) ? readFileSync(files.envExample, 'utf8') : null;
+  for (const file of missing) {
+    const written = writeNew(file, envText(url, file === files.env ? example : null));
+    p.say(written ? `Wrote ${file}.` : `${file} exists now; left as it is.`);
+  }
+  if (files.env && missing.includes(files.env)) p.say('Optional keys (Adzuna, an AI API key) go in .env later; see .env.example.');
+  p.say('');
+}
+
 /** Runs the wizard. Returns true when the files were written. */
 export async function runSetup(io: SetupIO, files: SetupFiles = { config: CONFIG_FILE, applicant: APPLICANT_FILE }): Promise<boolean> {
   const p = prompter(io);
@@ -124,6 +187,7 @@ export async function runSetup(io: SetupIO, files: SetupFiles = { config: CONFIG
     const cur = buildProfile(app, master);
 
     p.say('job-bot setup. Press Enter to keep the value in [brackets], type "-" to clear it.\n');
+    await offerEnvFiles(p, files);
     p.say('== Your profile (cv/applicant.json) ==');
     app.fullName = (await p.ask('Full name', text(app.fullName) || text(cur.fullName))) || null;
     app.email = (await p.ask('Email', text(app.email) || text(cur.email), checks.email)) || null;
@@ -330,5 +394,13 @@ export async function runSetup(io: SetupIO, files: SetupFiles = { config: CONFIG
 
 /** setup: the wizard on stdin/stdout. */
 export async function setup(_args: string[], _flags: Flags) {
-  if (!(await runSetup({ input: process.stdin, output: process.stdout }))) process.exitCode = 1;
+  const files: SetupFiles = {
+    config: CONFIG_FILE,
+    applicant: APPLICANT_FILE,
+    // JOB_BOT_ENV_FILE is also what the dashboard's Settings page reads (web/lib/settings.ts botEnvFile).
+    env: process.env.JOB_BOT_ENV_FILE || path('.env'),
+    webEnv: process.env.JOB_BOT_WEB_ENV_FILE || join(ROOT, 'web', '.env.local'),
+    envExample: path('.env.example'),
+  };
+  if (!(await runSetup({ input: process.stdin, output: process.stdout }, files))) process.exitCode = 1;
 }

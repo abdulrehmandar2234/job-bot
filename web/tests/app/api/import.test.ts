@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { NextRequest } from 'next/server';
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { OPTIONS, POST } from '@/app/api/import/route';
-import { BOT_ROOT, runBot } from '@/lib/bot';
+import { BOT_ROOT, botDataDir, runBot } from '@/lib/bot';
 import { importToken } from '@/lib/extension';
 
 // Never spawn the bot; import files go to a temp "bot root".
@@ -21,7 +21,8 @@ vi.mock('@/lib/bot', async (importOriginal) => {
 const bot = vi.mocked(runBot);
 const BAYT = 'https://www.bayt.com';
 const URL_ = 'http://localhost:3100/api/import';
-const IMPORTS = join(BOT_ROOT, 'data', 'imports');
+// The data folder is a temp one for every test run (web/tests/setup.ts, JOB_BOT_DATA_DIR).
+const IMPORTS = join(botDataDir(), 'imports');
 
 // The web-origin path requires the import token; `token: null` leaves the header out, any other string is sent as is.
 const post = (body: unknown, origin: string | null = BAYT, token: string | null = importToken()) =>
@@ -111,6 +112,7 @@ describe('POST', () => {
     const [args, timeout] = bot.mock.calls[0];
     expect(args.slice(0, 2)).toEqual(['add', '--file']);
     expect(args[2].startsWith(IMPORTS)).toBe(true);
+    expect(args[2].startsWith(join(process.env.JOB_BOT_DATA_DIR!, 'imports'))).toBe(true);
     expect(args[2]).toMatch(/\.json$/);
     expect(existsSync(args[2])).toBe(false); // deleted once `bot add` succeeded
     expect(timeout).toBe(120_000);

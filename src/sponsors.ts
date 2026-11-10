@@ -1,12 +1,13 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { config, path, type Company } from './config.ts';
+import { config, type Company } from './config.ts';
+import { dataPath } from './settings.ts';
 import { getText } from './sources/http.ts';
 
 // Dutch IND public register of recognised sponsors (erkend referent) for highly skilled migrants.
 // Only these employers can sponsor a Dutch highly-skilled-migrant visa.
 const IND_URL = 'https://ind.nl/en/public-register-recognised-sponsors/public-register-regular-labour-and-highly-skilled-migrants';
-/** Where the register is saved; JOB_BOT_IND_FILE overrides it (tests). Read on every call. */
-export const indFile = () => process.env.JOB_BOT_IND_FILE || path('data', 'ind-sponsors.json');
+/** Where the register is saved: JOB_BOT_IND_FILE, else the data dir (settings.ts dataDir). Read on every call. */
+export const indFile = () => process.env.JOB_BOT_IND_FILE || dataPath('ind-sponsors.json');
 /** `bot daily` downloads the register again when it is older than this many days, or missing. */
 export const IND_MAX_AGE_DAYS = 7;
 

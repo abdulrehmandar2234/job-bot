@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { join, resolve, sep } from 'node:path';
 import type { NextRequest } from 'next/server';
-import { BOT_ROOT, runBot } from '@/lib/bot';
+import { botDataDir, runBot } from '@/lib/bot';
 import { isTemplate } from '@/lib/cv-templates';
 
 const PAGE = 'html { background: #fff; color-scheme: light; } body { max-width: 210mm; margin: 0 auto !important; }';
@@ -32,8 +32,8 @@ export async function GET(req: NextRequest, ctx: RouteContext<'/api/cv/preview/[
       },
     });
   const file = out.match(/^PDF\s+:\s+(.+)$/m)?.[1]?.trim();
-  // Only the file the command writes, under data/previews/, is ever served.
-  if (!file || !resolve(file).startsWith(join(BOT_ROOT, 'data', 'previews') + sep))
+  // Only the file the command writes, under previews/ in the data folder, is ever served.
+  if (!file || !resolve(file).startsWith(join(resolve(botDataDir()), 'previews') + sep))
     return new Response('No PDF was written', { status: 500 });
   return new Response(await readFile(file), {
     headers: {

@@ -3,7 +3,7 @@ import { appendFileSync, existsSync, mkdirSync, renameSync, rmSync, statSync } f
 import { homedir } from 'node:os';
 import { loadConfig } from '../config.ts';
 import { DASHBOARD_URL, notify, type Note } from '../notify.ts';
-import { path, ROOT } from '../settings.ts';
+import { dataPath, path, ROOT } from '../settings.ts';
 import { CACHE_MAX_AGE_DAYS, pruneCache } from '../sources/http.ts';
 import { indRegisterStale } from '../sponsors.ts';
 
@@ -25,10 +25,12 @@ export type DailyDeps = {
   prune?: () => number;
   /** Renames logs that grew too big, before anything is written; returns a line per log it rotated. */
   rotate?: () => string[];
+  /** Removes leftover temp files, old CV backups and finished jobs' one-off CVs; returns log lines (default: none). */
+  cleanup?: () => Promise<string[]>;
   /** Whether the IND sponsor register needs downloading again (default: never). */
   indStale?: () => boolean;
   /** Time limit per step in ms (default: STEP_TIMEOUT_MIN). */
-  timeouts?: Partial<Record<DailyStep, number>>;
+  timeouts?: Partial<Record<DailyStep | 'cleanup', number>>;
   now?: Date;
 };
 
@@ -38,6 +40,8 @@ export const AI_FAILED = 'AI review failed (is Claude signed in? See data/fetch.
 /** The time limit of each step, in minutes: a step still running then is stopped and the run goes on. */
 export const STEP_TIMEOUT_MIN = { 'sponsors:update': 10, fetch: 30, 'check:open': 15, 'ai:score': 60, backup: 10 } as const;
 export type DailyStep = keyof typeof STEP_TIMEOUT_MIN;
+/** The time limit of the cleanup (src/cleanup.ts), in minutes. It runs in this process, so it is not stopped, only left. */
+export const CLEANUP_TIMEOUT_MIN = 5;
 /** How long a step gets to exit after SIGTERM before it is killed. */
 export const KILL_GRACE_MS = 10_000;
 /** Logs bigger than this are rotated to `<name>.1` at the start of the run. */
@@ -77,8 +81,8 @@ export function fetchFailure(r: StepResult, timeoutMs: number): string {
 /**
  * The steps, in order: the IND register refresh (only when it is stale; failures only show in the log); fetch; then
  * (only if it worked) check:open and ai:score, each best-effort; a notification with the result; the backup, after the
- * notification, so a failed backup only shows in the log; and the http-cache prune, whose result also only shows in
- * the log. Each step is stopped after its time limit (STEP_TIMEOUT_MIN) and the run goes on.
+ * notification, so a failed backup only shows in the log; the cleanup of leftover files (src/cleanup.ts) and the
+ * http-cache prune, whose results also only show in the log. Each step is stopped after its time limit (STEP_TIMEOUT_MIN) and the run goes on.
  */
 export async function runDaily(d: DailyDeps): Promise<void> {
   // Rotate before the first write, so this run starts a fresh log when the old one is too big.
@@ -132,6 +136,23 @@ export async function runDaily(d: DailyDeps): Promise<void> {
   await d.notify(note);
   // Daily database backup (keeps 14).
   if ((await step('backup')).code !== 0) d.log('backup failed (see above)\n');
+  // Housekeeping: files that nothing else removes (temp files of killed tasks, CV backups, finished jobs' one-off CVs).
+  if (d.cleanup) {
+    const ms = d.timeouts?.cleanup ?? CLEANUP_TIMEOUT_MIN * 60_000;
+    let timer: NodeJS.Timeout | undefined;
+    const late = new Promise<'late'>((resolve) => {
+      timer = setTimeout(() => resolve('late'), ms);
+    });
+    try {
+      const r = await Promise.race([d.cleanup(), late]);
+      if (r === 'late') d.log(`cleanup timed out after ${duration(ms)}\n`);
+      else for (const line of r) d.log(`${line}\n`);
+    } catch (e) {
+      d.log(`cleanup failed: ${(e as Error).message}\n`);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
   // Housekeeping: the on-disk ETag cache (data/http-cache) has no other eviction and would grow forever.
   try {
     d.log(`http-cache: removed ${(d.prune ?? pruneCache)()} entries older than ${CACHE_MAX_AGE_DAYS} days\n`);
@@ -234,14 +255,30 @@ export function usesIndRegister(): boolean {
 export async function daily() {
   // The children load .env themselves; this process needs it for JOB_BOT_NOTIFY. Variables already set win.
   if (existsSync(path('.env'))) process.loadEnvFile(path('.env'));
-  mkdirSync(path('data'), { recursive: true });
-  const logFile = path('data', 'fetch.log');
+  mkdirSync(dataPath(), { recursive: true });
+  const logFile = dataPath('fetch.log');
   await runDaily({
     run: cliRunner(logFile),
     notify: (n) => notify(n),
     log: (t) => appendFileSync(logFile, t),
-    // data/logs/tasks.log is the dashboard's task log (web/lib/bot.ts), launchd.err.log the macOS scheduler's stderr.
-    rotate: () => rotateLogs([logFile, path('data', 'logs', 'tasks.log'), path('data', 'launchd.err.log')]),
+    // logs/tasks.log is the dashboard's task log (web/lib/bot.ts). launchd.err.log is the macOS scheduler's stderr:
+    // its path is fixed in the plist (src/commands/schedule.ts), always data/ in the bot's folder.
+    rotate: () => rotateLogs([logFile, dataPath('logs', 'tasks.log'), path('data', 'launchd.err.log')]),
+    cleanup: () => dailyCleanup(),
     indStale: () => usesIndRegister() && indRegisterStale(),
   });
+}
+
+/** The real cleanup: the data dir, the CV backup dir and cv/versions, on the bot's pool (closed afterwards). */
+async function dailyCleanup(): Promise<string[]> {
+  const [{ cleanup }, { pool }, { backupDir }] = await Promise.all([
+    import('../cleanup.ts'),
+    import('../db.ts'),
+    import('../cv/confirm-skills.ts'),
+  ]);
+  try {
+    return await cleanup(pool, { data: dataPath(), cvBackups: backupDir(), versions: path('cv', 'versions') });
+  } finally {
+    await pool.end();
+  }
 }

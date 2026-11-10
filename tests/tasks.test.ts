@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { TEST_DB } from './helpers.ts';
 import { getJob, migrate, pool } from '../src/db.ts';
-import { path } from '../src/settings.ts';
+import { dataPath, path } from '../src/settings.ts';
 import {
   claim,
   cliArgs,
@@ -466,7 +466,7 @@ describe('task:run (CLI worker)', () => {
   });
 
   it('runs an answers task from args and removes the questions file', async () => {
-    const dir = path('data', 'questions');
+    const dir = dataPath('questions');
     const files = () => (existsSync(dir) ? readdirSync(dir) : []);
     const before = files();
     const { task } = await enqueue('answers', JOB, { questions: '  Notice period?  ' });

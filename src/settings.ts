@@ -21,6 +21,11 @@ export const path = (...p: string[]) => join(ROOT, ...p);
 export const configFile = (root = ROOT) => process.env.JOB_BOT_CONFIG || join(root, 'config.json');
 export const applicantFile = (root = ROOT) => process.env.JOB_BOT_APPLICANT || join(root, 'cv', 'applicant.json');
 export const masterFile = (root = ROOT) => process.env.JOB_BOT_MASTER || join(root, 'cv', 'master.json');
+// JOB_BOT_DATA_DIR moves the bot's working folder (logs, temp files, caches, previews, backups of the master CV); by
+// default it is <root>/data. Read on every call, so tests point it at a temp dir. Explicit per-file overrides
+// (JOB_BOT_IND_FILE, JOB_BOT_BACKUP_DIR, JOB_BOT_HTTP_CACHE, JOB_BOT_CV_BACKUP_DIR) still win over it.
+export const dataDir = (root = ROOT) => process.env.JOB_BOT_DATA_DIR || join(root, 'data');
+export const dataPath = (...p: string[]) => join(dataDir(), ...p);
 export const CONFIG_FILE = configFile();
 // The shipped settings: config.json is personal and gitignored, and starts as a copy of this file.
 export const DEFAULT_CONFIG_FILE = path('config.default.json');

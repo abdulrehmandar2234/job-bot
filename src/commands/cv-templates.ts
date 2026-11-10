@@ -1,9 +1,11 @@
 import { mkdirSync } from 'node:fs';
-import { config, path } from '../config.ts';
+import { join } from 'node:path';
+import { config } from '../config.ts';
 import type { Cv } from '../cv/render.ts';
 import { renderPdf } from '../cv/render.ts';
 import { isTemplate, TEMPLATE_IDS, TEMPLATES, templateHtml } from '../cv/templates/index.ts';
 import { masterRaw } from '../cv/versions.ts';
+import { dataPath } from '../settings.ts';
 import type { Flags } from './shared.ts';
 
 // The CV template commands that need no database: listing the designs and previewing one.
@@ -32,9 +34,9 @@ export async function cvPreview(args: string[], flags: Flags) {
     process.stdout.write(templateHtml(template, cv));
     return;
   }
-  const dir = path('data', 'previews');
+  const dir = dataPath('previews');
   mkdirSync(dir, { recursive: true });
-  const file = `${dir}/${template}.pdf`;
+  const file = join(dir, `${template}.pdf`);
   await renderPdf(cv, file, template);
   console.log(`PDF        : ${file}`);
 }

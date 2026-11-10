@@ -1,20 +1,27 @@
-import { existsSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { BOT_ROOT } from '@/lib/bot';
+import { afterAll, beforeEach, describe, expect, it } from 'vitest';
+import { botDataDir } from '@/lib/bot';
 import { importToken, isImportToken } from '@/lib/extension';
 
-// The token file goes to a temp "bot root", never the real data/.
-vi.mock('@/lib/bot', async (importOriginal) => {
-  const { mkdtempSync } = await import('node:fs');
-  const { tmpdir } = await import('node:os');
-  const { join: j } = await import('node:path');
-  return { ...(await importOriginal<typeof import('@/lib/bot')>()), BOT_ROOT: mkdtempSync(j(tmpdir(), 'job-bot-web-token-')) };
+// The token file goes to a temp data folder (JOB_BOT_DATA_DIR, read on every call), never the real data/.
+const dataDir = mkdtempSync(join(tmpdir(), 'job-bot-web-token-'));
+const saved = process.env.JOB_BOT_DATA_DIR;
+process.env.JOB_BOT_DATA_DIR = join(dataDir, 'data');
+
+const file = join(dataDir, 'data', 'import-token');
+beforeEach(() => rmSync(join(dataDir, 'data'), { recursive: true, force: true }));
+afterAll(() => {
+  process.env.JOB_BOT_DATA_DIR = saved;
+  rmSync(dataDir, { recursive: true, force: true });
 });
 
-const file = join(BOT_ROOT, 'data', 'import-token');
-beforeEach(() => rmSync(join(BOT_ROOT, 'data'), { recursive: true, force: true }));
-afterAll(() => rmSync(BOT_ROOT, { recursive: true, force: true }));
+it('keeps the token in JOB_BOT_DATA_DIR', () => {
+  expect(botDataDir()).toBe(join(dataDir, 'data'));
+  importToken();
+  expect(existsSync(file)).toBe(true);
+});
 
 describe('importToken', () => {
   it('creates a random 64-hex token in data/import-token on first use and then keeps it', () => {

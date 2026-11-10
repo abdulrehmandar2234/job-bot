@@ -27,6 +27,15 @@ if (!process.env.JOB_BOT_CONFIG) {
   copyFileSync(join(import.meta.dirname, '..', 'config.default.json'), process.env.JOB_BOT_CONFIG);
 }
 
+// Never write the real data/ folder (logs, temp files, previews, CV backups, the IND register) from a test: every
+// writer goes through dataDir() in src/settings.ts, which reads JOB_BOT_DATA_DIR. CLI subprocesses inherit it.
+process.env.JOB_BOT_DATA_DIR ||= mkdtempSync(join(tmpdir(), 'job-bot-data-'));
+
+// `bot setup` offers to write a missing .env and web/.env.local: in tests those are temp paths, never the real files.
+const envDir = mkdtempSync(join(tmpdir(), 'job-bot-env-'));
+process.env.JOB_BOT_ENV_FILE ||= join(envDir, '.env');
+process.env.JOB_BOT_WEB_ENV_FILE ||= join(envDir, 'web.env.local');
+
 // Never write the real HTTP cache (data/http-cache) from a test. Suites that test the cache set their own dir.
 process.env.JOB_BOT_HTTP_CACHE ||= mkdtempSync(join(tmpdir(), 'job-bot-http-cache-'));
 

@@ -1,12 +1,12 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { copyFileSync, existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { PassThrough, Readable } from 'node:stream';
 import './helpers.ts';
-import { claudePathHint, runSetup } from '../src/commands/setup.ts';
+import { claudePathHint, DEFAULT_DATABASE_URL, runSetup } from '../src/commands/setup.ts';
 import { effectiveRemoteRules } from '../src/regions.ts';
 import { validateApplicant, validateConfig } from '../src/settings.ts';
 
@@ -27,7 +27,7 @@ function files(applicant?: string) {
 }
 
 /** Runs the wizard with these answer lines; returns its result and everything it printed. */
-async function run(answers: string[], f: { config: string; applicant: string }, master: object) {
+async function run(answers: string[], f: { config: string; applicant: string; env?: string; webEnv?: string }, master: object) {
   const output = new PassThrough();
   let printed = '';
   output.on('data', (d) => (printed += d));
@@ -337,10 +337,17 @@ describe('setup wizard', () => {
 
   it('runs as `bot setup` on stdin, without a database', () => {
     const f = files();
+    // Both .env files exist (temp ones), so the wizard does not offer to write them.
+    const envFile = join(f.config, '..', '.env');
+    const webEnvFile = join(f.config, '..', 'web.env.local');
+    writeFileSync(envFile, 'X=1\n');
+    writeFileSync(webEnvFile, 'X=1\n');
     const out = execFileSync(process.execPath, ['--no-warnings', join(ROOT, 'src', 'cli.ts'), 'setup'], {
       input: JANE.map((a) => `${a}\n`).join(''),
       env: {
         ...process.env,
+        JOB_BOT_ENV_FILE: envFile,
+        JOB_BOT_WEB_ENV_FILE: webEnvFile,
         JOB_BOT_CONFIG: f.config,
         JOB_BOT_APPLICANT: f.applicant,
         JOB_BOT_MASTER: join(ROOT, 'cv', 'master.example.json'),
@@ -350,5 +357,81 @@ describe('setup wizard', () => {
     });
     assert.match(out, /Saved\./);
     assert.equal(json(f.applicant).fullName, 'Jane Doe');
+  });
+
+  it('`bot setup` writes the missing .env files at JOB_BOT_ENV_FILE / JOB_BOT_WEB_ENV_FILE after a yes', () => {
+    const f = files();
+    const envFile = join(f.config, '..', '.env');
+    const webEnvFile = join(f.config, '..', 'web.env.local');
+    const out = execFileSync(process.execPath, ['--no-warnings', join(ROOT, 'src', 'cli.ts'), 'setup'], {
+      input: ['y', '', ...JANE].map((a) => `${a}\n`).join(''),
+      env: {
+        ...process.env,
+        JOB_BOT_ENV_FILE: envFile,
+        JOB_BOT_WEB_ENV_FILE: webEnvFile,
+        JOB_BOT_CONFIG: f.config,
+        JOB_BOT_APPLICANT: f.applicant,
+        JOB_BOT_MASTER: join(ROOT, 'cv', 'master.example.json'),
+        DATABASE_URL: 'postgres://nobody@127.0.0.1:1/none',
+      },
+      encoding: 'utf8',
+    });
+    assert.match(out, /Saved\./);
+    assert.match(
+      readFileSync(envFile, 'utf8'),
+      /^# Copy to \.env(.|\n)*\nDATABASE_URL=postgres:\/\/postgres@127\.0\.0\.1:5432\/job_bot\n$/,
+    );
+    assert.equal(readFileSync(webEnvFile, 'utf8').match(/^DATABASE_URL=.*$/m)?.[0], `DATABASE_URL=${DEFAULT_DATABASE_URL}`);
+  });
+});
+
+describe('setup wizard: .env files', () => {
+  /** Temp settings plus .env / web/.env.local paths in the same temp folder (missing unless a test writes them). */
+  function envFiles() {
+    const f = files();
+    const dir = join(f.config, '..');
+    mkdirSync(join(dir, 'web'));
+    return { ...f, env: join(dir, '.env'), webEnv: join(dir, 'web', '.env.local'), envExample: join(ROOT, '.env.example') };
+  }
+  // A line that sets a value: only DATABASE_URL may (the example's other settings are empty or commented out).
+  const setLines = (text: string) => text.split('\n').filter((l) => /^[A-Z_]+=\S/.test(l));
+
+  it('offers to write both when missing, and after a yes writes DATABASE_URL and no keys', async () => {
+    const f = envFiles();
+    const { ok, printed } = await run(['y', '', ...JANE], f, JANE_MASTER);
+    assert.equal(ok, true, printed);
+    assert.match(printed, /Not found: .*\.env, .*\.env\.local/);
+    const env = readFileSync(f.env, 'utf8');
+    assert.ok(env.startsWith(readFileSync(f.envExample, 'utf8').trimEnd()), 'starts as .env.example');
+    assert.deepEqual(setLines(env), [`DATABASE_URL=${DEFAULT_DATABASE_URL}`]);
+    assert.deepEqual(setLines(readFileSync(f.webEnv, 'utf8')), [`DATABASE_URL=${DEFAULT_DATABASE_URL}`]);
+  });
+
+  it('a no writes nothing; an existing .env is never overwritten, and only the missing file is offered', async () => {
+    const no = envFiles();
+    const r = await run(['n', ...JANE], no, JANE_MASTER);
+    assert.equal(r.ok, true, r.printed);
+    assert.equal(existsSync(no.env), false);
+    assert.equal(existsSync(no.webEnv), false);
+
+    const f = envFiles();
+    writeFileSync(f.env, 'DATABASE_URL=postgres://me@127.0.0.1:5432/mine\n');
+    const url = 'postgres://jobbot:secret@127.0.0.1:5432/job_bot';
+    const { ok, printed } = await run(['y', 'not a url', url, ...JANE], f, JANE_MASTER);
+    assert.equal(ok, true, printed);
+    assert.match(printed, /like postgres:\/\//);
+    assert.doesNotMatch(printed, /Not found: [^\n]*\.env,/);
+    assert.equal(readFileSync(f.env, 'utf8'), 'DATABASE_URL=postgres://me@127.0.0.1:5432/mine\n');
+    assert.deepEqual(setLines(readFileSync(f.webEnv, 'utf8')), [`DATABASE_URL=${url}`]);
+  });
+
+  it('asks nothing when both exist', async () => {
+    const f = envFiles();
+    writeFileSync(f.env, 'X=1\n');
+    writeFileSync(f.webEnv, 'Y=2\n');
+    const { ok, printed } = await run(JANE, f, JANE_MASTER);
+    assert.equal(ok, true, printed);
+    assert.doesNotMatch(printed, /Database connection/);
+    assert.equal(readFileSync(f.env, 'utf8'), 'X=1\n');
   });
 });

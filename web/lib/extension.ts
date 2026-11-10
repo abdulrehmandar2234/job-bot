@@ -1,7 +1,7 @@
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { BOT_ROOT } from '@/lib/bot';
+import { botDataDir } from '@/lib/bot';
 import { type Job, pool } from '@/lib/db';
 import { applicantFile, masterFile } from '@/lib/settings';
 
@@ -21,10 +21,10 @@ export const isExtensionOrigin = (origin: string | null): origin is string =>
 // blindly. A script on that site written to attack job-bot could load the collector and capture the token: the
 // token raises the bar for drive-by posts, it is not authentication.
 // The extension origin needs no token: web pages cannot forge a chrome-extension:// Origin header.
-// The token is random, generated on first use and kept in data/import-token (data/ is gitignored). Never put it in a URL.
-const tokenFile = () => join(BOT_ROOT, 'data', 'import-token');
+// The token is random, generated on first use and kept in import-token in the data folder (data/, gitignored, or JOB_BOT_DATA_DIR). Never put it in a URL.
+const tokenFile = () => join(botDataDir(), 'import-token');
 
-/** The local import token, creating data/import-token on first use (or when its content is not a token). */
+/** The local import token, creating the import-token file on first use (or when its content is not a token). */
 export function importToken(): string {
   try {
     const token = readFileSync(tokenFile(), 'utf8').trim();
@@ -33,7 +33,7 @@ export function importToken(): string {
     // Missing file: generate one below.
   }
   const token = randomBytes(32).toString('hex');
-  mkdirSync(join(BOT_ROOT, 'data'), { recursive: true });
+  mkdirSync(botDataDir(), { recursive: true });
   writeFileSync(tokenFile(), `${token}\n`, { mode: 0o600 });
   return token;
 }

@@ -3,7 +3,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import { BOT_ROOT, runBot, spawnBot } from '@/lib/bot';
+import { BOT_ROOT, botDataDir, runBot, spawnBot } from '@/lib/bot';
 
 // The CLI gets the bot's own test database (job_bot_test[_name] -> job_bot_test_bot[_name]), never job_bot.
 const BOT_DB_URL = process.env.DATABASE_URL!.replace(/\/job_bot_test(_[a-z0-9]+)?$/, '/job_bot_test_bot$1');
@@ -36,6 +36,15 @@ describe('BOT_ROOT', () => {
     expect(process.cwd()).toBe(join(repoRoot, 'web'));
     expect(BOT_ROOT).toBe(repoRoot);
     expect(existsSync(join(BOT_ROOT, 'src', 'cli.ts'))).toBe(true);
+  });
+});
+
+describe('botDataDir', () => {
+  it('is JOB_BOT_DATA_DIR (a temp dir in tests, web/tests/setup.ts), read on every call, else BOT_ROOT/data', () => {
+    expect(botDataDir()).toBe(process.env.JOB_BOT_DATA_DIR);
+    expect(botDataDir()).not.toBe(join(BOT_ROOT, 'data'));
+    vi.stubEnv('JOB_BOT_DATA_DIR', '');
+    expect(botDataDir()).toBe(join(BOT_ROOT, 'data'));
   });
 });
 
@@ -88,7 +97,7 @@ describe('spawnBot', () => {
     throw new Error(`task ${id} did not finish`);
   }
 
-  it('starts a detached task:run worker that runs the task and logs to data/logs/tasks.log', async () => {
+  it('starts a detached task:run worker that runs the task and logs to logs/tasks.log in the data folder', async () => {
     withBotDb();
     const review = { score: 77, verdict: 'good', summary: 'Spawned', reasons: [], gaps: [], red_flags: [] };
     vi.stubEnv('FAKE_CLAUDE_OUT', JSON.stringify(review));
@@ -109,6 +118,9 @@ describe('spawnBot', () => {
       rows: [job],
     } = await db.query(`SELECT ai_score, ai_summary FROM jobs WHERE id = 'webtest:spawn'`);
     expect(job).toEqual({ ai_score: 77, ai_summary: 'Spawned' });
-    expect(readFileSync(join(BOT_ROOT, 'data', 'logs', 'tasks.log'), 'utf8')).toContain(`task ${id}: done`);
+    expect(readFileSync(join(botDataDir(), 'logs', 'tasks.log'), 'utf8')).toContain(`task ${id}: done`);
+    // Never the real data/logs/tasks.log.
+    const real = join(BOT_ROOT, 'data', 'logs', 'tasks.log');
+    expect(existsSync(real) ? readFileSync(real, 'utf8') : '').not.toContain(`task ${id}: `);
   }, 30_000);
 });
