@@ -62,13 +62,26 @@ const commands: Record<string, () => Promise<Command>> = {
   restore: async () => (await import('./commands/backup.ts')).restore,
   daily: async () => (await import('./commands/daily.ts')).daily,
   'schedule:print': async () => (await import('./commands/schedule.ts')).schedulePrint,
+  doctor: async () => (await import('./commands/doctor.ts')).doctor,
 };
 // Commands that only touch files, or manage their own connection (backup, restore): no pool and no migrations first.
 // restore especially: migrating the database it is about to replace would only be undone.
-const NO_DB = ['settings:check', 'settings:save', 'setup', 'backup', 'restore', 'daily', 'schedule:print', 'cv:templates', 'cv:preview'];
+const NO_DB = [
+  'settings:check',
+  'settings:save',
+  'setup',
+  'backup',
+  'restore',
+  'daily',
+  'schedule:print',
+  'cv:templates',
+  'cv:preview',
+  'doctor',
+];
 // Commands that run without reading config.json, so they still work while it is broken (settings:save fixes it).
 // Every other command validates it before it starts: a typo stops it with the file and field, before any work.
 const NO_CONFIG = [
+  'doctor',
   'settings:check',
   'settings:save',
   'setup',
@@ -88,6 +101,7 @@ ensureConfigFile();
 
 const HELP = `Commands:
   setup                           first run: questions for your profile and target countries (cv/applicant.json, config.json)
+  doctor                          check the setup (Node, packages, settings, CV, database, PDF renderer, AI) and how to fix it
   sponsors:update                 download Dutch IND recognised-sponsor register
   fetch [--company name]          pull jobs from company boards, filter + score
   rescore                         re-apply filters/scoring to stored jobs (after config changes)

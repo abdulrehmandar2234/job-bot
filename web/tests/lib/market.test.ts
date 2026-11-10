@@ -9,7 +9,7 @@ import { readCountryLabels, readMarketLine, readProfileStatus } from '@/lib/prof
 const json = (f: string) => JSON.parse(readFileSync(join(BOT_ROOT, f), 'utf8'));
 const OWNER_CONFIG = json('config.default.json');
 const OWNER_APPLICANT = json('tests/fixtures/applicant-owner.json');
-const OWNER_MASTER = json('cv/master.json');
+const OWNER_MASTER = json('tests/fixtures/master-owner.json');
 
 const dir = mkdtempSync(join(tmpdir(), 'job-bot-market-'));
 const tmp = (name: string, data: unknown) => {

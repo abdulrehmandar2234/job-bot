@@ -6,13 +6,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { PassThrough, Readable } from 'node:stream';
 import './helpers.ts';
-import { claudePathHint, DEFAULT_DATABASE_URL, runSetup } from '../src/commands/setup.ts';
+import { claudePathHint, DEFAULT_DATABASE_URL, runSetup, type SetupFiles } from '../src/commands/setup.ts';
+import type { DbState } from '../src/db-check.ts';
 import { effectiveRemoteRules } from '../src/regions.ts';
 import { validateApplicant, validateConfig } from '../src/settings.ts';
 
 const ROOT = join(import.meta.dirname, '..');
 const OWNER_APPLICANT = join(import.meta.dirname, 'fixtures', 'applicant-owner.json');
-const OWNER_MASTER = JSON.parse(readFileSync(join(ROOT, 'cv', 'master.json'), 'utf8'));
+const OWNER_MASTER = JSON.parse(readFileSync(join(ROOT, 'tests', 'fixtures', 'master-owner.json'), 'utf8'));
 const JANE_MASTER = JSON.parse(readFileSync(join(ROOT, 'cv', 'master.example.json'), 'utf8'));
 const json = (f: string) => JSON.parse(readFileSync(f, 'utf8'));
 
@@ -27,7 +28,7 @@ function files(applicant?: string) {
 }
 
 /** Runs the wizard with these answer lines; returns its result and everything it printed. */
-async function run(answers: string[], f: { config: string; applicant: string; env?: string; webEnv?: string }, master: object) {
+async function run(answers: string[], f: Omit<SetupFiles, 'master'>, master: object) {
   const output = new PassThrough();
   let printed = '';
   output.on('data', (d) => (printed += d));
@@ -324,7 +325,10 @@ describe('setup wizard', () => {
 
   it('writes nothing when the input ends before a required answer', async () => {
     const f = files();
-    await assert.rejects(run(['', '', '', '', 'Lisbon', 'Portugal'], f, JANE_MASTER), /no valid answer for "Its two-letter country code/);
+    await assert.rejects(
+      run(['', '', '', '', 'Lisbon', 'Portugal'], f, JANE_MASTER),
+      /Setup stopped: the input ended without a valid answer for "Its two-letter country code.*Nothing was saved\./,
+    );
     assert.equal(existsSync(f.applicant), false);
   });
 
@@ -433,5 +437,87 @@ describe('setup wizard: .env files', () => {
     assert.equal(ok, true, printed);
     assert.doesNotMatch(printed, /Database connection/);
     assert.equal(readFileSync(f.env, 'utf8'), 'X=1\n');
+  });
+});
+
+describe('setup wizard: the CV and the database', () => {
+  /** A fake database server in a given state; records what was created. */
+  const fakeDb = (state: DbState, fail = false) => {
+    const created: string[] = [];
+    return {
+      created,
+      database: {
+        check: async () => state,
+        create: async (url: string) => {
+          if (fail) throw new Error('permission denied to create database');
+          created.push(url);
+        },
+      },
+    };
+  };
+  const URL_ = 'postgres://postgres@127.0.0.1:5432/job_bot';
+
+  it('offers to create a missing database, and creates it after a yes', async () => {
+    const db = fakeDb({ state: 'missing', name: 'job_bot' });
+    const saved = process.env.DATABASE_URL;
+    process.env.DATABASE_URL = URL_;
+    try {
+      const { ok, printed } = await run(['y', ...JANE], { ...files(), database: db.database }, JANE_MASTER);
+      assert.equal(ok, true, printed);
+      assert.match(printed, /The database "job_bot" does not exist yet\. Create it now\?/);
+      assert.match(printed, /Created the database "job_bot"/);
+      assert.deepEqual(db.created, [URL_]);
+    } finally {
+      process.env.DATABASE_URL = saved;
+    }
+  });
+
+  it('a no, a failed create, an unreachable server or an existing database never stop the wizard', async () => {
+    const saved = process.env.DATABASE_URL;
+    process.env.DATABASE_URL = URL_;
+    try {
+      const no = fakeDb({ state: 'missing', name: 'job_bot' });
+      const r1 = await run(['n', ...JANE], { ...files(), database: no.database }, JANE_MASTER);
+      assert.equal(r1.ok, true, r1.printed);
+      assert.match(r1.printed, /Not created\. .*createdb -h 127\.0\.0\.1 -U postgres job_bot/);
+      assert.deepEqual(no.created, []);
+
+      const broken = fakeDb({ state: 'missing', name: 'job_bot' }, true);
+      const r2 = await run(['y', ...JANE], { ...files(), database: broken.database }, JANE_MASTER);
+      assert.equal(r2.ok, true, r2.printed);
+      assert.match(r2.printed, /Could not create it: permission denied/);
+
+      const down = fakeDb({ state: 'error', message: 'nothing answers at postgres@127.0.0.1:5432: is PostgreSQL running?' });
+      const r3 = await run(JANE, { ...files(), database: down.database }, JANE_MASTER);
+      assert.equal(r3.ok, true, r3.printed);
+      assert.match(r3.printed, /Could not reach the database \(nothing answers .*\)\. .*npm run bot -- doctor/);
+
+      const there = fakeDb({ state: 'ok' });
+      const r4 = await run(JANE, { ...files(), database: there.database }, JANE_MASTER);
+      assert.equal(r4.ok, true, r4.printed);
+      assert.doesNotMatch(r4.printed, /database "/);
+    } finally {
+      process.env.DATABASE_URL = saved;
+    }
+  });
+
+  it('offers to start a missing cv/master.json from the example CV; an existing one is never touched', async () => {
+    const f = files();
+    const masterPath = join(f.config, '..', 'master.json');
+    const masterExample = join(ROOT, 'cv', 'master.example.json');
+    const { ok, printed } = await run(['y', ...JANE], { ...f, masterPath, masterExample }, JANE_MASTER);
+    assert.equal(ok, true, printed);
+    assert.match(printed, /master\.json is missing/);
+    assert.equal(readFileSync(masterPath, 'utf8'), readFileSync(masterExample, 'utf8'));
+
+    const again = await run(JANE, { ...files(), masterPath, masterExample }, JANE_MASTER);
+    assert.equal(again.ok, true, again.printed);
+    assert.doesNotMatch(again.printed, /is missing/);
+
+    const g = files();
+    const none = join(g.config, '..', 'master.json');
+    const r = await run(['n', ...JANE], { ...g, masterPath: none, masterExample }, JANE_MASTER);
+    assert.equal(r.ok, true, r.printed);
+    assert.equal(existsSync(none), false);
   });
 });

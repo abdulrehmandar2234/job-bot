@@ -2,14 +2,17 @@
   "name": "Abdul Rehman Dar",
   "title": "Senior Full Stack Engineer",
   "contact": {
-    "phone": "+92 321 4979646",
-    "email": "abdulrehmandar2234@gmail.com",
+    "phone": "+92 300 0000000",
+    "email": "owner@example.com",
     "location": "Lahore, Pakistan",
-    "linkedin": "https://www.linkedin.com/in/abdulrehman-dar/"
+    "linkedin": "https://www.linkedin.com/in/owner-example/"
   },
   "summary": "Senior Full Stack Engineer with 7+ years of experience designing and building scalable, high-performance web applications across the MERN stack (Node.js, NestJS, React, Next.js, MongoDB) and PHP/Laravel. Currently building LLM-powered recruitment features (AI screening and AI interviews) at Qureos on NestJS and Next.js, with prior fintech experience delivering KYC, portfolio management, and compliance features for a regulated robo-advisory platform in Laravel. Strong record of developing RESTful and GraphQL APIs, optimizing database performance, leading code reviews, and mentoring engineers in agile teams.",
   "skills": [
-    { "group": "Languages & Runtimes", "items": ["PHP", "JavaScript", "TypeScript", "Node.js"] },
+    {
+      "group": "Languages & Runtimes",
+      "items": ["PHP", "JavaScript", "TypeScript", "Node.js"]
+    },
     {
       "group": "Frameworks & Libraries",
       "items": [
@@ -28,8 +31,14 @@
         "jQuery"
       ]
     },
-    { "group": "Databases & ORMs", "items": ["MongoDB", "PostgreSQL", "MySQL", "Mongoose", "Sequelize", "TypeORM", "Prisma", "Eloquent"] },
-    { "group": "APIs & Web", "items": ["REST APIs", "GraphQL", "OAuth", "JWT", "Passport.js", "Web Scraping"] },
+    {
+      "group": "Databases & ORMs",
+      "items": ["MongoDB", "PostgreSQL", "MySQL", "Mongoose", "Sequelize", "TypeORM", "Prisma", "Eloquent"]
+    },
+    {
+      "group": "APIs & Web",
+      "items": ["REST APIs", "GraphQL", "OAuth", "JWT", "Passport.js", "Web Scraping"]
+    },
     {
       "group": "AI Tools & Agentic Development",
       "items": [
@@ -43,7 +52,10 @@
         "Claude"
       ]
     },
-    { "group": "DevOps & Tools", "items": ["AWS", "Docker", "Git", "Bitbucket", "Jira"] },
+    {
+      "group": "DevOps & Tools",
+      "items": ["AWS", "Docker", "Git", "Bitbucket", "Jira"]
+    },
     {
       "group": "Testing & Practices",
       "items": ["Pest", "PHPUnit", "Jest", "Mocha", "Unit & Integration Testing", "Agile/Scrum", "Code Review", "CI/CD"]
@@ -158,7 +170,11 @@
     }
   ],
   "education": [
-    { "school": "University of Management & Technology", "degree": "Masters, Artificial Intelligence", "dates": "Oct 2025 — Present" },
+    {
+      "school": "University of Management & Technology",
+      "degree": "Masters, Artificial Intelligence",
+      "dates": "Oct 2025 — Present"
+    },
     {
       "school": "National College of Business Administration and Economics",
       "degree": "Bachelors, Information Technology",

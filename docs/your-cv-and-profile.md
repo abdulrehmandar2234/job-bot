@@ -28,7 +28,7 @@ The bot only re-orders, re-frames, shortens or selects what is in `cv/master.jso
 
 ## Your CV: `cv/master.json`
 
-The repository's `cv/master.json` is the original owner's CV. Start from the fictional example and replace it with yourself:
+`cv/master.json` is gitignored, so a fresh clone has none: `npm run bot -- setup` offers to start it from the fictional example. Or copy it yourself and replace the example person with yourself:
 
 ```bash
 cp cv/master.example.json cv/master.json          # Windows PowerShell: Copy-Item cv\master.example.json cv\master.json -Force

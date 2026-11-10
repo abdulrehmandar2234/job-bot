@@ -19,6 +19,10 @@ process.env.JOB_BOT_NOTIFY ||= 'off';
 // letters, prompts and filters they check do not depend on whoever runs them. Suites that test other profiles set
 // JOB_BOT_APPLICANT themselves (src/profile.ts reads it on every call).
 process.env.JOB_BOT_APPLICANT ||= join(import.meta.dirname, 'fixtures', 'applicant-owner.json');
+// The CV likewise: cv/master.json is the user's own and gitignored. Tests use the owner's CV with placeholder contact
+// details (tests/fixtures/master-owner.json); suites about other CVs set JOB_BOT_MASTER themselves.
+export const OWNER_MASTER = join(import.meta.dirname, 'fixtures', 'master-owner.json');
+process.env.JOB_BOT_MASTER ||= OWNER_MASTER;
 
 // config.json is personal and gitignored too: tests use a temp copy of the shipped config.default.json, so they never
 // depend on (or write) whoever runs them. Suites that test other settings set JOB_BOT_CONFIG themselves.

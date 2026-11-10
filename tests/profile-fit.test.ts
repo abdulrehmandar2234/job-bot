@@ -13,7 +13,7 @@ import { versionCv } from '../src/ats.ts';
 
 // The cluster profiles (src/cv/profiles.ts) were written for the owner's master CV. Their title and summary go on a
 // CV only when that CV's master shows everything they name; another user's version keeps its own title and summary.
-const owner = JSON.parse(readFileSync(path('cv', 'master.json'), 'utf8')) as Cv;
+const owner = JSON.parse(readFileSync(path('tests', 'fixtures', 'master-owner.json'), 'utf8')) as Cv;
 const jane = JSON.parse(readFileSync(path('cv', 'master.example.json'), 'utf8')) as Cv;
 const noChrome = !resolveChrome(config.chromePath) && 'Chrome not installed';
 

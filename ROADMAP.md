@@ -70,4 +70,4 @@ Ideas from the last review and from real use, none started yet:
 
 ## Privacy
 
-- The repo is private because it contains your CV PDFs and `cv/master.json` (phone, email). If you ever want to make the code public, move personal CV data to a gitignored folder first and keep only an example CV in the repo.
+- The repo is public. Personal files are gitignored and stay on your computer: `cv/master.json`, the CV PDFs (`cv/default/`, `cv/original/`, `cv/versions/`), `cv/applicant.json`, `config.json`, `.env`, `applications/` and `data/`. Tests use `tests/fixtures/master-owner.json`, the owner's CV with placeholder contact details. Files removed from git still exist in its history.

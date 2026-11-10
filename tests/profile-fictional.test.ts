@@ -42,7 +42,7 @@ const { scoreJob, SKILLS } = await import('../src/match.ts');
 const { loadProfile } = await import('../src/profile.ts');
 const { BOARDS } = await import('../src/sources/boards.ts');
 
-const OWNER = /Abdul|Rehman|Lahore|Pakistan|GMT\+5|4979646|abdulrehmandar|Qureos|Abyan|\bUrdu\b/;
+const OWNER = /Abdul|Rehman|Lahore|Pakistan|GMT\+5|abdulrehmandar|Qureos|Abyan|\bUrdu\b/;
 const GENDERED = /\b(he|his|him|himself)\b/i;
 
 const FAKE = join(import.meta.dirname, 'fixtures', 'fake-claude.mjs');
