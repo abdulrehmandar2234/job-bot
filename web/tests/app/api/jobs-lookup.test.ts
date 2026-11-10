@@ -96,6 +96,39 @@ describe('GET /api/jobs/lookup', () => {
     expect((await (await get(`${SITE}/2?utm=x`)).json()).job.id).toBe(`${PREFIX}exact`);
   });
 
+  it('tells jobs apart that share a path and differ in a job id parameter (Greenhouse embed)', async () => {
+    await insertJob({ id: 'one', url: 'https://acme.com/careers?gh_jid=1', cover_letter: 'Letter for job 1' });
+    await insertJob({ id: 'two', url: 'https://acme.com/careers?gh_jid=2', cover_letter: 'Letter for job 2' });
+    const lookup = async (url: string) => (await (await get(url)).json()).job;
+    expect(await lookup('https://acme.com/careers?gh_jid=1')).toMatchObject({ id: `${PREFIX}one`, cover_letter: 'Letter for job 1' });
+    expect(await lookup('https://acme.com/careers?gh_jid=2')).toMatchObject({ id: `${PREFIX}two`, cover_letter: 'Letter for job 2' });
+    // Tracking parameters, hash and trailing slash are still ignored.
+    expect((await lookup('https://acme.com/careers/?gh_jid=1&utm_source=li#app')).id).toBe(`${PREFIX}one`);
+    expect((await lookup('https://acme.com/careers?utm_source=li&gh_jid=2')).id).toBe(`${PREFIX}two`);
+    // Neither the listing page nor a third job is either of them.
+    expect(await lookup('https://acme.com/careers')).toBeNull();
+    expect(await lookup('https://acme.com/careers?gh_jid=3')).toBeNull();
+  });
+
+  it('still matches a plain path loosely when only tracking parameters differ', async () => {
+    await insertJob({ id: 'a', url: `${SITE}/jobs/9?utm_source=board&ref=x` });
+    expect((await (await get(`${SITE}/jobs/9/?trk=li#apply`)).json()).job.id).toBe(`${PREFIX}a`);
+  });
+
+  it('answers null rather than guess between jobs that only differ in an unknown parameter', async () => {
+    await insertJob({ id: 'a', url: `${SITE}/apply?posting=1` });
+    await insertJob({ id: 'b', url: `${SITE}/apply?posting=2` });
+    expect((await (await get(`${SITE}/apply?posting=3`)).json()).job).toBeNull();
+    // An exact match is still found.
+    expect((await (await get(`${SITE}/apply?posting=2`)).json()).job.id).toBe(`${PREFIX}b`);
+  });
+
+  it('matches loosely when the matching rows are one job and its copy', async () => {
+    await insertJob({ id: 'primary', url: `${SITE}/3?ref=a`, cover_letter: 'Prepared letter' });
+    await insertJob({ id: 'copy', url: `${SITE}/3?ref=b`, duplicate_of: `${PREFIX}primary` });
+    expect((await (await get(`${SITE}/3?ref=c`)).json()).job).toMatchObject({ id: `${PREFIX}primary`, cover_letter: 'Prepared letter' });
+  });
+
   it('does not match another path that only shares a prefix', async () => {
     await insertJob({ id: 'a', url: `${SITE}/1` });
     expect((await (await get(`${SITE}/12`)).json()).job).toBeNull();

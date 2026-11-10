@@ -55,29 +55,90 @@ export function isHttpUrl(url: unknown): url is string {
   }
 }
 
-/** The URL without query, hash and trailing slash (same rule as extension/lib/url.js). */
-export function normalizeUrl(url: string) {
-  const u = new URL(url);
-  return `${u.protocol}//${u.host}${u.pathname.replace(/\/+$/, '')}`;
-}
+/**
+ * Query parameters (compared lowercase) that name the job itself on sites where the path is the same for every
+ * job: Greenhouse and Ashby embeds on a company's own careers page (gh_jid, ashby_jid), Indeed (jk, vjk),
+ * Glassdoor (jl), LinkedIn's split view (currentJobId), Taleo (job), SuccessFactors (career_job_req_id) and the
+ * generic jobId / job_id / jid / id / postingId / reqId / requisitionId of smaller ATSs. Every other parameter
+ * (utm_*, ref, source, trk, ...) is tracking and dropped. Keeping one too many only costs a loose match (the job
+ * shows as not in job-bot); dropping a job id would show another job's letter and answers, so this errs on keeping.
+ * Same list as JOB_ID_PARAMS in extension/lib/url.js (web/tests/lib/extension-url.test.ts checks).
+ */
+export const JOB_ID_PARAMS: readonly string[] = [
+  'gh_jid',
+  'ashby_jid',
+  'jk',
+  'vjk',
+  'jl',
+  'currentjobid',
+  'job',
+  'jobid',
+  'job_id',
+  'jid',
+  'id',
+  'postingid',
+  'posting_id',
+  'reqid',
+  'req_id',
+  'requisitionid',
+  'career_job_req_id',
+];
 
-// Same normalization in SQL, for the stored urls.
-const NORMALIZED = `rtrim(split_part(split_part(url, '#', 1), '?', 1), '/')`;
+/** The URL without hash, trailing slash and query, so the same as `NORMALIZED` below in SQL. */
+const pathOnly = (u: URL) => `${u.protocol}//${u.host}${u.pathname.replace(/\/+$/, '')}`;
 
 /**
- * The job posted at `url`: an exact url match first, else one whose url only differs in query, hash or
- * trailing slash. A copy found on another site resolves to its primary row, which holds the prepared material.
+ * The URL without hash, trailing slash and tracking parameters: only the job id parameters (JOB_ID_PARAMS) stay,
+ * lowercased and sorted, so `?utm_source=x&gh_jid=5` and `?gh_jid=5` are the same job and `?gh_jid=6` is another.
+ * Same rule as normalizeUrl in extension/lib/url.js.
+ */
+export function normalizeUrl(url: string) {
+  const u = new URL(url);
+  const ids = [...u.searchParams]
+    .map(([k, v]) => [k.toLowerCase(), v] as [string, string])
+    .filter(([k, v]) => v !== '' && JOB_ID_PARAMS.includes(k))
+    .sort(([ak, av], [bk, bv]) => (ak === bk ? (av < bv ? -1 : av > bv ? 1 : 0) : ak < bk ? -1 : 1));
+  return `${pathOnly(u)}${ids.length ? `?${new URLSearchParams(ids)}` : ''}`;
+}
+
+const normalizedOrNull = (url: string) => {
+  try {
+    return normalizeUrl(url);
+  } catch {
+    return null; // a stored url that is not a URL never matches loosely
+  }
+};
+
+// The path-only normalization (pathOnly above) in SQL, for the stored urls: it finds the candidates through an
+// index (src/migrations/009_url_index.sql), and normalizeUrl then keeps those with the same job id parameters.
+const NORMALIZED = `rtrim(split_part(split_part(url, '#', 1), '?', 1), '/')`;
+
+type Candidate = Pick<Job, 'id' | 'url' | 'duplicate_of'>;
+
+/**
+ * The job posted at `url`: an exact url match first, else one whose url only differs in tracking parameters, hash
+ * or trailing slash (normalizeUrl). When several different jobs match that loosely (they differ in a parameter
+ * normalizeUrl drops) there is no telling which one the page shows, so the answer is null, never a guess.
+ * A copy found on another site resolves to its primary row, which holds the prepared material.
  */
 export async function findJobByUrl(url: string): Promise<Job | null> {
-  const { rows } = await pool.query<Job>(
-    `SELECT * FROM jobs WHERE url = $1 OR ${NORMALIZED} = $2
-     ORDER BY (url = $1) DESC, (duplicate_of IS NULL) DESC, first_seen_at DESC LIMIT 1`,
-    [url, normalizeUrl(url)],
+  const { rows } = await pool.query<Candidate>(
+    `SELECT id, url, duplicate_of FROM jobs WHERE url = $1 OR ${NORMALIZED} = $2
+     ORDER BY (url = $1) DESC, (duplicate_of IS NULL) DESC, first_seen_at DESC`,
+    [url, pathOnly(new URL(url))],
   );
-  const job = rows[0];
-  if (!job?.duplicate_of) return job ?? null;
-  const { rows: primary } = await pool.query<Job>('SELECT * FROM jobs WHERE id = $1', [job.duplicate_of]);
-  return primary[0] ?? job;
+  let job: Candidate | undefined = rows.find((r) => r.url === url);
+  if (!job) {
+    const want = normalizeUrl(url);
+    const loose = rows.filter((r) => normalizedOrNull(r.url) === want);
+    if (new Set(loose.map((r) => r.duplicate_of ?? r.id)).size !== 1) return null;
+    job = loose[0];
+  }
+  for (const id of job.duplicate_of ? [job.duplicate_of, job.id] : [job.id]) {
+    const { rows: found } = await pool.query<Job>('SELECT * FROM jobs WHERE id = $1', [id]);
+    if (found[0]) return found[0];
+  }
+  return null;
 }
 
 /** What the extension may type into application forms: name and contact details. */

@@ -171,6 +171,18 @@ describe('POST /api/import from the Chrome extension', () => {
     ]);
   });
 
+  it('adds another job of the same careers page that differs only in its job id parameter', async () => {
+    const id = await insertJob({ id: 'known', url: 'https://acme.com/careers?gh_jid=1' });
+    const body = await (
+      await post([job({ url: 'https://acme.com/careers?gh_jid=1&utm_source=li' }), job({ url: 'https://acme.com/careers?gh_jid=2' })])
+    ).json();
+    expect(imported().map((j) => j.url)).toEqual(['https://acme.com/careers?gh_jid=2']);
+    expect(body.results).toMatchObject([
+      { outcome: 'known', id },
+      { url: 'https://acme.com/careers?gh_jid=2', outcome: 'added', id: expect.stringMatching(new RegExp(`^${PREFIX}ext-`)) },
+    ]);
+  });
+
   it('adds only the unknown jobs of a mixed request and keeps the order', async () => {
     await insertJob({ id: 'known', url: `${SITE}/jobs/7` });
     const body = await (await post([job({ url: `${SITE}/jobs/8` }), job({ url: `${SITE}/jobs/7` })])).json();

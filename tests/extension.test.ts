@@ -55,6 +55,19 @@ describe('url', () => {
     assert.equal(normalizeUrl('ftp://a.example/x'), null);
   });
 
+  it('keeps the job id parameters, lowercased and sorted, and drops tracking ones', () => {
+    assert.equal(normalizeUrl('https://acme.com/careers?gh_jid=1'), 'https://acme.com/careers?gh_jid=1');
+    assert.equal(normalizeUrl('https://acme.com/careers/?utm_source=li&gh_jid=1#app'), 'https://acme.com/careers?gh_jid=1');
+    assert.notEqual(normalizeUrl('https://acme.com/careers?gh_jid=1'), normalizeUrl('https://acme.com/careers?gh_jid=2'));
+    assert.equal(normalizeUrl('https://www.indeed.com/viewjob?jk=abc&from=serp&vjs=3'), 'https://www.indeed.com/viewjob?jk=abc');
+    assert.equal(
+      normalizeUrl('https://www.linkedin.com/jobs/search/?keywords=php&currentJobId=42&trk=x'),
+      'https://www.linkedin.com/jobs/search?currentjobid=42',
+    );
+    assert.equal(normalizeUrl('https://a.example/j?req_id=9&jobId=3&ref=x'), 'https://a.example/j?jobid=3&req_id=9');
+    assert.equal(normalizeUrl('https://a.example/j?id=&utm_medium=x&ref=y'), 'https://a.example/j');
+  });
+
   it('derives the source from known job boards, else "extension"', () => {
     assert.equal(sourceFromUrl('https://www.gulftalent.com/uae/jobs/1'), 'gulftalent');
     assert.equal(sourceFromUrl('https://ae.linkedin.com/jobs/view/1'), 'linkedin');
@@ -547,6 +560,9 @@ describe('sameTab', () => {
     assert.equal(sameTab(shown, { id: 7, url: 'https://boards.greenhouse.io/acme/jobs/1#app' }), true);
     assert.equal(sameTab(shown, { id: 8, url: shown.url }), false); // another tab
     assert.equal(sameTab(shown, { id: 7, url: 'https://boards.greenhouse.io/acme/jobs/2' }), false); // navigated away
+    const embed = { id: 7, url: 'https://acme.com/careers?gh_jid=1' };
+    assert.equal(sameTab(embed, { id: 7, url: 'https://acme.com/careers?gh_jid=1&utm_source=li' }), true);
+    assert.equal(sameTab(embed, { id: 7, url: 'https://acme.com/careers?gh_jid=2' }), false); // another job, same path
     assert.equal(sameTab(null, { id: 7, url: shown.url }), false);
     assert.equal(sameTab(shown, undefined), false);
   });
