@@ -77,20 +77,29 @@ export function jobFromPosting(p, pageUrl) {
   };
 }
 
-/** Best guess at title and company from a page title such as "Backend Engineer at Acme | LinkedIn". */
+// Words some job sites put before the job title in the page title ("Job Application for … at Acme": Greenhouse).
+const LEAD_IN = /^(?:job application for|application for|apply for|apply to)\s+/i;
+
+/**
+ * Best guess at title and company from a page title such as "Backend Engineer at Acme | LinkedIn". "Title at
+ * company" is looked for across the strong separators (| · – —) first: a plain hyphen is often part of the job
+ * title itself ("Job Application for Assistant Manager - Internal Audit at Groww"). Otherwise the first two parts.
+ */
 export function guessFromTitle(pageTitle, siteName = '') {
-  const parts = String(pageTitle ?? '')
-    .split(/\s+[|·–—-]\s+/)
-    .map((s) => s.trim())
-    .filter(Boolean);
   const site = String(siteName ?? '')
     .trim()
     .toLowerCase();
-  const kept = parts.filter((p) => p.toLowerCase() !== site);
-  const first = kept[0] ?? '';
-  const at = first.match(/^(.+?)\s+at\s+(.+)$/i);
-  if (at) return { title: at[1].trim(), company: at[2].trim() };
-  return { title: first, company: kept[1] ?? '' };
+  const parts = (re) =>
+    String(pageTitle ?? '')
+      .split(re)
+      .map((s) => s.trim().replace(LEAD_IN, ''))
+      .filter((p) => p && p.toLowerCase() !== site);
+  for (const part of parts(/\s+[|·–—]\s+/)) {
+    const at = part.match(/^(.+)\s+at\s+(.+?)$/i);
+    if (at) return { title: at[1].trim(), company: at[2].trim() };
+  }
+  const kept = parts(/\s+[|·–—-]\s+/);
+  return { title: kept[0] ?? '', company: kept[1] ?? '' };
 }
 
 /**
@@ -111,7 +120,7 @@ export function jobFromPage(page) {
       source: sourceFromUrl(page.url),
       company: guess.company,
       title: guess.title,
-      location: '',
+      location: cleanText(page.locationText ?? ''),
       url: page.url,
       description: text.slice(0, 20000),
       posted_at: null,

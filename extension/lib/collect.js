@@ -3,7 +3,14 @@
 export function collectPage() {
   const meta = (name) => document.querySelector(`meta[property="${name}"], meta[name="${name}"]`)?.content ?? '';
   const main = document.querySelector('main, [role="main"], article') ?? document.body;
+  // A short one-line element named "location" (Greenhouse's job__location), for pages without JobPosting data.
+  const locationText =
+    [...document.querySelectorAll('[class*="location" i], [id*="location" i]')]
+      .filter((el) => !el.closest('form') && !['INPUT', 'SELECT', 'TEXTAREA'].includes(el.tagName))
+      .map((el) => (el.innerText ?? el.textContent ?? '').trim())
+      .find((t) => t.length >= 2 && t.length <= 100 && !t.includes('\n')) ?? '';
   return {
+    locationText,
     url: location.href,
     title: document.title,
     siteName: meta('og:site_name'),
