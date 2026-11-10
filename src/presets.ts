@@ -1,7 +1,8 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { z } from 'zod';
-import { path } from './settings.ts';
+import { ConfigError } from './errors.ts';
+import { path, type SettingsError } from './settings.ts';
 
 // Ready-made starting points for config.json, in presets/: markets (where to look: countries, LinkedIn locations,
 // company boards) and stacks (what to look for: keywords and title filters). `npm run bot -- setup` offers them;
@@ -90,13 +91,32 @@ function load<S extends z.ZodType>(kind: PresetKind, schema: S, dir: string): (z
 export const loadMarkets = (dir = PRESETS_DIR): Market[] => load('markets', marketSchema, dir);
 export const loadStacks = (dir = PRESETS_DIR): Stack[] => load('stacks', stackSchema, dir);
 
-/** The presets with these ids, in the order given; throws on an unknown id and lists the known ones. */
+const findPreset = <T extends { id: string }>(all: T[], id: string) => all.find((p) => p.id === id.trim().toLowerCase());
+
+/** The presets with these ids, in the order given; throws a ConfigError on an unknown id and lists the known ones. */
 export function pick<T extends { id: string }>(all: T[], ids: string[], kind: PresetKind): T[] {
   return ids.map((id) => {
-    const found = all.find((p) => p.id === id.trim().toLowerCase());
-    if (!found) throw new Error(`unknown ${kind.slice(0, -1)} preset "${id}" (known: ${all.map((p) => p.id).join(', ')})`);
+    const found = findPreset(all, id);
+    if (!found) throw new ConfigError(`unknown ${kind.slice(0, -1)} preset "${id}" (known: ${all.map((p) => p.id).join(', ')})`);
     return found;
   });
+}
+
+/**
+ * config.json `stacks` checked against the stack preset files: one error per unknown id, in the settings error shape
+ * (`stacks[1]`). Missing, empty or not a list of strings gives none (the schema reports a wrong type). It reads
+ * presets/, so it runs where settings are loaded or saved (src/config.ts, settings:check / settings:save), never in
+ * the zod schema the dashboard imports.
+ */
+export function stackErrors(stacks: unknown, dir = PRESETS_DIR): SettingsError[] {
+  if (!Array.isArray(stacks) || !stacks.length) return [];
+  const all = loadStacks(dir);
+  const known = all.map((s) => s.id).join(', ');
+  return stacks.flatMap((id, i) =>
+    typeof id !== 'string' || !id || findPreset(all, id)
+      ? []
+      : [{ path: `stacks[${i}]`, message: `unknown stack "${id}" (known: ${known}; one per file in presets/stacks/)` }],
+  );
 }
 
 /** Splits a regex on its top-level "|" (not inside groups or classes), so "a|(b|c)|d" gives a, (b|c), d. */

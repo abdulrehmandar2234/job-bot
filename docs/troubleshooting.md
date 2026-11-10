@@ -18,6 +18,7 @@ Contents:
   - [The CV PDF has someone else's headline or summary](#the-cv-pdf-has-someone-elses-headline-or-summary)
   - [No notifications](#no-notifications)
   - [The backup fails](#the-backup-fails)
+  - [Restore a backup](#restore-a-backup)
   - [The "Set up your profile" banner](#the-set-up-your-profile-banner)
   - ["Invalid settings file ..."](#invalid-settings-file-)
   - [Tests fail after you replaced `config.json` or `cv/master.json`](#tests-fail-after-you-replaced-configjson-or-cvmasterjson)
@@ -103,6 +104,39 @@ Run `npm run bot -- daily` by hand: `data/fetch.log` gets a `notification:` line
 - `pg_dump not found`: put PostgreSQL's `bin` folder on the PATH, or set `JOB_BOT_PG_DUMP` in `.env` to `pg_dump`'s full path (`pg_dump.exe` on Windows).
 - A password error: put the password in `DATABASE_URL` in `.env`.
 - `server version mismatch`: use the `pg_dump` of the same (or a newer) PostgreSQL version as the server, through `JOB_BOT_PG_DUMP`.
+
+### Restore a backup
+
+Database migrations only go forward, so a backup is the way back from a bad update or a damaged database. The daily run keeps one per day for 14 days in `data/backups/` (`job_bot-YYYY-MM-DD.sql.gz`); `npm run bot -- backup` makes one now.
+
+1. Stop the dashboard (Ctrl+C where `npm run web` runs), so nothing holds the database open.
+2. Pick the file, e.g. the last one from before the problem: `ls data/backups` (Windows: `dir data\backups`).
+3. Restore it:
+
+   ```bash
+   npm run bot -- restore data/backups/job_bot-2026-01-31.sql.gz
+   ```
+
+   The database already has tables, so this only prints what would be replaced (the database name, the backup's date and size) and stops. Run it again with `--yes`:
+
+   ```bash
+   npm run bot -- restore data/backups/job_bot-2026-01-31.sql.gz --yes
+   ```
+
+   It first backs up the current database to `data/backups/job_bot-before-restore-<date>-<time>.sql.gz` (restore that file to undo the restore; these copies are not deleted with the daily ones), then replaces the database's `public` schema with the backup in one transaction: if anything fails, nothing is changed. It ends with the number of tables and jobs restored.
+
+4. Start the dashboard again. Migrations newer than the backup apply on the next bot command, or when the dashboard starts.
+
+To look at a backup without touching your data, restore it into another database on the same server: `createdb job_bot_old`, then `npm run bot -- restore <file> --into job_bot_old`. A database that does not exist yet must be created first (`createdb <name>`); after a reinstall of PostgreSQL, create `job_bot` again (install guide, step 2) and restore into it.
+
+**A backup holds the database only:** the jobs with their statuses, notes and AI reviews, contacts and tasks. It does not hold `config.json`, `.env`, `cv/applicant.json`, your edits to `cv/master.json`, the generated CVs in `cv/versions/`, the letters and PDFs in `applications/`, or `data/import-token`. Copy those files yourself if you want them kept too.
+
+Problems:
+
+- `psql not found`: put PostgreSQL's `bin` folder on the PATH, or set `JOB_BOT_PSQL` in `.env` to `psql`'s full path (`psql.exe` on Windows). It is looked for in the same folders as `pg_dump`.
+- `is not a complete pg_dump file` or `is a damaged gzip file`: the file was cut short (a full disk, an interrupted copy). Take the backup of the day before.
+- `restore failed: psql exited 3`: the line after it is PostgreSQL's error. Nothing was changed. A dump made by a newer PostgreSQL than the server may use features the server lacks.
+- `pg_dump not found, so the current job_bot cannot be backed up first`: restore will not replace a database it cannot back up; fix `pg_dump` as in [The backup fails](#the-backup-fails).
 
 ### The "Set up your profile" banner
 

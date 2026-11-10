@@ -7,6 +7,7 @@ import { daysAgo, raw } from './helpers.ts'; // first: it points the bot at a te
 import { isIndSponsor } from '../src/sponsors.ts';
 import { languageRules, pickCluster, scoreJob, SKILLS } from '../src/match.ts';
 import { config } from '../src/config.ts';
+import { ConfigError } from '../src/errors.ts';
 
 describe('scoreJob: location', () => {
   it('matches onsite jobs in the target countries', () => {
@@ -338,6 +339,7 @@ describe('skills and clusters follow the stack presets (config.stacks)', () => {
     asStacks(['cobol'], () => {
       assert.throws(() => scoreJob(raw()), /unknown stack preset "cobol" \(known: javascript, php-laravel, python\)/);
       assert.throws(() => pickCluster('Laravel'), /unknown stack preset "cobol"/);
+      assert.throws(() => scoreJob(raw()), ConfigError, 'a settings problem, so fetch stops once instead of per posting');
     });
   });
 });
@@ -360,6 +362,7 @@ describe('scoreJob: a missing or corrupt master CV fails loudly', () => {
     const m = await freshMatch('missing-cv');
     await withMaster(join(tmpdir(), 'job-bot-no-such-cv.json'), () => {
       assert.throws(() => m.scoreJob(raw()), /Cannot read the master CV at .*job-bot-no-such-cv\.json.*JOB_BOT_MASTER/);
+      assert.throws(() => m.scoreJob(raw()), ConfigError);
     });
   });
 
@@ -369,6 +372,7 @@ describe('scoreJob: a missing or corrupt master CV fails loudly', () => {
     writeFileSync(f, '{ "skills": ');
     await withMaster(f, () => {
       assert.throws(() => m.scoreJob(raw()), /Cannot parse the master CV at .*master\.json as JSON/);
+      assert.throws(() => m.scoreJob(raw()), ConfigError);
     });
   });
 });

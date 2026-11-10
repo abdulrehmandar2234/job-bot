@@ -4,6 +4,16 @@ How to get a newer version. The steps are the same on every OS; only the termina
 
 Back to the [start page](README.md).
 
+## 0. Back up first
+
+Migrations only go forward: once a new version has changed the database, the way back is a backup. Take one now:
+
+```bash
+npm run bot -- backup    # prints backup: .../data/backups/job_bot-<date>.sql.gz
+```
+
+It holds the database only. `config.json`, `.env`, `cv/applicant.json`, your `cv/master.json` edits, `cv/versions/`, `applications/` and `data/import-token` are not in it; a pull leaves the untracked ones alone (see step 2), but copy any of them you want a safe copy of.
+
 ## 1. Stop the dashboard
 
 In the terminal where `npm run web` runs, press Ctrl+C.
@@ -84,3 +94,17 @@ Then open `chrome://extensions` and press the reload icon on job-bot's card, so 
 Nothing to do: it runs the code in the project folder, so it uses the new version from its next run. Only if you moved the project or changed your Node installation, run `npm run bot -- schedule:print` again and update the scheduler entry (see your install guide, step 12).
 
 **Check it worked:** the dashboard loads without a database error, and `npm run bot -- daily` (or the next 9:00 run) writes a normal run to `data/fetch.log`.
+
+## If the update went wrong
+
+Go back to the old code, then to the database from before the update (stop the dashboard first):
+
+```bash
+git log --oneline -5                 # find the commit you had before the pull
+git switch --detach <that commit>
+npm install
+npm --prefix web install
+npm run bot -- restore data/backups/job_bot-<date>.sql.gz --yes
+```
+
+`restore` first backs up the current (updated) database to `data/backups/job_bot-before-restore-<date>-<time>.sql.gz`, then loads the backup in one transaction. Use the file step 0 printed. Details and problems: [Restore a backup](troubleshooting.md#restore-a-backup). Once a fixed version is out, `git switch main` and update again; its migrations apply to the restored database on the next command.

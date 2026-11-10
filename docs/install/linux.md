@@ -364,4 +364,4 @@ sudo systemctl enable --now postgresql
 
 Then create the user and database as in step 2. Check `node --version` is 24 or newer.
 
-The backup looks for `pg_dump` on the PATH, then in `/usr/lib/postgresql/<version>/bin` (Debian, Ubuntu) and `/usr/pgsql-<version>/bin` (RHEL-style packages). Elsewhere, set `JOB_BOT_PG_DUMP` in `.env` to its full path.
+The backup looks for `pg_dump` on the PATH, then in `/usr/lib/postgresql/<version>/bin` (Debian, Ubuntu) and `/usr/pgsql-<version>/bin` (RHEL-style packages). Elsewhere, set `JOB_BOT_PG_DUMP` in `.env` to its full path. `bot restore` looks for `psql` the same way (`JOB_BOT_PSQL`).

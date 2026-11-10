@@ -570,6 +570,33 @@ describe('CLI settings', () => {
     assert.equal((await botExit(['list'], t.env)).code, 0);
   });
 
+  it('an unknown stack id is refused by settings:check / settings:save and stops other commands', async () => {
+    const t = target();
+    const typo = { ...JSON.parse(realConfig), stacks: ['pyhton'] };
+    const unknown = {
+      path: 'stacks[0]',
+      message: 'unknown stack "pyhton" (known: javascript, php-laravel, python; one per file in presets/stacks/)',
+    };
+    const check = await botExit(['settings:check', '--kind', 'config', '--file', json(typo)], t.env);
+    assert.deepEqual([check.code, JSON.parse(check.stdout)], [1, { ok: false, errors: [unknown] }]);
+    // Reported together with the schema's errors, so the Settings page shows every problem at once.
+    const both = await botExit(['settings:check', '--kind', 'config', '--file', json({ ...badConfig(), stacks: ['pyhton'] })], t.env);
+    assert.deepEqual(
+      JSON.parse(both.stdout).errors.map((e: { path: string }) => e.path),
+      ['maxAgeDays', 'stacks[0]'],
+    );
+    const refused = await botExit(['settings:save', '--kind', 'config', '--file', json(typo)], t.env);
+    assert.deepEqual([refused.code, JSON.parse(refused.stdout)], [1, { ok: false, errors: [unknown] }]);
+    assert.equal(readFileSync(t.config, 'utf8'), realConfig, 'config.json is left as it was');
+    const empty = await botExit(['settings:save', '--kind', 'config', '--file', json({ ...typo, stacks: [] })], t.env);
+    assert.deepEqual(JSON.parse(empty.stdout), { ok: true }, 'an empty list means the default stacks');
+
+    writeFileSync(t.config, JSON.stringify(typo));
+    const list = await botExit(['list'], t.env);
+    assert.equal(list.code, 1);
+    assert.ok(list.stderr.includes(`Invalid settings file ${t.config}:\n  - stacks[0]: unknown stack "pyhton"`), list.stderr);
+  });
+
   it('answer refuses an invalid applicant file with a clear message', async () => {
     const t = target();
     writeFileSync(t.applicant, JSON.stringify({ noticePeriod: ['1 month'] }));

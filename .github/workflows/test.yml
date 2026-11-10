@@ -49,6 +49,12 @@ jobs:
             web/package-lock.json
       # scripts/daily-fetch.sh (the launchd entry point) is a zsh script; tests/daily.test.ts runs it.
       - run: sudo apt-get update && sudo apt-get install -y zsh
+      # tests/restore.test.ts backs up and restores a real database: pg_dump must be at least the server's version
+      # (postgres:18 above), and the runner's own client is older, so install 18 from the PostgreSQL apt repository.
+      - run: |
+          sudo apt-get install -y postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -y postgresql-client-18
       - run: npm ci
       - run: npm ci --prefix web
       - run: npm run test:db -- job_bot_test_bot job_bot_test
@@ -56,6 +62,11 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run test:web
+      # The dashboard imports the bot's modules from ../src: typecheck and vitest do not bundle, so only a real build
+      # catches a Turbopack resolution or prerender break. Pointed at the test database in case a page queries it.
+      - run: npm --prefix web run build
+        env:
+          DATABASE_URL: postgres://postgres@127.0.0.1:5432/job_bot_test
 
   # Windows: install, lint, typecheck and the tests that need no PostgreSQL (the OS-specific code: notifications,
   # backup, the daily run, schedule snippets, npm scripts, Chrome paths, plus pure logic). The full suite stays on

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Triage } from '@/components/triage';
@@ -29,7 +29,7 @@ function Card({ id }: { id: string }) {
         href={`/jobs/${id}`}
         data-shortcut="o"
         onClick={(e) => {
-          e.preventDefault();
+          if (!e.shiftKey) e.preventDefault(); // shift-click: the browser's own (new window), see the shift-click test
           acted('detail', id);
         }}
       >
@@ -57,7 +57,7 @@ function Card({ id }: { id: string }) {
   );
 }
 
-function List({ ids }: { ids: string[] }) {
+function List({ ids, selectable = true }: { ids: string[]; selectable?: boolean }) {
   return (
     <>
       <input aria-label="Search" />
@@ -66,7 +66,7 @@ function List({ ids }: { ids: string[] }) {
           <Card key={id} id={id} />
         ))}
       </ul>
-      <Triage ids={ids} skip={skip} />
+      <Triage ids={ids} skip={skip} selectable={selectable} />
     </>
   );
 }
@@ -141,6 +141,51 @@ describe('acting on the focused card', () => {
     expect(document.activeElement).toBe(card('job:a'));
   });
 
+  it('acts only while focus is in a card, never on a card that is not highlighted', async () => {
+    const user = userEvent.setup();
+    render(<List ids={IDS} />);
+    await user.keyboard('oaps{Enter}x'); // nothing focused yet
+    await user.keyboard('j');
+    card('job:a').blur(); // e.g. a click on the page background: focus is on <body>
+    expect(document.activeElement).toBe(document.body);
+    await user.keyboard('oaps{Enter}x');
+    expect(acted).not.toHaveBeenCalled();
+    expect(screen.queryByText(/selected/)).toBeNull();
+  });
+
+  it('moves focus to the card that took the place of one a refresh removed, so the next key hits a visible card', async () => {
+    const user = userEvent.setup();
+    const view = render(<List ids={IDS} />);
+    await user.keyboard('jj'); // job:b
+    await user.keyboard('a');
+    expect(acted).toHaveBeenLastCalledWith('applied', 'job:b');
+    view.rerender(<List ids={['job:a', 'job:c']} />); // job:b moved to Applied and left the list
+    await waitFor(() => expect(document.activeElement).toBe(card('job:c')));
+    await user.keyboard('a');
+    expect(acted).toHaveBeenLastCalledWith('applied', 'job:c');
+    view.rerender(<List ids={['job:a']} />); // the last card left: focus goes to the new last one
+    await waitFor(() => expect(document.activeElement).toBe(card('job:a')));
+  });
+
+  it('keeps focus on its card when a card above it leaves, and the keys carry on from there', async () => {
+    const user = userEvent.setup();
+    const view = render(<List ids={IDS} />);
+    await user.keyboard('jjj'); // job:c
+    view.rerender(<List ids={['job:b', 'job:c']} />);
+    await waitFor(() => expect(document.activeElement).toBe(card('job:c')));
+    await user.keyboard('k');
+    expect(document.activeElement).toBe(card('job:b'));
+  });
+
+  it('leaves focus alone when the removed card had lost it to an input', async () => {
+    const user = userEvent.setup();
+    const view = render(<List ids={IDS} />);
+    await user.keyboard('j');
+    await user.click(screen.getByLabelText('Search'));
+    view.rerender(<List ids={['job:b', 'job:c']} />);
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText('Search')));
+  });
+
   it('does nothing while typing in an input, so the filters stay usable', async () => {
     const user = userEvent.setup();
     render(<List ids={IDS} />);
@@ -195,6 +240,28 @@ describe('bulk skip', () => {
     expect(IDS.map((id) => card(id).dataset.selected)).toEqual(['true', 'true', 'true']);
   });
 
+  it('leaves shift-click on a link or button to the browser (open in a new window), selecting nothing', async () => {
+    const user = userEvent.setup();
+    render(<List ids={IDS} />);
+    await user.keyboard('jx'); // anchor at job:a
+    let prevented: boolean | undefined;
+    const spy = (e: Event) => {
+      prevented = e.defaultPrevented;
+      e.preventDefault(); // jsdom cannot open a window
+    };
+    window.addEventListener('click', spy);
+    try {
+      fireEvent.click(screen.getByText('job:c title'), { shiftKey: true });
+    } finally {
+      window.removeEventListener('click', spy);
+    }
+    expect(prevented).toBe(false);
+    expect(acted).toHaveBeenCalledWith('detail', 'job:c');
+    expect(screen.getByText('1 selected')).toBeInTheDocument();
+    fireEvent.click(within(card('job:c')).getByRole('button', { name: 'Mark applied ✓' }), { shiftKey: true });
+    expect(screen.getByText('1 selected')).toBeInTheDocument();
+  });
+
   it('shows the error next to the bar when the bulk skip fails, keeping the selection', async () => {
     skip.mockResolvedValue({ ok: false, message: 'The database is not reachable right now. Try again in a moment.' });
     const user = userEvent.setup();
@@ -216,13 +283,52 @@ describe('bulk skip', () => {
   });
 });
 
+describe('a list that is not selectable (pipeline tabs, a search across every tab)', () => {
+  it('ignores x and shift-click, while moving and the single-card keys keep working', async () => {
+    const user = userEvent.setup();
+    render(<List ids={IDS} selectable={false} />);
+    await user.keyboard('jx');
+    fireEvent.click(card('job:c'), { shiftKey: true });
+    expect(screen.queryByText(/selected/)).toBeNull();
+    expect(screen.queryByRole('form', { name: 'Bulk skip' })).toBeNull();
+    expect(IDS.map((id) => card(id).dataset.selected)).toEqual([undefined, undefined, undefined]);
+    await user.keyboard('ja');
+    expect(acted.mock.calls).toEqual([['applied', 'job:b']]);
+  });
+
+  it('drops a selection when the list stops being selectable', async () => {
+    const user = userEvent.setup();
+    const view = render(<List ids={IDS} />);
+    await user.keyboard('jx');
+    expect(screen.getByText('1 selected')).toBeInTheDocument();
+    view.rerender(<List ids={IDS} selectable={false} />);
+    await waitFor(() => expect(screen.queryByText(/selected/)).toBeNull());
+    expect(card('job:a').dataset.selected).toBeUndefined();
+  });
+
+  it('hints at the single-card keys instead of x, and the shortcut list says where bulk skip works', async () => {
+    const user = userEvent.setup();
+    render(<List ids={IDS} selectable={false} />);
+    expect(screen.getByText(/act on the focused job/)).toBeInTheDocument();
+    expect(screen.queryByText(/selects for bulk skip/)).toBeNull();
+    await user.keyboard('?');
+    const help = screen.getByRole('dialog', { name: 'Keyboard shortcuts' });
+    expect(within(help).queryByText('Select for bulk skip')).toBeNull();
+    expect(within(help).queryByText('Select a range')).toBeNull();
+    expect(within(help).getByText('Close this')).toBeInTheDocument();
+    expect(help).toHaveTextContent('Bulk skip (x, Shift+click) works in the Matching and Prepared tabs.');
+  });
+});
+
 describe('help', () => {
   it('? opens the shortcut list, Escape or Close closes it, and a hint points at it', async () => {
     const user = userEvent.setup();
     render(<List ids={IDS} />);
     expect(screen.getByText(/shows every shortcut/)).toBeInTheDocument();
     await user.keyboard('?');
-    expect(screen.getByRole('dialog', { name: 'Keyboard shortcuts' })).toBeInTheDocument();
+    const dialog = screen.getByRole('dialog', { name: 'Keyboard shortcuts' });
+    expect(within(dialog).getByText('Select for bulk skip')).toBeInTheDocument();
+    expect(within(dialog).getByText('Clear the selection / close this')).toBeInTheDocument();
     await user.keyboard('{Escape}');
     expect(screen.queryByRole('dialog')).toBeNull();
     await user.keyboard('?');

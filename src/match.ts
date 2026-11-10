@@ -1,5 +1,6 @@
 import { config, type Config } from './config.ts';
 import { masterRaw } from './cv/versions.ts';
+import { ConfigError } from './errors.ts';
 import { DEFAULT_STACKS, loadStacks, pick, type Stack } from './presets.ts';
 import { loadProfile, needsVisa, remoteFrom, remoteFromCode } from './profile.ts';
 import { effectiveRemoteRules } from './regions.ts';
@@ -15,20 +16,21 @@ const CV_HINT =
 
 /**
  * The skill items of cv/master.json, one per line: what `have` is checked against. A missing or corrupt master CV
- * fails loudly: swallowing it would mark every skill as not on the CV and silently filter every posting.
+ * fails loudly (a ConfigError, so fetch stops once instead of failing every posting): swallowing it would mark every
+ * skill as not on the CV and silently filter every posting.
  */
 function cvSkills(): string {
   let raw: string;
   try {
     raw = masterRaw();
   } catch (e) {
-    throw new Error(`Cannot read the master CV at ${masterFile()}: ${(e as Error).message}; ${CV_HINT}.`);
+    throw new ConfigError(`Cannot read the master CV at ${masterFile()}: ${(e as Error).message}; ${CV_HINT}.`);
   }
   let cv: { skills?: { items?: string[] }[] };
   try {
     cv = JSON.parse(raw) as { skills?: { items?: string[] }[] };
   } catch (e) {
-    throw new Error(`Cannot parse the master CV at ${masterFile()} as JSON: ${(e as Error).message}; ${CV_HINT}.`);
+    throw new ConfigError(`Cannot parse the master CV at ${masterFile()} as JSON: ${(e as Error).message}; ${CV_HINT}.`);
   }
   return (cv.skills ?? []).flatMap((g) => g.items ?? []).join('\n');
 }

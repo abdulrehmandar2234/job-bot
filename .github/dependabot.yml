@@ -1,5 +1,7 @@
 # Monthly dependency-update PRs for the bot (/) and the dashboard (/web). Monthly, not weekly: this is a
 # single-owner project, and the scheduled CI run (.github/workflows/test.yml) catches breakage in between.
+# Packages that must move together are grouped into one PR: react and react-dom fail every test when their
+# versions differ, and vitest's coverage plugin must match vitest.
 version: 2
 updates:
   - package-ecosystem: npm
@@ -7,8 +9,26 @@ updates:
     schedule:
       interval: monthly
     open-pull-requests-limit: 5
+    groups:
+      types:
+        patterns: ["@types/*"]
   - package-ecosystem: npm
     directory: "/web"
     schedule:
       interval: monthly
     open-pull-requests-limit: 5
+    groups:
+      react:
+        patterns: ["react", "react-dom", "@types/react", "@types/react-dom"]
+      next:
+        patterns: ["next", "@next/*", "eslint-config-next"]
+      vitest:
+        patterns: ["vitest", "@vitest/*", "vite", "@vitejs/*"]
+      testing-library:
+        patterns: ["@testing-library/*"]
+      types:
+        patterns: ["@types/*"]
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: monthly

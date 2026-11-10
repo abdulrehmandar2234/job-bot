@@ -1,4 +1,5 @@
 import { loadConfig } from './config.ts';
+import { ConfigError } from './errors.ts';
 import { ensureConfigFile, InvalidSettingsError } from './settings.ts';
 import type { Command, Flags } from './commands/shared.ts';
 
@@ -58,11 +59,13 @@ const commands: Record<string, () => Promise<Command>> = {
   'task:run': async () => (await import('./commands/task.ts')).taskRun,
   setup: async () => (await import('./commands/setup.ts')).setup,
   backup: async () => (await import('./commands/backup.ts')).backup,
+  restore: async () => (await import('./commands/backup.ts')).restore,
   daily: async () => (await import('./commands/daily.ts')).daily,
   'schedule:print': async () => (await import('./commands/schedule.ts')).schedulePrint,
 };
-// Commands that only touch files: no database connection or migrations.
-const NO_DB = ['settings:check', 'settings:save', 'setup', 'backup', 'daily', 'schedule:print', 'cv:templates', 'cv:preview'];
+// Commands that only touch files, or manage their own connection (backup, restore): no pool and no migrations first.
+// restore especially: migrating the database it is about to replace would only be undone.
+const NO_DB = ['settings:check', 'settings:save', 'setup', 'backup', 'restore', 'daily', 'schedule:print', 'cv:templates', 'cv:preview'];
 // Commands that run without reading config.json, so they still work while it is broken (settings:save fixes it).
 // Every other command validates it before it starts: a typo stops it with the file and field, before any work.
 const NO_CONFIG = [
@@ -70,6 +73,7 @@ const NO_CONFIG = [
   'settings:save',
   'setup',
   'backup',
+  'restore',
   'daily',
   'schedule:print',
   'dedupe',
@@ -137,7 +141,10 @@ if (!load) {
                                   (output in data/fetch.log)
   schedule:print [--os macos|linux|windows]
                                   print the scheduler setup (launchd, systemd/cron, Task Scheduler) for this clone
-  backup                          pg_dump of the database into data/backups/<db>-YYYY-MM-DD.sql.gz (keeps 14)`);
+  backup                          pg_dump of the database into data/backups/<db>-YYYY-MM-DD.sql.gz (keeps 14)
+  restore <file> [--into db] [--yes]
+                                  load a backup with psql (the database only, not config.json or cv/); a database
+                                  that has tables needs --yes, and is backed up first`);
 } else {
   try {
     if (!NO_CONFIG.includes(cmd)) loadConfig();
@@ -161,8 +168,9 @@ if (!load) {
     }
   } catch (e) {
     // A setting or AI problem the user can fix: its message is the whole story, a stack trace would only bury it.
-    // AiError (src/ai-providers.ts) is matched by name: importing that module here would load config.json first.
-    if (!(e instanceof InvalidSettingsError || (e instanceof Error && e.name === 'AiError'))) throw e;
+    // Errors the user can fix print their message, not a stack trace. AiError (src/ai-providers.ts) is matched by name
+    // so cli.ts does not pull in the AI modules; ConfigError (src/errors.ts) is a bad setting or a missing master CV.
+    if (!(e instanceof InvalidSettingsError || e instanceof ConfigError || (e instanceof Error && e.name === 'AiError'))) throw e;
     console.error(e.message);
     process.exitCode = 1;
   }

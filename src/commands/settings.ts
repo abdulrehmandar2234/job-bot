@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { stackErrors } from '../presets.ts';
 import { APPLICANT_FILE, CONFIG_FILE, validateText, writeSettingsFile, type SettingsError, type SettingsKind } from '../settings.ts';
 import type { Flags } from './shared.ts';
 
@@ -19,7 +20,30 @@ function check(flags: Flags): { kind: SettingsKind; obj: unknown; warnings: Sett
     return { errors: [{ path: '--file', message: (e as Error).message }] };
   }
   const res = validateText(kind, text);
-  return res.ok ? { kind, obj: JSON.parse(text), warnings: res.warnings } : { errors: res.errors };
+  // Stack ids must name preset files (presets/stacks), which the schema cannot check without reading them. Reported
+  // with the schema's own errors, so the dashboard's Settings page lists every problem at once.
+  const stacks = kind === 'config' ? checkStacks(parsedStacks(text)) : [];
+  if (!res.ok || stacks.length) return { errors: [...(res.ok ? [] : res.errors), ...stacks] };
+  return { kind, obj: JSON.parse(text), warnings: res.warnings };
+}
+
+/** stackErrors, with a broken preset file reported as an error too: these commands always answer with one JSON line. */
+function checkStacks(stacks: unknown): SettingsError[] {
+  try {
+    return stackErrors(stacks);
+  } catch (e) {
+    return [{ path: 'stacks', message: (e as Error).message }];
+  }
+}
+
+/** The `stacks` value of config JSON text; undefined when the text is not a JSON object. */
+function parsedStacks(text: string): unknown {
+  try {
+    const obj: unknown = JSON.parse(text);
+    return obj && typeof obj === 'object' ? (obj as { stacks?: unknown }).stacks : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function report(r: { errors: SettingsError[] } | { warnings: SettingsError[] }) {

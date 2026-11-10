@@ -75,6 +75,28 @@ describe('job list page', () => {
     expect(screen.getByText(/shows every shortcut/)).toBeInTheDocument();
   });
 
+  it('offers bulk skip on the Matching and Prepared tabs only, not in the pipeline or a search across every tab', async () => {
+    await insertJob({ id: 'bulk-new', title: 'TG Bulk new', status: 'new', score: 99 });
+    await insertJob({ id: 'bulk-prepared', title: 'TG Bulk prepared', status: 'prepared', score: 99 });
+    await insertJob({ id: 'bulk-applied', title: 'TG Bulk applied', status: 'applied', score: 99 });
+    const bulkHint = () => screen.queryByText(/selects for bulk skip/);
+    const cases: [Record<string, string>, boolean][] = [
+      [{}, true],
+      [{ status: 'prepared' }, true],
+      [{ status: 'new', q: 'TG Bulk', in: 'tab' }, true],
+      [{ status: 'applied' }, false],
+      [{ view: 'followup' }, false],
+      [{ status: 'new', q: 'TG Bulk' }, false], // every tab: applied jobs are in the results
+    ];
+    for (const [params, selectable] of cases) {
+      const view = await renderPage(params);
+      expect(Boolean(bulkHint()), JSON.stringify(params)).toBe(selectable);
+      view.unmount();
+    }
+    await renderPage({ status: 'applied' });
+    expect(screen.getByText(/act on the focused job/)).toBeInTheDocument();
+  });
+
   it('shows the header, the Fetch button and the Bayt instructions', async () => {
     await renderPage();
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Job Bot');

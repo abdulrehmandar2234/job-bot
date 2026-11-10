@@ -37,6 +37,17 @@ describe('config.ts', () => {
     assert.match(importThenRead(join(dir, 'missing.json')), /^imported\nerror /);
   });
 
+  it('refuses an unknown stack id when it loads the file, naming the field and the known ids', () => {
+    const typo = join(dir, 'typo.json');
+    writeFileSync(typo, JSON.stringify({ ...JSON.parse(JSON.stringify(loadConfig())), stacks: ['php-laravel', 'pyhton'] }));
+    const out = importThenRead(typo);
+    assert.match(out, /^imported\nerror Invalid settings file .*typo\.json:\n/);
+    assert.match(out, /- stacks\[1\]: unknown stack "pyhton" \(known: javascript, php-laravel, python;/);
+    const empty = join(dir, 'empty-stacks.json');
+    writeFileSync(empty, JSON.stringify({ ...JSON.parse(JSON.stringify(loadConfig())), stacks: [], minScore: 34 }));
+    assert.match(importThenRead(empty), /^imported\nminScore 34\n$/, 'an empty list means the default stacks');
+  });
+
   it('reads a valid file once', () => {
     const good = join(dir, 'good.json');
     writeFileSync(good, JSON.stringify({ ...JSON.parse(JSON.stringify(loadConfig())), minScore: 33 }));
