@@ -2,7 +2,8 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { WrittenText } from '@/components/written-text';
+import { ActionForm } from '@/components/action-form';
+import { ConfirmFirst, WrittenText } from '@/components/written-text';
 import type { TextFormState } from '@/lib/written-text';
 
 const save = vi.fn<(prev: TextFormState, fd: FormData) => Promise<TextFormState>>();
@@ -84,5 +85,45 @@ describe('WrittenText', () => {
     render(<WrittenText id="job:2" kind="summary" text="Senior engineer." busy={false} save={save} rewrite={rewrite} />);
     await user.click(screen.getByRole('button', { name: 'Edit' }));
     expect(screen.getByLabelText('Edit CV summary')).toHaveAttribute('maxlength', '2000');
+  });
+});
+
+describe('ConfirmFirst (a rewrite of an edited text, Clear all answers)', () => {
+  const action = vi.fn<(prev: TextFormState, fd: FormData) => Promise<TextFormState>>();
+  const renderGate = (when: boolean) =>
+    render(
+      <ConfirmFirst message="This replaces the letter you edited. Rewrite anyway?" when={when}>
+        <ActionForm action={action} fields={{ id: 'job:1' }} label="Rewrite letter" />
+      </ConfirmFirst>,
+    );
+
+  it('asks before submitting, and a Cancel sends nothing', async () => {
+    const ask = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    const user = userEvent.setup();
+    renderGate(true);
+    await user.click(screen.getByRole('button', { name: 'Rewrite letter' }));
+    expect(ask).toHaveBeenCalledWith('This replaces the letter you edited. Rewrite anyway?');
+    expect(action).not.toHaveBeenCalled();
+
+    ask.mockReturnValue(true);
+    await user.click(screen.getByRole('button', { name: 'Rewrite letter' }));
+    await waitFor(() => expect(action).toHaveBeenCalledOnce());
+    expect(lastForm(action).get('id')).toBe('job:1');
+    ask.mockRestore();
+  });
+
+  it('submits at once without asking when the text was not edited', async () => {
+    const ask = vi.spyOn(window, 'confirm');
+    const user = userEvent.setup();
+    renderGate(false);
+    await user.click(screen.getByRole('button', { name: 'Rewrite letter' }));
+    await waitFor(() => expect(action).toHaveBeenCalledOnce());
+    expect(ask).not.toHaveBeenCalled();
+    ask.mockRestore();
+  });
+
+  it('keeps the form in the layout (display: contents)', () => {
+    const { container } = renderGate(true);
+    expect(container.firstElementChild).toHaveClass('contents');
   });
 });
