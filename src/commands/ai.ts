@@ -1,10 +1,9 @@
-import { readFileSync } from 'node:fs';
 import { config } from '../config.ts';
 import { getJob, pool, setStatus, withLock, type Job } from '../db.ts';
 import { aiAnswers, aiScore as review } from '../ai.ts';
 import { AiError, aiLabel } from '../ai-providers.ts';
 import { notify, strongAlerts, type AlertJob } from '../notify.ts';
-import { AI_OFF, type Flags, notFound } from './shared.ts';
+import { AI_OFF, type Flags, notFound, readInput } from './shared.ts';
 
 /** After this many reviews in a row ran out of time, the provider is taken to be down and the run stops. */
 export const MAX_TIMEOUTS_IN_A_ROW = 3;
@@ -162,7 +161,7 @@ export async function answer(args: string[], flags: Flags) {
     return console.log('Answers cleared.');
   }
   if (!config.ai.enabled) return console.log(`${AI_OFF}, so no answers were drafted.`);
-  const questions = (flags.file ? readFileSync(flags.file, 'utf8') : readFileSync(0, 'utf8')).trim();
+  const questions = readInput(flags.file).trim();
   if (!questions) return console.log('No questions given.');
   const fresh = await aiAnswers(j, questions);
   // Re-asked questions replace their old answer; the rest are kept.

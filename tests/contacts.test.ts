@@ -20,7 +20,8 @@ const bot = async (args: string[]) => {
       })
     ).stdout;
   } catch (e) {
-    return (e as { stdout: string }).stdout; // contact:add exits 1 on invalid input
+    const { stdout, stderr } = e as { stdout: string; stderr: string };
+    return stdout + stderr; // invalid input, an unknown job or a missing id exit 1 (messages on stderr)
   }
 };
 
@@ -157,7 +158,7 @@ describe('CLI', () => {
 
   it('contact:add refuses invalid input and unknown jobs', async () => {
     assert.match(await bot(['contact:add', 'test:c1', '--name', '--email', 'bad']), /Not added:\n {2}- name is required\n {2}- email/);
-    assert.match(await bot(['contact:add', 'test:nope', '--name', 'X']), /Usage: contact:add/);
+    assert.match(await bot(['contact:add', 'test:nope', '--name', 'X']), /Not found: test:nope/);
     assert.deepEqual(await contactRows(), []);
   });
 
@@ -168,7 +169,8 @@ describe('CLI', () => {
     const out = await bot(['contacts', 'test:c1']);
     assert.match(out, /No contacts for this job yet\.\nYou know someone at Acme Inc\. \(from other jobs\):\n {2}#\d+ Sam \(other\)/);
     assert.doesNotMatch(out, /Kim/);
-    assert.match(await bot(['contacts']), /Usage: contacts <id>/);
+    assert.match(await bot(['contacts']), /Usage: npm run bot -- contacts <id>/);
+    assert.match(await bot(['contacts', 'test:nope']), /Not found: test:nope/);
   });
 
   it('mark --reason stores the skip reason and rejects unknown ones', async () => {

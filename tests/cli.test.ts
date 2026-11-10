@@ -111,7 +111,9 @@ describe('CLI', () => {
     assert.match(await bot(['mark', id, 'applied', 'via', 'Bayt']), /→ applied/);
     const { rows } = await pool.query('SELECT to_status, note FROM job_events WHERE job_id = $1', [id]);
     assert.deepEqual(rows, [{ to_status: 'applied', note: 'via Bayt' }]);
-    assert.match(await bot(['mark', id, 'hired']), /Usage: mark/);
+    const bad = await botExit(['mark', id, 'hired']);
+    assert.equal(bad.code, 1);
+    assert.match(bad.stderr, /Usage: mark/);
   });
 
   it('prepare picks the CV and writes no cover letter, never applies', async () => {
@@ -452,7 +454,7 @@ describe('CLI', () => {
   });
 
   it('prints help for unknown commands', async () => {
-    assert.match(await bot(['nope']), /Commands:[\s\S]*answer <id>/);
+    assert.match((await botExit(['nope'])).stdout, /Commands:[\s\S]*answer <id>/);
   });
 });
 
@@ -490,6 +492,38 @@ describe('CLI user errors', () => {
       JOB_BOT_MASTER: join(tmp, 'no-such-master.json'),
     });
     assert.match(oneLineError(res)!, /^Cannot read the master CV at .*no-such-master\.json/);
+  });
+
+  it('a command that needs a job id prints its usage line without one, and exit 1', async () => {
+    for (const [cmd, line] of [
+      ['show', 'show <id> [--full]'],
+      ['cv:feedback', 'cv:feedback <id> --feedback "…"'],
+      ['mark', 'mark <id> <status> [note]'],
+      ['letter:pdf', 'letter:pdf <id>'],
+    ]) {
+      assert.equal(oneLineError(await botExit([cmd])), `Usage: npm run bot -- ${line}`);
+    }
+  });
+
+  it('an unknown command says so and exits 1; no command just prints the help', async () => {
+    const typo = await botExit(['fecth']);
+    assert.equal(typo.code, 1);
+    assert.match(typo.stderr, /^Unknown command: fecth$/m);
+    assert.match(typo.stdout, /^Commands:/);
+    assert.equal((await botExit([])).code, 0);
+  });
+
+  it('a missing or broken input file is one line, not a stack trace', async () => {
+    assert.match(oneLineError(await botExit(['add', '--file', join(tmp, 'nope.json')]))!, /^Cannot read .*nope\.json: no such file$/);
+    const broken = join(tmp, 'broken.json');
+    writeFileSync(broken, '{ not json');
+    assert.match(oneLineError(await botExit(['add', '--file', broken]))!, /broken\.json is not valid JSON/);
+    assert.equal(oneLineError(await botExit(['custom', 'any:id'])), 'Usage: custom <id> --overrides f.json');
+  });
+
+  it('discover without names and list with an unknown status print their usage, and exit 1', async () => {
+    assert.match(oneLineError(await botExit(['discover']))!, /^Usage: discover /);
+    assert.match(oneLineError(await botExit(['list', '--status', 'bogus']))!, /^Usage: list \[--status new\|/);
   });
 });
 
@@ -593,8 +627,9 @@ describe('CLI settings', () => {
     assert.ok(list.stderr.includes(`Invalid settings file ${t.config}:\n  - maxAgeDays: Invalid input: expected number`));
     // A command that never reads config.json still runs (the CLI checks the file up front only for the others).
     const contacts = await botExit(['contacts', 'no-such-job'], t.env);
-    assert.equal(contacts.code, 0);
-    assert.match(contacts.stdout, /Usage: contacts <id>/);
+    assert.equal(contacts.code, 1);
+    assert.match(contacts.stderr, /^Not found: no-such-job$/m);
+    assert.doesNotMatch(contacts.stderr, /Invalid settings/);
     const fixed = await botExit(['settings:save', '--kind', 'config', '--file', json(JSON.parse(realConfig))], t.env);
     assert.deepEqual(JSON.parse(fixed.stdout), { ok: true });
     assert.equal((await botExit(['list'], t.env)).code, 0);

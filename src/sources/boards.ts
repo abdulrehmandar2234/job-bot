@@ -180,10 +180,7 @@ const ADZUNA_COUNTRY: Record<string, string> = { nl: 'Netherlands', in: 'India' 
 async function adzuna(): Promise<Fetched> {
   const id = process.env.ADZUNA_APP_ID;
   const key = process.env.ADZUNA_APP_KEY;
-  if (!id || !key) {
-    console.log('adzuna: skipped (set ADZUNA_APP_ID and ADZUNA_APP_KEY in .env to enable it)');
-    return [];
-  }
+  if (!id || !key) return Object.assign([] as RawJob[], { skipped: 'set ADZUNA_APP_ID and ADZUNA_APP_KEY in .env to enable it' });
   const { countries = ['nl'], keywords = config.linkedin.keywords, pagesPerSearch = 2 } = config.adzuna ?? {};
   const out = new Map<string, RawJob>();
   for (const country of countries) {

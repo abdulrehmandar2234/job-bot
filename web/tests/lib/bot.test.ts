@@ -56,9 +56,13 @@ describe('runBot', () => {
     expect(await runBot(['stats'])).toMatch(/^interview\s+AE\s+\d+$/m);
   }, 30_000);
 
-  it('prints the usage for an unknown command', async () => {
+  it('fails on an unknown command, naming it, and prints the help', async () => {
     withBotDb();
-    expect(await runBot(['no-such-command'])).toContain('Commands:');
+    await expect(runBot(['no-such-command'])).rejects.toMatchObject({
+      code: 1,
+      stderr: expect.stringContaining('Unknown command: no-such-command'),
+      stdout: expect.stringContaining('Commands:'),
+    });
   }, 30_000);
 
   it('passes arguments literally, without a shell', async () => {

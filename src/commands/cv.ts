@@ -1,4 +1,3 @@
-import { readFileSync } from 'node:fs';
 import { config } from '../config.ts';
 import { getJob, pool, type Job } from '../db.ts';
 import {
@@ -20,7 +19,7 @@ import { confirmSkills, parseSkills } from '../cv/confirm-skills.ts';
 import { isTemplate, TEMPLATE_IDS } from '../cv/templates/index.ts';
 import { aiCvFeedback, aiCvReview } from '../ai.ts';
 import { feedbackFlag } from './prepare.ts';
-import { AI_OFF, slug, type Flags, notFound } from './shared.ts';
+import { AI_OFF, slug, type Flags, notFound, readJsonInput, usage } from './shared.ts';
 
 /** The slug of a job's one-off CV folders: custom-<slug>-v<N>. */
 const jobSlug = (j: Pick<Job, 'company' | 'title'>) => slug(`${j.company}-${j.title}`).slice(0, 40);
@@ -50,9 +49,10 @@ export async function versions() {
 
 /** One-off CV for a single job: --overrides file.json with {title, summary, skillsFirst, groupsFirst, projectTags, bulletKeywords} */
 export async function custom(args: string[], flags: Flags) {
+  if (!flags.overrides || flags.overrides === 'true') return usage('custom <id> --overrides f.json');
   const j = await getJob(args[0]);
   if (!j) return notFound();
-  const overrides = JSON.parse(readFileSync(flags.overrides, 'utf8'));
+  const overrides = readJsonInput(flags.overrides);
   const meta = await customVersion(jobSlug(j), j.cluster ?? 'default', j.id, overrides, jobTemplate(j));
   await pool.query('UPDATE jobs SET cv_version = $2 WHERE id = $1', [j.id, meta.id]);
   console.log(`Custom CV: ${cvFile(meta.id)}`);

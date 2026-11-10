@@ -239,7 +239,7 @@ Open <http://localhost:3100>. Leave the terminal with `npm run web` open: the da
 
 ## 12. Schedule the daily run
 
-`npm run bot -- daily` is the morning run: fetch, check which postings have closed, AI review, a notification and a database backup, logged to `data/fetch.log`. On Linux a **systemd user timer** starts it at 9:00, and with `Persistent=true` it also catches up a run missed while the computer was off. Print the setup for this clone, with your paths and your Node filled in:
+`npm run bot -- daily` is the morning run: fetch, check which postings have closed, AI review, a notification, a database backup and a cleanup of leftover files, logged to `data/fetch.log`. On Linux a **systemd user timer** starts it at 9:00, and with `Persistent=true` it also catches up a run missed while the computer was off. Print the setup for this clone, with your paths and your Node filled in:
 
 ```bash
 npm run bot -- schedule:print

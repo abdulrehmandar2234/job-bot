@@ -1,11 +1,10 @@
-import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { getJob } from '../db.ts';
-import { row, save, type Flags } from './shared.ts';
+import { readJsonInput, row, save, type Flags } from './shared.ts';
 
 /** Add a job found manually or by Claude in the browser (LinkedIn, Bayt, GulfTalent, ...). JSON via --file or stdin. */
 export async function add(_args: string[], flags: Flags) {
-  const input = JSON.parse(flags.file ? readFileSync(flags.file, 'utf8') : readFileSync(0, 'utf8'));
+  const input = readJsonInput(flags.file);
   for (const j of Array.isArray(input) ? input : [input]) {
     const source = j.source ?? 'manual';
     const id = `${source}:${createHash('sha1').update(j.url).digest('hex').slice(0, 12)}`;

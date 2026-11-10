@@ -35,7 +35,11 @@ export function failureMessage(err: ExecFileException & { stderr?: string }, tim
  */
 export async function taskRun(args: string[]) {
   const id = Number(args[0]);
-  if (!Number.isInteger(id) || id <= 0) return console.log('Usage: task:run <id>');
+  if (!Number.isInteger(id) || id <= 0) {
+    console.error('Usage: task:run <id>');
+    process.exitCode = 1;
+    return;
+  }
   const task = await claim(id);
   if (!task) return console.log(`Task ${id} is not queued (already running, finished or expired).`);
   console.log(`[${new Date().toISOString()}] task ${id}: ${task.kind}${task.job_id ? ` ${task.job_id}` : ''}`);

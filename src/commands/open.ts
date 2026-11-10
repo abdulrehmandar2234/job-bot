@@ -191,7 +191,7 @@ async function checkOpenLocked(args: string[], flags: Flags) {
           : ` — status ${job.status} kept${['applied', 'interview', 'offer'].includes(job.status) ? ', you are already in the process' : ''}`;
       console.log(`${LINE[outcome]} ${job.company} — ${job.title} (${r.reason})${kept}\n      id: ${job.id}`);
     }
-    // Himalayas answers its job pages to bots with a 403 (unknown), but its search API still says where a job is open.
+    // Himalayas' search API (also the open check, src/sources/open.ts) says where a job is open now.
     if (job.source === 'himalayas' && outcome !== 'expired' && outcome !== 'reported') {
       const moved = await himalayasMoved(job.id);
       if (moved) {

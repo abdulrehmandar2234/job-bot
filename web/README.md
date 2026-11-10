@@ -1,36 +1,41 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# job-bot dashboard
 
-## Getting Started
+The local web dashboard of [job-bot](../README.md): the job list, job pages, Settings and Analytics. It is a Next.js app that reads the bot's PostgreSQL database directly and starts bot commands (prepare, letters, AI reviews, ...) in the background through the CLI.
 
-First, run the development server:
+It only answers on `127.0.0.1` and has no login, so it is meant for your own computer only: never deploy it or expose it to a network.
+
+## Run it
+
+From the project root (not this folder), after the setup in the [install guides](../docs/README.md#1-install-it-on-your-computer):
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install && npm --prefix web install   # once; the dashboard also needs the root packages
+npm run web                               # http://localhost:3100
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+It needs `DATABASE_URL` in `web/.env.local` (the setup wizard can write it). On start it applies pending database migrations (`instrumentation.ts` runs `npm run bot -- migrate`). Port 3100 already in use? Stop the other dashboard, or run `npm --prefix web run dev -- -p 3200` and set that address in the Chrome extension's options.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+How to use it: [docs/daily-use.md](../docs/daily-use.md).
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Layout
 
-## Learn More
+- `app/`: pages (`page.tsx` the job list, `jobs/[id]` the job page, `settings`, `analytics`), server actions (`actions.ts`, `settings/actions.ts`) and API routes (`api/`: import from the extension, CV and letter files, job lookup, task status, the Bayt script).
+- `components/`: React components; `form-state.tsx` and `action-form.tsx` handle form results and errors.
+- `lib/`: database queries (`db.ts`), settings, profile and market rules (imported from the bot's `../src`, never copied), the background task queue (`tasks.ts`, `bot.ts`), the list URL and remembered filters.
+- `proxy.ts`: refuses requests for any host other than localhost, and restores saved filters.
+- `tests/`: vitest tests.
 
-To learn more about Next.js, take a look at the following resources:
+The rules for importing bot code from `../src` (only modules that do nothing on import) are in the root [CLAUDE.md](../CLAUDE.md#conventions).
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Tests and checks
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+From the project root:
 
-## Deploy on Vercel
+```bash
+npm run test:web                      # all dashboard tests (database job_bot_test)
+cd web && npx vitest run tests/lib/db.test.ts   # one file
+npm run typecheck                     # the bot and the dashboard
+npm --prefix web run build            # the production build CI checks
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Database tests only touch rows whose id starts with `webtest:`, and never the real `job_bot` database. Creating the test databases: [CONTRIBUTING.md](../CONTRIBUTING.md).

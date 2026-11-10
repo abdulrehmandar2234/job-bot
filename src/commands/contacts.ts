@@ -1,7 +1,7 @@
 import { validateContact } from '../contacts.ts';
 import { getJob, normCompany, pool } from '../db.ts';
 import type { Contact } from '../types.ts';
-import type { Flags } from './shared.ts';
+import { notFound, usage, type Flags } from './shared.ts';
 
 // Contacts are only notes the user keeps per job (who to ask for a referral); the bot never contacts anyone.
 // The rules for a contact (roles, validation) are in src/contacts.ts, which the dashboard imports too.
@@ -18,7 +18,7 @@ const line = (c: Contact) =>
 /** contacts <id>: the job's contacts, and people you know at the same company from other jobs. */
 export async function contacts(args: string[]) {
   const job = args[0] ? await getJob(args[0]) : undefined;
-  if (!job) return console.log('Usage: contacts <id>');
+  if (!job) return args[0] ? notFound(args[0]) : usage('contacts <id>');
   const { rows } = await pool.query<Contact & { company: string }>(
     'SELECT c.*, j.company FROM contacts c JOIN jobs j ON j.id = c.job_id ORDER BY c.created_at, c.id',
   );
@@ -32,9 +32,11 @@ export async function contacts(args: string[]) {
 export async function contactAdd(args: string[], flags: Flags) {
   const job = args[0] ? await getJob(args[0]) : undefined;
   if (!job)
-    return console.log(
-      'Usage: contact:add <id> --name "Jane Doe" [--role recruiter] [--email x] [--linkedin url] [--phone x] [--notes x] [--referral "to ask"]',
-    );
+    return args[0]
+      ? notFound(args[0])
+      : usage(
+          'contact:add <id> --name "Jane Doe" [--role recruiter] [--email x] [--linkedin url] [--phone x] [--notes x] [--referral "to ask"]',
+        );
   // A flag given without a value parses as 'true'; that is never a real value here.
   const f = (k: string) => (flags[k] === 'true' ? '' : flags[k]);
   const r = validateContact({

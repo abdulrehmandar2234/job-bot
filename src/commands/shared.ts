@@ -1,4 +1,6 @@
+import { readFileSync } from 'node:fs';
 import { config } from '../config.ts';
+import { UserError } from '../errors.ts';
 import { upsertJob, type Job } from '../db.ts';
 import { scoreJob } from '../match.ts';
 import { loadProfile, remoteFromCode } from '../profile.ts';
@@ -26,6 +28,32 @@ export const AI_OFF = 'AI is off (config.json ai.enabled)';
 export function notFound(what?: string) {
   console.error(what ? `Not found: ${what}` : 'Not found');
   process.exitCode = 1;
+}
+
+/** A command used the wrong way: its usage line on stderr and exit code 1, like `notFound`. */
+export function usage(text: string) {
+  console.error(`Usage: ${text}`);
+  process.exitCode = 1;
+}
+
+/** The text of `file`, or of stdin without one; a file that cannot be read is a UserError, not a stack trace. */
+export function readInput(file?: string): string {
+  try {
+    return readFileSync(file ?? 0, 'utf8');
+  } catch (e) {
+    const err = e as NodeJS.ErrnoException;
+    throw new UserError(`Cannot read ${file ?? 'stdin'}: ${err.code === 'ENOENT' ? 'no such file' : (err.code ?? err.message)}`);
+  }
+}
+
+/** `readInput` parsed as JSON; invalid JSON is a UserError naming the file. */
+export function readJsonInput(file?: string): any {
+  const text = readInput(file);
+  try {
+    return JSON.parse(text);
+  } catch (e) {
+    throw new UserError(`${file ?? 'stdin'} is not valid JSON: ${(e as Error).message}`);
+  }
 }
 
 export const today = () => new Date().toLocaleDateString('en-CA'); // local YYYY-MM-DD

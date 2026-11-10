@@ -32,7 +32,7 @@ Contents:
 
 ### The dashboard does not load
 
-It only runs while `npm run web` is running, and nothing starts it after a reboot: start it again. It binds to `127.0.0.1`, so use <http://localhost:3100> or <http://127.0.0.1:3100> on the same computer; it is not reachable from your phone or another computer, and any other Host header gets "job-bot only answers on localhost". If port 3100 is taken, `npm run web` says so: stop the other program (or an older `npm run web` in another window).
+It only runs while `npm run web` is running, and nothing starts it after a reboot: start it again. It binds to `127.0.0.1`, so use <http://localhost:3100> or <http://127.0.0.1:3100> on the same computer; it is not reachable from your phone or another computer, and any other Host header gets "job-bot only answers on localhost". If port 3100 is taken, `npm run web` says so: stop the other program (or an older `npm run web` in another window). To use another port instead, run `npm --prefix web run dev -- -p 3200` and set `http://localhost:3200` in the Chrome extension's options.
 
 ### A database error, or "column does not exist"
 

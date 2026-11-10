@@ -8,7 +8,7 @@ import type { Job } from '../types.ts';
 
 export type OpenState = 'open' | 'closed' | 'unknown';
 export type OpenResult = { state: OpenState; reason: string };
-export type OpenJob = Pick<Job, 'id' | 'source' | 'url'>;
+export type OpenJob = Pick<Job, 'id' | 'source' | 'url'> & { title?: string };
 
 const open = (reason: string): OpenResult => ({ state: 'open', reason });
 const closed = (reason: string): OpenResult => ({ state: 'closed', reason });
@@ -165,6 +165,20 @@ export function openCheck(job: OpenJob): { url: string; run: () => Promise<OpenR
       const url = workdayApiUrl(job.url);
       if (url) return via(url, () => api(url, 'Workday API'));
       break;
+    }
+    case 'himalayas': {
+      // Himalayas answers its job pages to bots with a 403, but its public search API lists open jobs: a job found
+      // there by its title is open. Not found proves nothing (the search returns a limited page), so that stays unknown.
+      if (!job.title) break;
+      const url = `https://himalayas.app/jobs/api/search?q=${encodeURIComponent(job.title)}`;
+      const guid = `https://himalayas.app/companies/${job.id.replace(/^himalayas:/, '')}`;
+      return via(url, async () => {
+        const res = await request(url, OPTS);
+        const jobs: { guid?: string }[] = JSON.parse(res.body).jobs ?? [];
+        return jobs.some((j) => j.guid === guid)
+          ? open('listed in a Himalayas search')
+          : unknown('not found by a Himalayas search for its title');
+      });
     }
     case 'linkedin': {
       const lid = job.id.split(':')[1] ?? '';

@@ -4,7 +4,7 @@ import { dueFollowUps, getJob, markFollowedUp, pool } from '../db.ts';
 import { addressee, daysWaiting, FOLLOW_UP_DAYS, MAX_FOLLOW_UPS, templateFollowUp } from '../followup.ts';
 import { loadProfile } from '../profile.ts';
 import type { Contact } from '../types.ts';
-import { notFound, type Flags } from './shared.ts';
+import { notFound, usage, type Flags } from './shared.ts';
 
 /** follow-ups: applied jobs with no news for FOLLOW_UP_DAYS days that are due a follow-up. */
 export async function followUps() {
@@ -42,7 +42,7 @@ export async function followUp(args: string[], flags: Flags = {}) {
 /** followed-up <id>: records that the user sent a follow-up, so the reminder waits FOLLOW_UP_DAYS again. */
 export async function followedUp(args: string[]) {
   const n = args[0] ? await markFollowedUp(args[0]) : null;
-  if (n === null) return console.log('Usage: followed-up <id>');
+  if (n === null) return args[0] ? notFound(args[0]) : usage('followed-up <id>');
   console.log(
     `${args[0]}: follow-up ${n} recorded.` +
       (n >= MAX_FOLLOW_UPS ? ' No more reminders for this job.' : ` Next reminder in ${FOLLOW_UP_DAYS} days if there is no news.`),

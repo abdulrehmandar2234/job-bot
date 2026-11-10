@@ -1,10 +1,11 @@
 import { basename } from 'node:path';
 import { addToConfig, discover as findBoards } from '../discover.ts';
 import { configFile } from '../settings.ts';
-import type { Flags } from './shared.ts';
+import { usage, type Flags } from './shared.ts';
 
 /** Find which job board companies use: discover careem salla foodics [--add] */
 export async function discover(args: string[], flags: Flags) {
+  if (!args.length) return usage('discover <company or slug...> [--add], e.g. discover careem salla');
   const hits = await findBoards(args);
   for (const h of hits)
     console.log(`${h.target ? '★' : ' '} ${h.ats.padEnd(15)} ${h.slug.padEnd(22)} jobs=${h.jobs} in target countries=${h.target}`);

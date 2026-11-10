@@ -779,18 +779,13 @@ describe('adzuna', () => {
     created: '2026-10-27T08:00:00Z',
   });
 
-  it('is skipped with one log line when the keys are missing', async () => {
+  it('is skipped, saying why, when the keys are missing', async () => {
     delete process.env.ADZUNA_APP_ID;
     delete process.env.ADZUNA_APP_KEY;
     net = mockFetch({});
-    const log = mock.method(console, 'log', () => {});
-    try {
-      assert.deepEqual(await BOARDS.adzuna(), []);
-      assert.equal(log.mock.callCount(), 1);
-      assert.match(String(log.mock.calls[0].arguments[0]), /adzuna: skipped .*ADZUNA_APP_ID/);
-    } finally {
-      log.mock.restore();
-    }
+    const jobs = await BOARDS.adzuna();
+    assert.equal(jobs.length, 0);
+    assert.match(String(jobs.skipped), /ADZUNA_APP_ID/);
     assert.equal(net.calls.length, 0);
   });
 
