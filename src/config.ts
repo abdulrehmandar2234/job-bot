@@ -1,4 +1,5 @@
-import { configFile, ensureConfigFile, loadSettings, type Config } from './settings.ts';
+import { stackErrors } from './presets.ts';
+import { configFile, ensureConfigFile, InvalidSettingsError, loadSettings, type Config } from './settings.ts';
 
 // The schema, its types and the paths live in settings.ts. Logic that needs settings takes them as a parameter
 // (`cfg`, see src/profile.ts and src/match.ts), so it can be imported without reading config.json — the dashboard
@@ -8,11 +9,18 @@ export { ATS, ROOT, path, type Company, type Config, type Country } from './sett
 
 let loaded: Config | null = null;
 
-/** config.json, read and validated once (a fresh clone first gets a copy of config.default.json). */
+/**
+ * config.json, read and validated once (a fresh clone first gets a copy of config.default.json). Beyond the schema,
+ * `stacks` must name preset files in presets/stacks: a typo would otherwise pass here and only fail when scoring runs.
+ */
 export function loadConfig(): Config {
   if (!loaded) {
     ensureConfigFile();
-    loaded = loadSettings('config', configFile());
+    const file = configFile();
+    const cfg = loadSettings('config', file);
+    const errors = stackErrors(cfg.stacks);
+    if (errors.length) throw new InvalidSettingsError(file, errors);
+    loaded = cfg;
   }
   return loaded;
 }

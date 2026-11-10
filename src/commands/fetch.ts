@@ -1,5 +1,6 @@
 import { config } from '../config.ts';
 import { pool, withLock, type Job } from '../db.ts';
+import { ConfigError } from '../errors.ts';
 import { fetchCompany, type Fetched } from '../sources/index.ts';
 import { BOARDS } from '../sources/boards.ts';
 import { linkedin } from '../sources/linkedin.ts';
@@ -36,9 +37,12 @@ async function fetchAll(_args: string[], flags: Flags) {
       ...(config.linkedin.enabled ? [{ name: 'linkedin', load: linkedin }] : []),
     ];
     const queue = sources.filter((s) => !only || s.name.toLowerCase().includes(only));
+    // A settings problem scoring hits (unknown stack, missing master CV) fails every posting alike: the first one stops
+    // the fetch, and it is reported once as the fetch's own error, not as "N of M postings not saved" per source.
+    let configError = null as ConfigError | null;
     // 4 sources at a time; Workable spaces its own calls inside the adapter.
     const worker = async () => {
-      for (let c = queue.shift(); c; c = queue.shift()) {
+      for (let c = queue.shift(); c && !configError; c = queue.shift()) {
         try {
           const jobs = await c.load();
           // One posting the database rejects must not cost the rest of the source.
@@ -48,6 +52,11 @@ async function fetchAll(_args: string[], flags: Flags) {
             try {
               if ((await save(j)) === 'inserted') added++;
             } catch (e) {
+              if (e instanceof ConfigError) {
+                configError ??= e;
+                queue.length = 0;
+                return;
+              }
               skipped++;
               firstError ||= `${j.id}: ${(e as Error).message}`;
             }
@@ -64,6 +73,7 @@ async function fetchAll(_args: string[], flags: Flags) {
       }
     };
     await Promise.all(Array.from({ length: 4 }, worker));
+    if (configError) throw configError;
     waiting = await waitingCount();
     console.log(`\n${total} postings checked, ${added} new. ${waiting} matching jobs waiting (status=new).`);
   } catch (e) {

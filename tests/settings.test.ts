@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -15,6 +15,7 @@ import {
   validateText,
   writeSettingsFile,
 } from '../src/settings.ts';
+import { stackErrors } from '../src/presets.ts';
 
 const realConfig = () => JSON.parse(readFileSync(path('config.default.json'), 'utf8'));
 const example = () => JSON.parse(readFileSync(path('cv', 'applicant.example.json'), 'utf8'));
@@ -120,6 +121,42 @@ describe('config validation', () => {
         .sort(),
       ['ai.api.baseUrl', 'ai.api.preset', 'ai.api.responseFormat', 'ai.api.scoreModel', 'ai.provider'],
     );
+  });
+});
+
+describe('config stack ids', () => {
+  // The schema cannot read presets/ (the dashboard imports it), so stack ids are checked where settings are loaded
+  // or saved, with this helper; a typo used to pass and then fail every matching posting inside a fetch.
+  it('passes the shipped ids, in any case, and a missing or empty list (= the default stacks)', () => {
+    assert.deepEqual(stackErrors(realConfig().stacks), []);
+    assert.deepEqual(stackErrors(['python', ' JavaScript ', 'php-laravel']), []);
+    assert.deepEqual(stackErrors(undefined), []);
+    assert.deepEqual(stackErrors([]), []);
+  });
+
+  it('names each unknown id with its path and the known ids', () => {
+    assert.deepEqual(stackErrors(['php-laravel', 'pyhton', 'cobol']), [
+      { path: 'stacks[1]', message: 'unknown stack "pyhton" (known: javascript, php-laravel, python; one per file in presets/stacks/)' },
+      { path: 'stacks[2]', message: 'unknown stack "cobol" (known: javascript, php-laravel, python; one per file in presets/stacks/)' },
+    ]);
+  });
+
+  it('leaves wrong types to the schema, so nothing is reported twice', () => {
+    assert.deepEqual(stackErrors('python'), []);
+    assert.deepEqual(stackErrors([1, '']), []);
+    assert.deepEqual(
+      errorsOf(validateConfig({ ...realConfig(), stacks: [1, ''] })).map((e) => e.path),
+      ['stacks[0]', 'stacks[1]'],
+    );
+  });
+
+  it('reads the ids from the preset folder it is given', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'job-bot-stacks-'));
+    mkdirSync(join(dir, 'stacks'));
+    const stack = { name: 'Rust', description: 'Rust', linkedinKeywords: [], remoteQueries: [], roleInclude: 'rust', allowInTitles: [] };
+    writeFileSync(join(dir, 'stacks', 'rust.json'), JSON.stringify(stack));
+    assert.deepEqual(stackErrors(['rust'], dir), []);
+    assert.match(stackErrors(['python'], dir)[0].message, /unknown stack "python" \(known: rust;/);
   });
 });
 
