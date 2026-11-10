@@ -150,6 +150,6 @@ describe('ats CLI', () => {
   });
 
   it('says so when the job does not exist', async () => {
-    assert.match(await bot(['ats', 'nope']), /Not found/);
+    await assert.rejects(bot(['ats', 'nope']), (e: { code: number; stderr: string }) => e.code === 1 && /Not found/.test(e.stderr));
   });
 });

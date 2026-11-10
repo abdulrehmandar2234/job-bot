@@ -99,7 +99,7 @@ describe('CLI', () => {
     assert.match(show, /Visa: UAE: posting does not mention visa or relocation/);
     assert.match(show, /Laravel, PHP, Vue\.js/);
     assert.match(await bot(['stats']), /new\s+AE\s+1/);
-    assert.match(await bot(['show', 'nope']), /Not found/);
+    await expectNotFound(['show', 'nope']);
   });
 
   it('migrate applies pending migrations and says when there are none (the dashboard runs it at startup)', async () => {
@@ -179,7 +179,7 @@ describe('CLI', () => {
       assert.match((await getJob(id)).cover_letter!, /^Dear Testco Cli Hiring Team,/);
       assert.equal((await getJob(id)).cover_letter_ai, false);
       assert.match((await getJob(id)).cover_letter_ai_error!, /offline/, 'the job page says why the AI did not write it');
-      assert.match(await bot(['letter', 'nope']), /Not found/);
+      await expectNotFound(['letter', 'nope']);
 
       const both = await bot(['prepare', id, '--letter', '--template']);
       assert.match(both, /CV version : default[\s\S]*Cover {6}: \S+\/cover-letter\.txt \(template\)/);
@@ -337,7 +337,7 @@ describe('CLI', () => {
       return true;
     });
     assert.equal((await getJob(id)).cv_summary, 'Kept.');
-    assert.match(await bot(['summary', 'nope']), /Not found/);
+    await expectNotFound(['summary', 'nope']);
   });
 
   it('cv:tailor refuses a job without a CV headline or summary', async () => {
@@ -348,7 +348,7 @@ describe('CLI', () => {
       return true;
     });
     assert.equal((await getJob(id)).cv_version, null);
-    assert.match(await bot(['cv:tailor', 'nope']), /Not found/);
+    await expectNotFound(['cv:tailor', 'nope']);
   });
 
   it('cv:tailor builds a CV with the job summary in a new folder every run and sets it as the job CV', {
@@ -462,6 +462,36 @@ const botExit = (args: string[], env: Record<string, string> = {}) =>
     (stdout) => ({ code: 0, stdout, stderr: '' }),
     (e: { code: number; stdout: string; stderr: string }) => ({ code: e.code, stdout: e.stdout, stderr: e.stderr }),
   );
+
+/** An unknown job id: "Not found" on stderr, nothing on stdout, exit code 1. */
+async function expectNotFound(args: string[]) {
+  const res = await botExit(args);
+  assert.equal(res.code, 1, args.join(' '));
+  assert.match(res.stderr, /^Not found$/m);
+  assert.doesNotMatch(res.stdout, /Not found/);
+}
+
+/** The last stderr line (Node may first warn about a missing .env), and that no stack trace was printed. */
+function oneLineError(res: { code: number; stderr: string }) {
+  assert.equal(res.code, 1);
+  const lines = res.stderr.trim().split('\n');
+  assert.ok(!lines.some((l) => /^\s+at /.test(l)), res.stderr);
+  return lines.at(-1);
+}
+
+describe('CLI user errors', () => {
+  it('a missing DATABASE_URL is one line with no stack trace, and exit 1', async () => {
+    const res = await botExit(['stats'], { DATABASE_URL: '' });
+    assert.equal(oneLineError(res), 'DATABASE_URL is not set: put it in .env in the job-bot folder');
+  });
+
+  it('a ConfigError (an unreadable master CV) is one line with no stack trace, and exit 1', async () => {
+    const res = await botExit(['add', '--file', addFile([posting({ url: 'https://example.com/jobs/config-error' })])], {
+      JOB_BOT_MASTER: join(tmp, 'no-such-master.json'),
+    });
+    assert.match(oneLineError(res)!, /^Cannot read the master CV at .*no-such-master\.json/);
+  });
+});
 
 describe('CLI AI errors', () => {
   it('prints an AI setup problem as one line, with no stack trace, and exits 1', async () => {

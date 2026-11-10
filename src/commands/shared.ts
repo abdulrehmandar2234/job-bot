@@ -19,6 +19,15 @@ export const slug = (s: string) =>
 /** The start of the line a command prints when it needs the AI and config.json turns it off (it then exits 0). */
 export const AI_OFF = 'AI is off (config.json ai.enabled)';
 
+/**
+ * A job id (or other named thing) that does not exist: "Not found" on stderr and exit code 1, so scripts and the
+ * dashboard see a failure instead of a successful run with nothing done.
+ */
+export function notFound(what?: string) {
+  console.error(what ? `Not found: ${what}` : 'Not found');
+  process.exitCode = 1;
+}
+
 export const today = () => new Date().toLocaleDateString('en-CA'); // local YYYY-MM-DD
 
 /** The user's own country (remote.fromCode, else the profile's countryCode): what "Rs" means in a remote job. */

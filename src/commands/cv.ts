@@ -20,7 +20,7 @@ import { confirmSkills, parseSkills } from '../cv/confirm-skills.ts';
 import { isTemplate, TEMPLATE_IDS } from '../cv/templates/index.ts';
 import { aiCvFeedback, aiCvReview } from '../ai.ts';
 import { feedbackFlag } from './prepare.ts';
-import { AI_OFF, slug, type Flags } from './shared.ts';
+import { AI_OFF, slug, type Flags, notFound } from './shared.ts';
 
 /** The slug of a job's one-off CV folders: custom-<slug>-v<N>. */
 const jobSlug = (j: Pick<Job, 'company' | 'title'>) => slug(`${j.company}-${j.title}`).slice(0, 40);
@@ -51,7 +51,7 @@ export async function versions() {
 /** One-off CV for a single job: --overrides file.json with {title, summary, skillsFirst, groupsFirst, projectTags, bulletKeywords} */
 export async function custom(args: string[], flags: Flags) {
   const j = await getJob(args[0]);
-  if (!j) return console.log('Not found');
+  if (!j) return notFound();
   const overrides = JSON.parse(readFileSync(flags.overrides, 'utf8'));
   const meta = await customVersion(jobSlug(j), j.cluster ?? 'default', j.id, overrides, jobTemplate(j));
   await pool.query('UPDATE jobs SET cv_version = $2 WHERE id = $1', [j.id, meta.id]);
@@ -76,7 +76,7 @@ function baseCluster(j: { cv_version: string | null; cluster: string | null }): 
  */
 export async function cvTailor(args: string[]) {
   const j = await getJob(args[0]);
-  if (!j) return console.log('Not found');
+  if (!j) return notFound();
   if (!j.cv_summary && !j.cv_headline) {
     console.error(`No CV headline or summary for this job yet: npm run bot -- headline ${j.id} (or summary ${j.id})`);
     process.exitCode = 1;
@@ -106,7 +106,7 @@ export async function cvTemplate(args: string[]) {
     return;
   }
   const j = await getJob(id);
-  if (!j) return console.log('Not found');
+  if (!j) return notFound();
   console.log(`${j.company} — ${j.title}`);
   if (!j.cv_version) {
     await pool.query('UPDATE jobs SET cv_template = $2 WHERE id = $1', [j.id, template]);
@@ -157,7 +157,7 @@ export async function cvFeedback(args: string[], flags: Flags) {
     return;
   }
   const j = await getJob(args[0]);
-  if (!j) return console.log('Not found');
+  if (!j) return notFound();
   if (!config.ai.enabled) return console.log(`${AI_OFF}: improving the CV with feedback needs it, so the CV is unchanged.`);
   if (skills.length) {
     const { added, backup } = confirmSkills(skills);
@@ -196,7 +196,7 @@ export async function cvFeedback(args: string[], flags: Flags) {
  */
 export async function cvReview(args: string[]) {
   const j = await getJob(args[0]);
-  if (!j) return console.log('Not found');
+  if (!j) return notFound();
   if (!config.ai.enabled) return console.log(`${AI_OFF}: the CV review is written by the AI, so there is none.`);
   let review: string;
   try {

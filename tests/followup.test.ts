@@ -168,7 +168,7 @@ describe('drafting', () => {
   });
 
   it('refuses unknown jobs and jobs that are not applied', async () => {
-    assert.match(await bot(['follow-up', 'nope']), /Not found/);
+    await assert.rejects(bot(['follow-up', 'nope']), (e: { code: number; stderr: string }) => e.code === 1 && /Not found/.test(e.stderr));
     const id = await insertJob('fu:new', { status: 'new', applied_at: null });
     assert.match(await bot(['follow-up', id]), /fu:new is new; follow-ups are for applied jobs/);
     assert.equal((await getJob(id))!.follow_up_draft, null);

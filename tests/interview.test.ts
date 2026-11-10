@@ -139,7 +139,7 @@ describe('prep', () => {
   });
 
   it('reports unknown jobs and AI being off without calling Claude', async () => {
-    assert.match(await bot(['prep', 'nope']), /Not found/);
+    await assert.rejects(bot(['prep', 'nope']), (e: { code: number; stderr: string }) => e.code === 1 && /Not found/.test(e.stderr));
     const id = await insertJob('prep:4');
     assert.match(
       await bot(

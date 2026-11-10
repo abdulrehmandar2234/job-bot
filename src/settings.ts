@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path';
 import { z } from 'zod';
 import { API_PRESETS, RESPONSE_FORMATS } from './ai-presets.ts';
 import { TEMPLATE_IDS } from './cv/templates/index.ts';
+import { UserError } from './errors.ts';
 import { ATS, REMOTE_BOARDS } from './types.ts';
 
 // Schemas for the two hand-edited settings files, config.json and cv/applicant.json. Loading them (config.ts, ai.ts)
@@ -249,7 +250,7 @@ export function validateText<K extends SettingsKind>(kind: K, json: string): Val
 }
 
 /** Thrown when a settings file is missing or invalid; its message names the file and every bad field. */
-export class InvalidSettingsError extends Error {
+export class InvalidSettingsError extends UserError {
   file: string;
   errors: SettingsError[];
   constructor(file: string, errors: SettingsError[]) {

@@ -1,6 +1,6 @@
 import { loadConfig } from './config.ts';
-import { ConfigError } from './errors.ts';
-import { ensureConfigFile, InvalidSettingsError } from './settings.ts';
+import { UserError } from './errors.ts';
+import { ensureConfigFile } from './settings.ts';
 import type { Command, Flags } from './commands/shared.ts';
 
 const [cmd, ...rest] = process.argv.slice(2);
@@ -167,10 +167,9 @@ if (!load) {
       }
     }
   } catch (e) {
-    // A setting or AI problem the user can fix: its message is the whole story, a stack trace would only bury it.
-    // Errors the user can fix print their message, not a stack trace. AiError (src/ai-providers.ts) is matched by name
-    // so cli.ts does not pull in the AI modules; ConfigError (src/errors.ts) is a bad setting or a missing master CV.
-    if (!(e instanceof InvalidSettingsError || e instanceof ConfigError || (e instanceof Error && e.name === 'AiError'))) throw e;
+    // A problem the user can fix (a bad setting, a missing master CV, Chrome or DATABASE_URL, an AI setup problem):
+    // its message is the whole story, a stack trace would only bury it.
+    if (!(e instanceof UserError)) throw e;
     console.error(e.message);
     process.exitCode = 1;
   }

@@ -2,6 +2,7 @@ import pg from 'pg';
 import { normCompany } from './contacts.ts';
 import { FOLLOW_UP_DUE_SQL } from './followup.ts';
 import { runMigrations } from './migrate.ts';
+import { UserError } from './errors.ts';
 import type { Job, JobStatus, SkipReason } from './types.ts';
 
 export type { FormAnswer, Job, JobStatus, SkipReason } from './types.ts';
@@ -46,8 +47,36 @@ export type ScoredJob = Pick<
     seen?: boolean;
   };
 
-if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL missing — add it to .env');
-export const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 4 });
+let realPool: pg.Pool | null = null;
+
+/**
+ * The connection pool, created on first use rather than at import time, so commands and modules that never query
+ * (help, settings checks, a module the dashboard imports) still load without DATABASE_URL. Throws a UserError when
+ * DATABASE_URL is not set, which the CLI prints as one line.
+ */
+export function getPool(): pg.Pool {
+  if (!realPool) {
+    if (!process.env.DATABASE_URL) throw new UserError('DATABASE_URL is not set: put it in .env in the job-bot folder');
+    realPool = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 4 });
+  }
+  return realPool;
+}
+
+/**
+ * The shared pool: every property is read from getPool(), so the first query creates it. `end()` on a pool that was
+ * never created is a no-op (a `finally { pool.end() }` after a failed start must not hide the first error).
+ */
+export const pool: pg.Pool = new Proxy(Object.create(pg.Pool.prototype) as pg.Pool, {
+  get(_t, p) {
+    if (p === 'end' && !realPool) return async () => {};
+    const real = getPool();
+    const v = Reflect.get(real, p, real) as unknown;
+    return typeof v === 'function' ? (v as (...a: unknown[]) => unknown).bind(real) : v;
+  },
+  set(_t, p, v) {
+    return Reflect.set(getPool(), p, v);
+  },
+});
 
 /** Brings the database schema up to date (src/migrations, see src/migrate.ts). Returns the versions applied. */
 export const migrate = () => runMigrations(pool);

@@ -4,7 +4,7 @@ import { dueFollowUps, getJob, markFollowedUp, pool } from '../db.ts';
 import { addressee, daysWaiting, FOLLOW_UP_DAYS, MAX_FOLLOW_UPS, templateFollowUp } from '../followup.ts';
 import { loadProfile } from '../profile.ts';
 import type { Contact } from '../types.ts';
-import type { Flags } from './shared.ts';
+import { notFound, type Flags } from './shared.ts';
 
 /** follow-ups: applied jobs with no news for FOLLOW_UP_DAYS days that are due a follow-up. */
 export async function followUps() {
@@ -22,7 +22,7 @@ export async function followUps() {
 /** follow-up <id> [--template]: drafts a follow-up message and stores it on the job. Nothing is sent. */
 export async function followUp(args: string[], flags: Flags = {}) {
   const j = await getJob(args[0]);
-  if (!j) return console.log('Not found');
+  if (!j) return notFound();
   if (j.status !== 'applied' && j.status !== 'interview') return console.log(`${j.id} is ${j.status}; follow-ups are for applied jobs.`);
   const { rows } = await pool.query<Contact>('SELECT * FROM contacts WHERE job_id = $1 ORDER BY created_at, id', [j.id]);
   const name = addressee(rows);
