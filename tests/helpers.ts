@@ -1,6 +1,6 @@
-import { copyFileSync, mkdtempSync } from 'node:fs';
+import { copyFileSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { mock } from 'node:test';
 import type { RawJob } from '../src/sources/index.ts';
 
@@ -38,6 +38,15 @@ process.env.JOB_BOT_WEB_ENV_FILE ||= join(envDir, 'web.env.local');
 
 // Never write the real HTTP cache (data/http-cache) from a test. Suites that test the cache set their own dir.
 process.env.JOB_BOT_HTTP_CACHE ||= mkdtempSync(join(tmpdir(), 'job-bot-http-cache-'));
+
+/**
+ * Write a small IND sponsor register (the format `sponsors:update` saves) to `file`, src/sponsors.ts `indFile()`, which
+ * in tests is in the temp JOB_BOT_DATA_DIR. Seed it before the first isIndSponsor() call: the register is cached per process.
+ */
+export function seedIndRegister(file: string, names: string[]) {
+  mkdirSync(dirname(file), { recursive: true });
+  writeFileSync(file, JSON.stringify({ updated: new Date().toISOString(), names }));
+}
 
 export const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString();
 

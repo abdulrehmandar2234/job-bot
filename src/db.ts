@@ -303,7 +303,10 @@ export async function setStatus(
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    const { rows } = await client.query<{ status: JobStatus }>('SELECT status FROM jobs WHERE id = $1 FOR UPDATE', [id]);
+    const { rows } = await client.query<{ status: JobStatus; applied_at: Date | null }>(
+      'SELECT status, applied_at FROM jobs WHERE id = $1 FOR UPDATE',
+      [id],
+    );
     if (expectFrom && !(rows[0] && expectFrom.includes(rows[0].status))) {
       await client.query('ROLLBACK');
       return false;
@@ -316,13 +319,11 @@ export async function setStatus(
       [id, status],
     );
     if (set && 'filter_reason' in set) await client.query('UPDATE jobs SET filter_reason = $2 WHERE id = $1', [id, set.filter_reason]);
-    await client.query('INSERT INTO job_events (job_id, from_status, to_status, note, reason) VALUES ($1, $2, $3, $4, $5)', [
-      id,
-      rows[0]?.status ?? null,
-      status,
-      note ?? null,
-      status === 'skipped' ? (reason ?? null) : null,
-    ]);
+    // prev_applied_at: applied_at as it was before this change, so the dashboard's Undo can put it back.
+    await client.query(
+      'INSERT INTO job_events (job_id, from_status, to_status, note, reason, prev_applied_at) VALUES ($1, $2, $3, $4, $5, $6)',
+      [id, rows[0]?.status ?? null, status, note ?? null, status === 'skipped' ? (reason ?? null) : null, rows[0]?.applied_at ?? null],
+    );
     await client.query('COMMIT');
     return true;
   } catch (e) {

@@ -135,6 +135,8 @@ export type JobEvent = {
   to_status: string;
   note: string | null;
   reason: SkipReason | null;
+  /** The job's applied_at just before this row (migration 018); NULL on rows written before it, or when it was unset. */
+  prev_applied_at: Date | null;
 };
 
 export type ContactRole = 'recruiter' | 'hiring manager' | 'referral' | 'other';

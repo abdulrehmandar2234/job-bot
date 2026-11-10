@@ -79,6 +79,36 @@ describe('undoStatus', () => {
     expect(await getJob(id)).toMatchObject({ status: 'new', applied_at: first });
   });
 
+  it('logs the applied_at from before each change and before the undo (prev_applied_at)', async () => {
+    await setStatus(null, form({ id, status: 'applied' }));
+    const appliedAt = (await getJob(id))!.applied_at;
+    expect(await latest()).toMatchObject({ to_status: 'applied', prev_applied_at: null });
+    await setStatus(null, form({ id, status: 'interview' }));
+    expect(await latest()).toMatchObject({ to_status: 'interview', prev_applied_at: appliedAt });
+    await undo();
+    expect(await latest()).toMatchObject({ to_status: 'applied', note: 'undo', prev_applied_at: appliedAt });
+  });
+
+  it('puts back the applied_at of a job applied to without a history row (set before job_events)', async () => {
+    const legacy = new Date('2026-01-05T10:00:00Z');
+    await pool.query(`UPDATE jobs SET status = 'interview', applied_at = $2 WHERE id = $1`, [id, legacy]);
+    await setStatus(null, form({ id, status: 'applied', from: 'interview' }));
+    expect((await getJob(id))!.applied_at).not.toEqual(legacy);
+    await undo();
+    expect(await getJob(id)).toMatchObject({ status: 'interview', applied_at: legacy });
+  });
+
+  it('replays the history for an event logged before migration 018 (prev_applied_at NULL)', async () => {
+    await setStatus(null, form({ id, status: 'applied' }));
+    const first = (await getJob(id))!.applied_at;
+    await setStatus(null, form({ id, status: 'new' }));
+    await setStatus(null, form({ id, status: 'applied' }));
+    // Old-style rows: nothing says what applied_at was before them.
+    await pool.query('UPDATE job_events SET prev_applied_at = NULL WHERE job_id = $1', [id]);
+    await undo();
+    expect(await getJob(id)).toMatchObject({ status: 'new', applied_at: first });
+  });
+
   it('keeps applied_at when undoing a later move (Interview back to Applied)', async () => {
     await setStatus(null, form({ id, status: 'applied' }));
     const appliedAt = (await getJob(id))!.applied_at;

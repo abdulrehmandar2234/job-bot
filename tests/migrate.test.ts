@@ -258,3 +258,18 @@ describe('migration 017 (job list index)', () => {
     }
   });
 });
+
+describe('migration 018 (applied_at before each status change)', () => {
+  it('adds an empty prev_applied_at to job_events on a database at 017, keeping its history', async () => {
+    const d = dir({});
+    for (const f of migrationFiles().filter((f) => f < '018')) writeFileSync(join(d, f), readFileSync(join(MIGRATIONS_DIR, f), 'utf8'));
+    await runMigrations(db, d);
+    await db.query(`INSERT INTO jobs (id, source, company, title, url, status) VALUES ('a', 's', 'c', 't', 'u', 'applied')`);
+    await db.query(`INSERT INTO job_events (job_id, from_status, to_status, note) VALUES ('a', 'new', 'applied', 'kept')`);
+    assert.deepEqual(await runMigrations(db), from('018'));
+    assert.deepEqual((await db.query('SELECT from_status, to_status, note, prev_applied_at FROM job_events')).rows, [
+      { from_status: 'new', to_status: 'applied', note: 'kept', prev_applied_at: null },
+    ]);
+    assert.equal((await db.query('SELECT count(*)::int n FROM jobs')).rows[0].n, 1);
+  });
+});

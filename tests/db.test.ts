@@ -91,6 +91,29 @@ describe('setStatus', () => {
       { from_status: 'prepared', to_status: 'applied', note: null },
     ]);
   });
+
+  it('logs the applied_at from before each change (prev_applied_at), so an undo can put it back', async () => {
+    await upsertJob(job());
+    const legacy = new Date('2026-01-05T10:00:00Z');
+    await pool.query(`UPDATE jobs SET status = 'applied', applied_at = $1 WHERE id = 'test:db1'`, [legacy]);
+    await setStatus('test:db1', 'interview');
+    await setStatus('test:db1', 'applied');
+    const stamped = (await getJob('test:db1')).applied_at;
+    assert.notDeepEqual(stamped, legacy);
+    await setStatus('test:db1', 'rejected');
+    const { rows } = await pool.query('SELECT to_status, prev_applied_at FROM job_events ORDER BY id');
+    assert.deepEqual(rows, [
+      { to_status: 'interview', prev_applied_at: legacy },
+      { to_status: 'applied', prev_applied_at: legacy },
+      { to_status: 'rejected', prev_applied_at: stamped },
+    ]);
+  });
+
+  it('logs a NULL prev_applied_at for a job never applied to', async () => {
+    await upsertJob(job());
+    await setStatus('test:db1', 'applied');
+    assert.equal((await pool.query('SELECT prev_applied_at FROM job_events')).rows[0].prev_applied_at, null);
+  });
 });
 
 describe('setStatus expectFrom', () => {

@@ -5,6 +5,7 @@ import {
   PAGE_SIZES,
   getJob,
   jobEvents,
+  jobNeighbours,
   lastRun,
   listJobs,
   PAGE_SIZE,
@@ -196,6 +197,77 @@ describe('listJobs', () => {
     await insertJob({ id: 'wrong-country', country: 'SA', score: 80, company: 'Qwopple' });
     await insertJob({ id: 'low', country: 'AE', score: 20, company: 'Qwopple' });
     expect(ours(await listJobs({ status: 'new', country: 'AE', min: 50, q: 'qwopple' }))).toEqual([id('hit')]);
+  });
+});
+
+describe('jobNeighbours', () => {
+  // `q` keeps the window to this suite's rows: the shared test database may hold other jobs.
+  const q = 'nbrzz';
+  const newList = { status: 'new' as const, q };
+  /** Moves a job the way the dashboard's setStatus does: status, applied_at on a move to applied, and its event. */
+  async function move(jobId: string, to: string) {
+    const { rows } = await pool.query<{ status: string; applied_at: Date | null }>('SELECT status, applied_at FROM jobs WHERE id = $1', [
+      jobId,
+    ]);
+    await pool.query(`UPDATE jobs SET status = $2, applied_at = CASE WHEN $2 = 'applied' THEN now() ELSE applied_at END WHERE id = $1`, [
+      jobId,
+      to,
+    ]);
+    await pool.query('INSERT INTO job_events (job_id, from_status, to_status, prev_applied_at) VALUES ($1, $2, $3, $4)', [
+      jobId,
+      rows[0].status,
+      to,
+      rows[0].applied_at,
+    ]);
+  }
+  beforeEach(async () => {
+    for (const [name, score] of [
+      ['n1', 90],
+      ['n2', 80],
+      ['n3', 70],
+    ] as const)
+      await insertJob({ id: name, title: `Dev ${q} ${name}`, status: 'new', score });
+  });
+
+  it('gives the jobs before and after one in the list, null at the ends', async () => {
+    expect(await jobNeighbours(newList, id('n2'))).toEqual({ prev: id('n1'), next: id('n3') });
+    expect(await jobNeighbours(newList, id('n1'))).toEqual({ prev: null, next: id('n2') });
+    expect(await jobNeighbours(newList, id('n3'))).toEqual({ prev: id('n2'), next: null });
+    expect(await jobNeighbours(newList, id('missing'))).toEqual({ prev: null, next: null });
+  });
+
+  it('still gives them after the job left the list (marked applied or skipped), never the job itself', async () => {
+    await move(id('n2'), 'applied');
+    expect(await jobNeighbours(newList, id('n2'))).toEqual({ prev: id('n1'), next: id('n3') });
+    await move(id('n2'), 'skipped');
+    expect(await jobNeighbours(newList, id('n2'))).toEqual({ prev: id('n1'), next: id('n3') });
+    // The jobs still in the list skip over it.
+    expect(await jobNeighbours(newList, id('n1'))).toEqual({ prev: null, next: id('n3') });
+    expect(await jobNeighbours(newList, id('n3'))).toEqual({ prev: id('n1'), next: null });
+    // Every job left: no neighbours, and never the job itself.
+    await move(id('n1'), 'applied');
+    await move(id('n3'), 'applied');
+    expect(await jobNeighbours(newList, id('n2'))).toEqual({ prev: null, next: null });
+  });
+
+  it('keeps a job that moved to applied where it was in a list sorted by applied_at', async () => {
+    // The skipped tab sorts by coalesce(applied_at, first_seen_at), newest first: s1, s2, s3.
+    for (const [name, days] of [
+      ['s1', 1],
+      ['s2', 2],
+      ['s3', 3],
+    ] as const)
+      await insertJob({ id: name, title: `Dev ${q} ${name}`, status: 'skipped', first_seen_at: dateDaysAgo(days) });
+    const skipped = { status: 'skipped' as const, q };
+    expect(await jobNeighbours(skipped, id('s2'))).toEqual({ prev: id('s1'), next: id('s3') });
+    // Applying stamps applied_at = now(), which would sort it first; it keeps its old place instead.
+    await move(id('s2'), 'applied');
+    expect(await jobNeighbours(skipped, id('s2'))).toEqual({ prev: id('s1'), next: id('s3') });
+  });
+
+  it('places a job by the list order when it was never in the list', async () => {
+    await insertJob({ id: 'a1', title: `Dev ${q} a1`, status: 'applied', score: 75 });
+    expect(await jobNeighbours(newList, id('a1'))).toEqual({ prev: id('n2'), next: id('n3') });
   });
 });
 
