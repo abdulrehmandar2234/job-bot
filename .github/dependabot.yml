@@ -26,6 +26,8 @@ updates:
         patterns: ["vitest", "@vitest/*", "vite", "@vitejs/*"]
       testing-library:
         patterns: ["@testing-library/*"]
+      tailwind:
+        patterns: ["tailwindcss", "@tailwindcss/*"]
       types:
         patterns: ["@types/*"]
   - package-ecosystem: github-actions

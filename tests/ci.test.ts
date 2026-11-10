@@ -67,5 +67,6 @@ describe('.github/dependabot.yml', () => {
     const web = dependabot.slice(dependabot.indexOf('directory: "/web"'), dependabot.indexOf('github-actions'));
     assert.match(web, /react:\n {8}patterns: \[.*"react".*"react-dom".*\]/);
     assert.match(web, /vitest:\n {8}patterns: \[.*"vitest".*"@vitest\/\*".*\]/);
+    assert.match(web, /tailwind:\n {8}patterns: \[.*"tailwindcss".*"@tailwindcss\/\*".*\]/);
   });
 });
