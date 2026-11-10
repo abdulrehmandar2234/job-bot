@@ -208,6 +208,7 @@ describe('bulk skip', () => {
     expect(screen.getByText('2 selected')).toBeInTheDocument();
     await user.selectOptions(screen.getByLabelText('Skip reason for all selected (optional)'), 'seniority');
     await user.click(screen.getByRole('button', { name: 'Skip selected' }));
+    await waitFor(() => expect(skip).toHaveBeenCalled());
     const fd = skip.mock.calls.at(-1)![1];
     expect(fd.getAll('id')).toEqual(['job:a', 'job:c']);
     expect(fd.get('reason')).toBe('seniority');
@@ -284,6 +285,7 @@ describe('bulk skip', () => {
     view.rerender(<List ids={['job:b', 'job:c']} />);
     expect(screen.getByText('1 selected')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Skip selected' }));
+    await waitFor(() => expect(skip).toHaveBeenCalled());
     expect(skip.mock.calls.at(-1)![1].getAll('id')).toEqual(['job:b']);
   });
 });

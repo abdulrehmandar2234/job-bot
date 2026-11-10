@@ -14,6 +14,8 @@ Contents:
   - [LinkedIn returns 429](#linkedin-returns-429)
   - ["AI review failed (is Claude signed in?)"](#ai-review-failed-is-claude-signed-in)
   - [An API key is rejected](#an-api-key-is-rejected)
+  - ["AI review failed ...; stopped early"](#ai-review-failed--stopped-early)
+  - ["Missing or wrong import token" (Bayt bookmarklet)](#missing-or-wrong-import-token-bayt-bookmarklet)
   - [No Chrome found, or Chrome fails to launch](#no-chrome-found-or-chrome-fails-to-launch)
   - [The CV PDF has someone else's headline or summary](#the-cv-pdf-has-someone-elses-headline-or-summary)
   - [No notifications](#no-notifications)
@@ -34,7 +36,7 @@ It only runs while `npm run web` is running, and nothing starts it after a reboo
 
 ### A database error, or "column does not exist"
 
-- **`DATABASE_URL missing — add it to .env`:** the bot needs `DATABASE_URL` in `.env`, and the dashboard in `web/.env.local` (see your install guide, step 4).
+- **`DATABASE_URL missing — add it to .env`:** the bot needs `DATABASE_URL` in `.env`, and the dashboard in `web/.env.local` (see your install guide, step 4). `npm run bot -- setup` offers to write whichever is missing (`DATABASE_URL` only; it never overwrites a file).
 - **`ECONNREFUSED 127.0.0.1:5432`:** PostgreSQL is not running. macOS: start the server in DBngin, or `brew services start postgresql@17`. Linux: `sudo systemctl start postgresql`. Windows: start the `postgresql-x64-17` service (`Start-Service postgresql-x64-17` in an administrator PowerShell, or the Services app).
 - **`password authentication failed for user ...`:** the password in `DATABASE_URL` is wrong, or has characters that must be percent-encoded (`@` → `%40`, `/` → `%2F`, `:` → `%3A`, `#` → `%23`).
 - **`SASL: SCRAM-SERVER-FIRST-MESSAGE: client password must be a string`:** the server wants a password and `DATABASE_URL` has none: use `postgres://<user>:<password>@127.0.0.1:5432/job_bot`.
@@ -49,6 +51,7 @@ Run it by hand any time with `npm run bot -- daily`, or **Fetch new jobs** on th
 - `Fetch failed: N of N sources failed — is the network up?`: no source answered (offline, or a VPN/proxy blocking them); the first error follows. `N of M sources failed.` after a normal summary means only some did; their errors are in the log.
 - `<step> timed out after N min`: a step hung and was stopped (limits: fetch 30 min, check:open 15, ai:score 60, backup 10, the IND register refresh 10); the steps after it still ran, and the notification says `Timed out: ...`.
 - `sponsors:update failed`: the weekly IND register refresh did not work; the old register stays and the run goes on.
+- `AI review failed (is Claude signed in? See data/fetch.log)` in the notification: `ai:score` failed or stopped early; the line above it in the log says why ([below](#ai-review-failed--stopped-early)). The fetch result is still reported.
 - `A fetch is already running; skipping.`: a fetch from the dashboard was running at the same time.
 - Nothing new in the log at all: the scheduler did not start it; see your OS below.
 
@@ -81,6 +84,14 @@ If you have no AI at all, see [ai.md](ai.md#running-without-ai): the fit review 
 ### An API key is rejected
 
 A 401/403 stops at once with a message naming `AI_API_KEY` and the provider. Check the key in `.env` (no quotes or spaces around it), and that the detected provider is right: a DeepSeek, Mistral or Together key needs `"ai": { "api": { "preset": "..." } }`, because DeepSeek keys look like OpenAI keys and the others have no known prefix. The Settings page shows which provider the key looks like.
+
+### "AI review failed ...; stopped early"
+
+`ai:score` stops at once, with this one line and exit 1, when the problem would hit every job in the queue: a rejected or missing key, no credit, no model or base URL set, the Claude CLI not installed or signed out, or 3 reviews in a row that timed out (the provider is not answering). The jobs it did not try stay `new` and are reviewed on the next run. Fix what the line names ([An API key is rejected](#an-api-key-is-rejected), [Claude signed in](#ai-review-failed-is-claude-signed-in)), then run `npm run bot -- ai:score`. Every single AI call has a 5-minute budget; a dashboard task that runs longer is stopped and shows `Timed out after N minutes (last error: ...)`.
+
+### "Missing or wrong import token" (Bayt bookmarklet)
+
+The Bayt collector got a 403 from `/api/import`. Jobs sent from job sites must carry the per-installation import token (`data/import-token`, created on first use), which the dashboard puts into the collector each time the bookmarklet loads it. It is missing or wrong when the collector did not come through the dashboard's bookmarklet (`scripts/bayt-collect.js` pasted into the console, or a bookmark copied from another install), or when `data/import-token` was deleted or replaced after the Bayt page loaded the collector. Start the dashboard, delete the old bookmark, drag the bookmarklet from the dashboard's **Add jobs from Bayt** section to the bookmarks bar again, reload the Bayt page and click it. The Chrome extension needs no token.
 
 ### No Chrome found, or Chrome fails to launch
 

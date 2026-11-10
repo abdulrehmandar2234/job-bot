@@ -67,6 +67,13 @@ jobs:
       - run: npm --prefix web run build
         env:
           DATABASE_URL: postgres://postgres@127.0.0.1:5432/job_bot_test
+      # Coverage, for information only: it never fails the run. The bot's report is node's own table (src/**), the
+      # dashboard's a v8 text summary (web/vitest.config.ts); both run the suites again, after everything else passed.
+      - name: Coverage (informational)
+        continue-on-error: true
+        run: |
+          npm run test:coverage
+          npm run test:web:coverage
 
   # Windows: install, lint, typecheck and the tests that need no PostgreSQL (the OS-specific code: notifications,
   # backup, the daily run, schedule snippets, npm scripts, Chrome paths, plus pure logic). The full suite stays on
@@ -78,6 +85,8 @@ jobs:
       fail-fast: false
       matrix:
         os: [windows-latest]
+        # The supported minimum (engines: >=24) and the next release line, so a Node change shows here first.
+        node: [24, 26]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     env:
@@ -87,7 +96,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
-          node-version: 24
+          node-version: ${{ matrix.node }}
           cache: npm
           cache-dependency-path: |
             package-lock.json
@@ -101,3 +110,4 @@ jobs:
           tests/scripts.test.ts tests/notify.test.ts tests/backup.test.ts tests/daily.test.ts tests/chrome.test.ts
           tests/ci.test.ts tests/settings.test.ts tests/config.test.ts tests/match.test.ts tests/salary.test.ts
           tests/http.test.ts tests/ai-providers.test.ts tests/sources.test.ts tests/extension.test.ts
+          tests/task-queue.test.ts tests/docs.test.ts

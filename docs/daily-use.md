@@ -19,7 +19,7 @@ Contents:
 ## A typical day
 
 1. At 9:00 the scheduled daily run (`npm run bot -- daily`) fetches new jobs, marks closed postings expired, lets the AI review the new matches, shows a notification with the result and backs up the database. Jobs the AI rates `strong` get a notification of their own.
-   Housekeeping on the way: the Dutch IND sponsor register is downloaded again when it is a week old (if a country uses `ind-register`), every step has a time limit so one that hangs cannot block the rest, logs over 5 MB (`data/fetch.log`, `data/logs/tasks.log`, `data/launchd.err.log`) move to `<name>.1`, and each full fetch deletes filtered postings older than twice `maxAgeDays` (at least 30 days) that no fetch has seen for a week and that have no history, contacts or tasks.
+   Housekeeping on the way: the Dutch IND sponsor register is downloaded again when it is a week old (if a country uses `ind-register`), every step has a time limit so one that hangs cannot block the rest, logs over 5 MB (`data/fetch.log`, `data/logs/tasks.log`, `data/launchd.err.log`) move to `<name>.1`, and each full fetch deletes filtered postings older than twice `maxAgeDays` (at least 30 days) that no fetch has seen for a week and that have no history, contacts or tasks. After the backup a cleanup (5-minute limit) deletes `data/questions` and `data/settings` files older than a day, keeps the newest 20 copies in `data/cv-backups`, and removes `cv/versions/custom-*` folders whose job is skipped, expired or rejected with no status change for 90 days, unless a job with another status still uses that version; it logs what it removed to `data/fetch.log`.
 2. Start the dashboard (`npm run web`) and open <http://localhost:3100>. The **Matching** tab has the jobs that passed every filter, best match first.
 3. For each job worth it: open it, **Prepare CV**, **Write letter**, check the CV keyword check, and draft answers if the form has questions.
 4. Open the posting, apply on the company's site (the extension's **Fill this form** types in what was prepared), and submit it yourself.
@@ -44,19 +44,23 @@ The home page shows four numbers (matching now, new today, applied in the last 7
 **Search and filters:**
 
 - **Search company or title** looks in every tab, and each result says which tab it is in. "Search only in <tab>" (or clicking a tab) narrows it to one tab.
-- **Country**, **Score ≥ 50 / 60 / 70 / 80**, **Posted** (last 24 hours, 3 days, 7 days).
+- **Country**, **Score ≥ 50 / 60 / 70 / 80**, **Posted within** (24 hours, the default on the Matching tab; 3 days, 7 days or any time). Other tabs never hide a job for its age.
 - **Sort:** "Best match first" (the AI score, with the keyword score as a fallback) or "Newest first".
-- **Per page:** 10, 25 (default), 50 or 100. Page links above and below the list keep the tab, filters and sort.
+- **Per page:** 10 (default), 25, 50 or 100. Page links above and below the list keep the tab, filters and sort.
 - **Min salary** in any currency of `src/currencies.json`, per month or year. It starts in your country's currency (`countryCode` in `cv/applicant.json`, else `remote.fromCode`) and compares in euros per year with fixed, approximate rates. Jobs without a salary stay visible unless "only with salary" is ticked.
 - **Visa/relocation offered (or not needed)** keeps only jobs whose posting offers a visa or relocation, and jobs where you need none.
 
+**Filters are remembered** until you change them: a refresh, another tab, a job page and back, or opening the dashboard tomorrow shows the same ones (a cookie in this browser). The search text, the tab and the page are not remembered. When a list is empty because of the filters, it says how many jobs match without them and offers **Show any time** and **Reset filters**; <http://localhost:3100/?reset=1> does the same reset.
+
 **Each card** shows the scores, the AI verdict and reasons, the location with the visa label, the salary (with a "below your expectation" hint when `cv/applicant.json` → `expectedSalary` is higher), every site the same job was found on, matched and missing skills, flags, your notes, and buttons: open the posting, **Prepare CV**, **Download CV**, AI review, and status buttons. **Skip** asks why (stack, seniority, salary, location, company, language, other); `/analytics` shows the patterns.
 
-**Triage from the keyboard:** `j` / `k` (or the arrow keys) move between cards, `Enter` opens the posting, `o` the job page, `a` marks applied, `p` prepares the CV, and `s` jumps to the skip reason (`Enter` skips, `Esc` backs out). `x` or shift-click selects cards for **Skip selected**, which skips them all with one optional reason. Press `?` for the full list. The keys are off while you type in a search box or select.
+**Triage from the keyboard:** `j` / `k` (or the arrow keys) move between cards, `Enter` opens the posting, `o` the job page, `a` marks applied, `p` prepares the CV, and `s` jumps to the skip reason (`Enter` skips, `Esc` backs out). `x` or shift-click selects cards for **Skip selected**, which skips them all with one optional reason. Press `?` for the full list. The keys are off while you type in a search box or select. Bulk skip is on the **Matching** and **Prepared** tabs only, at most 100 jobs at once; a job that changed status meanwhile (in another tab, say) is left alone.
 
 ## A job's page
 
-Click a job's title. From top to bottom:
+Click a job's title. **← All jobs** at the top goes back to the exact list you came from (tab, filters, search, page), and **Previous** / **Next** walk through that list. Keys: `j` next, `k` previous, `Esc` back to the list, `a` marks applied, `s` jumps to the skip reason; they are off while you type.
+
+From top to bottom:
 
 - **Check if still open:** asks the job board whether the posting still exists. **Prepare CV** checks this first and stops on a closed posting.
 - The full description, the AI review (score, verdict, reasons, gaps, red flags, location check) and the **CV keyword check**: which of the job's skills the CV shows near the top, which you have but this CV keeps further down, and which are not on your CV. Tick **I have this** for a skill you really have (with an optional note for the AI) and **Add to my CV and improve it for this job** adds it to your master CV and revises this job's CV.
@@ -66,7 +70,9 @@ Click a job's title. From top to bottom:
 - **Form answers:** paste the questions from the application form and **Draft answers**. The AI answers from your CV and profile only; personal decisions it cannot know (salary, notice period, start date) come back as `[FILL: ...]`, highlighted. Each answer has a **Copy** button.
 - **Interview prep** (applied and interview jobs): likely technical questions, behavioural questions with STAR stories from your CV, a short company brief from the posting alone (unsure points are marked "verify before interview"), questions to ask, and the requirements mapped to your CV. **Regenerate** writes it again.
 - **Contacts:** recruiters, hiring managers and referrals for this job, plus people you know at the same company, with an "ask for a referral before applying" reminder on jobs you have not applied to.
-- Notes and the status history.
+- Notes and the status history. **Undo** under History moves the job back along its last status change (an `applied` date or a skip reason is restored); an undo cannot itself be undone, and `/analytics` ignores an undone change. A status button in an old browser tab whose job has moved on (to Interview, say) is refused with a message instead of moving it back.
+
+Rewriting a letter, CV summary or headline you edited by hand asks first, since the edit would be lost; so does **Clear all** for drafted answers.
 
 ## Applying with the Chrome extension
 
@@ -75,6 +81,7 @@ With the dashboard running and the extension loaded (see your install guide):
 1. Open the job's posting and click the job-bot button. If the job is not in job-bot yet, **Send to job-bot** adds it (it goes through the same filters and scoring as fetched jobs).
 2. Open the **Apply helper** side panel: it shows the job's status, scores, the prepared CV (download link), the cover letter and the drafted answers, each with **Copy**.
 3. On the application form, click **Fill this form**. It types your name, email, phone, LinkedIn and location, the cover letter, matching drafted answers and the CV PDF into the form's **empty** fields (outlined in orange), also inside embedded Greenhouse or Workday forms. It never overwrites what you typed, never fills `[FILL: ...]` answers, passwords, checkboxes or radios, and never clicks a button or submits.
+   Custom dropdowns, listboxes, radio groups and Yes/No buttons are never typed into: empty ones are listed under **Left for you** as "pick from the list". The panel also works on the application page itself (Lever `/apply`, Ashby `/application`, Workday's steps) and remembers the job through a multi-step form. On a form whose job is not in job-bot, **Fill profile + CV only** types just your contact details and default CV. If the dashboard runs on another port than 3100, set it in the extension's options.
 4. Check everything, fill in the rest, and submit it yourself.
 5. **Mark applied (in dashboard)** opens the job on the dashboard, where you mark it **Applied**.
 
