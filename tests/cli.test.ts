@@ -742,6 +742,58 @@ describe('CLI with an API AI provider', () => {
     });
   }
 
+  it('every AI feature works with only an API key: the Claude CLI is never run', async () => {
+    const url = 'https://api.anthropic.com/v1/chat/completions';
+    const env = (reply: object, log: string) => ({
+      ...noKeys,
+      AI_API_KEY: 'sk-ant-test-all-0123456789',
+      JOB_BOT_CONFIG: withAi({ provider: 'api' }),
+      FAKE_FETCH: JSON.stringify({ [url]: chat(reply) }),
+      FAKE_FETCH_LOG: log,
+      FAKE_CLAUDE_FAIL: 'the Claude CLI must not be used',
+    });
+    const id = idOf(await bot(['add', '--file', addFile([posting({ company: 'Apico Cli', url: 'https://example.com/jobs/api-all' })])]));
+    const q = join(tmp, 'api-q.txt');
+    writeFileSync(q, 'Notice period?');
+    const prep = {
+      technical: [{ question: 'How do you structure a large Laravel app?', hint: 'Modules and services.' }],
+      behavioural: [{ question: 'A hard deadline?', situation: 'S', task: 'T', action: 'A', result: 'R' }],
+      company: { brief: 'Builds software (from the posting).', verify: ['Team size'] },
+      questions_to_ask: ['How are teams split?'],
+      requirements: [{ requirement: 'Laravel', evidence: 'On the CV', gap: false }],
+    };
+    const steps: [string[], object, RegExp][] = [
+      [['ai:score', '--id', id], review, /88 strong/],
+      [['letter', id], { letter: 'Dear Apico Hiring Team,\nWritten through the API.' }, /\(written by AI from the job description\)/],
+      [['headline', id], { headline: 'Senior Laravel Engineer · API' }, /Senior Laravel Engineer · API/],
+      [['summary', id], { summary: 'Laravel engineer, summary from the API.' }, /summary from the API/],
+      [
+        ['answer', id, '--file', q],
+        { answers: [{ question: 'Notice period?', answer: 'One month (API)', needs_input: false, note: '' }] },
+        /A: One month \(API\)/,
+      ],
+      [['prep', id], prep, /with Anthropic claude-sonnet-5-5\.\.\.\n1 technical and 1 behavioural questions/],
+      [['cv:review', id], { review: '- Lead with Laravel (API review).' }, /Lead with Laravel \(API review\)/],
+    ];
+    for (const [args, reply, expected] of steps) {
+      const log = join(tmp, `api-all-${args[0].replace(':', '-')}.log`);
+      const out = await bot(args, env(reply, log));
+      assert.match(out, expected, args.join(' '));
+      assert.ok(!out.includes('sk-ant-test'), `${args[0]} never prints the key`);
+      assert.deepEqual([...new Set(readFileSync(log, 'utf8').trim().split('\n'))], [url], `${args[0]} asks only the API`);
+    }
+    // A follow-up is for an applied job.
+    await bot(['mark', id, 'applied']);
+    const log = join(tmp, 'api-all-follow-up.log');
+    assert.match(await bot(['follow-up', id], env({ message: 'Dear Apico Hiring Team,\nStill keen (API).' }, log)), /Still keen \(API\)/);
+    assert.deepEqual([...new Set(readFileSync(log, 'utf8').trim().split('\n'))], [url]);
+    const j = (await getJob(id)) as unknown as Record<string, unknown>;
+    assert.equal(j.ai_score, 88);
+    assert.match(String(j.cover_letter), /Written through the API/);
+    assert.equal(j.cv_review, '- Lead with Laravel (API review).');
+    rmSync(applicationDirOf(j as unknown as { company: string; title: string }), { recursive: true, force: true });
+  });
+
   it('ai:score --id with the API provider but no key fails naming AI_API_KEY, before any request', async () => {
     const id = idOf(await bot(['add', '--file', addFile([posting()])]));
     const log = join(tmp, 'fetch-nokey.log');

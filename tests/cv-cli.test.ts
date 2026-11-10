@@ -240,6 +240,26 @@ describe('cv:feedback', () => {
     assert.ok(existsSync(path('cv', 'versions', v, config.cvFileName)), 'the first revision stays');
   });
 
+  it('works with only an API key: the Claude CLI is never run', { skip: noChrome }, async () => {
+    const id = await addJob('Feedbackco Api');
+    const cfg = JSON.parse(readFileSync(path('config.default.json'), 'utf8'));
+    const configFile = join(mkdtempSync(join(tmpdir(), 'cv-api-')), 'config.json');
+    writeFileSync(configFile, JSON.stringify({ ...cfg, ai: { ...cfg.ai, provider: 'api' } }));
+    const url = 'https://api.anthropic.com/v1/chat/completions';
+    const log = join(tmp, 'cv-api-fetch.log');
+    const out = await bot(['cv:feedback', id, '--feedback', 'put Sample Agency first'], {
+      JOB_BOT_CONFIG: configFile,
+      AI_API_KEY: 'sk-ant-test-cv-0123456789',
+      AI_BASE_URL: '',
+      FAKE_FETCH: JSON.stringify({ [url]: { body: JSON.stringify({ choices: [{ message: { content: JSON.stringify(proposal) } }] }) } }),
+      FAKE_FETCH_LOG: log,
+      FAKE_CLAUDE_FAIL: 'the Claude CLI must not be used',
+    });
+    assert.match(versionOf(out), /^custom-feedbackco-api-/);
+    assert.ok(!out.includes('sk-ant-test'));
+    assert.deepEqual([...new Set(readFileSync(log, 'utf8').trim().split('\n'))], [url]);
+  });
+
   it('needs feedback of at most 1000 characters, the AI on, and leaves the CV alone when the AI fails', async () => {
     const id = await addJob('Feedbackco Bad');
     await pool.query(`UPDATE jobs SET cv_version = 'default' WHERE id = $1`, [id]);

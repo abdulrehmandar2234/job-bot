@@ -2,7 +2,7 @@ import { after, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
-import './helpers.ts';
+import { OWNER_MASTER } from './helpers.ts';
 import { config, path } from '../src/config.ts';
 import { resolveChrome } from '../src/cv/chrome.ts';
 import { PROFILE_FACTS, profileFor, profileMisfits } from '../src/cv/profile-fit.ts';
@@ -21,7 +21,7 @@ const noChrome = !resolveChrome(config.chromePath) && 'Chrome not installed';
 const VERSIONS = path('cv', 'versions');
 const existing = new Set(existsSync(VERSIONS) ? readdirSync(VERSIONS) : []);
 after(() => {
-  delete process.env.JOB_BOT_MASTER;
+  process.env.JOB_BOT_MASTER = OWNER_MASTER;
   if (existsSync(VERSIONS))
     for (const d of readdirSync(VERSIONS)) if (!existing.has(d)) rmSync(join(VERSIONS, d), { recursive: true, force: true });
 });
@@ -101,7 +101,7 @@ describe('built versions (versionFor: prepare --cv, cv:build; customVersion: cus
       assert.equal(cvJson(tailored.id).summary, 'Jane builds booking platforms.');
       assert.equal(cvJson(tailored.id).title, jane.title);
     } finally {
-      delete process.env.JOB_BOT_MASTER;
+      process.env.JOB_BOT_MASTER = OWNER_MASTER;
     }
   });
 
