@@ -58,7 +58,7 @@ The home page shows four numbers (matching now, new today, applied in the last 7
 
 ## A job's page
 
-Click a job's title. **← All jobs** at the top goes back to the exact list you came from (tab, filters, search, page), and **Previous** / **Next** walk through that list. Keys: `j` next, `k` previous, `Esc` back to the list, `a` marks applied, `s` jumps to the skip reason; they are off while you type.
+Click a job's title. **← All jobs** at the top goes back to the exact list you came from (tab, filters, search, page), and **Previous** / **Next** walk through that list, also after you mark the job applied or skip it. Keys: `j` next, `k` previous, `Esc` back to the list, `a` marks applied, `s` jumps to the skip reason; they are off while you type.
 
 From top to bottom:
 
@@ -70,7 +70,7 @@ From top to bottom:
 - **Form answers:** paste the questions from the application form and **Draft answers**. The AI answers from your CV and profile only; personal decisions it cannot know (salary, notice period, start date) come back as `[FILL: ...]`, highlighted. Each answer has a **Copy** button.
 - **Interview prep** (applied and interview jobs): likely technical questions, behavioural questions with STAR stories from your CV, a short company brief from the posting alone (unsure points are marked "verify before interview"), questions to ask, and the requirements mapped to your CV. **Regenerate** writes it again.
 - **Contacts:** recruiters, hiring managers and referrals for this job, plus people you know at the same company, with an "ask for a referral before applying" reminder on jobs you have not applied to.
-- Notes and the status history. **Undo** under History moves the job back along its last status change (an `applied` date or a skip reason is restored); an undo cannot itself be undone, and `/analytics` ignores an undone change. A status button in an old browser tab whose job has moved on (to Interview, say) is refused with a message instead of moving it back.
+- Notes and the status history. **Undo** under History moves the job back along its last status change (an `applied` date or a skip reason is restored); an undo cannot itself be undone, and `/analytics` ignores an undone change (it counts real status changes only, not follow-up notes). A status button in an old browser tab whose job has moved on (to Interview, say) is refused with a message instead of moving it back.
 
 Rewriting a letter, CV summary or headline you edited by hand asks first, since the edit would be lost; so does **Clear all** for drafted answers.
 
