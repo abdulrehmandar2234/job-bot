@@ -5,6 +5,7 @@ import { himalayasSearchUrl } from './open.ts';
 import { structuredSalary } from '../salary.ts';
 import { currencyOf } from '../currencies.ts';
 import { loadProfile, remoteFromCode } from '../profile.ts';
+import { COUNTRIES } from '../regions.ts';
 
 // Remote job boards. Unlike company ATS boards these list many companies, and the location
 // field says where a remote hire may live, e.g. "Remote — Worldwide" or "Remote — USA, Canada".
@@ -310,4 +311,115 @@ async function adzuna(): Promise<Fetched> {
   return [...out.values()];
 }
 
-export const BOARDS: Record<string, () => Promise<Fetched>> = { himalayas, remotive, remoteok, arbeitnow, adzuna, jobicy, hackernews };
+// freehire.me: a public, keyless search over job postings it collects from about 50 ATS and boards
+// (https://freehire.me). One search per target country plus one for remote jobs open worldwide or to a region the
+// remote-from country is in, engineering categories only, newest first, at most FREEHIRE_PAGES pages of 100 each.
+// The agent endpoint returns the full description (the plain one cuts it to ~1,000 characters). `url` is the
+// original posting on the company's ATS, so the link, the dead-link check and the extension all work on the real page.
+const FREEHIRE_API = 'https://freehire.me/api/v1/agent/jobs/search';
+const FREEHIRE_PAGE = 100;
+export const FREEHIRE_PAGES = 5;
+const FREEHIRE_CATEGORIES = ['backend', 'frontend', 'fullstack'];
+// Talaash's region names (src/regions.ts) as freehire's region codes, and freehire's codes as words match.ts reads.
+const FREEHIRE_REGION: Partial<Record<string, string>> = {
+  apac: 'apac',
+  mena: 'mena',
+  europe: 'eu',
+  africa: 'africa',
+  northAmerica: 'north_america',
+  latam: 'latam',
+};
+const FREEHIRE_REGION_WORDS: Record<string, string> = {
+  global: 'Worldwide',
+  eu: 'Europe',
+  uk: 'UK',
+  mena: 'Middle East',
+  apac: 'APAC',
+  africa: 'Africa',
+  north_america: 'North America',
+  latam: 'Latin America',
+  cis: 'CIS',
+};
+
+/** freehire region codes for remote jobs the candidate can take: worldwide, plus the regions their country is in. */
+export function freehireRegions(fromCode: string | null): string[] {
+  const regions = (fromCode && COUNTRIES[fromCode]?.regions) || [];
+  return ['global', ...new Set(regions.map((r) => FREEHIRE_REGION[r]).filter((r): r is string => !!r))];
+}
+
+/** A freehire job's location in the words match.ts reads: "Remote — Europe", "Arnhem, Netherlands (hybrid)". */
+export function freehireLocation(j: any, countryName: (code: string) => string | undefined): string {
+  const countries: string[] = (j.countries ?? []).map((c: string) => String(c).toUpperCase());
+  if (j.work_mode === 'remote') {
+    const where = String(j.location ?? '').trim() || (j.regions ?? []).map((r: string) => FREEHIRE_REGION_WORDS[r] ?? r).join(', ');
+    return `Remote — ${where || 'not stated'}`;
+  }
+  const names = countries.map((c) => countryName(c) ?? c);
+  const place = [...(j.cities ?? []), ...names].filter(Boolean).join(', ') || String(j.location ?? '').trim() || 'not stated';
+  return j.work_mode === 'hybrid' ? `${place} (hybrid)` : place;
+}
+
+/** One freehire job as a RawJob, or null when it lacks what a posting needs or has closed. */
+export function freehireJob(j: any, countryName: (code: string) => string | undefined): RawJob | null {
+  if (!j?.public_slug || !j.title || !j.url || j.closed_at) return null;
+  const e = j.enrichment ?? {};
+  const period = ['year', 'month', 'hour'].includes(e.salary_period) ? e.salary_period : null;
+  return {
+    id: `freehire:${j.public_slug}`,
+    source: 'freehire',
+    company: String(j.company ?? '').trim() || 'Unknown',
+    title: decodeEntities(String(j.title)),
+    location: freehireLocation(j, countryName),
+    url: j.url,
+    description: String(j.description ?? ''),
+    posted_at: toIso(j.posted_at),
+    salary: period ? structuredSalary(e.salary_min, e.salary_max, e.salary_currency, period) : null,
+  };
+}
+
+async function freehire(): Promise<Fetched> {
+  const countryName = (code: string) => config.countries[code]?.name;
+  const base = [
+    ...FREEHIRE_CATEGORIES.map((c) => ['category', c]),
+    ['posted_within_days', String(config.maxAgeDays)],
+    ['description_format', 'text'],
+    ['limit', String(FREEHIRE_PAGE)],
+  ];
+  const searches = [
+    ...Object.keys(config.countries).map((code) => [['countries', code]]),
+    ...(config.remote.enabled
+      ? [[['work_mode', 'remote'], ...freehireRegions(remoteFromCode(config, loadProfile())).map((r) => ['regions', r])]]
+      : []),
+  ];
+  const out = new Map<string, RawJob>();
+  for (const search of searches) {
+    for (let page = 0; page < FREEHIRE_PAGES; page++) {
+      const q = new URLSearchParams([...search, ...base, ['offset', String(page * FREEHIRE_PAGE)]]);
+      let data: any;
+      try {
+        data = await getJson(`${FREEHIRE_API}?${q}`);
+      } catch (e) {
+        return partial([...out.values()], e);
+      }
+      const jobs: any[] = data.data ?? [];
+      for (const j of jobs) {
+        const job = freehireJob(j, countryName);
+        if (job) out.set(job.id, job);
+      }
+      await sleep(1000);
+      if (jobs.length < FREEHIRE_PAGE || (page + 1) * FREEHIRE_PAGE >= (data.meta?.total ?? 0)) break;
+    }
+  }
+  return [...out.values()];
+}
+
+export const BOARDS: Record<string, () => Promise<Fetched>> = {
+  himalayas,
+  remotive,
+  remoteok,
+  arbeitnow,
+  adzuna,
+  jobicy,
+  hackernews,
+  freehire,
+};

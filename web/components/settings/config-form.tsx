@@ -119,7 +119,11 @@ export function ConfigForm({ config, keys, bot = 'npm run bot --' }: { config: S
         <Section id="remote-boards">
           <Check label="Search remote boards" name="remote.enabled" value={get(c, 'remote.enabled')} />
           <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="Boards" hint="one per line: himalayas, remotive, remoteok, arbeitnow, adzuna" {...f('remote.boards')}>
+            <Field
+              label="Boards"
+              hint="one per line: himalayas, remotive, remoteok, arbeitnow, adzuna, jobicy, hackernews, freehire"
+              {...f('remote.boards')}
+            >
               <textarea name="remote.boards" rows={3} defaultValue={lines(get(c, 'remote.boards'))} className={input} />
             </Field>
             <Field label="Himalayas queries" hint="one per line" {...f('remote.himalayasQueries')}>

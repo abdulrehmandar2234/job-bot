@@ -19,6 +19,10 @@ const SOURCE_LABEL: Record<string, string> = {
   himalayas: 'Himalayas',
   remotive: 'Remotive',
   remoteok: 'RemoteOK',
+  arbeitnow: 'Arbeitnow',
+  adzuna: 'Adzuna',
+  jobicy: 'Jobicy',
+  hackernews: 'Hacker News',
   manual: 'Added manually',
 };
 // Greenhouse, Lever, Ashby... are the company's own careers page.

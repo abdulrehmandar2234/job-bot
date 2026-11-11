@@ -40,7 +40,7 @@ The [Quickstart](docs/quickstart.md) explains each step. For a fresh machine, fo
 
 ## What it does
 
-- **Finds jobs** every morning from company career boards (Greenhouse, Lever, Ashby, Recruitee, Workable, SmartRecruiters, Workday, Personio), job boards (Himalayas, Remotive, RemoteOK, Jobicy, Arbeitnow, Adzuna, Hacker News "Who is hiring"), LinkedIn's guest search, and any job page through the Chrome extension.
+- **Finds jobs** every morning from company career boards (Greenhouse, Lever, Ashby, Recruitee, Workable, SmartRecruiters, Workday, Personio), job boards (Himalayas, Remotive, RemoteOK, Jobicy, Arbeitnow, Adzuna, Hacker News "Who is hiring", freehire.me), LinkedIn's guest search, and any job page through the Chrome extension.
 - **Filters** by country, visa, remote region, job title, language and posting age, and keeps every rejected job with the reason, so you can see why.
 - **Scores** each match: a keyword score against your CV, then an AI review (0–100, verdict, reasons, gaps, red flags) that also reads the whole description for location limits.
 - **Prepares** a CV version and template, a cover letter, a CV headline and summary for the job, form answers and interview prep, using only facts from your CV.
