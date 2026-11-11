@@ -4,6 +4,8 @@ job-bot is a job-search assistant that runs on your own computer. It finds softw
 It **never applies on your behalf**: you review everything and submit every application yourself.
 It is a Node.js command-line bot plus a local web dashboard, sharing one PostgreSQL database on your machine.
 
+**In a hurry?** The [Quickstart](quickstart.md) is the short path: six commands from a clone to your first jobs.
+
 ## 1. Install it on your computer
 
 Pick your operating system. Each guide is complete on its own, from a fresh machine to a working dashboard, with commands for that system only.
@@ -32,7 +34,15 @@ Every guide assumes Git is installed and covers the same steps: Node.js 24+ and 
 | [troubleshooting.md](troubleshooting.md) | Common problems, general and per OS                                                                                                                |
 | [updating.md](updating.md)               | Getting a newer version: pull, install, migrations, extension reload, dashboard restart                                                            |
 
-Want to improve job-bot? See [CONTRIBUTING.md](../CONTRIBUTING.md). The project's [README](../README.md) has the full feature list, the architecture and the complete CLI reference. The Chrome extension has its own [README](../extension/README.md).
+## 4. Look it up
+
+| Page                               | What is in it                                                                                                |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| [features.md](features.md)         | Everything job-bot does, and every job source it reads                                                       |
+| [cli.md](cli.md)                   | Every command, and the daily run                                                                             |
+| [how-it-works.md](how-it-works.md) | The architecture, the path of one job, the CV pipeline, the database, the code layout, the tech stack, tests |
+
+Want to improve job-bot? See [CONTRIBUTING.md](https://github.com/abdulrehmandar2234/job-bot/blob/main/CONTRIBUTING.md). The Chrome extension has its own [README](https://github.com/abdulrehmandar2234/job-bot/blob/main/extension/README.md).
 
 ## About the repository's own data
 
@@ -55,4 +65,4 @@ Everything runs locally: the database, the dashboard (it only answers on `127.0.
 
 Gitignored, never committed: `config.json`, `.env`, `web/.env.local`, `cv/applicant.json`, `cv/versions/` (generated CVs), `applications/` (letters per job) and `data/` (logs, HTTP cache, IND register, backups).
 
-**Tracked by git:** `config.default.json`, `presets/`, `cv/master.json`, `cv/default/` and `cv/original/`. If you commit your own CV there, keep your copy of the repository private.
+Your CV (`cv/master.json`, `cv/default/`, `cv/original/`) is gitignored too. **Tracked by git:** `config.default.json`, `presets/`, the example files `cv/master.example.json` and `cv/applicant.example.json`, and `src/cv/profiles.ts` (the owner's per-stack framings).

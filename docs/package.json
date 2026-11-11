@@ -1,0 +1,16 @@
+{
+  "name": "job-bot-docs",
+  "private": true,
+  "type": "module",
+  "description": "The job-bot documentation site (VitePress), built from the Markdown pages in this folder.",
+  "scripts": {
+    "dev": "vitepress dev . --port 3300",
+    "build": "vitepress build .",
+    "preview": "vitepress preview . --port 3300"
+  },
+  "devDependencies": {
+    "mermaid": "11.17.2",
+    "vitepress": "1.6.4",
+    "vitepress-plugin-mermaid": "2.0.17"
+  }
+}

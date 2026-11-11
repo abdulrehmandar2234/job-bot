@@ -1,6 +1,6 @@
 # job-bot
 
-Local job-search helper: Node CLI bot (`src/`, TypeScript run directly by Node 24+) and a Next.js dashboard (`web/`), both on the local Postgres DB `job_bot`. See README.md for features, architecture and usage, and ROADMAP.md for what is done and what is still open.
+Local job-search helper: Node CLI bot (`src/`, TypeScript run directly by Node 24+) and a Next.js dashboard (`web/`), both on the local Postgres DB `job_bot`. See README.md for the overview, the docs site in `docs/` (VitePress) for features, architecture and usage, and ROADMAP.md for what is done and what is still open.
 
 ## Rules
 
@@ -20,7 +20,7 @@ Local job-search helper: Node CLI bot (`src/`, TypeScript run directly by Node 2
 
 ## Project overview for Claude
 
-A quick map for a new session. README.md has the features in full; docs/README.md is the doc index (install guides per OS, configuration, CV and profile, AI, daily use, troubleshooting, updating).
+A quick map for a new session. README.md is a short overview; docs/README.md is the doc index and the site's start page (quickstart, install guides per OS, configuration, CV and profile, AI, daily use, features, CLI reference, how it works, troubleshooting, updating).
 
 ### What it does
 
@@ -67,9 +67,9 @@ Finds software jobs for the user's target countries (onsite, with or without a v
 
 ### Where new work usually goes
 
-- New command: `src/commands/<name>.ts`, registered in `src/cli.ts` (map, help text, `NO_DB` / dedupe lists if relevant), plus the README CLI reference.
+- New command: `src/commands/<name>.ts`, registered in `src/cli.ts` (map, help text, `NO_DB` / dedupe lists if relevant), plus docs/cli.md.
 - New source: an ATS adapter in `src/sources/index.ts` (and the `ATS` list in `src/settings.ts` and `web/lib/settings-form.ts`) or a board in `src/sources/boards.ts` `BOARDS`.
 - Filter or scoring change: `src/match.ts` (users then run `rescore`); check owner-golden.
 - New AI feature: prompt and schema in `src/ai.ts`, called through `askAi(prompt, schema, 'score' | 'letter', system)`.
 - New dashboard background action: a `TaskKind` in `src/types.ts`, its timeout and CLI arguments in `src/tasks.ts` (`TASK_TIMEOUT_MS`, `cliArgs`), its label in `web/lib/tasks.ts` (`TASK_LABEL`), and a server action in `web/app/actions.ts` that calls `enqueueTask`.
-- Docs: README (features, CLI reference), docs/README.md (index), docs/install/{macos,linux,windows}.md (setup per OS), docs/configuration.md (every setting), docs/your-cv-and-profile.md, docs/ai.md, docs/daily-use.md, docs/troubleshooting.md, docs/updating.md, ROADMAP.md (done / open). Keep the three install guides in step with each other.
+- Docs: README (short overview), docs/README.md (index), docs/quickstart.md, docs/features.md (features and sources), docs/cli.md (every command), docs/how-it-works.md (architecture, project structure), docs/install/{macos,linux,windows}.md (setup per OS), docs/configuration.md (every setting), docs/your-cv-and-profile.md, docs/ai.md, docs/daily-use.md, docs/troubleshooting.md, docs/updating.md, ROADMAP.md (done / open). Keep the three install guides in step with each other. The docs are also a VitePress site (`docs/.vitepress/config.mts`, its own `docs/package.json`; `npm run docs`, `npm run docs:build`), built on every PR and published to GitHub Pages from main by `.github/workflows/docs.yml`: a new page needs a sidebar entry (tests/docs.test.ts checks), and links leaving `docs/` use GitHub URLs.

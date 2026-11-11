@@ -2,7 +2,7 @@
 
 How to work with job-bot once it is installed: the morning routine, the dashboard, applying with the Chrome extension, follow-ups, and the CLI commands you use day to day. The commands are the same on macOS, Linux and Windows.
 
-Back to the [start page](README.md). The complete CLI reference is in the [README](../README.md#cli-reference).
+Back to the [start page](README.md). Every command is in the [CLI reference](cli.md).
 
 Contents:
 
@@ -43,7 +43,7 @@ The home page shows four numbers (matching now, new today, applied in the last 7
 
 **Search and filters:**
 
-- **Search company or title** looks in every tab, and each result says which tab it is in. "Search only in <tab>" (or clicking a tab) narrows it to one tab.
+- **Search company or title** looks in every tab, and each result says which tab it is in. "Search only in _tab_" (or clicking a tab) narrows it to one tab.
 - **Country**, **Score ≥ 50 / 60 / 70 / 80**, **Posted within** (24 hours, the default on the Matching tab; 3 days, 7 days or any time). Other tabs never hide a job for its age.
 - **Sort:** "Best match first" (the AI score, with the keyword score as a fallback) or "Newest first".
 - **Per page:** 10 (default), 25, 50 or 100. Page links above and below the list keep the tab, filters and sort.
@@ -85,7 +85,7 @@ With the dashboard running and the extension loaded (see your install guide):
 4. Check everything, fill in the rest, and submit it yourself.
 5. **Mark applied (in dashboard)** opens the job on the dashboard, where you mark it **Applied**.
 
-Details: [extension/README.md](../extension/README.md).
+Details: [extension/README.md](https://github.com/abdulrehmandar2234/job-bot/blob/main/extension/README.md).
 
 ## After you apply: tracking and follow-ups
 
