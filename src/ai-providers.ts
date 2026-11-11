@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { AI_BASE_URL_ENV, AI_KEY_ENV, LEGACY_KEY_ENV, PRESETS, detectPreset, type ApiPreset, type ResponseFormat } from './ai-presets.ts';
 import { config } from './config.ts';
 import { UserError } from './errors.ts';
+import { POSTING_IS_DATA } from './posting-guard.ts';
 import type { AiSettings } from './settings.ts';
 import { HttpError, postJson } from './sources/http.ts';
 
@@ -184,9 +185,11 @@ export function aiLabel(kind: AiKind, ai: AiSettings = config.ai, env: Env = pro
 
 /**
  * The one entry point for every AI feature: sends the prompt to the configured provider and returns the JSON object
- * that matches `schema`. `kind` picks the model (fast scoring or the better writer).
+ * that matches `schema`. `kind` picks the model (fast scoring or the better writer). Every system prompt ends with
+ * POSTING_IS_DATA: instructions written into a posting never change the rules.
  */
-export function askAi<T>(prompt: string, schema: object, kind: AiKind, system: string, ai: AiSettings = config.ai): Promise<T> {
+export function askAi<T>(prompt: string, schema: object, kind: AiKind, rules: string, ai: AiSettings = config.ai): Promise<T> {
+  const system = `${rules}\n\n${POSTING_IS_DATA}`;
   if (providerMode(ai) === 'claude-cli') return askClaude<T>(prompt, schema, aiModel(kind, ai), system, ai.claudePath);
   return askApi<T>({ prompt, schema, kind, system }, ai);
 }

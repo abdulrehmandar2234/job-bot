@@ -130,7 +130,7 @@ export const normTitle = (s: string) =>
     .replace(/full[\s-]?stack/g, 'fullstack')
     .replace(/front[\s-]?end/g, 'frontend')
     .replace(/back[\s-]?end/g, 'backend')
-    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/[^\p{L}\p{N}]+/gu, ' ') // any script's letters, so an Arabic-only title keeps its words
     .trim();
 
 /**
@@ -165,7 +165,12 @@ export type DedupeRow = Pick<Job, 'id' | 'company' | 'title' | 'country' | 'sour
 export function duplicateLinks(rows: DedupeRow[]): [string, string][] {
   const byPosting = new Map<string, typeof rows>();
   for (const r of rows) {
-    const key = `${normCompany(r.company)}|${normTitle(r.title)}`;
+    // A name with nothing left after normalising (only symbols, or a script normCompany drops) says nothing about
+    // which posting it is: such a row is never grouped, rather than grouped with every other such row.
+    const company = normCompany(r.company) || r.company.trim().toLowerCase();
+    const title = normTitle(r.title);
+    if (!company || !title) continue;
+    const key = `${company}|${title}`;
     byPosting.set(key, [...(byPosting.get(key) ?? []), r]);
   }
   // Same title in two real countries = two jobs. A remote ('RM') copy joins the onsite one,

@@ -39,7 +39,7 @@ The project has two parts that share one PostgreSQL database:
 
 1. **Fetch.** `bot fetch` loads every source, four at a time. Each adapter in `src/sources/` turns the API response into a common `RawJob` (id, company, title, location, url, description, posted date). Requests use a shared paced `sleep` (`src/sources/http.ts`).
 2. **Score.** Every job goes through `scoreJob()` in `src/match.ts`. It detects the country, applies the filters, computes the keyword score and picks a CV cluster. The result is upserted into `jobs` with status `new` or `filtered` (+ reason).
-3. **Group.** `dedupe()` links copies of the same job (normalized company + title + country) to one primary row, preferring the company's own site or the copy you already worked on.
+3. **Group.** `dedupe()` links copies of the same job (normalized company + title + country, letters of any script) to one primary row, preferring the company's own site or the copy you already worked on.
 4. **AI review.** `bot ai:score` sends each new match plus your CV to the AI provider with a JSON schema and stores the score, verdict, reasons, gaps, flags and the location check (a `no` moves the job to `filtered`). `ai:score --all` reviews every matching job again.
 5. **Prepare.** `bot prepare <id>` picks the CV version (default, or `--cv <cluster>`), renders the PDF if that version does not exist yet, and sets the status to `prepared`. It writes no cover letter: `bot letter <id>` ("Write letter" on the job page) does that on request, or `prepare --letter` for both at once.
 6. **Answer.** `bot answer <id>` drafts application-form answers and stores them on the job.
@@ -93,6 +93,7 @@ src/
   errors.ts         UserError (printed without a stack trace) and ConfigError
   types.ts          row types shared with the dashboard
   match.ts          filters, keyword score, CV cluster
+  posting-guard.ts  hidden text and invisible characters out of postings, the flag for text aimed at AI tools
   salary.ts         salary range extraction
   ind-salary.ts     the Dutch IND highly-skilled-migrant salary minimum and the flag for Dutch jobs below it
   currencies.ts     country → currency table (currencies.json), marks and approximate rates

@@ -4,6 +4,7 @@ import { UserError } from '../errors.ts';
 import { upsertJob, type Job } from '../db.ts';
 import { scoreJob } from '../match.ts';
 import { indSalaryFlag } from '../ind-salary.ts';
+import { dropInvisible } from '../posting-guard.ts';
 import { loadProfile, needsVisa, remoteFromCode } from '../profile.ts';
 import { parseSalary } from '../salary.ts';
 import type { RawJob } from '../types.ts';
@@ -66,8 +67,18 @@ export const homeCountry = () => remoteFromCode(config, loadProfile());
 export const indCheckApplies = (country: string | null) =>
   !!country && config.countries[country]?.visa === 'ind-register' && needsVisa(config, country, loadProfile());
 
-/** Scores a posting and upserts it as new or filtered. A source's own salary data wins over parsing the text. */
-export function save({ salary: given, ...raw }: RawJob) {
+/**
+ * Scores a posting and upserts it as new or filtered. A source's own salary data wins over parsing the text.
+ * Invisible characters are dropped from the text first, also for sources that send plain text.
+ */
+export function save({ salary: given, ...posting }: RawJob) {
+  const raw = {
+    ...posting,
+    title: dropInvisible(posting.title),
+    company: dropInvisible(posting.company),
+    location: dropInvisible(posting.location ?? ''),
+    description: dropInvisible(posting.description ?? ''),
+  };
   const s = scoreJob(raw, config);
   const salary = given ?? parseSalary(`${raw.title}\n${raw.description}`, s.country, homeCountry());
   // A Dutch job that needs a sponsored visa: its salary must meet the IND criterion for the candidate's age.

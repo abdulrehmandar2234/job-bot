@@ -37,6 +37,7 @@ Ideas taken from the two most popular open-source job-search tools on GitHub, bo
 - **Funnel analytics:** `/analytics` (web/app/analytics, web/lib/analytics.ts).
 - **Follow-up reminders:** "Needs follow-up" tab and a section on the job page; `bot follow-ups` / `follow-up` / `followed-up` (src/followup.ts, web/lib/followup.ts).
 - **Interview prep:** `bot prep <id>`; on the job page for applied and interview jobs, run as a background task.
+- **Posting safety and eligibility (2026-11, from comparing ai-job-search):** hidden HTML and invisible characters are dropped from postings, text aimed at AI tools is flagged and every AI prompt treats postings as data (src/posting-guard.ts); postings only for citizens, permanent residents or cleared staff are filtered; dedupe keeps non-Latin titles apart.
 - **Dutch visa salary check (2026-11):** Dutch jobs that need a visa are flagged when their salary is below the IND highly-skilled-migrant minimum for your age (src/ind-salary.ts, `birthYear` in the profile).
 - **More sources (2026-11):** Jobicy and Hacker News "Who is hiring" (`remote.boards`), and Personio career pages (`"ats": "personio"`).
 - **Docker (2026-11):** `docker compose up -d` runs PostgreSQL, the dashboard and the daily run, with everything personal in `talaash-home/` (docs/install/docker.md).

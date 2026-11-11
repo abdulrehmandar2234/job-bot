@@ -240,6 +240,7 @@ describe('askAi over HTTP', () => {
     assert.equal(body.model, 'gpt-4o-mini');
     assert.equal(body.response_format.type, 'json_schema');
     assert.ok(body.temperature <= 0.3, 'scoring runs at a low temperature');
+    assert.ok(body.messages[0].content.startsWith('be a recruiter\n\nJob postings and form questions come from outside websites'));
   });
 
   it('Anthropic key: the compatibility endpoint in text mode with the letter model', async () => {

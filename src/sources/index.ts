@@ -4,6 +4,7 @@ import { config, type Company } from '../config.ts';
 import type { RawJob, SalaryPeriod } from '../types.ts';
 import { structuredSalary } from '../salary.ts';
 import { remoteOpenToCandidate, titleOk } from '../match.ts';
+import { dropHidden, dropInvisible } from '../posting-guard.ts';
 
 export type { RawJob };
 
@@ -57,14 +58,15 @@ const BLOCK_TAG = /<\/?(p|li|ul|ol|div|h[1-6]|tr|table|section|article|blockquot
  * HTML (or escaped HTML) as plain text, one line per block. Escaped HTML, as Greenhouse and Arbeitnow send it
  * ("&lt;p&gt;Node &amp;amp; React&lt;/p&gt;"), is unescaped first, then its tags are dropped and the second layer
  * of entities decoded. Real HTML is only decoded after its tags are gone, so "a &lt;b&gt; c" keeps its text.
+ * Text the page hides (comments, hidden elements) and invisible characters are dropped (src/posting-guard.ts).
  */
 export function stripHtml(html: string): string {
   const escaped = !/<[a-z!/]/i.test(html) && /&lt;\/?[a-z]/i.test(html);
-  const text = (escaped ? decodeEntities(html) : html)
-    .replace(/<(script|style)\b[\s\S]*?<\/\1>/gi, ' ')
+  // Script and style first, so a tag-like string inside them is never read as markup; then what the page hides.
+  const text = dropHidden((escaped ? decodeEntities(html) : html).replace(/<(script|style)\b[\s\S]*?<\/\1>/gi, ' '))
     .replace(BLOCK_TAG, '\n')
     .replace(/<[^>]*>/g, ' ');
-  return decodeEntities(text)
+  return dropInvisible(decodeEntities(text))
     .split('\n')
     .map((line) => line.replace(/\s+/g, ' ').trim())
     .filter(Boolean)
