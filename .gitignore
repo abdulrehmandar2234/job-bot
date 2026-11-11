@@ -2,6 +2,8 @@ node_modules/
 web/node_modules/
 web/.next/
 .next/
+docs/.vitepress/dist/
+docs/.vitepress/cache/
 *.tsbuildinfo
 .DS_Store
 

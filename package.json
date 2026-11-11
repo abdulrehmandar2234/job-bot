@@ -8,6 +8,8 @@
   "scripts": {
     "bot": "node --no-warnings --env-file-if-exists=.env src/cli.ts",
     "web": "npm --prefix web run dev",
+    "docs": "npm --prefix docs run dev",
+    "docs:build": "npm --prefix docs run build",
     "test": "node scripts/run-tests.mjs",
     "test:web": "npm --prefix web test",
     "test:all": "npm test && npm run test:web",

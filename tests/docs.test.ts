@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { join, relative, sep } from 'node:path';
 import type { z } from 'zod';
 import { configSchema } from '../src/settings.ts';
 
@@ -71,5 +71,41 @@ describe('docs/configuration.md', () => {
     const rows = [...doc.matchAll(/^\| `([a-z][\w.<>[\]]*)`/gm)].map((m) => m[1]);
     const unknown = rows.filter((k) => !known.has(k));
     assert.deepEqual(unknown, [], `rows in docs/configuration.md for keys config.json does not have: ${unknown.join(', ')}`);
+  });
+});
+
+// The docs site (docs/.vitepress/config.mts) shows only the pages in its sidebar; its build (CI, docs.yml) catches dead
+// links inside docs/, and these catch a page left out of the sidebar and README links to files that do not exist.
+const ROOT = join(import.meta.dirname, '..');
+const DOCS = join(ROOT, 'docs');
+const docPages = (dir = DOCS): string[] =>
+  readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
+    if (e.name === 'node_modules' || e.name.startsWith('.')) return [];
+    const path = join(dir, e.name);
+    return e.isDirectory() ? docPages(path) : e.name.endsWith('.md') ? [relative(DOCS, path)] : [];
+  });
+
+describe('the docs site', () => {
+  const site = readFileSync(join(DOCS, '.vitepress', 'config.mts'), 'utf8');
+  const sidebar = new Set([...site.matchAll(/link: '(\/[^']*)'/g)].map((m) => m[1]));
+  const route = (page: string) => (page === 'README.md' ? '/' : `/${page.replace(/\.md$/, '').split(sep).join('/')}`);
+
+  it('has every page of docs/ in its sidebar, and no sidebar entry without a page', () => {
+    const pages = docPages();
+    for (const page of ['README.md', 'quickstart.md', 'features.md', 'cli.md', 'how-it-works.md', join('install', 'macos.md')])
+      assert.ok(pages.includes(page), page);
+    const missing = pages.filter((p) => !sidebar.has(route(p)));
+    assert.deepEqual(missing, [], `docs pages missing from the sidebar in docs/.vitepress/config.mts: ${missing.join(', ')}`);
+    const routes = new Set(pages.map(route));
+    const dangling = [...sidebar].filter((r) => !routes.has(r));
+    assert.deepEqual(dangling, [], `sidebar entries without a page: ${dangling.join(', ')}`);
+  });
+
+  it('README.md links only to files that exist', () => {
+    const readme = readFileSync(join(ROOT, 'README.md'), 'utf8');
+    const local = [...readme.matchAll(/\]\(([^)#\s]+)(#[^)]*)?\)/g)].map((m) => m[1]).filter((l) => !/^https?:/.test(l));
+    assert.ok(local.includes('docs/quickstart.md'));
+    const broken = local.filter((l) => !existsSync(join(ROOT, l)));
+    assert.deepEqual(broken, [], `README.md links to missing files: ${broken.join(', ')}`);
   });
 });

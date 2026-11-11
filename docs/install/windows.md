@@ -289,7 +289,7 @@ The extension sends the job you are looking at to job-bot, and shows the prepare
 3. Click **Load unpacked** and choose the `extension` folder inside `C:\Users\<you>\job-bot`.
 4. Pin the job-bot button to the toolbar (puzzle icon → pin).
 
-It talks only to your local dashboard, `http://localhost:3100` by default; if you run the dashboard on another port, set its address in the extension's options (**Extension options** in the popup). Details and permissions: [extension/README.md](../../extension/README.md#dashboard-address-options).
+It talks only to your local dashboard, `http://localhost:3100` by default; if you run the dashboard on another port, set its address in the extension's options (**Extension options** in the popup). Details and permissions: [extension/README.md](https://github.com/abdulrehmandar2234/job-bot/blob/main/extension/README.md#dashboard-address-options).
 
 **Success:** on any job page, the job-bot button opens a popup with the job's title and company read from the page.
 

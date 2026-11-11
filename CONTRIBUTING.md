@@ -53,7 +53,7 @@ While working, run one file at a time, for example `npm test -- tests/match.test
 - **New settings:** add them to the zod schema in `src/settings.ts`, to `config.default.json` if they need a default, to the Settings page if users edit them there, and to [docs/configuration.md](docs/configuration.md). Your own `config.json` is gitignored: never commit it.
 - **New presets:** a market or stack is one JSON file in `presets/markets/` or `presets/stacks/` (copy an existing one). `tests/presets.test.ts` validates every preset.
 - **Logic copied into the dashboard:** if you copy bot logic into `web/`, add a parity test, as the existing ones do.
-- **Docs:** update README.md and the pages in `docs/` when behaviour changes. The three install guides must stay in step with each other.
+- **Docs:** update the pages in `docs/` when behaviour changes (a feature in `docs/features.md`, a command in `docs/cli.md`, a setting in `docs/configuration.md`), and README.md only for its short overview. The three install guides must stay in step with each other. A new page also goes in the site's sidebar (`docs/.vitepress/config.mts`); `npm --prefix docs install` once, then `npm run docs:build` checks for dead links, as CI does.
 
 CI runs Biome, the typecheck and both suites on Ubuntu with PostgreSQL, plus the database-free tests on Windows.
 
