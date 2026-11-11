@@ -30,6 +30,16 @@ updates:
         patterns: ["tailwindcss", "@tailwindcss/*"]
       types:
         patterns: ["@types/*"]
+  # The docs site (VitePress). docs/package.json pins vite and katex through "overrides" until VitePress itself
+  # requires patched versions; one grouped PR keeps the site's packages moving together.
+  - package-ecosystem: npm
+    directory: "/docs"
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3
+    groups:
+      docs-site:
+        patterns: ["*"]
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
