@@ -12,6 +12,9 @@ export type OpenJob = Pick<Job, 'id' | 'source' | 'url'> & { title?: string; com
 
 const open = (reason: string): OpenResult => ({ state: 'open', reason });
 const closed = (reason: string): OpenResult => ({ state: 'closed', reason });
+
+/** The Personio host for a token: "acme" -> acme.jobs.personio.de; a token with a dot is used as the host. */
+export const personioHost = (token: string) => (token.includes('.') ? token : `${token}.jobs.personio.de`);
 const unknown = (reason: string): OpenResult => ({ state: 'unknown', reason });
 
 // Few tries and no cache: a 304 from the cache would hide a posting that has gone.
@@ -180,6 +183,18 @@ export function openCheck(job: OpenJob): { url: string; run: () => Promise<OpenR
           : unknown('not found by a Himalayas search for its title and company');
       });
     }
+    case 'personio': {
+      // The company's XML feed lists every open posting: one that is gone from it has closed.
+      const url = `https://${personioHost(token)}/xml?language=en`;
+      return via(url, async () => {
+        const xml = (await request(url, OPTS)).body;
+        if (!xml.includes('<workzag-jobs') && !xml.includes('<position>')) return unknown('the Personio feed did not answer with XML');
+        return xml.includes(`<id>${pid}</id>`) ? open('listed in the Personio feed') : closed('no longer in the Personio feed');
+      });
+    }
+    case 'hackernews':
+      // A Who-is-hiring comment stays up after the job is filled, so its page says nothing either way.
+      return via(job.url, async () => unknown('Hacker News comments stay up after the job is filled'));
     case 'linkedin': {
       const lid = job.id.split(':')[1] ?? '';
       return via(`https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/${lid}`, () => linkedin(lid));

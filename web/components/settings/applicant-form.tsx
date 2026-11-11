@@ -16,6 +16,7 @@ const PROFILE_LABEL: Record<(typeof PROFILE_FIELDS)[number], [string, string?]> 
   countryCode: ['Country code', 'two letters, e.g. PT'],
   utcOffset: ['UTC offset', 'e.g. GMT+1'],
   workAuthorization: ['Work authorisation', 'citizenship, permits'],
+  birthYear: ['Birth year', 'only for the Dutch visa salary check (30 or over)'],
 };
 
 const LETTER_LABEL: Record<(typeof LETTER_FIELDS)[number], [string, string]> = {

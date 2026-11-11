@@ -37,6 +37,10 @@ updates:
     schedule:
       interval: monthly
     open-pull-requests-limit: 3
+    # vitepress-plugin-mermaid supports mermaid 10 and 11 only; the docs build fails with 12 (PR #84).
+    ignore:
+      - dependency-name: "mermaid"
+        update-types: ["version-update:semver-major"]
     groups:
       docs-site:
         patterns: ["*"]

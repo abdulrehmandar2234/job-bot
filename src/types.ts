@@ -2,10 +2,10 @@
 // part of the dashboard can import it, client components included.
 
 // workday: token is "<tenant>/<wdN>/<site>", e.g. "acme/wd3/AcmeCareers".
-export const ATS = ['greenhouse', 'lever', 'ashby', 'recruitee', 'workable', 'smartrecruiters', 'workday'] as const;
+export const ATS = ['greenhouse', 'lever', 'ashby', 'recruitee', 'workable', 'smartrecruiters', 'workday', 'personio'] as const;
 
 // The remote job boards the bot can fetch (BOARDS in src/sources/boards.ts).
-export const REMOTE_BOARDS = ['himalayas', 'remotive', 'remoteok', 'arbeitnow', 'adzuna'] as const;
+export const REMOTE_BOARDS = ['himalayas', 'remotive', 'remoteok', 'arbeitnow', 'adzuna', 'jobicy', 'hackernews'] as const;
 
 /** A CV version name (`default`, `laravel-v1`): the one rule for every path and task argument that takes one. */
 export const CV_VERSION = /^[a-z0-9][a-z0-9-]*$/;

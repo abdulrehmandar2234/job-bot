@@ -7,7 +7,7 @@ import { daysAgo, mockFetch } from './helpers.ts';
 import { timing } from '../src/sources/http.ts';
 import { decodeEntities, fetchCompany, stripHtml, workdayAgeDays, workdayList, workdaySite } from '../src/sources/index.ts';
 import { languageRules } from '../src/match.ts';
-import { BOARDS } from '../src/sources/boards.ts';
+import { BOARDS, hnHeader } from '../src/sources/boards.ts';
 import { linkedin } from '../src/sources/linkedin.ts';
 import { discover, workdayToken } from '../src/discover.ts';
 import { config, type Company } from '../src/config.ts';
@@ -1016,8 +1016,10 @@ describe('discover', () => {
   it('probes each missing board once: a 404 is not retried', async () => {
     net = mockFetch({});
     assert.deepEqual(await discover(['nobody']), []);
-    assert.equal(net.calls.length, 6);
-    assert.equal(new Set(net.calls).size, 6);
+    // Greenhouse, Lever, Ashby, Recruitee, SmartRecruiters and Personio by name, plus Workable's own endpoint.
+    assert.equal(net.calls.length, 7);
+    assert.equal(new Set(net.calls).size, 7);
+    assert.ok(net.calls.includes('https://nobody.jobs.personio.de/xml?language=en'));
   });
 });
 
@@ -1049,6 +1051,160 @@ describe('discover: workday', () => {
     );
     assert.equal(net.calls.filter((u) => u.includes('myworkdayjobs')).length, 1);
     assert.ok(!net.calls.some((u) => u.includes('myworkdayjobs') && u.includes('other')));
-    assert.equal(net.calls.length, 7);
+    assert.equal(net.calls.length, 8);
+  });
+});
+
+describe('jobicy', () => {
+  const job = (id: number, o: Record<string, unknown> = {}) => ({
+    id,
+    url: `https://jobicy.com/jobs/${id}-dev`,
+    jobTitle: 'Senior PHP &amp; Laravel Developer',
+    companyName: 'Acme',
+    jobGeo: 'Europe,  Asia',
+    jobDescription: '<p>Laravel</p><ul><li>Vue</li></ul>',
+    pubDate: '2026-11-10T08:00:00+00:00',
+    ...o,
+  });
+
+  it('reads the engineering feed: remote region from jobGeo, decoded title, HTML description, its own salary', async () => {
+    net = mockFetch({
+      'jobicy.com/api/v2/remote-jobs': {
+        jobs: [
+          job(1, { salaryMin: 60000, salaryMax: 80000, salaryCurrency: 'EUR', salaryPeriod: 'yearly' }),
+          job(2, { jobGeo: '', salaryMin: 5000, salaryCurrency: 'PLN', salaryPeriod: 'monthly' }),
+          job(3, { salaryPeriod: 'weekly', salaryMin: 1, salaryCurrency: 'USD' }),
+          { id: 4, jobTitle: 'No URL' },
+        ],
+      },
+    });
+    const jobs = await BOARDS.jobicy();
+    assert.ok(net.calls[0].includes('count=100') && net.calls[0].includes('industry=engineering'));
+    assert.deepEqual(
+      jobs.map((j) => j.id),
+      ['jobicy:1', 'jobicy:2', 'jobicy:3'],
+    );
+    assert.equal(jobs[0].title, 'Senior PHP & Laravel Developer');
+    assert.equal(jobs[0].location, 'Remote — Europe, Asia');
+    assert.equal(jobs[1].location, 'Remote — not stated');
+    assert.equal(jobs[0].description, 'Laravel\nVue');
+    assert.equal(jobs[0].url, 'https://jobicy.com/jobs/1-dev');
+    assert.equal(jobs[0].posted_at, '2026-11-10T08:00:00.000Z');
+    assert.deepEqual(jobs[0].salary, { min: 60000, max: 80000, currency: 'EUR', period: 'year' });
+    assert.deepEqual(jobs[1].salary, { min: 5000, max: null, currency: 'PLN', period: 'month' });
+    assert.equal(jobs[2].salary, null, 'an unknown pay period is left out');
+  });
+});
+
+describe('hackernews (Who is hiring)', () => {
+  it('hnHeader: company, the field that looks like a role, and the other short fields as the location', () => {
+    assert.deepEqual(hnHeader('Simple Analytics | DevOps Engineer | REMOTE (worldwide) | €5,000&#x2F;month<p>We are…'), {
+      company: 'Simple Analytics',
+      title: 'DevOps Engineer',
+      location: 'REMOTE (worldwide) | €5,000/month',
+    });
+    // Role later than the first field, a link field and a header that runs into prose.
+    assert.deepEqual(
+      hnHeader(
+        'Acme | Amsterdam, NL | https://acme.com/jobs | Senior Backend Developer | Full-Time We build software for thousands of customers in finance, recruiting and logistics all over Europe',
+      ),
+      { company: 'Acme', title: 'Senior Backend Developer', location: 'Amsterdam, NL' },
+    );
+    assert.equal(hnHeader('Just a comment without fields<p>hi'), null);
+    assert.equal(hnHeader('Acme | https://acme.com'), null);
+  });
+
+  it("reads the newest Who-is-hiring thread's top-level comments, skipping deleted ones and comments without a header", async () => {
+    net = mockFetch({
+      search_by_date: {
+        hits: [
+          { objectID: '9', title: 'Ask HN: Who wants to be hired? (November 2026)' },
+          { objectID: '7', title: 'Ask HN: Who is hiring? (November 2026)' },
+        ],
+      },
+      '/api/v1/items/7': {
+        children: [
+          {
+            id: 71,
+            created_at: '2026-11-02T16:01:43.000Z',
+            text: 'Acme | Laravel Developer | Rotterdam, Netherlands | ONSITE<p>PHP &amp; Vue.',
+          },
+          { id: 72, created_at: '2026-11-02T16:02:00.000Z', text: null },
+          { id: 73, created_at: '2026-11-02T16:03:00.000Z', text: 'Great thread, thanks!' },
+        ],
+      },
+    });
+    const jobs = await BOARDS.hackernews();
+    assert.equal(jobs.length, 1);
+    assert.deepEqual(
+      { ...jobs[0], description: jobs[0].description },
+      {
+        id: 'hackernews:71',
+        source: 'hackernews',
+        company: 'Acme',
+        title: 'Laravel Developer',
+        location: 'Rotterdam, Netherlands | ONSITE',
+        url: 'https://news.ycombinator.com/item?id=71',
+        description: 'Acme | Laravel Developer | Rotterdam, Netherlands | ONSITE\nPHP & Vue.',
+        posted_at: '2026-11-02T16:01:43.000Z',
+      },
+    );
+    assert.ok(net.calls[0].includes('author_whoishiring'));
+  });
+
+  it('no Who-is-hiring thread: no postings and no second call', async () => {
+    net = mockFetch({ search_by_date: { hits: [{ objectID: '9', title: 'Ask HN: Freelancer? Seeking freelancer?' }] } });
+    assert.deepEqual(await BOARDS.hackernews(), []);
+    assert.equal(net.calls.length, 1);
+  });
+});
+
+describe('personio', () => {
+  const feed = `<?xml version="1.0" encoding="UTF-8"?>
+<workzag-jobs>
+<position>
+    <id>101</id>
+    <office>Amsterdam</office>
+    <additionalOffices><office>Rotterdam</office><office>Amsterdam</office></additionalOffices>
+    <name>Senior PHP Developer (m/w/d) &amp; Lead</name>
+    <jobDescriptions>
+      <jobDescription><name>Your tasks</name><value><![CDATA[<ul><li>Laravel</li><li>Vue</li></ul>]]></value></jobDescription>
+      <jobDescription><name>Profile</name><value><![CDATA[<p>5 years</p>]]></value></jobDescription>
+    </jobDescriptions>
+    <keywords>PHP,Laravel</keywords>
+    <createdAt>2026-11-01T10:00:00+00:00</createdAt>
+</position>
+<position><id></id><name>No id</name></position>
+</workzag-jobs>`;
+
+  it('reads the XML feed: offices as the location, description sections, a job URL on the company host', async () => {
+    net = mockFetch({ 'acme.jobs.personio.de/xml': new Response(feed, { headers: { 'content-type': 'text/xml' } }) });
+    const jobs = await fetchCompany(co('personio'));
+    assert.equal(net.calls[0], 'https://acme.jobs.personio.de/xml?language=en');
+    assert.equal(jobs.length, 1);
+    assert.deepEqual(jobs[0], {
+      id: 'personio:acme:101',
+      source: 'personio',
+      company: 'Acme',
+      title: 'Senior PHP Developer (m/w/d) & Lead',
+      location: 'Amsterdam / Rotterdam',
+      url: 'https://acme.jobs.personio.de/job/101?language=en',
+      description: 'Senior PHP Developer (m/w/d) & Lead\nPHP,Laravel\nYour tasks\nLaravel\nVue\nProfile\n5 years',
+      posted_at: '2026-11-01T10:00:00.000Z',
+    });
+  });
+
+  it('a token with a dot is the whole host (companies on jobs.personio.com)', async () => {
+    net = mockFetch({ 'acme.jobs.personio.com/xml': feed });
+    const jobs = await fetchCompany({ name: 'Acme', ats: 'personio', token: 'acme.jobs.personio.com' });
+    assert.equal(jobs[0].url, 'https://acme.jobs.personio.com/job/101?language=en');
+  });
+
+  it('discover finds a company on Personio and counts its target-country offices', async () => {
+    net = mockFetch({ 'acmenl.jobs.personio.de/xml': feed });
+    const hits = await discover(['acmenl']);
+    const p = hits.find((h) => h.ats === 'personio');
+    // Every <position> counts as a job (the empty one too); only the Amsterdam one is in a target country.
+    assert.deepEqual(p, { slug: 'acmenl', ats: 'personio', jobs: 2, target: 1 });
   });
 });

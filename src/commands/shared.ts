@@ -3,7 +3,8 @@ import { config } from '../config.ts';
 import { UserError } from '../errors.ts';
 import { upsertJob, type Job } from '../db.ts';
 import { scoreJob } from '../match.ts';
-import { loadProfile, remoteFromCode } from '../profile.ts';
+import { indSalaryFlag } from '../ind-salary.ts';
+import { loadProfile, needsVisa, remoteFromCode } from '../profile.ts';
 import { parseSalary } from '../salary.ts';
 import type { RawJob } from '../types.ts';
 
@@ -61,10 +62,17 @@ export const today = () => new Date().toLocaleDateString('en-CA'); // local YYYY
 /** The user's own country (remote.fromCode, else the profile's countryCode): what "Rs" means in a remote job. */
 export const homeCountry = () => remoteFromCode(config, loadProfile());
 
+/** Whether a job in `country` needs a visa that the IND salary criterion applies to (a country checked against the IND register). */
+export const indCheckApplies = (country: string | null) =>
+  !!country && config.countries[country]?.visa === 'ind-register' && needsVisa(config, country, loadProfile());
+
 /** Scores a posting and upserts it as new or filtered. A source's own salary data wins over parsing the text. */
 export function save({ salary: given, ...raw }: RawJob) {
   const s = scoreJob(raw, config);
   const salary = given ?? parseSalary(`${raw.title}\n${raw.description}`, s.country, homeCountry());
+  // A Dutch job that needs a sponsored visa: its salary must meet the IND criterion for the candidate's age.
+  const ind = indCheckApplies(s.country) ? indSalaryFlag(salary, loadProfile().birthYear) : null;
+  if (ind) s.flags.push(ind);
   return upsertJob({
     ...raw,
     country: s.country,

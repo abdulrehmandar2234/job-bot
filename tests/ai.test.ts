@@ -163,6 +163,20 @@ describe('prompts', () => {
     assert.ok('noticePeriod' in facts);
   });
 
+  it('applicantFacts leaves out the birth year (only for the Dutch visa salary check)', () => {
+    const file = join(mkdtempSync(join(tmpdir(), 'talaash-birth-')), 'applicant.json');
+    writeFileSync(file, JSON.stringify({ ...JSON.parse(readFileSync(process.env.JOB_BOT_APPLICANT!, 'utf8')), birthYear: 1995 }));
+    const before = process.env.JOB_BOT_APPLICANT;
+    process.env.JOB_BOT_APPLICANT = file;
+    try {
+      const facts = JSON.parse(applicantFacts());
+      assert.equal(facts.birthYear, undefined);
+      assert.equal(facts.languages, 'English, Urdu');
+    } finally {
+      process.env.JOB_BOT_APPLICANT = before;
+    }
+  });
+
   it('aiScore sends the CV and the job with the scoring model', async () => {
     const out = { score: 80, verdict: 'good', summary: 's', reasons: [], gaps: [], red_flags: [] };
     process.env.FAKE_CLAUDE_OUT = JSON.stringify(out);
