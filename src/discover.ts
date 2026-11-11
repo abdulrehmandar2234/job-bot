@@ -1,8 +1,9 @@
 import { readFileSync } from 'node:fs';
-import { getJson, sleep } from './sources/http.ts';
+import { getJson, getText, sleep } from './sources/http.ts';
 import { ATS, config, type Company } from './config.ts';
 import { configFile, InvalidSettingsError, validateConfig, writeSettingsFile } from './settings.ts';
 import { workdayList } from './sources/index.ts';
+import { personioHost } from './sources/open.ts';
 
 // Finds which public job board (ATS) a company uses and how many of its jobs are in target countries.
 // Only list endpoints are called, so this stays cheap. Workday is only tried for a full myworkdayjobs.com URL,
@@ -30,6 +31,16 @@ const locations: Record<Company['ats'], (slug: string) => Promise<string[] | nul
     (await json(`https://api.smartrecruiters.com/v1/companies/${t}/postings?limit=100`))?.content?.map(
       (x: any) => x.location?.fullLocation ?? '',
     ),
+  // The XML feed's office of each posting; a company without a Personio page answers 404 (or HTML).
+  personio: async (t) => {
+    try {
+      const xml = await getText(`https://${personioHost(t)}/xml?language=en`, { attempts: 1 });
+      if (!xml.includes('<workzag-jobs') && !xml.includes('<position>')) return null;
+      return [...xml.matchAll(/<position>([\s\S]*?)<\/position>/g)].map((m) => m[1].match(/<office>([^<]*)<\/office>/)?.[1] ?? '');
+    } catch {
+      return null;
+    }
+  },
   // First 5 pages (100 newest postings); "3 Locations" entries count as jobs but not as target-country hits.
   workday: async (t) => {
     try {

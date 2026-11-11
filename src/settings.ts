@@ -186,6 +186,8 @@ export const applicantSchema = z
     country: optText,
     countryCode: z.union([isoCode, z.null()]), // where the candidate lives, ISO 3166-1 alpha-2
     utcOffset: z.union([z.string().regex(UTC_OFFSET, 'like "GMT+5" or "UTC-3:30"'), z.null()]),
+    // Only for the Dutch IND salary check (src/ind-salary.ts): the minimum depends on whether the candidate is 30 or over.
+    birthYear: z.union([z.number().int().min(1940).max(2015), z.null()]),
     workAuthorization: fact, // free text, e.g. "Portuguese citizen, may work anywhere in the EU"
     coverLetter: coverLetterSchema,
     // Facts for application forms.

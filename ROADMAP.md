@@ -10,12 +10,10 @@ Ideas from the last review and from real use, none started yet:
 - **Interview rounds:** several rounds per job with date, type and notes, and an `.ics` file to add each one to a calendar.
 - **Weekly goal and expiring badge:** a target of applications per week on the dashboard, and a badge on matching jobs about to pass `maxAgeDays`.
 - **Postings that apply by email or WhatsApp:** detect them and prepare the message (with the CV attached by you) instead of a form.
-- **Netherlands visa salary check:** compare the posted salary with the IND highly-skilled-migrant threshold for your age.
 - **Discover boards from seen companies:** suggest `discover` for companies that keep showing up on LinkedIn or the boards but have no ATS entry in `companies`.
 - **Rejection stage and reason:** record where and why an application ended (screening, technical, final, ghosted), shown on `/analytics`.
 - **Pre-submit checklist:** on the job page before **Mark applied**: CV version, letter, answers with `[FILL: ...]` left, contacts asked for a referral.
 - **Referral drafts:** an AI-drafted message to a contact at the company asking for a referral (you send it yourself).
-- **More sources:** Hacker News "Who is hiring" threads, Jobicy, Personio career pages.
 
 ### From comparing similar projects (2026-11)
 
@@ -39,6 +37,8 @@ Ideas taken from the two most popular open-source job-search tools on GitHub, bo
 - **Funnel analytics:** `/analytics` (web/app/analytics, web/lib/analytics.ts).
 - **Follow-up reminders:** "Needs follow-up" tab and a section on the job page; `bot follow-ups` / `follow-up` / `followed-up` (src/followup.ts, web/lib/followup.ts).
 - **Interview prep:** `bot prep <id>`; on the job page for applied and interview jobs, run as a background task.
+- **Dutch visa salary check (2026-11):** Dutch jobs that need a visa are flagged when their salary is below the IND highly-skilled-migrant minimum for your age (src/ind-salary.ts, `birthYear` in the profile).
+- **More sources (2026-11):** Jobicy and Hacker News "Who is hiring" (`remote.boards`), and Personio career pages (`"ats": "personio"`).
 - **More sources:** Workday (`"ats": "workday"`, src/sources/index.ts), Arbeitnow and Adzuna (`remote.boards`, src/sources/boards.ts).
 - **Instant alerts for strong matches:** src/notify.ts, called by `ai:score`; `ai.alertStrong` in config.json or on `/settings`.
 - **Settings page:** `/settings` (web/app/settings, web/components/settings.tsx); `bot settings:check` / `settings:save`.

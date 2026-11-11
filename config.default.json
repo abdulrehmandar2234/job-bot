@@ -22,7 +22,7 @@
   },
   "remote": {
     "enabled": true,
-    "boards": ["himalayas", "remotive", "remoteok", "arbeitnow", "adzuna"],
+    "boards": ["himalayas", "remotive", "remoteok", "arbeitnow", "adzuna", "jobicy", "hackernews"],
     "himalayasQueries": ["laravel", "php", "node", "nestjs", "react", "next.js", "full stack", "mern", "typescript", "vue"],
     "from": "Pakistan",
     "fromCode": "PK"

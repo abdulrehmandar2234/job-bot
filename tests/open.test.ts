@@ -608,3 +608,33 @@ describe('himalayasMoved (a Himalayas job whose location changed after the fetch
     assert.equal(j.status, 'filtered');
   });
 });
+
+describe('isOpen: Personio and Hacker News', () => {
+  it('personio: open while the company feed lists the posting, closed once it is gone', async () => {
+    net = mockFetch({
+      'acme.jobs.personio.de/xml': '<?xml version="1.0"?><workzag-jobs><position><id>101</id></position></workzag-jobs>',
+    });
+    assert.deepEqual(await isOpen(job('personio:acme:101', 'https://acme.jobs.personio.de/job/101')), {
+      state: 'open',
+      reason: 'listed in the Personio feed',
+    });
+    assert.deepEqual(await isOpen(job('personio:acme:202', 'https://acme.jobs.personio.de/job/202')), {
+      state: 'closed',
+      reason: 'no longer in the Personio feed',
+    });
+  });
+
+  it('personio: a feed that is not XML says nothing', async () => {
+    net = mockFetch({ 'acme.jobs.personio.de/xml': '<html>Page not found</html>' });
+    assert.equal((await isOpen(job('personio:acme:101'))).state, 'unknown');
+  });
+
+  it('hackernews: unknown without a request, since a comment stays up after the job is filled', async () => {
+    net = mockFetch({});
+    assert.deepEqual(await isOpen(job('hackernews:71', 'https://news.ycombinator.com/item?id=71')), {
+      state: 'unknown',
+      reason: 'Hacker News comments stay up after the job is filled',
+    });
+    assert.equal(net.calls.length, 0);
+  });
+});

@@ -1,4 +1,5 @@
-import { getJson, postJson, sleep } from './http.ts';
+import { getJson, getText, postJson, sleep } from './http.ts';
+import { personioHost } from './open.ts';
 import { config, type Company } from '../config.ts';
 import type { RawJob, SalaryPeriod } from '../types.ts';
 import { structuredSalary } from '../salary.ts';
@@ -142,6 +143,47 @@ async function recruitee(c: Company): Promise<RawJob[]> {
     description: stripHtml(`${j.description ?? ''}\n${j.requirements ?? ''}`),
     posted_at: toIso(j.published_at ?? j.created_at),
   }));
+}
+
+// Personio: each company's public XML feed (https://<company>.jobs.personio.de/xml), common with German and Dutch
+// employers. The token is the subdomain ("acme"), or a whole host for companies on another Personio domain
+// ("acme.jobs.personio.com"). Plain regular expressions are enough for this flat, documented format.
+
+/** The text of each <tag>…</tag> in `xml` (CDATA unwrapped, entities decoded). */
+const xmlAll = (xml: string, tag: string) =>
+  [...xml.matchAll(new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`, 'g'))].map((m) =>
+    m[1].replace(/^\s*<!\[CDATA\[([\s\S]*?)\]\]>\s*$/, '$1').trim(),
+  );
+const xmlOne = (xml: string, tag: string) => xmlAll(xml, tag)[0] ?? '';
+
+/** The postings in a Personio XML feed. */
+export function personioPositions(xml: string, c: Company): RawJob[] {
+  const host = personioHost(c.token);
+  return xmlAll(xml, 'position').flatMap((p) => {
+    const id = xmlOne(p, 'id');
+    const title = decodeEntities(xmlOne(p, 'name'));
+    if (!id || !title) return [];
+    const offices = [xmlOne(p, 'office'), ...xmlAll(xmlOne(p, 'additionalOffices'), 'office')].map(decodeEntities).filter(Boolean);
+    const sections = xmlAll(xmlOne(p, 'jobDescriptions'), 'jobDescription').map(
+      (d) => `${decodeEntities(xmlOne(d, 'name'))}\n${stripHtml(xmlOne(d, 'value'))}`,
+    );
+    return [
+      {
+        id: `personio:${c.token}:${id}`,
+        source: 'personio',
+        company: c.name,
+        title,
+        location: [...new Set(offices)].join(' / '),
+        url: `https://${host}/job/${id}?language=en`,
+        description: [title, decodeEntities(xmlOne(p, 'keywords')), ...sections].filter(Boolean).join('\n'),
+        posted_at: toIso(xmlOne(p, 'createdAt')),
+      },
+    ];
+  });
+}
+
+async function personio(c: Company): Promise<RawJob[]> {
+  return personioPositions(await getText(`https://${personioHost(c.token)}/xml?language=en`), c);
 }
 
 // Workable throttles hard (Cloudflare 1015, sometimes as a 403), so calls are spaced out and retried slowly.
@@ -347,7 +389,7 @@ export const epochMs = (secs: unknown): number | null => {
   return Number.isFinite(n) && n > 0 ? n * 1000 : null;
 };
 
-const fetchers = { greenhouse, lever, ashby, recruitee, workable, smartrecruiters, workday };
+const fetchers = { greenhouse, lever, ashby, recruitee, workable, smartrecruiters, workday, personio };
 
 export async function fetchCompany(c: Company): Promise<Fetched> {
   return fetchers[c.ats](c);

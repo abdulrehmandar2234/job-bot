@@ -1,6 +1,6 @@
 import { getJson, sleep } from './http.ts';
 import { config } from '../config.ts';
-import { epochMs, partial, stripHtml, toIso, type Fetched, type RawJob } from './index.ts';
+import { decodeEntities, epochMs, partial, stripHtml, toIso, type Fetched, type RawJob } from './index.ts';
 import { himalayasSearchUrl } from './open.ts';
 import { structuredSalary } from '../salary.ts';
 import { currencyOf } from '../currencies.ts';
@@ -116,6 +116,89 @@ async function remotive(): Promise<RawJob[]> {
   }));
 }
 
+// Jobicy: free public API of remote jobs (https://jobicy.com/jobs-rss-feed), engineering only, 100 newest. Its terms
+// ask to credit Jobicy and send applicants to the original job URL, which is what `url` is. jobGeo is where a hire
+// may live ("Europe, USA", "Anywhere"), so it is the remote region, as for the other boards.
+const JOBICY_PERIOD: Record<string, 'year' | 'month' | 'hour'> = { yearly: 'year', monthly: 'month', hourly: 'hour' };
+
+async function jobicy(): Promise<RawJob[]> {
+  const data = await getJson('https://jobicy.com/api/v2/remote-jobs?count=100&industry=engineering');
+  return (data.jobs ?? [])
+    .filter((j: any) => j.id && j.jobTitle && j.url)
+    .map((j: any) => ({
+      id: `jobicy:${j.id}`,
+      source: 'jobicy',
+      company: j.companyName ?? 'Unknown',
+      title: decodeEntities(j.jobTitle),
+      location: `Remote — ${(j.jobGeo ?? '').replace(/\s+/g, ' ').trim() || 'not stated'}`,
+      url: j.url,
+      description: stripHtml(j.jobDescription ?? j.jobExcerpt ?? ''),
+      posted_at: toIso(j.pubDate),
+      salary: JOBICY_PERIOD[j.salaryPeriod]
+        ? structuredSalary(j.salaryMin, j.salaryMax, j.salaryCurrency, JOBICY_PERIOD[j.salaryPeriod])
+        : null,
+    }));
+}
+
+// Hacker News "Ask HN: Who is hiring?": a thread on the first weekday of each month by the whoishiring account, one
+// top-level comment per company, through the public Algolia HN API. A comment starts with a header line of fields
+// split by "|": "Company | Role | Location | REMOTE (EU) | Full-time | €70k". The role is the field that looks like a
+// job title; every other field after the company goes into the location, where match.ts finds the country or the
+// remote region. Postings keep their comment's date, so like any other source they age out after maxAgeDays.
+const HN_ROLE = /\b(engineer|developer|programmer|architect|devops|sre|cto|lead|full.?stack|back.?end|front.?end|software)\b/i;
+
+/** Company, title and location from a Who-is-hiring comment's header line, or null when it has no "|" fields. */
+export function hnHeader(text: string): { company: string; title: string; location: string } | null {
+  const first = decodeEntities(text.split(/<p>|\n/)[0].replace(/<[^>]*>/g, ' '))
+    .replace(/\s+/g, ' ')
+    .trim();
+  const fields = first
+    .split('|')
+    .map((f) => f.trim())
+    .filter(Boolean);
+  if (fields.length < 2) return null;
+  // A header that runs straight into the text ("… | Full-Time We process petabytes …") ends in one long field: header
+  // fields are short, so anything longer is prose and left to the description.
+  const [company, ...all] = fields;
+  // A link ("https://acme.com/jobs") is neither the role nor a place.
+  const rest = all.filter((f) => f.length <= 80 && !/^(https?:\/\/|www\.)\S+$/i.test(f));
+  if (!rest.length) return null;
+  // The field that looks like a role, else the first one.
+  const at = Math.max(
+    0,
+    rest.findIndex((f) => HN_ROLE.test(f)),
+  );
+  const title = rest[at];
+  const location = rest.filter((_, k) => k !== at).join(' | ');
+  return { company: company.slice(0, 120), title: title.slice(0, 200), location: location.slice(0, 300) };
+}
+
+async function hackernews(): Promise<RawJob[]> {
+  const search = await getJson(
+    'https://hn.algolia.com/api/v1/search_by_date?tags=story,author_whoishiring&query=who%20is%20hiring&hitsPerPage=5',
+  );
+  const thread = (search.hits ?? []).find((h: any) => /^Ask HN: Who is hiring\?/i.test(h.title ?? ''));
+  if (!thread) return [];
+  const item = await getJson(`https://hn.algolia.com/api/v1/items/${thread.objectID}`);
+  const out: RawJob[] = [];
+  for (const c of item.children ?? []) {
+    if (!c.text || !c.id) continue; // deleted or flagged comments have no text
+    const h = hnHeader(c.text);
+    if (!h) continue;
+    out.push({
+      id: `hackernews:${c.id}`,
+      source: 'hackernews',
+      company: h.company,
+      title: h.title,
+      location: h.location,
+      url: `https://news.ycombinator.com/item?id=${c.id}`,
+      description: stripHtml(c.text),
+      posted_at: toIso(c.created_at),
+    });
+  }
+  return out;
+}
+
 async function remoteok(): Promise<RawJob[]> {
   const data = await getJson('https://remoteok.com/api');
   return data
@@ -227,4 +310,4 @@ async function adzuna(): Promise<Fetched> {
   return [...out.values()];
 }
 
-export const BOARDS: Record<string, () => Promise<Fetched>> = { himalayas, remotive, remoteok, arbeitnow, adzuna };
+export const BOARDS: Record<string, () => Promise<Fetched>> = { himalayas, remotive, remoteok, arbeitnow, adzuna, jobicy, hackernews };

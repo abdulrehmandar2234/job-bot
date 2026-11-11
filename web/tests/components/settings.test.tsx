@@ -74,7 +74,7 @@ describe('ConfigForm', () => {
       within(screen.getByLabelText('Company 1 ATS'))
         .getAllByRole('option')
         .map((o) => o.textContent),
-    ).toEqual(['greenhouse', 'lever', 'ashby', 'recruitee', 'workable', 'smartrecruiters', 'workday']);
+    ).toEqual(['greenhouse', 'lever', 'ashby', 'recruitee', 'workable', 'smartrecruiters', 'workday', 'personio']);
     // An ats the dashboard does not know yet stays selected rather than being changed.
     expect(screen.getByLabelText('Company 2 ATS')).toHaveValue('taleo');
   });

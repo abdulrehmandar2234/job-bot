@@ -269,3 +269,39 @@ describe('structured salary from sources', () => {
     }
   });
 });
+
+describe('save() and the Dutch IND salary criterion', () => {
+  const nl = (salary: string, o: Partial<Parameters<typeof raw>[0]> = {}) =>
+    raw({
+      location: 'Amsterdam, Netherlands',
+      description: `We use Laravel, PHP, React, Node.js and TypeScript. Visa sponsorship and relocation offered. ${salary}`,
+      ...o,
+    });
+  const flagsOf = async (id = 'test:1') => (await getJob(id)).flags.filter((f) => /IND highly-skilled/.test(f));
+
+  it('flags a Dutch job whose salary is below the minimum (30 or over when the birth year is unknown)', async () => {
+    await save(nl('Salary €4,500 - €5,200 per month.'));
+    assert.deepEqual(await flagsOf(), [
+      'salary below the IND highly-skilled-migrant minimum of €5,942/month (30 or over; set birthYear in your profile): about €5,200/month',
+    ]);
+  });
+
+  it('a range that only starts below it gets the softer flag; a salary above it and an unknown salary get none', async () => {
+    await save(nl('Salary €65.000 - €90.000 per year.'));
+    assert.deepEqual(await flagsOf(), [
+      'salary range starts below the IND highly-skilled-migrant minimum of €5,942/month (30 or over; set birthYear in your profile)',
+    ]);
+    await save(nl('Salary €90,000 - €100,000 per year.', { id: 'test:2' }));
+    await save(nl('', { id: 'test:3' }));
+    assert.deepEqual(await flagsOf('test:2'), []);
+    assert.deepEqual(await flagsOf('test:3'), []);
+  });
+
+  it('only where a visa is needed and the country uses the IND register', async () => {
+    // Remote and the UAE (an employer visa, no IND criterion) never get it, whatever the salary.
+    await save(raw({ description: `${AED_MONTH} Laravel.` }));
+    await save(nl('Salary €3,000 per month.', { id: 'test:2', location: 'Remote — Worldwide' }));
+    assert.deepEqual(await flagsOf('test:1'), []);
+    assert.deepEqual(await flagsOf('test:2'), []);
+  });
+});
