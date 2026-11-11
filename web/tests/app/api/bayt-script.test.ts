@@ -11,7 +11,7 @@ vi.mock('@/lib/bot', async (importOriginal) => {
   const { mkdtempSync } = await import('node:fs');
   const { tmpdir } = await import('node:os');
   const { join: j } = await import('node:path');
-  return { ...(await importOriginal<typeof import('@/lib/bot')>()), BOT_ROOT: mkdtempSync(j(tmpdir(), 'job-bot-web-bayt-')) };
+  return { ...(await importOriginal<typeof import('@/lib/bot')>()), BOT_ROOT: mkdtempSync(j(tmpdir(), 'talaash-web-bayt-')) };
 });
 
 const script = join(BOT_ROOT, 'scripts', 'bayt-collect.js');
@@ -82,7 +82,7 @@ describe('GET /api/bayt-script', () => {
   });
 
   it('injects empty lists from a missing config.json, leaving the collector on its built-in defaults', async () => {
-    vi.stubEnv('JOB_BOT_CONFIG', join(tmpdir(), 'job-bot-no-such-config.json'));
+    vi.stubEnv('JOB_BOT_CONFIG', join(tmpdir(), 'talaash-no-such-config.json'));
     const settings = await injected();
     expect(settings.keywords).toEqual([]);
     expect(settings.countries).toEqual([]);

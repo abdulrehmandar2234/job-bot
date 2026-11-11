@@ -10,7 +10,7 @@ export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
 if ! command -v node >/dev/null; then
   mkdir -p data
   print "\n===== $(date '+%Y-%m-%d %H:%M') =====\nnode not found on PATH ($PATH)" >> data/fetch.log
-  osascript -e 'display notification "Daily fetch failed: node not found. See data/fetch.log" with title "Job Bot"'
+  osascript -e 'display notification "Daily fetch failed: node not found. See data/fetch.log" with title "Talaash"'
   exit 1
 fi
 exec node --no-warnings --env-file-if-exists=.env src/cli.ts daily

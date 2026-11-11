@@ -34,10 +34,10 @@ export function strongAlerts(jobs: AlertJob[], countryName: (code: string | null
       .slice(0, GROUP_ABOVE)
       .map((j) => clean(`${j.title} at ${j.company}`, 60))
       .join(', ');
-    return [{ title: 'Job Bot', message: clean(`${jobs.length} strong matches: ${names}…`, 240), url: dashboardUrl() }];
+    return [{ title: 'Talaash', message: clean(`${jobs.length} strong matches: ${names}…`, 240), url: dashboardUrl() }];
   }
   return jobs.map((j) => ({
-    title: 'Job Bot',
+    title: 'Talaash',
     message: clean(`Strong match: ${j.title} at ${j.company} (${countryName(j.country)})`, 240),
     url: `${dashboardUrl()}/jobs/${encodeURIComponent(j.id)}`,
   }));
@@ -144,7 +144,7 @@ export function notifyCommand(
   }
   const notifySend = onPath('notify-send', env, platform, exists);
   // "--" ends the options, so a message that starts with "-" is still text.
-  if (notifySend) return [notifySend, ['--app-name=Job Bot', '--', n.title, `${markup(n.message)}\n${markup(n.url)}`]];
+  if (notifySend) return [notifySend, ['--app-name=Talaash', '--', n.title, `${markup(n.message)}\n${markup(n.url)}`]];
   return null;
 }
 

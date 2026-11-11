@@ -23,7 +23,7 @@ export const applicantExampleFile = () => join(BOT_ROOT, 'cv', 'applicant.exampl
  */
 export const ensureConfigFile = (file = configFile(), defaults = defaultConfigFile(), home = join(BOT_ROOT, 'config.json')) =>
   bot.ensureConfigFile(file, defaults, home);
-// The bot's own env file (job-bot/.env, loaded by `npm run bot` and by the bot runs the dashboard starts).
+// The bot's own env file (talaash/.env, loaded by `npm run bot` and by the bot runs the dashboard starts).
 export const botEnvFile = () => process.env.JOB_BOT_ENV_FILE || join(BOT_ROOT, '.env');
 
 export type SettingsFile = {
@@ -70,7 +70,7 @@ export function readApplicant(): SettingsFile {
 export type AiKeyStatus = { keyEnv: string | null; provider: ApiPreset | null };
 
 /**
- * The bot reads AI_API_KEY (or the older OPENAI_API_KEY / DEEPSEEK_API_KEY) from job-bot/.env, and also inherits the
+ * The bot reads AI_API_KEY (or the older OPENAI_API_KEY / DEEPSEEK_API_KEY) from talaash/.env, and also inherits the
  * environment of whoever starts it (the bot runs the dashboard starts get the dashboard's). The environment wins.
  */
 export function aiKeyStatus(): AiKeyStatus {

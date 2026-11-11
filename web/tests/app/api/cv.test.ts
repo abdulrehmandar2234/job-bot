@@ -6,7 +6,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 // lib/bot.ts resolves BOT_ROOT from the working directory (web/..) at import time, so point the cwd at a
 // temp "web" folder while importing: the real cvPath/cvFileName (lib/cv-templates.ts) then read a temp config.json and CVs.
-const root = mkdtempSync(join(tmpdir(), 'job-bot-web-cv-'));
+const root = mkdtempSync(join(tmpdir(), 'talaash-web-cv-'));
 let GET: typeof import('@/app/api/cv/[version]/route').GET;
 
 beforeAll(async () => {
@@ -55,7 +55,7 @@ describe('GET /api/cv/[version]', () => {
     expect(res.headers.get('content-disposition')).toBe('attachment; filename="Jane_Doe_CV.pdf"');
   });
 
-  it('lets only the job-bot extension read it cross-origin (to attach it to a form), not other sites', async () => {
+  it('lets only the Talaash extension read it cross-origin (to attach it to a form), not other sites', async () => {
     const { EXTENSION_ID } = await import('@/lib/extension');
     const ext = `chrome-extension://${EXTENSION_ID}`;
     const res = await get('default', '?download', ext);

@@ -153,7 +153,7 @@ describe('config stack ids', () => {
   });
 
   it('reads the ids from the preset folder it is given', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'job-bot-stacks-'));
+    const dir = mkdtempSync(join(tmpdir(), 'talaash-stacks-'));
     mkdirSync(join(dir, 'stacks'));
     const stack = { name: 'Rust', description: 'Rust', linkedinKeywords: [], remoteQueries: [], roleInclude: 'rust', allowInTitles: [] };
     writeFileSync(join(dir, 'stacks', 'rust.json'), JSON.stringify(stack));

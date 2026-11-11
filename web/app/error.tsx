@@ -11,7 +11,7 @@ export default function ErrorPage({ error, retry }: { error: unknown; retry: () 
       <header className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold tracking-tight">
           <Link href="/" className="hover:underline">
-            Job Bot
+            Talaash
           </Link>
         </h1>
         <nav aria-label="Dashboard" className="flex flex-wrap gap-2">

@@ -13,7 +13,7 @@ vi.mock('@/lib/bot', async (importOriginal) => {
   const { join: j } = await import('node:path');
   return {
     ...(await importOriginal<typeof import('@/lib/bot')>()),
-    BOT_ROOT: mkdtempSync(j(tmpdir(), 'job-bot-web-import-')),
+    BOT_ROOT: mkdtempSync(j(tmpdir(), 'talaash-web-import-')),
     runBot: vi.fn(),
   };
 });
@@ -173,7 +173,7 @@ describe('POST', () => {
 
   it('answers a failed `bot add` with a JSON error and the CORS headers', async () => {
     bot.mockRejectedValue(
-      Object.assign(new Error('Command failed: node src/cli.ts add --file /Users/x/job-bot/data/imports/a.json\nstack…'), {
+      Object.assign(new Error('Command failed: node src/cli.ts add --file /Users/x/talaash/data/imports/a.json\nstack…'), {
         stderr: 'Loading jobs…\nerror: invalid input syntax for type date: "yesterday"\n',
       }),
     );

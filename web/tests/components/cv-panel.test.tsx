@@ -13,7 +13,7 @@ vi.mock('@/app/actions', () => ({ applyCvTemplate: vi.fn(), improveCv: vi.fn(), 
 
 // lib/bot.ts resolves BOT_ROOT from the working directory at import time: a temp bot folder with one version and a
 // config.json whose default template is compact.
-const root = mkdtempSync(join(tmpdir(), 'job-bot-web-cvpanel-'));
+const root = mkdtempSync(join(tmpdir(), 'talaash-web-cvpanel-'));
 let CvPanel: typeof import('@/components/cv-panel').CvPanel;
 
 beforeAll(async () => {

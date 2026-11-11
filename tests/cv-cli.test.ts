@@ -93,7 +93,7 @@ describe('cv:templates and cv:preview', () => {
   });
 
   it('cv:preview --pdf prints into previews/ in the data dir (JOB_BOT_DATA_DIR)', { skip: noChrome }, async () => {
-    const data = mkdtempSync(join(tmpdir(), 'job-bot-preview-data-'));
+    const data = mkdtempSync(join(tmpdir(), 'talaash-preview-data-'));
     try {
       const out = await bot(['cv:preview', 'compact', '--pdf'], { JOB_BOT_DATA_DIR: data });
       const file = join(data, 'previews', 'compact.pdf');

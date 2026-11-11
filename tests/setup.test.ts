@@ -242,7 +242,7 @@ describe('setup wizard', () => {
     assert.equal(cfg.ai.api, undefined); // auto: nothing to store
     assert.equal(cfg.ai.claudePath, json(join(ROOT, 'config.default.json')).ai.claudePath); // kept for switching back
     assert.match(printed, /Which provider \(auto, openai, deepseek, anthropic, .*custom; auto = from the key\) \[auto\]: /);
-    assert.match(printed, /Put your API key in \.env \(in the job-bot folder\) as AI_API_KEY=\.\.\./);
+    assert.match(printed, /Put your API key in \.env \(in the Talaash folder\) as AI_API_KEY=\.\.\./);
     assert.match(printed, /sk-ant- Anthropic, gsk_ Groq, sk-or- OpenRouter, AIza Gemini, other sk- OpenAI/);
     assert.match(printed, /for DeepSeek, choose deepseek here/);
     assert.doesNotMatch(printed, /Path to the Claude Code CLI/);

@@ -57,7 +57,7 @@ async function renderJob(id: string) {
   return render(<>{await detail.type(detail.props)}</>);
 }
 
-const dir = mkdtempSync(join(tmpdir(), 'job-bot-ai-off-'));
+const dir = mkdtempSync(join(tmpdir(), 'talaash-ai-off-'));
 const configWith = (cfg: unknown) => {
   const file = join(dir, `config-${Math.random()}.json`);
   writeFileSync(file, JSON.stringify(cfg));

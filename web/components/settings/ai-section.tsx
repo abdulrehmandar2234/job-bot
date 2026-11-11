@@ -102,7 +102,7 @@ export function AiSection({ c, errors, keys }: { c: Json; errors: SettingsError[
         </>
       )}
       <p className="text-xs text-zinc-500">
-        API keys are never entered here or stored in config.json: put {AI_KEY_ENV}=... in .env in the job-bot folder (see .env.example).
+        API keys are never entered here or stored in config.json: put {AI_KEY_ENV}=... in .env in the Talaash folder (see .env.example).
       </p>
       <div className="grid gap-3 sm:grid-cols-3">
         <Field label="Claude CLI score model" {...f('ai.scoreModel')}>

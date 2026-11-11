@@ -1,4 +1,4 @@
-// "Send to job-bot", shared by the popup and the side panel: reads the open job page once (on the user's click)
+// "Send to Talaash", shared by the popup and the side panel: reads the open job page once (on the user's click)
 // and lets the user check company, title and location before sending. It never changes the job page.
 import { h, link } from './dom.js';
 import { describeResult, jobPageUrl, missingFields, sendJob } from './lib/api.js';
@@ -30,7 +30,7 @@ export function renderSendForm(root, { method, job }, onSent) {
     field('company', 'Company'),
     field('location', 'Location'),
     h('p', { className: 'hint' }, `Source: ${job.source} · ${job.description.length.toLocaleString('en')} characters of description`),
-    h('button', { type: 'submit' }, 'Send to job-bot'),
+    h('button', { type: 'submit' }, 'Send to Talaash'),
     status,
   );
 

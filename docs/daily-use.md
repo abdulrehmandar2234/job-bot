@@ -1,6 +1,6 @@
 # Daily use
 
-How to work with job-bot once it is installed: the morning routine, the dashboard, applying with the Chrome extension, follow-ups, and the CLI commands you use day to day. The commands are the same on macOS, Linux and Windows.
+How to work with Talaash once it is installed: the morning routine, the dashboard, applying with the Chrome extension, follow-ups, and the CLI commands you use day to day. The commands are the same on macOS, Linux and Windows.
 
 Back to the [start page](README.md). Every command is in the [CLI reference](cli.md).
 
@@ -78,14 +78,14 @@ Rewriting a letter, CV summary or headline you edited by hand asks first, since 
 
 With the dashboard running and the extension loaded (see your install guide):
 
-1. Open the job's posting and click the job-bot button. If the job is not in job-bot yet, **Send to job-bot** adds it (it goes through the same filters and scoring as fetched jobs).
+1. Open the job's posting and click the Talaash button. If the job is not in Talaash yet, **Send to Talaash** adds it (it goes through the same filters and scoring as fetched jobs).
 2. Open the **Apply helper** side panel: it shows the job's status, scores, the prepared CV (download link), the cover letter and the drafted answers, each with **Copy**.
 3. On the application form, click **Fill this form**. It types your name, email, phone, LinkedIn and location, the cover letter, matching drafted answers and the CV PDF into the form's **empty** fields (outlined in orange), also inside embedded Greenhouse or Workday forms. It never overwrites what you typed, never fills `[FILL: ...]` answers, passwords, checkboxes or radios, and never clicks a button or submits.
-   Custom dropdowns, listboxes, radio groups and Yes/No buttons are never typed into: empty ones are listed under **Left for you** as "pick from the list". The panel also works on the application page itself (Lever `/apply`, Ashby `/application`, Workday's steps) and remembers the job through a multi-step form. On a form whose job is not in job-bot, **Fill profile + CV only** types just your contact details and default CV. If the dashboard runs on another port than 3100, set it in the extension's options.
+   Custom dropdowns, listboxes, radio groups and Yes/No buttons are never typed into: empty ones are listed under **Left for you** as "pick from the list". The panel also works on the application page itself (Lever `/apply`, Ashby `/application`, Workday's steps) and remembers the job through a multi-step form. On a form whose job is not in Talaash, **Fill profile + CV only** types just your contact details and default CV. If the dashboard runs on another port than 3100, set it in the extension's options.
 4. Check everything, fill in the rest, and submit it yourself.
 5. **Mark applied (in dashboard)** opens the job on the dashboard, where you mark it **Applied**.
 
-Details: [extension/README.md](https://github.com/abdulrehmandar2234/job-bot/blob/main/extension/README.md).
+Details: [extension/README.md](https://github.com/abdulrehmandar2234/talaash/blob/main/extension/README.md).
 
 ## After you apply: tracking and follow-ups
 
@@ -95,7 +95,7 @@ An `applied` job with no news for 7 days shows a "Follow up · N days" badge and
 
 ## Adding jobs yourself
 
-- **Chrome extension:** "Send to job-bot" from any job page (above).
+- **Chrome extension:** "Send to Talaash" from any job page (above).
 - **Bayt bookmarklet:** Bayt blocks direct requests, so the dashboard's home page has an "Add jobs from Bayt" section with a bookmarklet you drag to the bookmarks bar and click on bayt.com.
 - **By hand:** `npm run bot -- add --file job.json` with a JSON object (or the same JSON on stdin):
 

@@ -8,7 +8,7 @@ import { findJobByUrl, isExtensionOrigin, isHttpUrl, isImportToken } from '@/lib
 // - from the Bayt bookmarklet (and the job sites below): only urls on the posting site itself, and only with the
 //   import token (header `x-import-token`, embedded in the collector that /api/bayt-script serves) — the origin
 //   alone is not enough, since any third-party script running on these sites shares their origin;
-// - from the job-bot Chrome extension (chrome-extension:// origin): any http(s) job url, no token needed.
+// - from the Talaash Chrome extension (chrome-extension:// origin): any http(s) job url, no token needed.
 // Every other origin is rejected. Browsers do not let web pages forge Origin, which is why this check works.
 const ALLOWED = ['https://www.bayt.com', 'https://www.linkedin.com', 'https://www.gulftalent.com', 'https://www.naukrigulf.com'];
 

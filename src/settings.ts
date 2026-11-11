@@ -229,7 +229,7 @@ function configWarnings(kind: SettingsKind, obj: unknown): SettingsError[] {
     .filter((k) => !KNOWN_CONFIG_KEYS.has(k))
     .map((k) => ({
       path: k,
-      message: 'unknown setting (job-bot does not read this key — if it is a misspelling, the real setting keeps its default)',
+      message: 'unknown setting (Talaash does not read this key — if it is a misspelling, the real setting keeps its default)',
     }));
 }
 

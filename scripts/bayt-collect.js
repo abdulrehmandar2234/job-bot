@@ -1,4 +1,4 @@
-// Bayt collector — runs inside a bayt.com tab, started by the "Bayt → Job Bot" bookmarklet on the dashboard
+// Bayt collector — runs inside a bayt.com tab, started by the "Bayt → Talaash" bookmarklet on the dashboard
 // (served from the dashboard's /api/bayt-script, which injects the user's search settings and the import token).
 // Bayt blocks direct requests from the bot (Cloudflare 403), so jobs are read from inside the browser
 // and posted to the local dashboard's /api/import, where `bot add` scores them.
@@ -42,7 +42,7 @@
     'border-radius:10px;background:#18181b;color:#fafafa;font:13px/1.45 system-ui,sans-serif;box-shadow:0 6px 24px rgba(0,0,0,.3)';
   document.body.appendChild(box);
   const show = (html) => {
-    box.innerHTML = `<b>Job Bot · Bayt</b><br>${html}`;
+    box.innerHTML = `<b>Talaash · Bayt</b><br>${html}`;
   };
   show('Starting…');
 

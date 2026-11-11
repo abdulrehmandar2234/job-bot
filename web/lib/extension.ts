@@ -5,7 +5,7 @@ import { botDataDir } from '@/lib/bot';
 import { type Job, pool } from '@/lib/db';
 import { applicantFile, masterFile } from '@/lib/settings';
 
-// The job-bot Chrome extension (extension/ in the repo). Web pages cannot forge the Origin header, and the
+// The Talaash Chrome extension (extension/ in the repo). Web pages cannot forge the Origin header, and the
 // manifest's public "key" pins the extension id, so only this extension (not any other one the user installed)
 // may add jobs or read cover letters and answers. JOB_BOT_EXTENSION_ID (web/.env.local) overrides it after a key change.
 export const EXTENSION_ID = 'fmkmpckdcfhibobdiffankccildkcnij';
@@ -18,7 +18,7 @@ export const isExtensionOrigin = (origin: string | null): origin is string =>
 // POST /api/import from a job-site origin must also carry this token (header `x-import-token`). The CORS origin
 // check alone lets any script that runs on an allowed job site (ads, trackers) import jobs; the token is known only
 // to the collector script the dashboard itself serves (/api/bayt-script embeds it), so other scripts cannot send it
-// blindly. A script on that site written to attack job-bot could load the collector and capture the token: the
+// blindly. A script on that site written to attack Talaash could load the collector and capture the token: the
 // token raises the bar for drive-by posts, it is not authentication.
 // The extension origin needs no token: web pages cannot forge a chrome-extension:// Origin header.
 // The token is random, generated on first use and kept in import-token in the data folder (data/, gitignored, or JOB_BOT_DATA_DIR). Never put it in a URL.
@@ -61,7 +61,7 @@ export function isHttpUrl(url: unknown): url is string {
  * Glassdoor (jl), LinkedIn's split view (currentJobId), Taleo (job), SuccessFactors (career_job_req_id) and the
  * generic jobId / job_id / jid / id / postingId / reqId / requisitionId of smaller ATSs. Every other parameter
  * (utm_*, ref, source, trk, ...) is tracking and dropped. Keeping one too many only costs a loose match (the job
- * shows as not in job-bot); dropping a job id would show another job's letter and answers, so this errs on keeping.
+ * shows as not in Talaash); dropping a job id would show another job's letter and answers, so this errs on keeping.
  * Same list as JOB_ID_PARAMS in extension/lib/url.js (web/tests/lib/extension-url.test.ts checks).
  */
 export const JOB_ID_PARAMS: readonly string[] = [

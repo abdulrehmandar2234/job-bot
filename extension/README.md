@@ -1,20 +1,20 @@
-# job-bot Chrome extension
+# Talaash Chrome extension
 
-Sends the job you are looking at to your local job-bot, and shows what job-bot prepared for it (CV, cover letter, form answers) so you can copy it, or fill it into the application form, while you apply. It replaces the Bayt bookmarklet as the main way to add jobs from the browser. The bookmarklet still works.
+Sends the job you are looking at to your local Talaash, and shows what Talaash prepared for it (CV, cover letter, form answers) so you can copy it, or fill it into the application form, while you apply. It replaces the Bayt bookmarklet as the main way to add jobs from the browser. The bookmarklet still works.
 
 The day-to-day flow is in [docs/daily-use.md](../docs/daily-use.md#applying-with-the-chrome-extension); installing it is step 14 of each [install guide](../docs/README.md), and problems with the Bayt bookmarklet's import token are in [docs/troubleshooting.md](../docs/troubleshooting.md#missing-or-wrong-import-token-bayt-bookmarklet).
 
 ## What it does
 
-- **Send to job-bot** (toolbar button). When you click it, the popup reads the job from the open tab:
+- **Send to Talaash** (toolbar button). When you click it, the popup reads the job from the open tab:
   - first from the page's schema.org `JobPosting` data (title, company, location, remote, description, date posted, url), which most job boards and career sites include;
   - else from the page title ("Job Application for <title> at <company>" on Greenhouse keeps a hyphen inside the title), a short location element on the page, plus the text you selected (or the page's main text). Select the job description before clicking to send only that. Check the fields before sending.
 
-  You can fix the title, company and location, then press **Send to job-bot**. The dashboard runs it through `bot add` (same filters and scoring as fetched jobs) and the popup shows the result: added with its score, filtered with the reason, or already in job-bot.
-- **Apply helper** (side panel, opened from the popup). For the job in the active tab it shows the status, the scores and AI verdict, a link to download the prepared CV, the cover letter and every drafted form answer, each with a **Copy** button. It follows you when you switch tabs: while the panel is open, the active tab's URL is looked up against your local dashboard to find a matching job — on every site you visit, not only job boards. The URL goes only to your local dashboard (`http://localhost:3100` unless you changed it in the options). **Open in dashboard** and **Mark applied (in dashboard)** open the job's page on the dashboard, where you record the application. If the job is not in job-bot yet, the panel offers **Read this page** and the same send form (Chrome asks once per site to let the panel read pages there).
+  You can fix the title, company and location, then press **Send to Talaash**. The dashboard runs it through `bot add` (same filters and scoring as fetched jobs) and the popup shows the result: added with its score, filtered with the reason, or already in Talaash.
+- **Apply helper** (side panel, opened from the popup). For the job in the active tab it shows the status, the scores and AI verdict, a link to download the prepared CV, the cover letter and every drafted form answer, each with a **Copy** button. It follows you when you switch tabs: while the panel is open, the active tab's URL is looked up against your local dashboard to find a matching job — on every site you visit, not only job boards. The URL goes only to your local dashboard (`http://localhost:3100` unless you changed it in the options). **Open in dashboard** and **Mark applied (in dashboard)** open the job's page on the dashboard, where you record the application. If the job is not in Talaash yet, the panel offers **Read this page** and the same send form (Chrome asks once per site to let the panel read pages there).
   - **Application pages.** Lever (`…/apply`), Ashby (`…/application`), Greenhouse (`#app`) and Workday (`…/apply`, `…/apply/applyManually` and other apply steps) keep the application form at another URL than the posting. The dashboard takes that step off a known ATS URL and finds the posting, so the panel shows the job and **Fill this form** there too. The rule is per ATS host: an `/apply` page on any other site is not matched to anything.
   - **Multi-step forms.** The panel remembers which job a tab is applying for (in `chrome.storage.session`, memory only, gone when Chrome closes), together with the last "Filled N / Left for you" result. When a step of the form changes the URL, the panel keeps showing that job and that result. The memory holds while the tab stays on the job's host, under the posting's path, with no other job id; it is dropped when the tab goes anywhere else (another site, another company or job on the same ATS host such as `jobs.lever.co`) or closes.
-- **Fill profile + CV only** (side panel, on a page whose job is not in job-bot). Types just your name, contact details and location, and your original CV (`cv/default`), into empty fields: no cover letter and no drafted answers, since those belong to one job. Same rules as **Fill this form**: only on your click, only empty fields, never submits.
+- **Fill profile + CV only** (side panel, on a page whose job is not in Talaash). Types just your name, contact details and location, and your original CV (`cv/default`), into empty fields: no cover letter and no drafted answers, since those belong to one job. Same rules as **Fill this form**: only on your click, only empty fields, never submits.
 - **Fill this form** (side panel). Types into the form's **empty** fields, in the page and in its iframes (Greenhouse and Workday embed their forms):
   - your name (first, last or full), email, phone, LinkedIn and location, from `cv/master.json` (`cv/applicant.json` `currentLocation` wins for the location);
   - the cover letter, into a "Cover letter" text box;
@@ -36,11 +36,11 @@ The day-to-day flow is in [docs/daily-use.md](../docs/daily-use.md#applying-with
 
 ## Install (unpacked)
 
-1. Start the dashboard: `npm run web` in the job-bot folder (it must be running at http://localhost:3100).
+1. Start the dashboard: `npm run web` in the Talaash folder (it must be running at http://localhost:3100).
 2. Open `chrome://extensions` in Chrome.
 3. Turn on **Developer mode** (top right).
 4. Click **Load unpacked** and choose this `extension/` folder.
-5. Pin the job-bot button to the toolbar (puzzle icon → pin).
+5. Pin the Talaash button to the toolbar (puzzle icon → pin).
 
 After pulling changes, press the reload icon on the extension's card in `chrome://extensions`.
 

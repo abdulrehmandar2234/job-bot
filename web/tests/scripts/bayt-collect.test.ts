@@ -4,7 +4,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-// job-bot/scripts/bayt-collect.js, the collector the bookmarklet loads into a bayt.com tab.
+// talaash/scripts/bayt-collect.js, the collector the bookmarklet loads into a bayt.com tab.
 const SOURCE = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'scripts', 'bayt-collect.js'), 'utf8');
 const ORIGIN = 'https://www.bayt.com';
 const IMPORT_URL = 'http://localhost:3100/api/import';
@@ -149,7 +149,7 @@ describe('bayt-collect.js', () => {
     );
 
     expect(runCollector(fetch)).toBe('started');
-    expect(box()).toHaveTextContent('Job Bot · Bayt');
+    expect(box()).toHaveTextContent('Talaash · Bayt');
     await finished();
     const S = state()!;
 
@@ -237,7 +237,7 @@ describe('bayt-collect.js', () => {
         return inner.get!.call(this);
       },
       set(html: string) {
-        shown.push(html.replace('<b>Job Bot · Bayt</b><br>', ''));
+        shown.push(html.replace('<b>Talaash · Bayt</b><br>', ''));
         inner.set!.call(this, html);
       },
     });

@@ -1,6 +1,6 @@
-# job-bot documentation: start here
+# Talaash documentation: start here
 
-job-bot is a job-search assistant that runs on your own computer. It finds software jobs in the countries you target (onsite, with or without a visa) and remote jobs open to where you live, filters and scores them against your CV, and prepares a CV version, cover letter and form answers for each one.
+Talaash is a job-search assistant that runs on your own computer. It finds software jobs in the countries you target (onsite, with or without a visa) and remote jobs open to where you live, filters and scores them against your CV, and prepares a CV version, cover letter and form answers for each one.
 It **never applies on your behalf**: you review everything and submit every application yourself.
 It is a Node.js command-line bot plus a local web dashboard, sharing one PostgreSQL database on your machine.
 
@@ -38,11 +38,11 @@ Every guide assumes Git is installed and covers the same steps: Node.js 24+ and 
 
 | Page                               | What is in it                                                                                                |
 | ---------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| [features.md](features.md)         | Everything job-bot does, and every job source it reads                                                       |
+| [features.md](features.md)         | Everything Talaash does, and every job source it reads                                                       |
 | [cli.md](cli.md)                   | Every command, and the daily run                                                                             |
 | [how-it-works.md](how-it-works.md) | The architecture, the path of one job, the CV pipeline, the database, the code layout, the tech stack, tests |
 
-Want to improve job-bot? See [CONTRIBUTING.md](https://github.com/abdulrehmandar2234/job-bot/blob/main/CONTRIBUTING.md). The Chrome extension has its own [README](https://github.com/abdulrehmandar2234/job-bot/blob/main/extension/README.md).
+Want to improve Talaash? See [CONTRIBUTING.md](https://github.com/abdulrehmandar2234/talaash/blob/main/CONTRIBUTING.md). The Chrome extension has its own [README](https://github.com/abdulrehmandar2234/talaash/blob/main/extension/README.md).
 
 ## About the repository's own data
 

@@ -53,7 +53,7 @@ export function keyRejected(t: Pick<ApiTarget, 'preset' | 'name' | 'keyEnv'>, st
   const page = ACCOUNT_PAGES[t.preset]?.keys;
   return (
     `${t.name} rejected the API key (${t.keyEnv}): ${status}${detail ? ` ${detail}` : ''}. ` +
-    `Make a new key${page ? ` at ${page}` : ''} and put it in .env in the job-bot folder as ${t.keyEnv}=<the key>: ` +
+    `Make a new key${page ? ` at ${page}` : ''} and put it in .env in the Talaash folder as ${t.keyEnv}=<the key>: ` +
     'only the key, with no quotes, spaces or notes. Then restart the dashboard.'
   );
 }
@@ -130,7 +130,7 @@ export function resolveApi(ai: AiSettings = config.ai, env: Env = process.env): 
     throw new AiError(
       key
         ? `${AI_KEY_ENV} does not look like a key of a known provider: set ai.api.preset in config.json (or ${AI_BASE_URL_ENV} in .env)`
-        : `No AI API key: set ${AI_KEY_ENV} in .env (in the job-bot folder), or set ai.provider to "claude-cli" in config.json`,
+        : `No AI API key: set ${AI_KEY_ENV} in .env (in the Talaash folder), or set ai.provider to "claude-cli" in config.json`,
       { fatal: true },
     );
   }
@@ -147,7 +147,7 @@ export function resolveApi(ai: AiSettings = config.ai, env: Env = process.env): 
     throw new AiError(`${p.name} needs models: set ai.api.scoreModel and ai.api.letterModel in config.json`, { fatal: true });
   }
   if (p.needsKey && !key) {
-    throw new AiError(`${p.name} needs an API key: set ${AI_KEY_ENV} in .env (in the job-bot folder), or set ai.provider to "claude-cli"`, {
+    throw new AiError(`${p.name} needs an API key: set ${AI_KEY_ENV} in .env (in the Talaash folder), or set ai.provider to "claude-cli"`, {
       fatal: true,
     });
   }

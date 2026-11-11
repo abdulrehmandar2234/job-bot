@@ -118,6 +118,6 @@ describe('install guides (docs/install/*.md)', () => {
   it('use the same scheduler lines as `bot schedule:print`', () => {
     assert.ok(linux.includes('ExecStart="/usr/bin/node" --no-warnings --env-file-if-exists=.env src/cli.ts daily'));
     assert.ok(windows.includes("-Argument '--no-warnings --env-file-if-exists=.env src/cli.ts daily'"));
-    assert.ok(macos.includes('<string>/bin/zsh</string><string>/Users/<you>/job-bot/scripts/daily-fetch.sh</string>'));
+    assert.ok(macos.includes('<string>/bin/zsh</string><string>/Users/<you>/talaash/scripts/daily-fetch.sh</string>'));
   });
 });

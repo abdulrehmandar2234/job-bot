@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 // lib/bot.ts resolves BOT_ROOT from the working directory (web/..) at import time: point it at a temp folder.
-const root = mkdtempSync(join(tmpdir(), 'job-bot-web-tpl-'));
+const root = mkdtempSync(join(tmpdir(), 'talaash-web-tpl-'));
 let lib: typeof import('@/lib/cv-templates');
 
 beforeAll(async () => {

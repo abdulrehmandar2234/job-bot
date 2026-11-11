@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Job Bot',
+  title: 'Talaash',
   description: 'Finds, scores and prepares jobs for the countries in your settings',
 };
 

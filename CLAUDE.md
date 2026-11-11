@@ -1,4 +1,6 @@
-# job-bot
+# Talaash
+
+Called job-bot until November 2026. Internal names keep the old one so existing installs need no change: the database `job_bot` (and test databases), `JOB_BOT_*` variables, scheduler labels (`com.<you>.job-bot.fetch`, `job-bot-fetch.*`, "job-bot daily fetch"), the dashboard's `app: 'job-bot'` marker for the extension, and the filter / theme storage keys. Use "Talaash" for the product everywhere else.
 
 Local job-search helper: Node CLI bot (`src/`, TypeScript run directly by Node 24+) and a Next.js dashboard (`web/`), both on the local Postgres DB `job_bot`. See README.md for the overview, the docs site in `docs/` (VitePress) for features, architecture and usage, and ROADMAP.md for what is done and what is still open.
 

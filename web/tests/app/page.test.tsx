@@ -99,7 +99,7 @@ describe('job list page', () => {
 
   it('shows the header, the Fetch button and the Bayt instructions', async () => {
     await renderPage();
-    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Job Bot');
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Talaash');
     expect(screen.getByRole('button', { name: 'Fetch new jobs' })).toHaveAttribute('type', 'submit');
     expect(screen.getByText('Add jobs from Bayt')).toBeInTheDocument();
     // The board of the first target country Bayt serves (config.default.json starts with the UAE), no stack in it.
@@ -118,7 +118,7 @@ describe('job list page', () => {
   });
 
   it('follows another config.json: countries, labels and header', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'job-bot-page-'));
+    const dir = mkdtempSync(join(tmpdir(), 'talaash-page-'));
     const cfg = {
       countries: { DE: { name: 'Germany', visa: 'employer', match: 'berlin', needsVisa: false } },
       remote: { enabled: true, from: 'Portugal' },
@@ -138,7 +138,7 @@ describe('job list page', () => {
   });
 
   it('shows the first-run banner until the profile is complete', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'job-bot-page-'));
+    const dir = mkdtempSync(join(tmpdir(), 'talaash-page-'));
     vi.stubEnv('JOB_BOT_APPLICANT', join(dir, 'missing.json'));
     try {
       const { unmount } = await renderPage();

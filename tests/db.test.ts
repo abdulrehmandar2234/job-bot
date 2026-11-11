@@ -412,7 +412,7 @@ describe('the pool is created on first use', () => {
       env,
       timeout: 30_000,
     });
-    const line = 'true DATABASE_URL is not set: put it in .env in the job-bot folder';
+    const line = 'true DATABASE_URL is not set: put it in .env in the Talaash folder';
     assert.deepEqual(stdout.trim().split('\n'), [line, line]);
   });
 });

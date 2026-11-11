@@ -15,11 +15,11 @@ export const dashboardOrigin = () => dashboard;
 
 /** The message for a dashboard that does not answer at `origin`. */
 export const offlineMessage = (origin = dashboard) =>
-  `The job-bot dashboard is not running at ${origin}. Start it with \`npm run web\` in the job-bot folder (or check the dashboard address in the extension options), then try again.`;
+  `The Talaash dashboard is not running at ${origin}. Start it with \`npm run web\` in the Talaash folder (or check the dashboard address in the extension options), then try again.`;
 
 export const OFFLINE = offlineMessage(DEFAULT_DASHBOARD);
 
-/** The message for an app at `origin` that answers but is not job-bot (another app on that port). */
+/** The message for an app at `origin` that answers but is not Talaash (another app on that port). */
 export const wrongAppMessage = (origin = dashboard) =>
   `Something else is answering on ${origin} — check the dashboard port in the extension options.`;
 
@@ -45,7 +45,7 @@ export async function sendJob(job, fetchImpl = fetch) {
     body: JSON.stringify([job]),
   });
   if (!r.ok && !('status' in r)) return r; // not running
-  // job-bot's /api/import never answers 404: that comes from another app on the dashboard's port.
+  // Talaash's /api/import never answers 404: that comes from another app on the dashboard's port.
   if (r.status === 404) return { ok: false, status: 404, error: wrongAppMessage() };
   if (!r.ok) return { ok: false, status: r.status, error: r.error };
   const result = r.body?.results?.[0];
@@ -57,7 +57,7 @@ export async function sendJob(job, fetchImpl = fetch) {
 /**
  * Looks up the job for a tab URL. Resolves to { ok, job, basics } (job is null when the bot does not know it; basics
  * then holds { profile, cv_url, cv_file_name } for "Fill profile + CV only") or { ok: false, error }. An answer
- * without job-bot's `app` marker comes from another app on the dashboard's port.
+ * without Talaash's `app` marker comes from another app on the dashboard's port.
  */
 export async function lookupJob(url, fetchImpl = fetch) {
   const r = await call(fetchImpl, `/api/jobs/lookup?url=${encodeURIComponent(url)}`);
@@ -71,7 +71,7 @@ const scoreText = (r) => (r.ai_score != null ? `AI score ${r.ai_score}, keyword 
 
 /** One-line message for an import result. */
 export function describeResult(r) {
-  if (r.outcome === 'known') return `Already in job-bot (${r.status}, ${scoreText(r)}).`;
+  if (r.outcome === 'known') return `Already in Talaash (${r.status}, ${scoreText(r)}).`;
   if (r.outcome === 'filtered') return `Added, but filtered out: ${r.filter_reason ?? 'no reason given'}.`;
   if (r.outcome === 'added') return `Added with ${scoreText(r)}.`;
   return 'The bot could not save this job. Check the dashboard log.';

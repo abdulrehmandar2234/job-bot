@@ -168,7 +168,7 @@ describe('strong-match alerts (ai:score)', () => {
     const out = await bot(['ai:score'], { FAKE_CLAUDE_OUT: review('strong') });
     assert.match(out, /Alert: Strong match: Senior "PHP" Dev at O'Neil & Co \(UAE\)/);
     assert.deepEqual(notes(), [
-      ['Job Bot', 'Strong match: Senior "PHP" Dev at O\'Neil & Co (UAE)', 'http://localhost:3100/jobs/greenhouse%3Aacme%3A1'],
+      ['Talaash', 'Strong match: Senior "PHP" Dev at O\'Neil & Co (UAE)', 'http://localhost:3100/jobs/greenhouse%3Aacme%3A1'],
     ]);
     assert.ok((await getJob(id))!.alerted_at);
   });
@@ -287,7 +287,7 @@ process.stdout.write(JSON.stringify({ is_error: false, structured_output: ${revi
   });
 
   it('falls back to osascript when terminal-notifier fails, and logs why', async (t) => {
-    const n = { title: 'Job Bot', message: '17 strong matches: …', url: 'http://localhost:3100' };
+    const n = { title: 'Talaash', message: '17 strong matches: …', url: 'http://localhost:3100' };
     const calls: string[] = [];
     const log = t.mock.method(console, 'log', () => {});
     const tn = '/opt/homebrew/bin/terminal-notifier';

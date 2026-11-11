@@ -1,6 +1,6 @@
 # CLI reference
 
-Every command of the bot. Run them from the job-bot folder as `npm run bot -- <command>`; `npm run bot` alone prints this list, and a command run without a required job id prints its usage line. The ones you need every day are explained in [Daily use](daily-use.md#cli-commands-for-every-day).
+Every command of the bot. Run them from the Talaash folder as `npm run bot -- <command>`; `npm run bot` alone prints this list, and a command run without a required job id prints its usage line. The ones you need every day are explained in [Daily use](daily-use.md#cli-commands-for-every-day).
 
 ## Commands
 

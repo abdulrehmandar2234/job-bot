@@ -11,7 +11,7 @@ vi.mock('next/font/google', () => ({
 
 describe('root layout', () => {
   it('sets the page title and description', () => {
-    expect(metadata.title).toBe('Job Bot');
+    expect(metadata.title).toBe('Talaash');
     // Nothing personal: the owner's markets come from config.json at runtime, never from the page metadata.
     expect(metadata.description).toBe('Finds, scores and prepares jobs for the countries in your settings');
     for (const owner of ['UAE', 'Saudi', 'Netherlands', 'Pakistan', 'Laravel']) expect(String(metadata.description)).not.toContain(owner);

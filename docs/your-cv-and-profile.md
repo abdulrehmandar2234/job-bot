@@ -1,6 +1,6 @@
 # Your CV and profile
 
-job-bot knows about you from two files you fill in yourself:
+Talaash knows about you from two files you fill in yourself:
 
 - **`cv/master.json`**: your CV as data. Every CV PDF, every AI prompt and the keyword match read it.
 - **`cv/applicant.json`**: your profile (where you live, languages, visa situation) and the facts application forms ask for (notice period, salary expectations, ...). `npm run bot -- setup` or the dashboard's **Settings** page creates it.
@@ -206,7 +206,7 @@ npm run bot -- cv:template <id> compact       # use a design for one job: re-ren
 
 ## CV versions and the per-stack framings
 
-The default CV (`cv/default/<cvFileName>`) is your master CV as you wrote it. On top of it, job-bot can build **versions per stack cluster** (`laravel`, `tall`, `laravel-vue`, `mern`, `pern`, `next-nest`, `backend-node`, `frontend-react`, `ai-fullstack`): each moves the matching skill groups, bullets and projects forward and uses a headline and summary for that stack. Versions live in `cv/versions/<cluster>-v<N>/` (`<cluster>-<template>-v<N>/` in another template); every PDF has the same file name, and the folder name identifies the version. Versions are reused, and only rebuilt (`v2`, `v3`, ...) when the master CV, the framings or the template change. `npm run bot -- versions` lists them and how many jobs use each.
+The default CV (`cv/default/<cvFileName>`) is your master CV as you wrote it. On top of it, Talaash can build **versions per stack cluster** (`laravel`, `tall`, `laravel-vue`, `mern`, `pern`, `next-nest`, `backend-node`, `frontend-react`, `ai-fullstack`): each moves the matching skill groups, bullets and projects forward and uses a headline and summary for that stack. Versions live in `cv/versions/<cluster>-v<N>/` (`<cluster>-<template>-v<N>/` in another template); every PDF has the same file name, and the folder name identifies the version. Versions are reused, and only rebuilt (`v2`, `v3`, ...) when the master CV, the framings or the template change. `npm run bot -- versions` lists them and how many jobs use each.
 
 > **The per-stack framings are the original owner's.** `src/cv/profiles.ts` holds a headline and summary per stack cluster written for the owner's CV. Keep `"autoCvVersions": false` in `config.json` and do not use `prepare --cv <cluster>`, `cv:build` or `custom` until you have rewritten those profiles for yourself, or the PDF gets the owner's headline and summary. With `autoCvVersions: false`, `prepare` always uses your default CV. `cv:tailor` and `cv:feedback` are safe: they start from the job's current CV, which with `autoCvVersions: false` is your default CV.
 

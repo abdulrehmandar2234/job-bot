@@ -29,7 +29,7 @@ export function sleep(ms: number, signal?: AbortSignal): Promise<void> {
 // Polite HTTP: one honest User-Agent, retries with backoff for 429/5xx/network errors (honouring
 // Retry-After), and an on-disk ETag/Last-Modified cache so unchanged boards answer 304 instead of a full body.
 
-export const UA = 'job-bot/0.1 (personal job search)';
+export const UA = 'talaash/0.1 (personal job search)';
 
 export type RequestOptions = {
   /** Extra headers; a 'user-agent' here replaces the default one. */

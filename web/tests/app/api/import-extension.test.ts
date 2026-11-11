@@ -15,7 +15,7 @@ vi.mock('@/lib/bot', async (importOriginal) => {
   const { join: j } = await import('node:path');
   return {
     ...(await importOriginal<typeof import('@/lib/bot')>()),
-    BOT_ROOT: mkdtempSync(j(tmpdir(), 'job-bot-web-import-ext-')),
+    BOT_ROOT: mkdtempSync(j(tmpdir(), 'talaash-web-import-ext-')),
     runBot: vi.fn(),
   };
 });

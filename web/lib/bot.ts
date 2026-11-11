@@ -5,7 +5,7 @@ import { promisify } from 'node:util';
 import { dataDir } from '../../src/settings.ts';
 import { pool } from './db';
 
-// The web app lives in job-bot/web; the bot (CLI, CVs, config) is one level up.
+// The web app lives in talaash/web; the bot (CLI, CVs, config) is one level up.
 export const BOT_ROOT = resolve(process.cwd(), '..');
 /** The bot's data folder (logs, temp files, previews, the import token): JOB_BOT_DATA_DIR, else BOT_ROOT/data. */
 export const botDataDir = () => dataDir(BOT_ROOT);
