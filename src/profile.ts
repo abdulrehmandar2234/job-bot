@@ -22,7 +22,8 @@ export type Profile = {
   countryCode: string | null; // where the candidate lives
   country: string | null;
   utcOffset: string | null; // "GMT+5"
-  birthYear: number | null; // for the IND salary check
+  birthDate: string | null; // "1996-06-15", for the IND salary check
+  birthYear: number | null; // for the IND salary check when there is no birthDate
   languages: string[]; // ["English", "Urdu"]
   relocate: boolean | null; // null = not stated
   letter: { intro: string | null; pitch: Record<string, string>; strengths: string | null; remote: string | null };
@@ -68,6 +69,7 @@ export function buildProfile(app: Applicant | Record<string, unknown>, master: M
     countryCode: str(a.countryCode)?.toUpperCase() ?? null,
     country,
     utcOffset: str(a.utcOffset),
+    birthDate: typeof a.birthDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(a.birthDate) ? a.birthDate : null,
     birthYear: typeof a.birthYear === 'number' && Number.isInteger(a.birthYear) ? a.birthYear : null,
     languages: splitLanguages(a.languages),
     relocate: yesNo(a.willingToRelocate),

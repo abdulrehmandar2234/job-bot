@@ -374,10 +374,11 @@ describe('mergeApplicant: profile', () => {
     expect(a.expectedSalary).toEqual({ PT: '40k EUR' });
   });
 
-  it('saves the birth year as a number, an empty one as null, and leaves anything else for the validator', () => {
-    expect(mergeApplicant({}, form({ birthYear: ' 1995 ' })).birthYear).toBe(1995);
-    expect(mergeApplicant({ birthYear: 1995 }, form({ birthYear: '' })).birthYear).toBeNull();
-    expect(mergeApplicant({}, form({ birthYear: 'ninety' })).birthYear).toBe('ninety');
+  it('saves the birth date from the date field, an empty one as null, and keeps an older birthYear', () => {
+    const a = mergeApplicant({ birthYear: 1996 }, form({ birthDate: '1996-06-15' }));
+    expect(a.birthDate).toBe('1996-06-15');
+    expect(a.birthYear).toBe(1996);
+    expect(mergeApplicant({ birthDate: '1996-06-15' }, form({ birthDate: '' })).birthDate).toBeNull();
   });
 
   it('leaves profile fields alone when the form does not show them', () => {

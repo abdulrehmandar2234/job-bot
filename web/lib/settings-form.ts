@@ -77,7 +77,7 @@ export const PROFILE_FIELDS = [
   'countryCode',
   'utcOffset',
   'workAuthorization',
-  'birthYear', // a number, only for the Dutch IND salary check (src/ind-salary.ts)
+  'birthDate', // "1996-06-15", only for the Dutch IND salary check (src/ind-salary.ts)
 ] as const;
 
 /** Sentences of the template cover letter; `pitch.default` is the pitch when no CV cluster has its own. */
@@ -228,10 +228,9 @@ export function mergeApplicant(current: Json, fd: FormData): Json {
   const app = structuredClone(current);
   for (const k of PROFILE_FIELDS) {
     if (!fd.has(k)) continue;
-    if (k === 'birthYear') {
-      // A year is a number in applicant.json; anything else is left as typed for the validator to report.
-      const t = str(fd, k).trim();
-      app[k] = t === '' ? null : /^\d+$/.test(t) ? Number(t) : t;
+    if (k === 'birthDate') {
+      // A date input sends "1996-06-15" or nothing; an older birthYear in the file is kept, and the date wins.
+      app[k] = str(fd, k).trim() || null;
       continue;
     }
     const v = fact(current[k], str(fd, k));
