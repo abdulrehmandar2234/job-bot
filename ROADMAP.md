@@ -17,6 +17,20 @@ Ideas from the last review and from real use, none started yet:
 - **Referral drafts:** an AI-drafted message to a contact at the company asking for a referral (you send it yourself).
 - **More sources:** Hacker News "Who is hiring" threads, Jobicy, Personio career pages.
 
+### From comparing similar projects (2026-11)
+
+Ideas taken from the two most popular open-source job-search tools on GitHub, boss-agent-cli (one Chinese job site, Python) and Jobsmith (Taiwan's job market, desktop app). Their auto-apply, platform logins and bulk messaging are left out on purpose: they break the rule above and risk the user's accounts. Most useful first:
+
+- **CV import:** `bot cv:import <file.pdf|docx>` and an upload on the dashboard. The AI turns an existing CV into `cv/master.json` with only what the CV says, and the user checks it before it is saved. Writing the JSON by hand is the hardest step for a new user today.
+- **Skills radar:** the skills that matching jobs ask for most often, split into those the CV shows and those it does not, from the `missing` skills already stored per job. A section on `/analytics`.
+- **Screenshots and a demo GIF:** the dashboard, a job page and the extension, in the README and the docs site.
+- **Repository basics:** GitHub topics, a first release (`v0.1.0`) with a CHANGELOG, issue templates and `SECURITY.md`.
+- **Letter critic:** after the AI writes a letter, a second call checks it for claims the CV does not support or company facts the posting does not state, and has it fixed (Jobsmith's own check moved its pass rate from 60% to 100%).
+- **Mock interview:** questions from the job and the CV, the user's answers, and feedback with a score per answer, next to the interview prep.
+- **JSON output:** `--json` on `list` and `show` (as `ats` has), so scripts and AI agents can use Talaash.
+- **MCP server:** Talaash's jobs, scores, letters and answers as tools for MCP apps such as Claude Desktop (read and prepare only, never apply).
+- **Running without PostgreSQL:** an embedded database (SQLite or similar) so a new user needs only Node.js. A large change across the bot and the dashboard.
+
 ## Done
 
 ### Features
