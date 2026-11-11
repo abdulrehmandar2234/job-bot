@@ -16,6 +16,9 @@ export const FEEDBACK_CAP = 1000;
 /** Done and failed tasks are deleted this long after they finished (when the next task is queued). */
 export const KEEP_FINISHED_DAYS = 30;
 
+/** When the scheduled daily run starts if config.json has no `dailyTime` (src/commands/daily.ts). */
+export const DEFAULT_DAILY_TIME = '09:00';
+
 export type JobStatus = 'new' | 'prepared' | 'applied' | 'interview' | 'offer' | 'rejected' | 'skipped' | 'expired' | 'filtered';
 
 /** The AI review's location check: 'no' means the description rules the candidate out (region, residency, work permit). */

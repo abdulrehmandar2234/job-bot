@@ -245,7 +245,7 @@ Open <http://localhost:3100>. Leave the Terminal window with `npm run web` open:
 
 ## 12. Schedule the daily run
 
-`npm run bot -- daily` is the morning run: fetch, check which postings have closed, AI review, a notification, a database backup and a cleanup of leftover files, logged to `data/fetch.log`. On macOS, launchd starts it at 9:00 through `scripts/daily-fetch.sh`, a small wrapper that gives launchd a PATH.
+`npm run bot -- daily` is the daily run: fetch, check which postings have closed, AI review, a notification, a database backup and a cleanup of leftover files, logged to `data/fetch.log`. It runs once a day at `dailyTime` in `config.json` (default `09:00`; the Settings page has it as **Daily run time**). On macOS, launchd starts `scripts/daily-fetch.sh --if-due` (a small wrapper that gives launchd a PATH) every 30 minutes and at login; the run only starts when it is due, so changing the time later needs nothing else.
 
 Print the setup for this clone, with your paths filled in:
 
@@ -262,29 +262,30 @@ It prints a plist like this one (shown for a user `<you>` with the project in `~
 <dict>
   <key>Label</key><string>com.<you>.job-bot.fetch</string>
   <key>ProgramArguments</key>
-  <array><string>/bin/zsh</string><string>/Users/<you>/talaash/scripts/daily-fetch.sh</string></array>
-  <key>StartCalendarInterval</key><dict><key>Hour</key><integer>9</integer><key>Minute</key><integer>0</integer></dict>
+  <array><string>/bin/zsh</string><string>/Users/<you>/talaash/scripts/daily-fetch.sh</string><string>--if-due</string></array>
+  <key>StartInterval</key><integer>1800</integer>
+  <key>RunAtLoad</key><true/>
   <key>StandardErrorPath</key><string>/Users/<you>/talaash/data/launchd.err.log</string>
 </dict>
 </plist>
 ```
 
-Save the printed plist as `~/Library/LaunchAgents/com.<you>.job-bot.fetch.plist`, then load it and run it once now:
+Save the printed plist as `~/Library/LaunchAgents/com.<you>.job-bot.fetch.plist` and load it. To see a whole run now, whatever the time, run it by hand:
 
 ```bash
 mkdir -p ~/talaash/data
 launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.<you>.job-bot.fetch.plist
-launchctl kickstart gui/$(id -u)/com.<you>.job-bot.fetch
+npm run bot -- daily                  # one full run now
 tail -f ~/talaash/data/fetch.log      # Ctrl+C to stop watching
 ```
 
-Turn it off with `launchctl bootout gui/$(id -u)/com.<you>.job-bot.fetch`.
+Turn it off with `launchctl bootout gui/$(id -u)/com.<you>.job-bot.fetch`. Replacing an older plist (one with `StartCalendarInterval` at 9:00): `bootout` first, save the new one, then `bootstrap`.
 
 - **Node on the PATH:** the wrapper uses `PATH=~/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin`. Homebrew's `node` is there. A Node from nvm or fnm is not: link it with `sudo ln -sf "$(which node)" /usr/local/bin/node` (again after changing Node versions). Without `node`, the wrapper writes `node not found on PATH` to `data/fetch.log` and shows a notification.
-- **Sleep and shut-down:** if the Mac is asleep at 9:00, the run happens when it wakes. If it is shut down, that day's run is skipped; run `npm run bot -- daily` by hand, or see [troubleshooting.md](../troubleshooting.md#the-900-run-did-not-happen) for running it at login too.
+- **Sleep and shut-down:** if the Mac is asleep or off at `dailyTime`, the run happens at the first check after it wakes or you log in.
 - Only one fetch runs at a time: if **Fetch new jobs** is running on the dashboard, the daily fetch is skipped.
 
-**Success:** after `kickstart`, `data/fetch.log` gets a `===== <date> =====` block with the fetch output and a `notification:` line, and a notification appears.
+**Success:** after `npm run bot -- daily`, `data/fetch.log` gets a `===== <date> =====` block with the fetch output and a `notification:` line, and a notification appears.
 
 ## 13. Notifications
 

@@ -231,21 +231,23 @@ Open <http://localhost:3100>. Leave the PowerShell window with `npm run web` ope
 
 ## 12. Schedule the daily run
 
-`npm run bot -- daily` is the morning run: fetch, check which postings have closed, AI review, a notification, a database backup and a cleanup of leftover files, logged to `data\fetch.log`. On Windows, Task Scheduler starts it at 9:00, and `-StartWhenAvailable` runs a missed 9:00 as soon as the computer is on again. Print the setup for this clone, with your paths and your Node filled in:
+`npm run bot -- daily` is the daily run: fetch, check which postings have closed, AI review, a notification, a database backup and a cleanup of leftover files, logged to `data\fetch.log`. It runs once a day at `dailyTime` in `config.json` (default `09:00`; the Settings page has it as **Daily run time**). On Windows, Task Scheduler starts it at that time, and `-StartWhenAvailable` runs a missed run as soon as the computer is on again. Print the setup for this clone, with your paths, your Node and your time filled in:
 
 ```powershell
 npm run bot -- schedule:print
 ```
 
-It prints lines like these (shown for `C:\Users\<you>\talaash` and Node in `C:\Program Files\nodejs`). Paste the printed PowerShell lines into PowerShell:
+It prints lines like these (shown for `C:\Users\<you>\talaash`, Node in `C:\Program Files\nodejs` and the default 09:00). Paste the printed PowerShell lines into PowerShell:
 
 ```powershell
 $action = New-ScheduledTaskAction -Execute 'C:\Program Files\nodejs\node.exe' -Argument '--no-warnings --env-file-if-exists=.env src/cli.ts daily' -WorkingDirectory 'C:\Users\<you>\talaash'
-$trigger = New-ScheduledTaskTrigger -Daily -At 9am
-$settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Hours 2)
+$trigger = New-ScheduledTaskTrigger -Daily -At '09:00'
+$settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Hours 2)
 Register-ScheduledTask -TaskName 'job-bot daily fetch' -Action $action -Trigger $trigger -Settings $settings -Force
 Start-ScheduledTask -TaskName 'job-bot daily fetch'   # run it once now to try it
 ```
+
+**Changing the time later:** set it on the Settings page (or `dailyTime` in `config.json`), then run `npm run bot -- schedule:print` again and paste its PowerShell lines again; `-Force` replaces the task. (Unlike macOS and Linux, the task is not started every 30 minutes, because Windows would open a console window each time.)
 
 Watch the log:
 

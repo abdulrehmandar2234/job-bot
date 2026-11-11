@@ -50,6 +50,6 @@ The **Matching** tab lists the jobs that passed your filters, best match first.
 ## Next steps
 
 - [Daily use](daily-use.md): the job list, preparing a CV and letter, the Chrome extension, follow-ups.
-- The morning run: step 12 of your install guide sets up `bot daily` at 9:00 (fetch, AI review, notification, backup).
+- The morning run: step 12 of your install guide sets up `bot daily` once a day, 09:00 unless you choose another time (fetch, AI review, notification, backup).
 - [Features](features.md): everything Talaash can do, and every job source.
 - [How it works](how-it-works.md): the architecture and the path of one job.

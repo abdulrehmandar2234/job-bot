@@ -239,7 +239,7 @@ Open <http://localhost:3100>. Leave the terminal with `npm run web` open: the da
 
 ## 12. Schedule the daily run
 
-`npm run bot -- daily` is the morning run: fetch, check which postings have closed, AI review, a notification, a database backup and a cleanup of leftover files, logged to `data/fetch.log`. On Linux a **systemd user timer** starts it at 9:00, and with `Persistent=true` it also catches up a run missed while the computer was off. Print the setup for this clone, with your paths and your Node filled in:
+`npm run bot -- daily` is the daily run: fetch, check which postings have closed, AI review, a notification, a database backup and a cleanup of leftover files, logged to `data/fetch.log`. It runs once a day at `dailyTime` in `config.json` (default `09:00`; the Settings page has it as **Daily run time**). On Linux a **systemd user timer** starts `bot daily --if-due` every 30 minutes; the run only starts when it is due, so changing the time later needs nothing else, and a run missed while the computer was off happens at the first check after it. Print the setup for this clone, with your paths and your Node filled in:
 
 ```bash
 npm run bot -- schedule:print
@@ -254,29 +254,29 @@ Description=job-bot daily fetch
 [Service]
 Type=oneshot
 WorkingDirectory=/home/<you>/talaash
-ExecStart="/usr/bin/node" --no-warnings --env-file-if-exists=.env src/cli.ts daily
+ExecStart="/usr/bin/node" --no-warnings --env-file-if-exists=.env src/cli.ts daily --if-due
 ```
 
 and the second as `~/.config/systemd/user/job-bot-fetch.timer`:
 
 ```ini
 [Unit]
-Description=job-bot daily fetch at 9:00
+Description=job-bot daily fetch check, every 30 minutes
 
 [Timer]
-OnCalendar=*-*-* 09:00:00
+OnCalendar=*:0/30
 Persistent=true
 
 [Install]
 WantedBy=timers.target
 ```
 
-(`mkdir -p ~/.config/systemd/user` first if the folder does not exist.) Then enable it and run it once now:
+(`mkdir -p ~/.config/systemd/user` first if the folder does not exist; the same names replace older 9:00 units.) Then enable it, and run one full run by hand to see it work:
 
 ```bash
 systemctl --user daemon-reload && systemctl --user enable --now job-bot-fetch.timer
-systemctl --user start job-bot-fetch.service      # run it once now
-systemctl --user list-timers job-bot-fetch.timer  # the next run
+npm run bot -- daily                              # one full run now
+systemctl --user list-timers job-bot-fetch.timer  # the next check
 tail -f ~/talaash/data/fetch.log                  # Ctrl+C to stop watching
 ```
 
@@ -287,14 +287,14 @@ Turn it off with `systemctl --user disable --now job-bot-fetch.timer`.
 - `bot daily` puts `~/.local/bin` (where the Claude CLI installs itself) first on the PATH of each step, so a `claude` there is found.
 - Only one fetch runs at a time: if **Fetch new jobs** is running on the dashboard, the daily fetch is skipped.
 
-**Or cron** (`crontab -e`). Cron skips a run missed while the computer was off, and needs your session bus address for desktop notifications (`id -u` gives the number; `schedule:print` fills it in):
+**Or cron** (`crontab -e`, replacing an older `0 9 * * *` line). Cron needs your session bus address for desktop notifications (`id -u` gives the number; `schedule:print` fills it in):
 
 ```bash
 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
-0 9 * * * cd '/home/<you>/talaash' && '/usr/bin/node' --no-warnings --env-file-if-exists=.env src/cli.ts daily
+*/30 * * * * cd '/home/<you>/talaash' && '/usr/bin/node' --no-warnings --env-file-if-exists=.env src/cli.ts daily --if-due
 ```
 
-**Success:** after `systemctl --user start job-bot-fetch.service`, `data/fetch.log` gets a `===== <date> =====` block with the fetch output and a `notification:` line, and `systemctl --user status job-bot-fetch.service` shows no error.
+**Success:** after `npm run bot -- daily`, `data/fetch.log` gets a `===== <date> =====` block with the fetch output and a `notification:` line, and `systemctl --user status job-bot-fetch.service` shows no error.
 
 ## 13. Notifications
 
@@ -336,7 +336,7 @@ It talks only to your local dashboard, `http://localhost:3100` by default; if yo
 - [ ] `npm run bot -- ai:score --limit 1` ends with `1 jobs scored.` (or `Nothing to score.` when every match is reviewed).
 - [ ] <http://localhost:3100> shows jobs, and no profile banner.
 - [ ] On a job page of the dashboard, **Prepare CV** and **Write letter** finish without an error.
-- [ ] `systemctl --user list-timers job-bot-fetch.timer` shows the next run, and `data/fetch.log` has a run.
+- [ ] `systemctl --user list-timers job-bot-fetch.timer` shows the next check, and `data/fetch.log` has a run.
 - [ ] `npm run bot -- backup` prints `backup: .../data/backups/job_bot-<date>.sql.gz`.
 - [ ] A notification appeared after the test run.
 - [ ] The extension's popup reads a job page.

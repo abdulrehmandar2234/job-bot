@@ -8,7 +8,7 @@ How the pieces fit together: the two programs, the path of one job from a source
 flowchart TB
   Sources["Job sources<br/>ATS APIs · job boards · LinkedIn"]
   Ext["Chrome extension<br/>Bayt bookmarklet"]
-  Sched["Scheduler, 9:00<br/>bot daily"]
+  Sched["Scheduler, daily time<br/>bot daily"]
   Fetch["bot fetch<br/>src/sources/"]
   Match["src/match.ts<br/>filters + keyword score"]
   DB[("PostgreSQL<br/>job_bot")]

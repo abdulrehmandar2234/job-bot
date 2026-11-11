@@ -96,6 +96,19 @@ describe('settings round-trip through the CLI', () => {
     expect(JSON.parse(readFileSync(CONFIG_FILE, 'utf8')).adzuna).toEqual({ countries: ['nl', 'de'], pagesPerSearch: 1 });
   }, 60_000);
 
+  it('saves the daily run time, removes it when cleared, and rejects a time that is not HH:MM', async () => {
+    const cfg = JSON.parse(readFileSync(CONFIG_FILE, 'utf8'));
+    expect(await saveConfig(null, configForm(cfg, { dailyTime: '18:30' }))).toMatchObject({ ok: true });
+    const after = JSON.parse(readFileSync(CONFIG_FILE, 'utf8'));
+    expect(after.dailyTime).toBe('18:30');
+
+    expect(await saveConfig(null, configForm(after, { dailyTime: '' }))).toMatchObject({ ok: true });
+    expect('dailyTime' in JSON.parse(readFileSync(CONFIG_FILE, 'utf8'))).toBe(false);
+
+    const bad = await saveConfig(null, configForm(cfg, { dailyTime: '9am' }));
+    expect(bad).toMatchObject({ ok: false, errors: [expect.objectContaining({ path: 'dailyTime' })] });
+  }, 60_000);
+
   it('returns field errors from the validator and leaves the file alone', async () => {
     const before = readFileSync(CONFIG_FILE, 'utf8');
     const cfg = JSON.parse(before);

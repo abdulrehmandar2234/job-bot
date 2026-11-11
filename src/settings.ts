@@ -99,6 +99,11 @@ export const configSchema = z.object({
   chromePath: text.optional(), // "auto" or missing: Playwright's headless shell, else a system Chrome (src/cv/chrome.ts)
   minScore: z.number(),
   maxAgeDays: count, // postings older than this are filtered out
+  // When the scheduled daily run starts, local time, 24-hour "HH:MM" (src/commands/daily.ts). Missing = 09:00.
+  dailyTime: z
+    .string()
+    .regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'a 24-hour time like "09:00" or "18:30"')
+    .optional(),
   countries: z.record(z.string(), countrySchema),
   companies: z.array(companySchema),
   // Stack presets (presets/stacks) whose skills and CV clusters drive the keyword score (src/match.ts).

@@ -94,9 +94,9 @@ Then open `chrome://extensions` and press the reload icon on Talaash's card, so 
 
 ## 7. The daily run
 
-Nothing to do: it runs the code in the project folder, so it uses the new version from its next run. Only if you moved the project or changed your Node installation, run `npm run bot -- schedule:print` again and update the scheduler entry (see your install guide, step 12).
+Nothing to do: it runs the code in the project folder, so it uses the new version from its next run. Run `npm run bot -- schedule:print` again and update the scheduler entry (your install guide, step 12) if you moved the project or changed your Node installation, or once to choose your own run time: entries from before `dailyTime` (November 2026) always run at 9:00.
 
-**Check it worked:** the dashboard loads without a database error, and `npm run bot -- daily` (or the next 9:00 run) writes a normal run to `data/fetch.log`.
+**Check it worked:** the dashboard loads without a database error, and `npm run bot -- daily` (or the next scheduled run) writes a normal run to `data/fetch.log`.
 
 ## If the update went wrong
 
