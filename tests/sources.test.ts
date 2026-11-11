@@ -7,7 +7,8 @@ import { daysAgo, mockFetch } from './helpers.ts';
 import { timing } from '../src/sources/http.ts';
 import { decodeEntities, fetchCompany, stripHtml, workdayAgeDays, workdayList, workdaySite } from '../src/sources/index.ts';
 import { languageRules } from '../src/match.ts';
-import { BOARDS, hnHeader } from '../src/sources/boards.ts';
+import { BOARDS, FREEHIRE_PAGES, freehireJob, freehireRegions, hnHeader } from '../src/sources/boards.ts';
+import { loadProfile, remoteFromCode } from '../src/profile.ts';
 import { linkedin } from '../src/sources/linkedin.ts';
 import { discover, workdayToken } from '../src/discover.ts';
 import { config, type Company } from '../src/config.ts';
@@ -1093,6 +1094,129 @@ describe('jobicy', () => {
     assert.deepEqual(jobs[0].salary, { min: 60000, max: 80000, currency: 'EUR', period: 'year' });
     assert.deepEqual(jobs[1].salary, { min: 5000, max: null, currency: 'PLN', period: 'month' });
     assert.equal(jobs[2].salary, null, 'an unknown pay period is left out');
+  });
+});
+
+describe('freehire', () => {
+  const fh = (slug: string, o: Record<string, unknown> = {}) => ({
+    public_slug: slug,
+    source: 'greenhouse',
+    url: `https://boards.greenhouse.io/acme/jobs/${slug}?utm_source=freehire.me`,
+    title: 'Senior Laravel Developer',
+    company: 'Acme',
+    location: '',
+    description: 'Laravel, Vue and MySQL.',
+    countries: ['ae'],
+    regions: ['mena'],
+    cities: ['Dubai'],
+    work_mode: 'onsite',
+    posted_at: '2026-11-10T08:00:00Z',
+    closed_at: null,
+    enrichment: { salary_min: 20000, salary_max: 25000, salary_currency: 'AED', salary_period: 'month' },
+    ...o,
+  });
+
+  it("searches each target country and remote jobs open worldwide or to the candidate's regions", async () => {
+    net = mockFetch({ 'freehire.me/api/v1/agent/jobs/search': { data: [], meta: { total: 0 } } });
+    await BOARDS.freehire();
+    const params = net.calls.map((u) => new URL(u).searchParams);
+    const countries = params.map((p) => p.get('countries')).filter(Boolean);
+    assert.deepEqual(countries, Object.keys(config.countries));
+    const remote = params.find((p) => p.get('work_mode') === 'remote')!;
+    assert.deepEqual(remote.getAll('regions'), freehireRegions(remoteFromCode(config, loadProfile())));
+    for (const p of params) {
+      assert.deepEqual(p.getAll('category'), ['backend', 'frontend', 'fullstack']);
+      assert.equal(p.get('posted_within_days'), String(config.maxAgeDays));
+      assert.equal(p.get('description_format'), 'text');
+      assert.equal(p.get('limit'), '100');
+    }
+  });
+
+  it('freehireRegions: worldwide plus the regions of the remote-from country', () => {
+    assert.deepEqual(freehireRegions('PK'), ['global', 'apac', 'mena']);
+    assert.deepEqual(freehireRegions('NL'), ['global', 'eu']);
+    assert.deepEqual(freehireRegions('XX'), ['global']);
+    assert.deepEqual(freehireRegions(null), ['global']);
+  });
+
+  it('maps a job: original ATS url, location from cities and country, hybrid noted, its own salary', () => {
+    const name = (c: string) => ({ AE: 'UAE', NL: 'Netherlands' })[c];
+    const j = freehireJob(fh('a1'), name)!;
+    assert.equal(j.id, 'freehire:a1');
+    assert.equal(j.source, 'freehire');
+    assert.equal(j.url, 'https://boards.greenhouse.io/acme/jobs/a1?utm_source=freehire.me');
+    assert.equal(j.location, 'Dubai, UAE');
+    assert.equal(j.posted_at, '2026-11-10T08:00:00.000Z');
+    assert.deepEqual(j.salary, { min: 20000, max: 25000, currency: 'AED', period: 'month' });
+    assert.equal(
+      freehireJob(fh('a2', { countries: ['nl'], cities: ['Arnhem'], work_mode: 'hybrid' }), name)!.location,
+      'Arnhem, Netherlands (hybrid)',
+    );
+    assert.equal(freehireJob(fh('a3', { countries: [], cities: [], location: '' }), name)!.location, 'not stated');
+    assert.equal(
+      freehireJob(fh('a4', { enrichment: { salary_period: 'week', salary_min: 1, salary_currency: 'USD' } }), name)!.salary,
+      null,
+    );
+    assert.equal(freehireJob(fh('a5', { enrichment: null }), name)!.salary, null);
+  });
+
+  it('remote jobs: the stated location, else the regions in words match.ts reads', () => {
+    const name = () => undefined;
+    const remote = (o: Record<string, unknown>) => freehireJob(fh('r', { work_mode: 'remote', ...o }), name)!.location;
+    assert.equal(remote({ location: 'Lombardia, Italy', regions: ['eu'] }), 'Remote — Lombardia, Italy');
+    assert.equal(remote({ location: '', regions: ['global'] }), 'Remote — Worldwide');
+    assert.equal(remote({ location: '', regions: ['eu', 'north_america'] }), 'Remote — Europe, North America');
+    assert.equal(remote({ location: '', regions: [] }), 'Remote — not stated');
+  });
+
+  it('skips closed jobs and rows without a slug, title or url', () => {
+    const name = () => undefined;
+    assert.equal(freehireJob(fh('c', { closed_at: '2026-11-09T00:00:00Z' }), name), null);
+    assert.equal(freehireJob(fh('', {}), name), null);
+    assert.equal(freehireJob(fh('t', { title: '' }), name), null);
+    assert.equal(freehireJob(fh('u', { url: null }), name), null);
+  });
+
+  it('pages by offset until a short page, and keeps one copy of a job found by two searches', async () => {
+    const full = Array.from({ length: 100 }, (_, i) => fh(`p${i}`));
+    net = mockFetch({
+      'freehire.me/api/v1/agent/jobs/search': (url: string) => {
+        const q = new URL(url).searchParams;
+        if (q.get('countries') !== 'AE') return { data: [fh('p1')], meta: { total: 1 } };
+        return q.get('offset') === '0' ? { data: full, meta: { total: 150 } } : { data: [fh('p100')], meta: { total: 150 } };
+      },
+    });
+    const jobs = await BOARDS.freehire();
+    const ae = net.calls.filter((u) => new URL(u).searchParams.get('countries') === 'AE');
+    assert.deepEqual(
+      ae.map((u) => new URL(u).searchParams.get('offset')),
+      ['0', '100'],
+    );
+    assert.equal(jobs.length, 101);
+    assert.equal(new Set(jobs.map((j) => j.id)).size, 101);
+  });
+
+  it('stops after FREEHIRE_PAGES pages of one search', async () => {
+    const full = Array.from({ length: 100 }, (_, i) => fh(`q${i}`));
+    net = mockFetch({ 'freehire.me/api/v1/agent/jobs/search': { data: full, meta: { total: 10_000 } } });
+    await BOARDS.freehire();
+    const ae = net.calls.filter((u) => new URL(u).searchParams.get('countries') === 'AE');
+    assert.equal(ae.length, FREEHIRE_PAGES);
+  });
+
+  it('keeps what it collected when a later request fails', async () => {
+    net = mockFetch({
+      'freehire.me/api/v1/agent/jobs/search': (url: string) =>
+        new URL(url).searchParams.get('countries') === 'AE'
+          ? { data: [fh('k1')], meta: { total: 1 } }
+          : new Response('down', { status: 500 }),
+    });
+    const jobs = await BOARDS.freehire();
+    assert.deepEqual(
+      jobs.map((j) => j.id),
+      ['freehire:k1'],
+    );
+    assert.match(jobs.partialError ?? '', /^partial: kept 1 postings/);
   });
 });
 

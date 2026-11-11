@@ -28,7 +28,7 @@ flowchart TB
   AI --> DB
 ```
 
-Sources are the company boards (Greenhouse, Lever, Ashby, Recruitee, Workable, SmartRecruiters, Workday, Personio), the job boards (Himalayas, Remotive, RemoteOK, Arbeitnow, Adzuna, Jobicy, Hacker News "Who is hiring") and LinkedIn's guest search; [Features](features.md#sources-at-a-glance) lists them. After every command that adds jobs or changes a status, `dedupe()` (`src/db.ts`) groups copies of the same job under one primary row. CV and letter PDFs are rendered by Chrome's headless shell (playwright-core).
+Sources are the company boards (Greenhouse, Lever, Ashby, Recruitee, Workable, SmartRecruiters, Workday, Personio), the job boards (Himalayas, Remotive, RemoteOK, Arbeitnow, Adzuna, Jobicy, Hacker News "Who is hiring", freehire.me) and LinkedIn's guest search; [Features](features.md#sources-at-a-glance) lists them. After every command that adds jobs or changes a status, `dedupe()` (`src/db.ts`) groups copies of the same job under one primary row. CV and letter PDFs are rendered by Chrome's headless shell (playwright-core).
 
 The project has two parts that share one PostgreSQL database:
 

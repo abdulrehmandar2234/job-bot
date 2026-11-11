@@ -5,7 +5,7 @@
 export const ATS = ['greenhouse', 'lever', 'ashby', 'recruitee', 'workable', 'smartrecruiters', 'workday', 'personio'] as const;
 
 // The remote job boards the bot can fetch (BOARDS in src/sources/boards.ts).
-export const REMOTE_BOARDS = ['himalayas', 'remotive', 'remoteok', 'arbeitnow', 'adzuna', 'jobicy', 'hackernews'] as const;
+export const REMOTE_BOARDS = ['himalayas', 'remotive', 'remoteok', 'arbeitnow', 'adzuna', 'jobicy', 'hackernews', 'freehire'] as const;
 
 /** A CV version name (`default`, `laravel-v1`): the one rule for every path and task argument that takes one. */
 export const CV_VERSION = /^[a-z0-9][a-z0-9-]*$/;

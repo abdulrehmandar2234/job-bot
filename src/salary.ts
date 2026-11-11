@@ -155,7 +155,7 @@ export function parseSalary(text: string, country: string | null = null, home: s
 }
 
 // Sources whose API gives salary data of its own (see src/sources); `rescore` keeps what they stored.
-export const SALARY_SOURCES = ['adzuna', 'himalayas', 'remoteok', 'lever'];
+export const SALARY_SOURCES = ['adzuna', 'himalayas', 'remoteok', 'lever', 'jobicy', 'freehire'];
 
 /** A salary from a source's structured fields, or null when they are empty, zero or in another currency. */
 export function structuredSalary(min: unknown, max: unknown, currency: unknown, period: SalaryPeriod = 'year'): Salary | null {

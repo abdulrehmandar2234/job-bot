@@ -119,6 +119,7 @@ const SOURCE_RANK = [
   'himalayas',
   'remotive',
   'remoteok',
+  'freehire',
   'manual',
 ];
 
