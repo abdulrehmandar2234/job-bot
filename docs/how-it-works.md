@@ -72,7 +72,7 @@ Each version folder has `cv.json` (the data it was rendered from) and `meta.json
 
 Every CLI command that uses the database first applies the numbered SQL files in `src/migrations/` that the database has not run yet (recorded in `schema_migrations`), and the dashboard applies them when it starts (`web/instrumentation.ts` runs `npm run bot -- migrate`; a failure is logged and the dashboard still starts). `npm run bot -- migrate` applies them on its own. To change the schema, add the next `NNN_name.sql` file; never edit one that is already committed (see `src/migrate.ts`).
 
-- `jobs`: one row per posting. It holds the score, matched/missing skills, visa note, flags, status, filter reason, CV version, the CV template chosen for the job, the AI review of its CV, cover letter, CV headline and summary for the job, when you last edited either by hand, AI review, form answers, interview prep, follow-up count and draft, alert time, notes and `duplicate_of`.
+- `jobs`: one row per posting. It holds the score, matched/missing skills, visa note, flags, status, filter reason, CV version, the CV template chosen for the job, the AI review of its CV, cover letter, CV headline and summary for the job, when you last edited either by hand, AI review, form answers, interview prep, follow-up count and draft, alert time, notes, the application deadline the posting states and `duplicate_of`.
 - `job_events`: every status change with a note.
 - `fetch_runs`: per fetch, how many postings were checked, how many were new and which sources failed.
 - `tasks`: the dashboard's background tasks (see [Architecture](#architecture)).
@@ -93,6 +93,7 @@ src/
   errors.ts         UserError (printed without a stack trace) and ConfigError
   types.ts          row types shared with the dashboard
   match.ts          filters, keyword score, CV cluster
+  deadline.ts       the application deadline a posting states, and days left
   posting-guard.ts  hidden text and invisible characters out of postings, the flag for text aimed at AI tools
   salary.ts         salary range extraction
   ind-salary.ts     the Dutch IND highly-skilled-migrant salary minimum and the flag for Dutch jobs below it

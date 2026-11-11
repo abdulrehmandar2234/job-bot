@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ago, AiReview, Chips, fmtDate, Posted, PostedOn, Score, STATUS_LABEL } from '@/components/ui';
+import { ago, AiReview, Chips, DeadlineBadge, fmtDate, Posted, PostedOn, Score, STATUS_LABEL } from '@/components/ui';
 import { STATUSES } from '@/lib/db';
 
 const NOW = new Date('2026-10-29T12:00:00Z');
@@ -19,6 +19,33 @@ describe('labels', () => {
     for (const s of STATUSES) expect(STATUS_LABEL[s]).toBeTruthy();
     expect(STATUS_LABEL.new).toBe('Matching');
     expect(STATUS_LABEL.filtered).toBe('Filtered out');
+  });
+});
+
+describe('DeadlineBadge', () => {
+  const badge = (deadline: string | null, status = 'new') => render(<DeadlineBadge job={{ deadline, status }} today="2026-11-20" />);
+
+  it('says how long is left, with the date on hover', () => {
+    badge('2026-12-10');
+    expect(screen.getByText('Closes in 20 days')).toHaveAttribute('title', 'Application deadline: 2026-12-10');
+  });
+
+  it('turns amber within a week and red within two days or once passed', () => {
+    badge('2026-11-25');
+    expect(screen.getByText('Closes in 5 days').className).toMatch(/amber/);
+    badge('2026-11-21');
+    expect(screen.getByText('Closes tomorrow').className).toMatch(/rose/);
+    badge('2026-11-20');
+    expect(screen.getByText('Closes today').className).toMatch(/rose/);
+    badge('2026-11-19');
+    expect(screen.getByText('Deadline passed').className).toMatch(/rose/);
+  });
+
+  it('shows nothing without a deadline, or once the job was applied to or finished', () => {
+    expect(badge(null).container).toBeEmptyDOMElement();
+    expect(badge('2026-12-10', 'applied').container).toBeEmptyDOMElement();
+    expect(badge('2026-12-10', 'skipped').container).toBeEmptyDOMElement();
+    expect(badge('2026-12-10', 'prepared').container).not.toBeEmptyDOMElement();
   });
 });
 

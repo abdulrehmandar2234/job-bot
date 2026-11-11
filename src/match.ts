@@ -5,6 +5,7 @@ import { DEFAULT_STACKS, loadStacks, pick, type Stack } from './presets.ts';
 import { loadProfile, needsVisa, remoteFrom, remoteFromCode } from './profile.ts';
 import { effectiveRemoteRules } from './regions.ts';
 import { masterFile } from './settings.ts';
+import { localToday, parseDeadline } from './deadline.ts';
 import { instructionFlag } from './posting-guard.ts';
 import { isIndSponsor } from './sponsors.ts';
 import type { RawJob } from './sources/index.ts';
@@ -201,6 +202,7 @@ export type Scored = {
   visaEvidence: VisaEvidence | null;
   flags: string[];
   filterReason: string | null;
+  deadline: string | null; // the application deadline the posting states (src/deadline.ts)
 };
 
 // Local languages a posting may require. A language the candidate speaks (profile `languages`) is never a blocker.
@@ -374,6 +376,8 @@ export function scoreJob(job: RawJob, cfg: MatchSettings = config): Scored {
   const remote = remoteCountry(cfg, job.location, job.description);
   const country = remote ? remote.country : findCountry(cfg, job.location, job.description);
   const flags: string[] = remote?.flag ? [remote.flag] : [];
+  const posted = job.posted_at ? new Date(job.posted_at) : new Date();
+  const deadline = parseDeadline(text, Number.isNaN(posted.getTime()) ? new Date() : posted);
   const aimedAtAi = instructionFlag(job.description);
   if (aimedAtAi) flags.push(aimedAtAi);
   const out = (filterReason: string | null, extra: Partial<Scored> = {}): Scored => ({
@@ -386,6 +390,7 @@ export function scoreJob(job: RawJob, cfg: MatchSettings = config): Scored {
     visaEvidence: null,
     flags,
     filterReason,
+    deadline,
     ...extra,
   });
 
@@ -393,6 +398,9 @@ export function scoreJob(job: RawJob, cfg: MatchSettings = config): Scored {
   if (!country) return out(`location not in target countries (${job.location || 'unknown'})`);
   if (!re(cfg.roleInclude).test(job.title)) return out('title is not an engineering role');
   if (re(cfg.roleExclude).test(job.title)) return out('title excluded (other stack / non-dev / level)');
+
+  // Re-checked on every fetch and rescore, like the age rule: a matching job drops out once its deadline has passed.
+  if (deadline && deadline < localToday()) return out(`application deadline passed (${deadline})`);
 
   const jobType = jobTypeOf(job.description);
   if (jobType && (cfg.skipJobTypes ?? DEFAULT_SKIP_JOB_TYPES).includes(jobType.type)) return out(`job type: ${jobType.line}`);
@@ -457,7 +465,7 @@ function skillScore(
   job: RawJob,
   text: string,
   { country, visa, visaEvidence, flags }: { country: string; visa: string | null; visaEvidence: VisaEvidence; flags: string[] },
-  out: (reason: string, extra?: Partial<Scored>) => Scored,
+  out: (reason: string | null, extra?: Partial<Scored>) => Scored,
 ): Scored {
   const matched: string[] = [];
   const missing: string[] = [];
@@ -492,7 +500,7 @@ function skillScore(
 
   if (score < cfg.minScore) return out(`score ${score} below minScore ${cfg.minScore}`, { score, matched, missing, visa, visaEvidence });
 
-  return { country, score, cluster: pickCluster(text, cfg), matched, missing, visa, visaEvidence, flags, filterReason: null };
+  return { ...out(null), country, score, cluster: pickCluster(text, cfg), matched, missing, visa, visaEvidence, flags };
 }
 
 /** The most specific CV variant for a posting (the active stacks' clusters). Falls back to the untouched default CV. */

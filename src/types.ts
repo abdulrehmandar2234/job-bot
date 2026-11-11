@@ -104,6 +104,7 @@ export type Job = {
   salary_period: SalaryPeriod | null;
   checked_open_at: Date | null; // last time `check:open` got a clear open/closed answer
   closed_at: Date | null; // when the posting was found closed (status `expired`)
+  deadline: string | null; // application deadline the posting states, "YYYY-MM-DD" (src/deadline.ts)
   follow_ups: number; // follow-ups the user marked as sent (src/followup.ts)
   followed_up_at: Date | null;
   follow_up_draft: string | null; // the latest drafted follow-up message
