@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { API_PRESETS, RESPONSE_FORMATS } from './ai-presets.ts';
 import { TEMPLATE_IDS } from './cv/templates/index.ts';
 import { UserError } from './errors.ts';
-import { ATS, REMOTE_BOARDS } from './types.ts';
+import { ATS, JOB_TYPES, REMOTE_BOARDS } from './types.ts';
 
 // Schemas for the two hand-edited settings files, config.json and cv/applicant.json. Loading them (config.ts, ai.ts)
 // validates first, so a typo fails at startup with the file and field instead of deep inside a fetch.
@@ -104,6 +104,8 @@ export const configSchema = z.object({
     .string()
     .regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'a 24-hour time like "09:00" or "18:30"')
     .optional(),
+  // Job types to filter out when a source states them (src/match.ts jobTypeOf). Missing = DEFAULT_SKIP_JOB_TYPES.
+  skipJobTypes: z.array(z.enum(JOB_TYPES)).optional(),
   countries: z.record(z.string(), countrySchema),
   companies: z.array(companySchema),
   // Stack presets (presets/stacks) whose skills and CV clusters drive the keyword score (src/match.ts).

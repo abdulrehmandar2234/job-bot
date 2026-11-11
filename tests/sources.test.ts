@@ -9,7 +9,7 @@ import { decodeEntities, fetchCompany, stripHtml, workdayAgeDays, workdayList, w
 import { languageRules } from '../src/match.ts';
 import { BOARDS, FREEHIRE_PAGES, freehireJob, freehireRegions, hnHeader } from '../src/sources/boards.ts';
 import { loadProfile, remoteFromCode } from '../src/profile.ts';
-import { linkedin } from '../src/sources/linkedin.ts';
+import { criteriaLines, linkedin } from '../src/sources/linkedin.ts';
 import { discover, workdayToken } from '../src/discover.ts';
 import { config, type Company } from '../src/config.ts';
 
@@ -859,6 +859,34 @@ describe('linkedin (guest search)', () => {
     assert.ok(searches.every((u) => u.includes('f_TPR=r')));
   });
 
+  it('criteriaLines: seniority and employment type from the job criteria box, nothing else', () => {
+    const html = `<ul class="description__job-criteria-list">
+      <li><h3 class="description__job-criteria-subheader">
+        Seniority level
+      </h3>
+      <span class="description__job-criteria-text description__job-criteria-text--criteria">
+        Internship
+      </span></li>
+      <li><h3 class="description__job-criteria-subheader">Employment type</h3>
+      <span class="description__job-criteria-text description__job-criteria-text--criteria">Part-time</span></li>
+      <li><h3 class="description__job-criteria-subheader">Industries</h3>
+      <span class="description__job-criteria-text description__job-criteria-text--criteria">IT Services</span></li></ul>`;
+    assert.deepEqual(criteriaLines(html), ['Seniority level: Internship', 'Employment type: Part-time']);
+    assert.deepEqual(criteriaLines('<div>no box</div>'), []);
+  });
+
+  it('adds the criteria lines to the description', async () => {
+    net = mockFetch({
+      'seeMoreJobPostings/search': (url: string) =>
+        new URL(url).searchParams.get('keywords') === 'laravel' ? card('111', 'Laravel Developer') : '',
+      'jobPosting/111': `<div class="show-more-less-html__markup">Build Laravel APIs</div>\n<button>
+        <h3 class="description__job-criteria-subheader">Employment type</h3>
+        <span class="description__job-criteria-text description__job-criteria-text--criteria">Full-time</span>`,
+    });
+    const [job] = await linkedin();
+    assert.equal(job.description, 'Build Laravel APIs\nEmployment type: Full-time');
+  });
+
   it('reads the "Base pay range" box as the salary; none when the job has no box', async () => {
     net = mockFetch({
       'seeMoreJobPostings/search': (url: string) =>
@@ -1167,6 +1195,15 @@ describe('freehire', () => {
     assert.equal(remote({ location: '', regions: ['global'] }), 'Remote — Worldwide');
     assert.equal(remote({ location: '', regions: ['eu', 'north_america'] }), 'Remote — Europe, North America');
     assert.equal(remote({ location: '', regions: [] }), 'Remote — not stated');
+  });
+
+  it('turns freehire\'s "intern" seniority into the criteria line match.ts reads', () => {
+    const name = () => undefined;
+    assert.equal(
+      freehireJob(fh('i', { enrichment: { seniority: 'intern' } }), name)!.description,
+      'Laravel, Vue and MySQL.\nSeniority level: Internship',
+    );
+    assert.equal(freehireJob(fh('s', { enrichment: { seniority: 'senior' } }), name)!.description, 'Laravel, Vue and MySQL.');
   });
 
   it('skips closed jobs and rows without a slug, title or url', () => {

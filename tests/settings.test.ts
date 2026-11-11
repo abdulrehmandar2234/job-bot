@@ -71,6 +71,19 @@ describe('config validation', () => {
     );
   });
 
+  it('skipJobTypes: optional, and only the known job types', () => {
+    const c = realConfig();
+    delete c.skipJobTypes;
+    assert.ok(validateConfig(c).ok);
+    c.skipJobTypes = ['internship', 'contract'];
+    assert.ok(validateConfig(c).ok);
+    c.skipJobTypes = ['internship', 'fulltime'];
+    assert.deepEqual(
+      errorsOf(validateConfig(c)).map((e) => e.path),
+      ['skipJobTypes[1]'],
+    );
+  });
+
   it('rejects unknown remote board names with a message naming the valid ones', () => {
     const c = realConfig();
     c.remote.boards = ['himalayas', 'remotve'];

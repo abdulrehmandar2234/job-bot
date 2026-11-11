@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { daysAgo, raw, seedIndRegister } from './helpers.ts'; // first: it points the bot at a temp config before src/ loads one
 import { indFile, isIndSponsor } from '../src/sponsors.ts';
-import { languageRules, pickCluster, remoteOpenToCandidate, scoreJob, SKILLS, titleOk } from '../src/match.ts';
+import { jobTypeOf, languageRules, pickCluster, remoteOpenToCandidate, scoreJob, SKILLS, titleOk } from '../src/match.ts';
 import { config } from '../src/config.ts';
 import { ConfigError } from '../src/errors.ts';
 
@@ -319,6 +319,40 @@ describe('scoreJob: visa', () => {
     assert.equal(s.filterReason, null);
     assert.equal(s.visaEvidence, 'can-sponsor');
     assert.equal(s.visa, 'Netherlands: company is an IND recognised sponsor, but the posting does not mention visa or relocation');
+  });
+});
+
+describe('job type (skipJobTypes)', () => {
+  const withLine = (line: string) => raw({ description: `${raw().description}\n${line}` });
+
+  it('jobTypeOf reads only the criteria lines a source adds', () => {
+    assert.deepEqual(jobTypeOf('x\nEmployment type: Part-time'), { type: 'part-time', line: 'Employment type: Part-time' });
+    assert.deepEqual(jobTypeOf('Seniority level: Internship\nEmployment type: Full-time'), {
+      type: 'internship',
+      line: 'Seniority level: Internship',
+    });
+    assert.equal(jobTypeOf('Employment type: Contract')?.type, 'contract');
+    assert.equal(jobTypeOf('Employment type: Temporary')?.type, 'temporary');
+    assert.equal(jobTypeOf('Employment type: Full-time\nSeniority level: Mid-Senior level'), null);
+    assert.equal(jobTypeOf('We have no part-time roles. After the internship programme you join the team.'), null);
+  });
+
+  it('filters internships, part-time, temporary and volunteer jobs by default, and keeps contracts', () => {
+    assert.equal(scoreJob(withLine('Employment type: Part-time')).filterReason, 'job type: Employment type: Part-time');
+    assert.equal(scoreJob(withLine('Seniority level: Internship')).filterReason, 'job type: Seniority level: Internship');
+    assert.match(scoreJob(withLine('Employment type: Temporary')).filterReason ?? '', /^job type:/);
+    assert.equal(scoreJob(withLine('Employment type: Contract')).filterReason, null);
+    assert.equal(scoreJob(withLine('Employment type: Full-time')).filterReason, null);
+  });
+
+  it('follows skipJobTypes: missing = the default list, empty = keep every type', () => {
+    const { skipJobTypes: _, ...rest } = config;
+    assert.match(scoreJob(withLine('Employment type: Part-time'), rest).filterReason ?? '', /^job type:/);
+    assert.equal(scoreJob(withLine('Employment type: Part-time'), { ...config, skipJobTypes: [] }).filterReason, null);
+    assert.match(
+      scoreJob(withLine('Employment type: Contract'), { ...config, skipJobTypes: ['contract'] }).filterReason ?? '',
+      /^job type:/,
+    );
   });
 });
 

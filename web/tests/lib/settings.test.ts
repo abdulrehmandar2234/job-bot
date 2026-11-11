@@ -175,6 +175,11 @@ describe('mergeConfig', () => {
     expect(cfg.maxAgeDays).toBe('abc');
   });
 
+  it('saves skipJobTypes one per line, and an empty field as "keep every type"', () => {
+    expect(mergeConfig(CONFIG, configForm({ skipJobTypes: 'internship\npart-time\n' })).skipJobTypes).toEqual(['internship', 'part-time']);
+    expect(mergeConfig(CONFIG, configForm({ skipJobTypes: '' })).skipJobTypes).toEqual([]);
+  });
+
   it('saves cvTemplate, and leaves the key out for classic (the built-in default)', () => {
     expect(mergeConfig(CONFIG, configForm({ cvTemplate: 'compact' })).cvTemplate).toBe('compact');
     expect('cvTemplate' in mergeConfig({ ...CONFIG, cvTemplate: 'modern' }, configForm({ cvTemplate: '' }))).toBe(false);

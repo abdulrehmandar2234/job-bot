@@ -59,6 +59,7 @@ Every posting is checked by `src/match.ts`. Jobs that fail a rule are kept with 
   - **? Visa/relocation not mentioned:** the posting is silent. Many Gulf employers sponsor the work visa anyway, but some only hire people already in the country.
 
   Hover a label for the full note. The **Visa/relocation offered (or not needed)** filter on the job list shows only the first two kinds. The AI location check also marks a silent onsite posting `unclear`, not `yes`.
+- **Job type:** internships, part-time, temporary and volunteer jobs are skipped when the source states the type (LinkedIn's job criteria, freehire's seniority); `skipJobTypes` changes the list (add `contract` for permanent jobs only). **Job types to skip** is on the Settings page.
 - **Age:** postings older than `maxAgeDays` (14) are skipped, and matching jobs expire automatically once they get older.
 - **Keyword score:** a weighted match of the job's skills against yours (a skill counts as yours when `cv/master.json` lists it), with a `minScore` threshold. It also suggests which CV version fits.
 - **AI review:** the AI (by default the local Claude CLI with model `haiku`; see [AI](ai.md) for an API key instead) reads each matching job together with your CV and returns a 0–100 score, a verdict (strong / good / stretch / poor), reasons, gaps and red flags (part-time, language, visa, region lock). A problem that would hit every job (a rejected key, no credit, Claude signed out) or 3 timeouts in a row stops `ai:score` at once with one line and exit 1.

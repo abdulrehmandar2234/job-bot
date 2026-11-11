@@ -3,7 +3,7 @@
 import { saveConfig } from '@/app/settings/actions';
 import type { AiKeyStatus, SettingsFile } from '@/lib/settings';
 import { DEFAULT_TEMPLATE, TEMPLATES } from '@/lib/cv-template-list';
-import { DEFAULT_DAILY_TIME, get, type Json } from '@/lib/settings-form';
+import { DEFAULT_DAILY_TIME, DEFAULT_SKIP_JOB_TYPES, get, JOB_TYPES, type Json } from '@/lib/settings-form';
 import { AiSection } from './ai-section';
 import { Check, Field, input, lines, SaveBar, Section, text, useSave } from './fields';
 import { CompaniesEditor } from './row-editors';
@@ -41,6 +41,9 @@ export function ConfigForm({ config, keys, bot = 'npm run bot --' }: { config: S
           </Field>
           <Field label="Role exclude" hint="regular expression" {...f('roleExclude')}>
             <textarea name="roleExclude" rows={2} defaultValue={text(c.roleExclude)} className={`${input} font-mono text-xs`} />
+          </Field>
+          <Field label="Job types to skip" hint={`one per line, empty = keep all: ${JOB_TYPES.join(', ')}`} {...f('skipJobTypes')}>
+            <textarea name="skipJobTypes" rows={3} defaultValue={lines(c.skipJobTypes ?? DEFAULT_SKIP_JOB_TYPES)} className={input} />
           </Field>
           <Check label="Pick a CV version automatically (autoCvVersions)" name="autoCvVersions" value={c.autoCvVersions} />
           <Field label="CV template" hint="the design of new CVs; a job can use another one" {...f('cvTemplate')}>
