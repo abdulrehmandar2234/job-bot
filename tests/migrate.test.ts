@@ -273,3 +273,59 @@ describe('migration 018 (applied_at before each status change)', () => {
     assert.equal((await db.query('SELECT count(*)::int n FROM jobs')).rows[0].n, 1);
   });
 });
+
+describe('migration 019 (jobs constraints)', () => {
+  const at018 = async () => {
+    const d = dir({});
+    for (const f of migrationFiles().filter((f) => f < '019')) writeFileSync(join(d, f), readFileSync(join(MIGRATIONS_DIR, f), 'utf8'));
+    await runMigrations(db, d);
+  };
+  const job = (id: string, extra = '', values = '') =>
+    db.query(`INSERT INTO jobs (id, source, company, title, url${extra}) VALUES ('${id}', 's', 'c', 't', 'u'${values})`);
+
+  it('cleans values nothing reads on a database at 018, keeping the rest of each row', async () => {
+    await at018();
+    await job('primary');
+    await job('copy', ', duplicate_of', ", 'primary'");
+    await job('orphan', ', duplicate_of, status', ", 'gone', 'applied'");
+    await job('self', ', duplicate_of', ", 'self'");
+    await job('typo', ', status, notes', ", 'aplied', 'kept'");
+    await job('weekly', ', salary_min, salary_max, salary_currency, salary_period', ", 1, 2, 'EUR', 'week'");
+    await job('yearly', ', salary_min, salary_max, salary_currency, salary_period', ", 1, 2, 'EUR', 'year'");
+    assert.deepEqual(await runMigrations(db), from('019'));
+    const { rows } = await db.query('SELECT id, status, duplicate_of, notes, salary_min, salary_period FROM jobs ORDER BY id');
+    const row = (id: string, o: object = {}) => ({
+      id,
+      status: 'new',
+      duplicate_of: null,
+      notes: null,
+      salary_min: null,
+      salary_period: null,
+      ...o,
+    });
+    assert.deepEqual(rows, [
+      row('copy', { duplicate_of: 'primary' }),
+      row('orphan', { status: 'applied' }),
+      row('primary'),
+      row('self'),
+      row('typo', { notes: 'kept' }),
+      row('weekly'),
+      row('yearly', { salary_min: 1, salary_period: 'year' }),
+    ]);
+  });
+
+  it('then refuses an unknown status or period and a missing or own primary, and frees copies of a deleted primary', async () => {
+    await runMigrations(db);
+    await job('primary');
+    await job('copy', ', duplicate_of', ", 'primary'");
+    await assert.rejects(job('bad-status', ', status', ", 'aplied'"), /jobs_status_check/);
+    await assert.rejects(job('bad-period', ', salary_period', ", 'week'"), /jobs_salary_period_check/);
+    await assert.rejects(job('orphan', ', duplicate_of', ", 'gone'"), /jobs_duplicate_of_fkey/);
+    await assert.rejects(job('self', ', duplicate_of', ", 'self'"), /jobs_not_own_duplicate/);
+    for (const status of ['new', 'prepared', 'applied', 'interview', 'offer', 'rejected', 'skipped', 'expired', 'filtered']) {
+      await job(`s-${status}`, ', status', `, '${status}'`);
+    }
+    await db.query(`DELETE FROM jobs WHERE id = 'primary'`);
+    assert.equal((await db.query(`SELECT duplicate_of FROM jobs WHERE id = 'copy'`)).rows[0].duplicate_of, null);
+  });
+});

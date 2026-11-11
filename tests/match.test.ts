@@ -123,6 +123,15 @@ describe('scoreJob: remote from Pakistan', () => {
     assert.equal(scoreJob(raw({ location: 'Remote — Dubai' })).country, 'AE');
   });
 
+  it('reads "Remote — Remote job" (Arbeitnow without a location) as no region stated', () => {
+    for (const location of ['Remote — Remote job', 'Remote — Remote jobs', 'Remote job']) {
+      const s = scoreJob(raw({ location }));
+      assert.equal(s.country, 'RM', location);
+      assert.equal(s.filterReason, null, location);
+    }
+    assert.equal(scoreJob(raw({ location: 'Remote job — USA' })).filterReason, 'remote, but only for: USA');
+  });
+
   it('flags EMEA / unstated regions for a manual check', () => {
     const s = scoreJob(raw({ location: 'Remote — EMEA' }));
     assert.equal(s.country, 'RM');
