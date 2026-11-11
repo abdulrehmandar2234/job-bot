@@ -88,11 +88,16 @@ describe('.github/workflows/test.yml Node versions and coverage', () => {
 });
 
 describe('.github/dependabot.yml', () => {
-  it('opens monthly update PRs for the bot, the dashboard and the GitHub Actions', () => {
-    for (const dir of ['"/"', '"/web"']) assert.ok(dependabot.includes(`directory: ${dir}`), dir);
-    assert.equal([...dependabot.matchAll(/interval: monthly/g)].length, 3);
-    assert.equal([...dependabot.matchAll(/package-ecosystem: npm/g)].length, 2);
+  it('opens monthly update PRs for the bot, the dashboard, the docs site and the GitHub Actions', () => {
+    for (const dir of ['"/"', '"/web"', '"/docs"']) assert.ok(dependabot.includes(`directory: ${dir}`), dir);
+    assert.equal([...dependabot.matchAll(/interval: monthly/g)].length, 4);
+    assert.equal([...dependabot.matchAll(/package-ecosystem: npm/g)].length, 3);
     assert.match(dependabot, /package-ecosystem: github-actions/);
+  });
+
+  it('keeps the docs site packages in one grouped PR', () => {
+    const docs = dependabot.slice(dependabot.indexOf('directory: "/docs"'), dependabot.indexOf('github-actions'));
+    assert.match(docs, /docs-site:\n {8}patterns: \["\*"\]/);
   });
 
   it('groups packages that must move together into one PR (react with react-dom, vitest with its plugins)', () => {
