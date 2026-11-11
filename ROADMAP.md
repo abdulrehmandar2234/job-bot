@@ -39,6 +39,7 @@ Ideas taken from the two most popular open-source job-search tools on GitHub, bo
 - **Interview prep:** `bot prep <id>`; on the job page for applied and interview jobs, run as a background task.
 - **Dutch visa salary check (2026-11):** Dutch jobs that need a visa are flagged when their salary is below the IND highly-skilled-migrant minimum for your age (src/ind-salary.ts, `birthYear` in the profile).
 - **More sources (2026-11):** Jobicy and Hacker News "Who is hiring" (`remote.boards`), and Personio career pages (`"ats": "personio"`).
+- **Docker (2026-11):** `docker compose up -d` runs PostgreSQL, the dashboard and the daily run, with everything personal in `talaash-home/` (docs/install/docker.md).
 - **More sources:** Workday (`"ats": "workday"`, src/sources/index.ts), Arbeitnow and Adzuna (`remote.boards`, src/sources/boards.ts).
 - **Instant alerts for strong matches:** src/notify.ts, called by `ai:score`; `ai.alertStrong` in config.json or on `/settings`.
 - **Settings page:** `/settings` (web/app/settings, web/components/settings.tsx); `bot settings:check` / `settings:save`.

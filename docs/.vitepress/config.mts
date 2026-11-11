@@ -35,6 +35,7 @@ export default withMermaid(
             { text: 'Install on macOS', link: '/install/macos' },
             { text: 'Install on Linux', link: '/install/linux' },
             { text: 'Install on Windows', link: '/install/windows' },
+            { text: 'Run with Docker', link: '/install/docker' },
           ],
         },
         {

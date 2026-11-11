@@ -3,7 +3,7 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync
 import { homedir } from 'node:os';
 import { loadConfig } from '../config.ts';
 import { DASHBOARD_URL, notify, type Note } from '../notify.ts';
-import { dataPath, path, ROOT } from '../settings.ts';
+import { dataPath, masterFile, path, ROOT } from '../settings.ts';
 import { CACHE_MAX_AGE_DAYS, pruneCache } from '../sources/http.ts';
 import { indRegisterStale } from '../sponsors.ts';
 import { DEFAULT_DAILY_TIME } from '../types.ts';
@@ -295,10 +295,17 @@ export function configuredDailyTime(read: () => string | undefined = () => loadC
 /**
  * daily: the scheduled run. Works from any folder (Task Scheduler's schtasks cannot set one). With --if-due (how the
  * scheduler starts it, every 30 minutes) it runs only once a day, at `dailyTime` or the first check after it, and
- * exits quietly otherwise; without it, it always runs.
+ * exits quietly otherwise; without it, it always runs. A scheduled check before setup is done (no master CV yet, as
+ * right after `docker compose up`) waits without claiming the day, so the first run after setup is today's.
  */
-export async function daily(_args: string[] = [], flags: Record<string, string> = {}, now = new Date()) {
+export async function daily(
+  _args: string[] = [],
+  flags: Record<string, string> = {},
+  now = new Date(),
+  cvExists = () => existsSync(masterFile()),
+) {
   mkdirSync(dataPath(), { recursive: true });
+  if (flags['if-due'] && !cvExists()) return;
   if (flags['if-due'] && !claimDailyRun(dataPath(LAST_RUN_FILE), configuredDailyTime(), now)) return;
   // The children load .env themselves; this process needs it for JOB_BOT_NOTIFY. Variables already set win.
   if (existsSync(path('.env'))) process.loadEnvFile(path('.env'));

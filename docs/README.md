@@ -4,7 +4,7 @@ Talaash is a job-search assistant that runs on your own computer. It finds softw
 It **never applies on your behalf**: you review everything and submit every application yourself.
 It is a Node.js command-line bot plus a local web dashboard, sharing one PostgreSQL database on your machine.
 
-**In a hurry?** The [Quickstart](quickstart.md) is the short path: six commands from a clone to your first jobs.
+**In a hurry?** The [Quickstart](quickstart.md) is the short path: six commands from a clone to your first jobs. **Have Docker?** [Run Talaash with Docker](install/docker.md): one command starts the database, the dashboard and the daily run.
 
 ## 1. Install it on your computer
 

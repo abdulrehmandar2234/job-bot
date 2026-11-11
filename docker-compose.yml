@@ -1,0 +1,62 @@
+# Talaash with Docker: `docker compose up -d`, then open http://localhost:3100. Guide: docs/install/docker.md.
+#   db         PostgreSQL 17, its data in the "pgdata" volume
+#   app        the dashboard; also where you run bot commands: docker compose exec app bot <command>
+#   scheduler  the daily run: checks every 30 minutes and runs once a day at config.json's dailyTime (in TZ)
+# Your files (config, CV, profile, generated CVs and letters, logs, backups, .env) are in ./talaash-home on this
+# computer. Set TZ (e.g. TZ=Asia/Karachi) in your shell or in a .env file next to this one, so dailyTime is local time.
+
+x-talaash: &talaash
+  build: .
+  image: talaash:local
+  restart: unless-stopped
+  depends_on:
+    db:
+      condition: service_healthy
+  environment:
+    DATABASE_URL: postgres://postgres:talaash@db:5432/job_bot
+    TZ: ${TZ:-UTC}
+  volumes:
+    - ./talaash-home:/app/home
+  # Lets the AI reach a model on this computer (e.g. Ollama: http://host.docker.internal:11434/v1).
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
+
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: talaash
+      POSTGRES_DB: job_bot
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d job_bot"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  app:
+    <<: *talaash
+    # Only this computer can open the dashboard: it has no login, so it must never be reachable from the network.
+    ports:
+      - "127.0.0.1:${TALAASH_PORT:-3100}:3100"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3100/api/tasks').then((r) => process.exit(r.status < 500 ? 0 : 1), () => process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
+  scheduler:
+    <<: *talaash
+    command: ["sh", "-c", "while true; do bot daily --if-due; sleep 1800; done"]
+
+volumes:
+  pgdata:

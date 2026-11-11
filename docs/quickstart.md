@@ -12,6 +12,7 @@ From nothing to your first matching jobs in about ten minutes, plus the time to 
 | macOS                                           | [Install on macOS](install/macos.md)     |
 | Linux (Ubuntu / Debian; notes for Fedora, Arch) | [Install on Linux](install/linux.md)     |
 | Windows 10 / 11 (PowerShell)                    | [Install on Windows](install/windows.md) |
+| Any of them, with Docker                        | [Run with Docker](install/docker.md)     |
 
 ## 1. Get the code
 

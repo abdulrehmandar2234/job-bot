@@ -418,6 +418,20 @@ describe('daily --if-due', () => {
     );
   });
 
+  it('before setup (no master CV yet) waits without claiming the day, so the first run after setup is today', () => {
+    // As right after `docker compose up`: the scheduler's first check is past dailyTime, but there is no CV to score with.
+    const data = join(root, 'data-no-cv');
+    const r = spawnSync(process.execPath, ['--no-warnings', 'src/cli.ts', 'daily', '--if-due'], {
+      cwd: ROOT,
+      encoding: 'utf8',
+      env: { ...CLI_ENV, JOB_BOT_DATA_DIR: data, JOB_BOT_MASTER: join(root, 'no-such-master.json') },
+    });
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(r.stdout + r.stderr, '');
+    assert.equal(existsSync(join(data, 'daily-last-run')), false, 'the day is not claimed');
+    assert.equal(existsSync(join(data, 'fetch.log')), false, 'nothing ran');
+  });
+
   it('exits quietly when today is claimed already: no output, no run', () => {
     // Only this case is safe to run for real at any hour; when the run is due is covered by dailyDue above.
     const data = join(root, 'data-claimed');

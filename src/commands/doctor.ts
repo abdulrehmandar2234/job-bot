@@ -140,7 +140,19 @@ export async function runChecks(deps: Partial<DoctorDeps> = {}): Promise<Check[]
     if (/[\\/]/.test(claude) && d.exists(claude)) add('AI', 'ok', `Claude CLI at ${claude}`);
     else add('AI', 'fail', `Claude CLI "${claude}" not found`, 'install Claude Code and sign in (docs/ai.md), or set ai.claudePath');
   }
-  return out;
+  return d.env.TALAASH_DOCKER === '1' ? out.map(inDocker) : out;
+}
+
+/**
+ * The same check, its fix said for the Docker image (TALAASH_DOCKER=1): bot commands run through `docker compose exec`,
+ * the image already has its packages and Chrome, and it has no Claude CLI (docs/install/docker.md).
+ */
+export function inDocker(c: Check): Check {
+  if (!c.fix || c.level === 'ok') return c;
+  if (c.name === 'AI' && /Claude CLI/.test(c.detail))
+    return { ...c, fix: 'the Docker image has no Claude CLI: use an API key or Ollama (docs/install/docker.md#ai)' };
+  if (c.name === 'Packages' || c.name === 'PDF renderer (Chrome)') return { ...c, fix: 'rebuild the image: docker compose up -d --build' };
+  return { ...c, fix: c.fix.replaceAll('npm run bot -- ', 'docker compose exec app bot ') };
 }
 
 const MARK: Record<Level, string> = { ok: '✓', warn: '!', fail: '✗' };

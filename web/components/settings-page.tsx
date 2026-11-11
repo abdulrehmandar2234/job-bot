@@ -1,5 +1,6 @@
 import { connection } from 'next/server';
 import { ApplicantForm, ConfigForm, JsonEditor } from '@/components/settings';
+import { botCommand } from '@/lib/bot-command';
 import { SettingsNav } from '@/components/settings-nav';
 import { salaryKeys } from '@/lib/settings-form';
 import { SETTINGS_GROUPS } from '@/lib/settings-sections';
@@ -22,7 +23,7 @@ export async function Settings() {
             </h2>
             <p className="text-sm text-zinc-500">config.json · saving re-scores the stored jobs with the new filters.</p>
           </div>
-          <ConfigForm config={config} keys={aiKeyStatus()} />
+          <ConfigForm config={config} keys={aiKeyStatus()} bot={botCommand()} />
           <JsonEditor kind="config" file={config} />
         </section>
         <section id={profile.id} aria-labelledby={`${profile.id}-title`} className="scroll-mt-4 space-y-4">
