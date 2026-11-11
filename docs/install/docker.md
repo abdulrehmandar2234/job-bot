@@ -41,7 +41,7 @@ Any [tz database name](https://en.wikipedia.org/wiki/List_of_tz_database_time_zo
 docker compose exec app bot setup
 ```
 
-It asks for your profile, your target markets and the AI, and offers to start your CV from the example. The database is already there, so it skips that step.
+It asks for your profile, your target markets and the AI (in Docker it suggests an API key, since the image has no Claude Code CLI), and offers to start your CV from the example. The database is already there, so it skips that step. `docker compose exec app bot doctor` then checks the whole setup and says, for each problem, the Docker command that fixes it.
 
 **Every bot command** works the same way: `docker compose exec app bot <command>`, for example `bot doctor`, `bot fetch` or `bot list`. The [CLI reference](../cli.md) has them all.
 
@@ -83,7 +83,7 @@ Then restart, so the dashboard reads it: `docker compose restart`. [AI](../ai.md
 
 ## The daily run
 
-The `scheduler` service runs `bot daily --if-due` every 30 minutes; the run itself happens once a day at `dailyTime` (Settings page, **Daily run time**), in your `TZ`. It fetches, checks which postings closed, lets the AI review new matches and backs up the database. Its log is `talaash-home/data/fetch.log`. Run it at once with `docker compose exec app bot daily`.
+The `scheduler` service runs `bot daily --if-due` every 30 minutes; the run itself happens once a day at `dailyTime` (Settings page, **Daily run time**), in your `TZ`. It fetches, checks which postings closed, lets the AI review new matches and backs up the database. Its log is `talaash-home/data/fetch.log`. Until your CV exists (`talaash-home/cv/master.json`) it waits, so the first run comes after setup, the same day. Run it at once with `docker compose exec app bot daily`.
 
 ## The Chrome extension
 

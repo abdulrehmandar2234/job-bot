@@ -2,18 +2,13 @@
 # PostgreSQL client for backups. docker-compose.yml runs it with a PostgreSQL service and a scheduler for the daily run;
 # docs/install/docker.md is the guide. Everything personal (config.json, your CV and profile, generated CVs, letters,
 # logs, backups and .env) lives in the mounted /app/home, never in the image.
-FROM node:24-bookworm-slim
+#
+# Two stages: `build` installs every package and builds the dashboard; the final image copies only what runs (no
+# build-only packages, no build cache), so it stays about half the size.
 
+FROM node:24-bookworm-slim AS base
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \
-    NEXT_TELEMETRY_DISABLED=1 \
-    JOB_BOT_NOTIFY=off \
-    JOB_BOT_CONFIG=/app/home/config.json \
-    JOB_BOT_APPLICANT=/app/home/cv/applicant.json \
-    JOB_BOT_MASTER=/app/home/cv/master.json \
-    JOB_BOT_DATA_DIR=/app/home/data \
-    JOB_BOT_ENV_FILE=/app/home/.env \
-    JOB_BOT_WEB_ENV_FILE=/app/home/.env
-
+    NEXT_TELEMETRY_DISABLED=1
 # The PostgreSQL 17 client (pg_dump and psql must not be older than the server in docker-compose.yml), from the
 # PostgreSQL project's apt repository; tzdata so the daily run follows TZ.
 RUN apt-get update \
@@ -24,25 +19,38 @@ RUN apt-get update \
  && apt-get update \
  && apt-get install -y --no-install-recommends postgresql-client-17 \
  && rm -rf /var/lib/apt/lists/*
-
 WORKDIR /app
 
+FROM base AS build
 # Dependencies first, so a code change does not reinstall them. --ignore-scripts: the root "prepare" script installs
 # git hooks, which a container has no use for.
 COPY package.json package-lock.json ./
 COPY web/package.json web/package-lock.json web/
-RUN npm ci --ignore-scripts \
- && npm ci --prefix web \
- && npx playwright-core install --with-deps chromium-headless-shell \
- && rm -rf /var/lib/apt/lists/*
-
+RUN npm ci --ignore-scripts && npm ci --prefix web
+# Chrome's headless shell (its system libraries are installed in the final image).
+RUN npx playwright-core install chromium-headless-shell
 COPY . .
-
 # The dashboard's production build. No page queries the database while building; the URL only satisfies modules that
-# read it on import. Then the build-only packages go.
+# read it on import. Then the build-only packages and the build cache go.
 RUN DATABASE_URL=postgres://build@127.0.0.1:1/none npm --prefix web run build \
  && npm prune --omit=dev --ignore-scripts \
- && npm prune --omit=dev --prefix web
+ && npm prune --omit=dev --prefix web \
+ && rm -rf web/.next/cache
+
+FROM base
+ENV TALAASH_DOCKER=1 \
+    JOB_BOT_NOTIFY=off \
+    JOB_BOT_CONFIG=/app/home/config.json \
+    JOB_BOT_APPLICANT=/app/home/cv/applicant.json \
+    JOB_BOT_MASTER=/app/home/cv/master.json \
+    JOB_BOT_DATA_DIR=/app/home/data \
+    JOB_BOT_ENV_FILE=/app/home/.env \
+    JOB_BOT_WEB_ENV_FILE=/app/home/.env
+COPY --from=build --chown=node:node /app /app
+COPY --from=build --chown=node:node /ms-playwright /ms-playwright
+# The system libraries Chrome's headless shell needs.
+RUN npx playwright-core install-deps chromium-headless-shell \
+ && rm -rf /var/lib/apt/lists/*
 
 # The bot keeps its generated files in folders under /app; they point into /app/home so they survive a rebuild.
 # Settings files are moved with the JOB_BOT_* variables above instead: they are saved by rename, which would
@@ -57,8 +65,7 @@ RUN mkdir -p /app/home \
  && ln -s /app/home/.env /app/.env \
  && ln -s /app/home/.env /app/web/.env.local \
  && install -m 0755 docker/bot /usr/local/bin/bot \
- && install -m 0755 docker/entrypoint.sh /usr/local/bin/talaash-entrypoint \
- && chown -R node:node /app/web/.next /ms-playwright
+ && install -m 0755 docker/entrypoint.sh /usr/local/bin/talaash-entrypoint
 
 EXPOSE 3100
 ENTRYPOINT ["talaash-entrypoint"]

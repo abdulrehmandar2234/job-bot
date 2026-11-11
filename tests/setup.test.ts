@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { PassThrough, Readable } from 'node:stream';
 import './helpers.ts';
-import { claudePathHint, DEFAULT_DATABASE_URL, runSetup, type SetupFiles } from '../src/commands/setup.ts';
+import { claudePathHint, DEFAULT_DATABASE_URL, NEXT_STEPS, NEXT_STEPS_DOCKER, runSetup, type SetupFiles } from '../src/commands/setup.ts';
 import type { DbState } from '../src/db-check.ts';
 import { effectiveRemoteRules } from '../src/regions.ts';
 import { validateApplicant, validateConfig } from '../src/settings.ts';
@@ -247,6 +247,24 @@ describe('setup wizard', () => {
     assert.match(printed, /for DeepSeek, choose deepseek here/);
     assert.doesNotMatch(printed, /Path to the Claude Code CLI/);
     assert.doesNotMatch(readFileSync(f.config, 'utf8'), /API_KEY|sk-/);
+  });
+
+  it('in Docker: says there is no Claude CLI, Enter chooses an API key, and the next steps go through compose', async () => {
+    const f = files();
+    const { ok, printed } = await run(withAi('', ''), { ...f, docker: true }, JANE_MASTER);
+    assert.equal(ok, true, printed);
+    assert.equal(json(f.config).ai.provider, 'api');
+    assert.match(printed, /In Docker there is no Claude Code CLI: choose api/);
+    assert.match(printed, /Claude CLI or API key \(claude-cli \/ api\) \[api\]: /);
+    assert.doesNotMatch(printed, /Path to the Claude Code CLI/);
+    for (const line of NEXT_STEPS_DOCKER) assert.ok(printed.includes(line), line);
+    assert.doesNotMatch(printed, /npm run bot|playwright-core install|schedule:print/);
+  });
+
+  it('outside Docker the next steps are the npm ones', async () => {
+    const { printed } = await run(JANE, files(), JANE_MASTER);
+    for (const line of NEXT_STEPS) assert.ok(printed.includes(line), line);
+    assert.doesNotMatch(printed, /docker compose/);
   });
 
   it('API key with a preset: stores it and shows its models', async () => {

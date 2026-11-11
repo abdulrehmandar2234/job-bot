@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { OWNER_MASTER } from './helpers.ts';
-import { runChecks, type Check, type DoctorDeps } from '../src/commands/doctor.ts';
+import { inDocker, runChecks, type Check, type DoctorDeps } from '../src/commands/doctor.ts';
 
 // `bot doctor` checks a setup and says how to fix it. Every outside dependency is faked: no database, Chrome or AI.
 
@@ -40,6 +40,37 @@ function deps(over: Partial<DoctorDeps> & { contents?: Record<string, string | u
   };
 }
 const byName = (checks: Check[], name: string) => checks.find((c) => c.name.startsWith(name))!;
+
+describe('doctor in the Docker image (TALAASH_DOCKER=1)', () => {
+  it('says each fix the Docker way: compose exec for bot commands, an API key instead of the Claude CLI, a rebuild for Chrome', async () => {
+    const checks = await runChecks(
+      deps({
+        env: { DATABASE_URL: 'postgres://postgres:talaash@db:5432/job_bot', TALAASH_DOCKER: '1' },
+        contents: { [files.master]: undefined, [files.applicant]: undefined },
+        chrome: () => null,
+        claude: () => 'claude',
+      }),
+    );
+    assert.equal(
+      byName(checks, 'Your CV').fix,
+      'docker compose exec app bot setup (offers to start it from the example), then put in your CV',
+    );
+    assert.equal(byName(checks, 'Your profile').fix, 'docker compose exec app bot setup');
+    assert.equal(byName(checks, 'PDF renderer').fix, 'rebuild the image: docker compose up -d --build');
+    assert.equal(byName(checks, 'AI').fix, 'the Docker image has no Claude CLI: use an API key or Ollama (docs/install/docker.md#ai)');
+    assert.ok(checks.every((c) => !c.fix?.includes('npm run bot')));
+  });
+
+  it('leaves passing checks and fixes outside Docker alone', async () => {
+    assert.deepEqual(inDocker({ name: 'Database', level: 'ok', detail: 'reachable' }), {
+      name: 'Database',
+      level: 'ok',
+      detail: 'reachable',
+    });
+    const outside = await runChecks(deps({ contents: { [files.master]: undefined } }));
+    assert.match(byName(outside, 'Your CV').fix ?? '', /^npm run bot -- setup/);
+  });
+});
 
 describe('doctor', () => {
   it('a healthy setup passes every check', async () => {

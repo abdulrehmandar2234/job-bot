@@ -33,6 +33,8 @@ export type SetupFiles = {
   masterExample?: string;
   /** Checks and creates the database in DATABASE_URL (src/db-check.ts); left out, the step is skipped. */
   database?: { check: (url: string) => Promise<DbState>; create: (url: string) => Promise<void> };
+  /** Running in the Docker image (TALAASH_DOCKER=1): no Claude CLI there, and the next steps go through compose. */
+  docker?: boolean;
 };
 
 const isObj = (v: unknown): v is Json => !!v && typeof v === 'object' && !Array.isArray(v);
@@ -129,6 +131,14 @@ export const NEXT_STEPS = [
   'Check the whole setup at any time: `npm run bot -- doctor`.',
   "PDFs (CV and letters) need Chrome's headless shell, once: `npx playwright-core install chromium-headless-shell`.",
   'Daily fetch: `npm run bot -- schedule:print` prints the scheduler setup for this computer (docs/install/<your OS>.md, step 12).',
+];
+
+/** The next steps in the Docker image: commands through compose, files in talaash-home, no Chrome or scheduler to set up. */
+export const NEXT_STEPS_DOCKER = [
+  'Next: put your CV in talaash-home/cv/master.json (see cv/master.example.json), then `docker compose exec app bot cv:default` and `docker compose exec app bot fetch`.',
+  'Check the whole setup at any time: `docker compose exec app bot doctor`.',
+  'AI with an API key: put AI_API_KEY=... in talaash-home/.env, then `docker compose restart` (docs/install/docker.md#ai).',
+  'The daily run is the scheduler service: once a day at dailyTime, in your TZ (docs/install/docker.md).',
 ];
 
 /** The connection string the install guides use (docs/install, step 4). */
@@ -337,9 +347,10 @@ export async function runSetup(io: SetupIO, files: SetupFiles = { config: CONFIG
     const ai = (isObj(cfg.ai) ? cfg.ai : {}) as Json;
     p.say('AI for scoring, letters and answers: claude-cli (your signed-in Claude Code CLI, no API key) or api');
     p.say('(one API key in .env: OpenAI, Anthropic, Gemini, Groq, DeepSeek, ...; paid per token).');
+    if (files.docker) p.say('In Docker there is no Claude Code CLI: choose api (an API key, or a local model through Ollama).');
     const wasApi = !!ai.provider && ai.provider !== 'claude-cli'; // "openai" / "deepseek" are older names for "api"
     const mode = (
-      await p.ask('Claude CLI or API key (claude-cli / api)', wasApi ? 'api' : text(ai.provider) || 'claude-cli', (v) =>
+      await p.ask('Claude CLI or API key (claude-cli / api)', wasApi || files.docker ? 'api' : text(ai.provider) || 'claude-cli', (v) =>
         /^(claude-cli|api)$/i.test(v) ? null : 'claude-cli or api',
       )
     ).toLowerCase();
@@ -429,7 +440,7 @@ export async function runSetup(io: SetupIO, files: SetupFiles = { config: CONFIG
     const gaps = profileGaps(buildProfile(app, master));
     if (gaps.length)
       p.say(`Still missing in your profile: ${gaps.join(', ')}. Run setup again or edit it on the dashboard's Settings page.`);
-    for (const line of NEXT_STEPS) p.say(line);
+    for (const line of files.docker ? NEXT_STEPS_DOCKER : NEXT_STEPS) p.say(line);
     return true;
   } finally {
     p.close();
@@ -448,6 +459,7 @@ export async function setup(_args: string[], _flags: Flags) {
     masterPath: masterFile(),
     masterExample: path('cv', 'master.example.json'),
     database: await import('../db-check.ts').then((m) => ({ check: m.checkDatabase, create: m.createDatabase })),
+    docker: process.env.TALAASH_DOCKER === '1',
   };
   if (!(await runSetup({ input: process.stdin, output: process.stdout }, files))) process.exitCode = 1;
 }

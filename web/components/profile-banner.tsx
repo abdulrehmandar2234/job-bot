@@ -1,10 +1,11 @@
 import Link from 'next/link';
 import { connection } from 'next/server';
+import { botCommand, NPM_BOT } from '@/lib/bot-command';
 import { PROFILE_LABEL } from '@/lib/market';
 import { readMarketLine, readProfileStatus, type ProfileStatus } from '@/lib/profile';
 
 /** First-run banner: shown until cv/applicant.json exists and has every required profile field. */
-export function ProfileBanner({ status }: { status: ProfileStatus }) {
+export function ProfileBanner({ status, bot = NPM_BOT }: { status: ProfileStatus; bot?: string }) {
   if (status.exists && !status.gaps.length) return null;
   const missing = status.gaps.map((g) => PROFILE_LABEL[g]).join(', ');
   return (
@@ -17,7 +18,7 @@ export function ProfileBanner({ status }: { status: ProfileStatus }) {
         <Link href="/settings" className="font-medium underline">
           Open Settings
         </Link>{' '}
-        or run <code>npm run bot -- setup</code>.
+        or run <code>{bot} setup</code>.
       </p>
     </div>
   );
@@ -31,5 +32,5 @@ export async function MarketHeader() {
 
 export async function FirstRunBanner() {
   await connection();
-  return <ProfileBanner status={readProfileStatus()} />;
+  return <ProfileBanner status={readProfileStatus()} bot={botCommand()} />;
 }

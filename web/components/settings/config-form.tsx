@@ -9,7 +9,7 @@ import { Check, Field, input, lines, SaveBar, Section, text, useSave } from './f
 import { CompaniesEditor } from './row-editors';
 
 /** The Settings page's form for config.json: matching, countries, sources, the AI and the companies. */
-export function ConfigForm({ config, keys }: { config: SettingsFile; keys?: AiKeyStatus }) {
+export function ConfigForm({ config, keys, bot = 'npm run bot --' }: { config: SettingsFile; keys?: AiKeyStatus; bot?: string }) {
   const { state, pending, onSubmit, onEdit, errors } = useSave(saveConfig);
   const c = config.data;
   if (!c)
@@ -89,9 +89,7 @@ export function ConfigForm({ config, keys }: { config: SettingsFile; keys?: AiKe
               </div>
             </div>
           ))}
-          <p className="text-xs text-zinc-500">
-            Add or remove countries with `npm run bot -- setup` or under &quot;Advanced: edit JSON&quot;.
-          </p>
+          <p className="text-xs text-zinc-500">Add or remove countries with `{bot} setup` or under &quot;Advanced: edit JSON&quot;.</p>
         </Section>
 
         <Section id="linkedin">
