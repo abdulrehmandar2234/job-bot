@@ -64,14 +64,14 @@ npm run bot -- restore <file> [--into db] [--yes]  # load a backup with psql; a 
 
 ## Daily fetch
 
-`npm run bot -- daily` runs `fetch`, `check:open --limit 100` and `ai:score`, shows a notification with the result, backs up the database and cleans up leftover files (temporary files, old `data/cv-backups`, one-off CVs of long-finished jobs), logging to `data/fetch.log`. A scheduler starts it at 9:00; `npm run bot -- schedule:print` prints the setup for your OS with your paths filled in (step 12 of each [install guide](README.md#1-install-it-on-your-computer) has the details):
+`npm run bot -- daily` runs `fetch`, `check:open --limit 100` and `ai:score`, shows a notification with the result, backs up the database and cleans up leftover files (temporary files, old `data/cv-backups`, one-off CVs of long-finished jobs), logging to `data/fetch.log`. It runs once a day at `dailyTime` in `config.json` (default 09:00; **Daily run time** on the Settings page). `daily --if-due` starts the run only when it is due, so on macOS and Linux the scheduler checks every 30 minutes and a new time needs no other change; `npm run bot -- schedule:print` prints the setup for your OS with your paths filled in (step 12 of each [install guide](README.md#1-install-it-on-your-computer) has the details):
 
-| OS      | Scheduler                                                    | A missed 9:00 (computer off)    |
-| ------- | ------------------------------------------------------------ | ------------------------------- |
-| macOS   | launchd plist running `scripts/daily-fetch.sh` (zsh wrapper) | runs after sleep, not shut-down |
-| Linux   | systemd user timer (or a cron line)                          | runs at boot (timer)            |
-| Windows | Task Scheduler (`Register-ScheduledTask` or `schtasks`)      | runs when the computer is on    |
+| OS      | Scheduler                                                                | A missed run (computer asleep or off) | After changing `dailyTime` |
+| ------- | ------------------------------------------------------------------------ | ------------------------------------- | -------------------------- |
+| macOS   | launchd: `scripts/daily-fetch.sh --if-due` every 30 minutes and at login | at the first check after it           | nothing to do              |
+| Linux   | systemd user timer (or a cron line): `daily --if-due` every 30 minutes   | at the first check after it           | nothing to do              |
+| Windows | Task Scheduler (`Register-ScheduledTask` or `schtasks`) at `dailyTime`   | when the computer is on again         | run `schedule:print` again |
 
-Each step has a time limit (fetch 30 min, check:open 15, ai:score 60, backup 10): a step that hangs is stopped, named in the notification, and the rest still run. `fetch` exits 1 when every source failed ("All N sources failed — is the network up?") and reports "N of M sources failed" otherwise. `data/fetch.log` and the task log rotate at 5 MB. What each message means: [troubleshooting](troubleshooting.md#the-900-run-did-not-happen).
+Each step has a time limit (fetch 30 min, check:open 15, ai:score 60, backup 10): a step that hangs is stopped, named in the notification, and the rest still run. `fetch` exits 1 when every source failed ("All N sources failed — is the network up?") and reports "N of M sources failed" otherwise. `data/fetch.log` and the task log rotate at 5 MB. What each message means: [troubleshooting](troubleshooting.md#the-daily-run-did-not-happen).
 
-On macOS, keep the project out of `~/Desktop` and `~/Documents`, because macOS does not let background jobs read them. Run it now with `launchctl kickstart gui/$(id -u)/com.<you>.job-bot.fetch` (macOS), `systemctl --user start job-bot-fetch.service` (Linux), `Start-ScheduledTask -TaskName 'job-bot daily fetch'` (Windows), or `npm run bot -- daily` anywhere.
+On macOS, keep the project out of `~/Desktop` and `~/Documents`, because macOS does not let background jobs read them. Run a full run now, whatever the time, with `npm run bot -- daily`; on Windows also `Start-ScheduledTask -TaskName 'job-bot daily fetch'`.

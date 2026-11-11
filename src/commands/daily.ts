@@ -1,11 +1,12 @@
 import { spawn } from 'node:child_process';
-import { appendFileSync, existsSync, mkdirSync, renameSync, rmSync, statSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { loadConfig } from '../config.ts';
 import { DASHBOARD_URL, notify, type Note } from '../notify.ts';
 import { dataPath, path, ROOT } from '../settings.ts';
 import { CACHE_MAX_AGE_DAYS, pruneCache } from '../sources/http.ts';
 import { indRegisterStale } from '../sponsors.ts';
+import { DEFAULT_DAILY_TIME } from '../types.ts';
 
 // daily: the scheduled morning run, the same on macOS, Linux and Windows (launchd runs it through
 // scripts/daily-fetch.sh; cron, a systemd timer or Task Scheduler run it directly, see `bot schedule:print`).
@@ -251,11 +252,56 @@ export function usesIndRegister(): boolean {
   }
 }
 
-/** daily: the scheduled run. Works from any folder (Task Scheduler's schtasks cannot set one). */
-export async function daily() {
+export { DEFAULT_DAILY_TIME };
+/** The file that holds the local date ("2026-11-11") of the last scheduled run (`daily --if-due`). */
+export const LAST_RUN_FILE = 'daily-last-run';
+
+/** A local calendar date as "YYYY-MM-DD". */
+export const localDate = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+/**
+ * Whether the scheduled run should start now: it is `time` ("HH:MM", local) or later today, and the last scheduled
+ * run was not today. The scheduler starts `daily --if-due` every 30 minutes, so a new `dailyTime` (config.json or the
+ * Settings page) takes effect the next day it is due, and a run missed while the computer slept happens when it wakes.
+ */
+export function dailyDue(time: string, now: Date, lastRun: string | null): boolean {
+  const [h, m] = time.split(':').map(Number);
+  if (lastRun === localDate(now)) return false;
+  return now.getHours() > h || (now.getHours() === h && now.getMinutes() >= m);
+}
+
+/**
+ * Whether the scheduled run starts now (dailyDue, with the last run's date read from `marker`). When it does, today's
+ * date is written to `marker` first, so a run longer than the check interval is not started a second time.
+ */
+export function claimDailyRun(marker: string, time: string, now: Date): boolean {
+  const last = existsSync(marker) ? readFileSync(marker, 'utf8').trim() : null;
+  if (!dailyDue(time, now, last)) return false;
+  writeFileSync(marker, `${localDate(now)}\n`);
+  return true;
+}
+
+/** config.json's `dailyTime`, or 09:00 when it is missing, invalid or config.json cannot be read. */
+export function configuredDailyTime(read: () => string | undefined = () => loadConfig().dailyTime): string {
+  try {
+    const t = read();
+    return t && /^([01]\d|2[0-3]):[0-5]\d$/.test(t) ? t : DEFAULT_DAILY_TIME;
+  } catch {
+    return DEFAULT_DAILY_TIME; // a broken config.json: the run's fetch reports it
+  }
+}
+
+/**
+ * daily: the scheduled run. Works from any folder (Task Scheduler's schtasks cannot set one). With --if-due (how the
+ * scheduler starts it, every 30 minutes) it runs only once a day, at `dailyTime` or the first check after it, and
+ * exits quietly otherwise; without it, it always runs.
+ */
+export async function daily(_args: string[] = [], flags: Record<string, string> = {}, now = new Date()) {
+  mkdirSync(dataPath(), { recursive: true });
+  if (flags['if-due'] && !claimDailyRun(dataPath(LAST_RUN_FILE), configuredDailyTime(), now)) return;
   // The children load .env themselves; this process needs it for JOB_BOT_NOTIFY. Variables already set win.
   if (existsSync(path('.env'))) process.loadEnvFile(path('.env'));
-  mkdirSync(dataPath(), { recursive: true });
   const logFile = dataPath('fetch.log');
   await runDaily({
     run: cliRunner(logFile),

@@ -220,6 +220,14 @@ Adzuna is an official job-search API. Salaries it returns are read in each count
 
 The system Chrome paths tried by `auto`: on macOS `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome` and `/Applications/Chromium.app/Contents/MacOS/Chromium`; on Windows `C:\Program Files\Google\Chrome\Application\chrome.exe` and the `(x86)` folder; on Linux `/usr/bin/google-chrome`, `/usr/bin/google-chrome-stable`, `/usr/bin/chromium` and `/usr/bin/chromium-browser`.
 
+## Daily run
+
+| Key         | Type                     | Default           | What it does                                                                                                                                                                                                                                                                                                                                 | Sensible values                          |
+| ----------- | ------------------------ | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- |
+| `dailyTime` | time `"HH:MM"`, optional | missing = `09:00` | When the scheduled daily run starts, local 24-hour time (`"18:30"`). On macOS and Linux the scheduler checks every 30 minutes (`bot daily --if-due`), so a new time works from the next check with no other change. On Windows the task starts at the time itself: run `schedule:print` again after changing it. The Settings page edits it. | Before you start your day, e.g. `08:00`. |
+
+The run happens once a day: at `dailyTime`, or at the first check after it if the computer was asleep or off. Changing the time after today's run moves tomorrow's. `npm run bot -- daily` (without `--if-due`) always runs at once.
+
 ## Environment variables
 
 ### `.env` (the bot)

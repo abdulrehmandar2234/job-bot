@@ -46,7 +46,7 @@ Two programs share one local PostgreSQL database:
 1. **The bot CLI** (`src/`, Node + TypeScript): fetches, scores, calls the AI and renders CV PDFs. `npm run bot -- <command>`; every command is in the [CLI reference](docs/cli.md).
 2. **The dashboard** (`web/`, Next.js, `npm run web`): your job list, job pages, settings and analytics. Heavy work runs as background tasks through the same CLI commands.
 
-A scheduler runs `bot daily` at 9:00 (fetch, dead-link check, AI review, notification, backup, cleanup). The architecture, the path of one job and the code layout are in [How it works](docs/how-it-works.md).
+A scheduler runs `bot daily` once a day at a time you choose, 09:00 by default (fetch, dead-link check, AI review, notification, backup, cleanup). The architecture, the path of one job and the code layout are in [How it works](docs/how-it-works.md).
 
 ## Principles
 

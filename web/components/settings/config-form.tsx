@@ -3,7 +3,7 @@
 import { saveConfig } from '@/app/settings/actions';
 import type { AiKeyStatus, SettingsFile } from '@/lib/settings';
 import { DEFAULT_TEMPLATE, TEMPLATES } from '@/lib/cv-template-list';
-import { get, type Json } from '@/lib/settings-form';
+import { DEFAULT_DAILY_TIME, get, type Json } from '@/lib/settings-form';
 import { AiSection } from './ai-section';
 import { Check, Field, input, lines, SaveBar, Section, text, useSave } from './fields';
 import { CompaniesEditor } from './row-editors';
@@ -31,6 +31,9 @@ export function ConfigForm({ config, keys }: { config: SettingsFile; keys?: AiKe
             </Field>
             <Field label="Max posting age (days)" {...f('maxAgeDays')}>
               <input type="number" min={0} name="maxAgeDays" defaultValue={text(c.maxAgeDays)} className={input} />
+            </Field>
+            <Field label="Daily run time" hint="local time; the daily fetch starts then (default 09:00)" {...f('dailyTime')}>
+              <input type="time" name="dailyTime" defaultValue={text(c.dailyTime) || DEFAULT_DAILY_TIME} className={input} />
             </Field>
           </div>
           <Field label="Role include" hint="regular expression" {...f('roleInclude')}>

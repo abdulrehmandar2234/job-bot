@@ -7,9 +7,14 @@ import { join } from 'node:path';
 import {
   AI_FAILED,
   childEnv,
+  claimDailyRun,
   cliRunner,
+  configuredDailyTime,
   type DailyDeps,
+  DEFAULT_DAILY_TIME,
+  dailyDue,
   FETCH_FAILED,
+  localDate,
   rotateLogs,
   runDaily,
   STEP_TIMEOUT_MIN,
@@ -343,7 +348,7 @@ describe('childEnv', () => {
 
 // The launchd entry point (the owner's plist runs `/bin/zsh scripts/daily-fetch.sh`): it must hand over to `bot daily`.
 describe('scripts/daily-fetch.sh', { skip: !existsSync('/bin/zsh') }, () => {
-  it('runs `node ... src/cli.ts daily` in the repository, with ~/.local/bin on PATH', () => {
+  it('runs `node ... src/cli.ts daily` in the repository, with ~/.local/bin on PATH, passing its arguments on', () => {
     const home = join(root, 'home');
     const bin = join(home, '.local', 'bin');
     mkdirSync(bin, { recursive: true });
@@ -360,45 +365,127 @@ describe('scripts/daily-fetch.sh', { skip: !existsSync('/bin/zsh') }, () => {
     assert.equal(r.status, 0, r.stderr);
     const [line] = readFileSync(calls, 'utf8').trim().split('\n');
     assert.match(line, /\/repo node --no-warnings --env-file-if-exists=\.env src\/cli\.ts daily$/);
+    const due = spawnSync('/bin/zsh', [join(root, 'repo', 'scripts', 'daily-fetch.sh'), '--if-due'], { cwd: root, env: { HOME: home } });
+    assert.equal(due.status, 0);
+    assert.match(readFileSync(calls, 'utf8').trim().split('\n')[1], /src\/cli\.ts daily --if-due$/);
+  });
+});
+
+describe('daily --if-due', () => {
+  const at = (h: number, m: number, day = 11) => new Date(2026, 10, day, h, m);
+
+  it('is due at dailyTime or later, once a local day', () => {
+    assert.equal(dailyDue('09:00', at(8, 59), null), false);
+    assert.equal(dailyDue('09:00', at(9, 0), null), true);
+    assert.equal(dailyDue('09:00', at(23, 30), '2026-11-10'), true, 'missed while asleep: runs when it wakes');
+    assert.equal(dailyDue('09:00', at(9, 30), '2026-11-11'), false, 'already ran today');
+    assert.equal(dailyDue('18:30', at(18, 29), null), false);
+    assert.equal(dailyDue('18:30', at(18, 30), null), true);
+    assert.equal(dailyDue('18:30', at(19, 0), null), true);
+    assert.equal(dailyDue('00:00', at(0, 0, 12), '2026-11-11'), true);
+  });
+
+  it('claims the day in the marker file before the run, so a later check does not start it again', () => {
+    const marker = join(root, 'daily-last-run');
+    rmSync(marker, { force: true });
+    assert.equal(claimDailyRun(marker, '07:30', at(7, 0)), false);
+    assert.equal(existsSync(marker), false, 'nothing written before the time');
+    assert.equal(claimDailyRun(marker, '07:30', at(7, 30)), true);
+    assert.equal(readFileSync(marker, 'utf8'), '2026-11-11\n');
+    assert.equal(claimDailyRun(marker, '07:30', at(8, 0)), false);
+    assert.equal(claimDailyRun(marker, '07:30', at(7, 45, 12)), true, 'the next day');
+    assert.equal(localDate(at(0, 5, 1)), '2026-11-01');
+  });
+
+  it('reads dailyTime from config.json, 09:00 when it is missing, invalid or config.json cannot be read', () => {
+    assert.equal(
+      configuredDailyTime(() => '18:30'),
+      '18:30',
+    );
+    assert.equal(
+      configuredDailyTime(() => undefined),
+      DEFAULT_DAILY_TIME,
+    );
+    assert.equal(
+      configuredDailyTime(() => '25:00'),
+      '09:00',
+    );
+    assert.equal(
+      configuredDailyTime(() => {
+        throw new Error('Invalid settings file');
+      }),
+      '09:00',
+    );
+  });
+
+  it('exits quietly when today is claimed already: no output, no run', () => {
+    // Only this case is safe to run for real at any hour; when the run is due is covered by dailyDue above.
+    const data = join(root, 'data-claimed');
+    mkdirSync(data, { recursive: true });
+    writeFileSync(join(data, 'daily-last-run'), `${localDate(new Date())}\n`);
+    const r = spawnSync(process.execPath, ['--no-warnings', 'src/cli.ts', 'daily', '--if-due'], {
+      cwd: ROOT,
+      encoding: 'utf8',
+      env: { ...CLI_ENV, JOB_BOT_DATA_DIR: data },
+    });
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(r.stdout + r.stderr, '');
+    assert.equal(existsSync(join(data, 'fetch.log')), false);
   });
 });
 
 describe('scheduleSnippet', () => {
-  it('macOS: a launchd plist that runs scripts/daily-fetch.sh with zsh at 9:00', () => {
+  it('says when the run happens: every 30 minutes a check, the run once a day at dailyTime', () => {
+    const s = scheduleSnippet({ platform: 'darwin', root: '/r', node: '/n', user: 'me', time: '18:30' });
+    assert.match(s, /^# Talaash's daily run: the scheduler starts `bot daily --if-due` every 30 minutes/);
+    assert.match(s, /Changing the time later needs no change here/);
+    assert.match(s, /once\n# a day at 18:30 \(config\.json "dailyTime", or the Settings page\)/);
+    assert.match(scheduleSnippet({ platform: 'linux', root: '/r', node: '/n', user: 'me' }), /a day at 09:00 /);
+  });
+
+  it('macOS: a launchd plist that runs scripts/daily-fetch.sh --if-due with zsh every 30 minutes and at login', () => {
     const s = scheduleSnippet({ platform: 'darwin', root: '/Users/me/job bot', node: '/opt/homebrew/bin/node', user: 'me' });
     assert.match(s, /<string>com\.me\.job-bot\.fetch<\/string>/);
-    assert.match(s, /<string>\/bin\/zsh<\/string><string>\/Users\/me\/job bot\/scripts\/daily-fetch\.sh<\/string>/);
-    assert.match(s, /<key>Hour<\/key><integer>9<\/integer>/);
+    assert.match(
+      s,
+      /<string>\/bin\/zsh<\/string><string>\/Users\/me\/job bot\/scripts\/daily-fetch\.sh<\/string><string>--if-due<\/string>/,
+    );
+    assert.match(s, /<key>StartInterval<\/key><integer>1800<\/integer>\n {2}<key>RunAtLoad<\/key><true\/>/);
+    assert.doesNotMatch(s, /StartCalendarInterval|Hour/);
     assert.match(s, /launchctl bootstrap gui\/\$\(id -u\) ~\/Library\/LaunchAgents\/com\.me\.job-bot\.fetch\.plist/);
   });
 
   it('Linux: a systemd user service and persistent timer, and a cron line with the session bus', () => {
     const s = scheduleSnippet({ platform: 'linux', root: "/home/me/o'k", node: '/usr/bin/node', user: 'me', uid: 1000 });
     assert.match(s, /^WorkingDirectory=\/home\/me\/o'k$/m);
-    assert.match(s, /^ExecStart="\/usr\/bin\/node" --no-warnings --env-file-if-exists=\.env src\/cli\.ts daily$/m);
-    assert.match(s, /^OnCalendar=\*-\*-\* 09:00:00\nPersistent=true$/m);
+    assert.match(s, /^ExecStart="\/usr\/bin\/node" --no-warnings --env-file-if-exists=\.env src\/cli\.ts daily --if-due$/m);
+    assert.match(s, /^OnCalendar=\*:0\/30\nPersistent=true$/m);
     assert.match(s, /systemctl --user enable --now job-bot-fetch\.timer/);
     assert.match(s, /^DBUS_SESSION_BUS_ADDRESS=unix:path=\/run\/user\/1000\/bus$/m);
-    assert.match(s, /^0 9 \* \* \* cd '\/home\/me\/o'\\''k' && '\/usr\/bin\/node' --no-warnings .* daily$/m);
+    assert.match(s, /^\*\/30 \* \* \* \* cd '\/home\/me\/o'\\''k' && '\/usr\/bin\/node' --no-warnings .* daily --if-due$/m);
   });
 
-  it('Windows: Register-ScheduledTask in PowerShell (quoted literals) and a schtasks line for cmd.exe', () => {
+  it('Windows: a once-a-day task at dailyTime (no console window every 30 minutes), in PowerShell and schtasks', () => {
     const s = scheduleSnippet({
       platform: 'win32',
       root: "C:\\Users\\O'Neil\\talaash",
       node: 'C:\\Program Files\\nodejs\\node.exe',
       user: 'x',
+      time: '18:30',
     });
+    assert.match(s, /^# Talaash's daily run: Task Scheduler starts `bot daily` once a day at 18:30/);
+    assert.match(s, /run\n# `npm run bot -- schedule:print` again/);
     assert.match(
       s,
       /-Execute 'C:\\Program Files\\nodejs\\node\.exe' -Argument '--no-warnings --env-file-if-exists=\.env src\/cli\.ts daily'/,
     );
     assert.match(s, /-WorkingDirectory 'C:\\Users\\O''Neil\\talaash'/);
-    assert.match(s, /New-ScheduledTaskTrigger -Daily -At 9am/);
-    assert.match(s, /-StartWhenAvailable/);
+    assert.match(s, /New-ScheduledTaskTrigger -Daily -At '18:30'/);
+    assert.match(s, /-StartWhenAvailable -MultipleInstances IgnoreNew/);
+    assert.doesNotMatch(s, /--if-due|Repetition/);
     assert.ok(
       s.includes(
-        'schtasks /Create /F /SC DAILY /ST 09:00 /TN "job-bot daily fetch" /TR "\\"C:\\Program Files\\nodejs\\node.exe\\" --no-warnings \\"C:\\Users\\O\'Neil\\talaash\\src\\cli.ts\\" daily"',
+        'schtasks /Create /F /SC DAILY /ST 18:30 /TN "job-bot daily fetch" /TR "\\"C:\\Program Files\\nodejs\\node.exe\\" --no-warnings \\"C:\\Users\\O\'Neil\\talaash\\src\\cli.ts\\" daily"',
       ),
       s,
     );

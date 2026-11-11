@@ -9,7 +9,7 @@ Contents:
 - [Any system](#any-system)
   - [The dashboard does not load](#the-dashboard-does-not-load)
   - [A database error, or "column does not exist"](#a-database-error-or-column-does-not-exist)
-  - [The 9:00 run did not happen](#the-900-run-did-not-happen)
+  - [The daily run did not happen](#the-daily-run-did-not-happen)
   - [No jobs match](#no-jobs-match)
   - [LinkedIn returns 429](#linkedin-returns-429)
   - ["AI review failed (is Claude signed in?)"](#ai-review-failed-is-claude-signed-in)
@@ -43,11 +43,11 @@ It only runs while `npm run web` is running, and nothing starts it after a reboo
 - **`database "job_bot" does not exist`:** create it (install guide, step 2).
 - **"column ... does not exist" on the dashboard after an update:** the dashboard does not apply database migrations itself; the bot does, on its next database command. Run `npm run bot -- stats`, then reload the page.
 
-### The 9:00 run did not happen
+### The daily run did not happen
 
 Run it by hand any time with `npm run bot -- daily`, or **Fetch new jobs** on the dashboard. Then check `data/fetch.log`:
 
-- `Fetch failed — is PostgreSQL running?`: the database was down at 9:00.
+- `Fetch failed — is PostgreSQL running?`: the database was down when the run started.
 - `Fetch failed: N of N sources failed — is the network up?`: no source answered (offline, or a VPN/proxy blocking them); the first error follows. `N of M sources failed.` after a normal summary means only some did; their errors are in the log.
 - `<step> timed out after N min`: a step hung and was stopped (limits: fetch 30 min, check:open 15, ai:score 60, backup 10, the IND register refresh 10); the steps after it still ran, and the notification says `Timed out: ...`.
 - `sponsors:update failed`: the weekly IND register refresh did not work; the old register stays and the run goes on.
@@ -55,7 +55,7 @@ Run it by hand any time with `npm run bot -- daily`, or **Fetch new jobs** on th
 - `A fetch is already running; skipping.`: a fetch from the dashboard was running at the same time.
 - Nothing new in the log at all: the scheduler did not start it; see your OS below.
 
-Missed runs: launchd (macOS) catches up after sleep but not after a shut-down; a systemd timer with `Persistent=true` (Linux) runs at the next boot; Task Scheduler with `-StartWhenAvailable` (Windows) runs as soon as the computer is on; cron and `schtasks` skip it.
+When it runs: once a day at `dailyTime` in `config.json` (default 09:00). On macOS and Linux the scheduler checks every 30 minutes, so a run missed while the computer slept or was off happens at the first check after it; the date of the last scheduled run is in `data/daily-last-run` (delete it to let today's run happen again). A scheduler entry from before `dailyTime` (launchd's `StartCalendarInterval`, a timer with `OnCalendar=*-*-* 09:00:00`, a `0 9 * * *` cron line) still runs at 9:00 whatever `dailyTime` says: run `npm run bot -- schedule:print` and replace it. On Windows, Task Scheduler starts it at the time it was registered with; after changing `dailyTime`, register it again. `schtasks` skips a missed run.
 
 ### No jobs match
 
@@ -168,8 +168,7 @@ Some tests pin the original owner's letters and filter results (`tests/fixtures/
 
 - **The daily run never starts, and `data/fetch.log` stays empty.** The project is under `~/Desktop`, `~/Documents` or `~/Downloads`, which macOS does not let a launchd job read: move it (and update the plist), or check `data/launchd.err.log`.
 - **`node not found on PATH` in `data/fetch.log`.** `scripts/daily-fetch.sh` only looks in `~/.local/bin`, `/opt/homebrew/bin`, `/usr/local/bin`, `/usr/bin` and `/bin`. Install Node with `brew install node`, or link an nvm/fnm Node: `sudo ln -sf "$(which node)" /usr/local/bin/node`.
-- **Run it now, or check it is loaded:** `launchctl kickstart gui/$(id -u)/com.<you>.job-bot.fetch`; `launchctl print gui/$(id -u)/com.<you>.job-bot.fetch`.
-- **Also run at login** (to catch up after a shut-down): add `<key>RunAtLoad</key><true/>` to the plist, then `launchctl bootout gui/$(id -u)/com.<you>.job-bot.fetch` and `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.<you>.job-bot.fetch.plist`.
+- **Run it now, or check it is loaded:** `npm run bot -- daily` runs it at once; `launchctl print gui/$(id -u)/com.<you>.job-bot.fetch` shows the entry. An entry with `StartCalendarInterval` is from before `dailyTime`: replace it with the plist `schedule:print` prints now (`bootout`, save, `bootstrap`).
 - **No notifications:** System Settings → Notifications must allow **Script Editor** (used by `osascript`) or **terminal-notifier**, and Focus / Do Not Disturb must be off. A notification that times out (`timed out after 15 s`) usually means the Mac was locked.
 - **`createdb: command not found`:** DBngin's and Homebrew's `postgresql@N` tools are not on the PATH; see [macOS step 2](install/macos.md#2-install-postgresql-and-create-the-database).
 - **`role "postgres" does not exist`** with Homebrew's PostgreSQL: run `createuser -s postgres` once.
