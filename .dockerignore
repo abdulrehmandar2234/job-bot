@@ -1,0 +1,28 @@
+# Never in the image: personal files, secrets, installed packages and build output (the image installs and builds
+# its own), and anything a local run leaves behind. tests/docker.test.ts checks the personal entries.
+.git
+.github
+.claude
+**/node_modules
+web/.next
+docs/.vitepress/dist
+docs/.vitepress/cache
+*.tsbuildinfo
+.DS_Store
+
+# Secrets and local settings
+.env
+.env.*
+!.env.example
+web/.env*.local
+
+# Personal data
+config.json
+cv/applicant.json
+cv/master.json
+cv/default
+cv/original
+cv/versions
+applications
+data
+talaash-home

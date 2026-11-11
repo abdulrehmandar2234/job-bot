@@ -1,0 +1,8 @@
+#!/bin/sh
+# `bot <command>` inside the container: the same as `npm run bot -- <command>` in a clone. `docker compose exec`
+# starts commands as root without the entrypoint, so this drops to the `node` user itself: files the bot writes in
+# /app/home then belong to the same user as the dashboard's.
+cd /app
+set -- node --no-warnings --env-file-if-exists=.env src/cli.ts "$@"
+if [ "$(id -u)" = "0" ]; then exec setpriv --reuid=node --regid=node --init-groups "$@"; fi
+exec "$@"

@@ -8,7 +8,17 @@ _Talaash_ (Urdu for "search") is a personal job-search assistant that runs on yo
 
 ## Quick start
 
-You need Git, Node.js 24+ and PostgreSQL 15+ running, and for the AI a signed-in [Claude Code CLI](docs/ai.md) or one API key of any OpenAI-compatible provider.
+**With Docker** (nothing else to install: the database, the dashboard and the daily run in one command):
+
+```bash
+git clone https://github.com/abdulrehmandar2234/talaash.git && cd talaash
+docker compose up -d                 # then open http://localhost:3100
+docker compose exec app bot setup    # your profile, markets and AI
+```
+
+The [Docker guide](docs/install/docker.md) covers your files, the AI (an API key or a local model), the time zone and updates.
+
+**Without Docker**, you need Git, Node.js 24+ and PostgreSQL 15+ running, and for the AI a signed-in [Claude Code CLI](docs/ai.md) or one API key of any OpenAI-compatible provider.
 
 ```bash
 git clone https://github.com/abdulrehmandar2234/talaash.git && cd talaash
@@ -26,7 +36,7 @@ npm run bot -- fetch        # the first jobs, a few minutes
 npm run web                 # the dashboard on http://localhost:3100
 ```
 
-The [Quickstart](docs/quickstart.md) explains each step. For a fresh machine, follow the full guide for your computer: [macOS](docs/install/macos.md), [Linux](docs/install/linux.md) or [Windows](docs/install/windows.md).
+The [Quickstart](docs/quickstart.md) explains each step. For a fresh machine, follow the full guide for your computer: [macOS](docs/install/macos.md), [Linux](docs/install/linux.md), [Windows](docs/install/windows.md) or [Docker](docs/install/docker.md).
 
 ## What it does
 
@@ -57,19 +67,19 @@ A scheduler runs `bot daily` once a day at a time you choose, 09:00 by default (
 
 ## Documentation
 
-| Page                                                                                                          | What is in it                                                          |
-| ------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| [Quickstart](docs/quickstart.md)                                                                              | Six commands from a clone to your first jobs                           |
-| Install on [macOS](docs/install/macos.md), [Linux](docs/install/linux.md), [Windows](docs/install/windows.md) | From a fresh machine to the daily run and the extension                |
-| [Your CV and profile](docs/your-cv-and-profile.md)                                                            | `cv/master.json`, `cv/applicant.json`, templates, letters, CV feedback |
-| [Configuration](docs/configuration.md)                                                                        | Every `config.json` key and environment variable, presets, filters     |
-| [AI](docs/ai.md)                                                                                              | Claude CLI or one API key, presets, models, cost, running without AI   |
-| [Daily use](docs/daily-use.md)                                                                                | The dashboard, the extension, follow-ups, everyday commands            |
-| [Features](docs/features.md)                                                                                  | Everything Talaash does, and every job source                          |
-| [CLI reference](docs/cli.md)                                                                                  | Every command and the daily run                                        |
-| [How it works](docs/how-it-works.md)                                                                          | Architecture, a job's journey, CV pipeline, database, tests            |
-| [Troubleshooting](docs/troubleshooting.md)                                                                    | Common problems, general and per OS                                    |
-| [Updating](docs/updating.md)                                                                                  | Getting a newer version                                                |
+| Page                                                                                                                                                    | What is in it                                                          |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| [Quickstart](docs/quickstart.md)                                                                                                                        | Six commands from a clone to your first jobs                           |
+| Install on [macOS](docs/install/macos.md), [Linux](docs/install/linux.md), [Windows](docs/install/windows.md), or with [Docker](docs/install/docker.md) | From a fresh machine to the daily run and the extension                |
+| [Your CV and profile](docs/your-cv-and-profile.md)                                                                                                      | `cv/master.json`, `cv/applicant.json`, templates, letters, CV feedback |
+| [Configuration](docs/configuration.md)                                                                                                                  | Every `config.json` key and environment variable, presets, filters     |
+| [AI](docs/ai.md)                                                                                                                                        | Claude CLI or one API key, presets, models, cost, running without AI   |
+| [Daily use](docs/daily-use.md)                                                                                                                          | The dashboard, the extension, follow-ups, everyday commands            |
+| [Features](docs/features.md)                                                                                                                            | Everything Talaash does, and every job source                          |
+| [CLI reference](docs/cli.md)                                                                                                                            | Every command and the daily run                                        |
+| [How it works](docs/how-it-works.md)                                                                                                                    | Architecture, a job's journey, CV pipeline, database, tests            |
+| [Troubleshooting](docs/troubleshooting.md)                                                                                                              | Common problems, general and per OS                                    |
+| [Updating](docs/updating.md)                                                                                                                            | Getting a newer version                                                |
 
 To browse them as a site on your computer: `npm --prefix docs install`, then `npm run docs` (http://localhost:3300).
 

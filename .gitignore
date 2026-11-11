@@ -22,3 +22,6 @@ cv/original/
 applications/
 data/
 cv/versions/
+
+# Docker: everything personal for the container (docker-compose.yml)
+talaash-home/

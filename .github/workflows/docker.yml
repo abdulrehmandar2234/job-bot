@@ -1,0 +1,88 @@
+name: Docker
+
+# Builds the image and runs the whole stack from docker-compose.yml the way a user would (docs/install/docker.md):
+# the dashboard answers on 127.0.0.1 only and refuses other hosts, migrations ran, bot commands work as the `node`
+# user, Chrome renders the CV PDF, pg_dump backs the database up and the scheduler stays up. Runs when the image's
+# inputs change, and once a month (base images and packages move under us).
+on:
+  push:
+    branches: [main]
+    paths:
+      [
+        "Dockerfile",
+        ".dockerignore",
+        "docker-compose.yml",
+        "docker/**",
+        "package*.json",
+        "web/package*.json",
+        ".github/workflows/docker.yml",
+      ]
+  pull_request:
+    paths:
+      [
+        "Dockerfile",
+        ".dockerignore",
+        "docker-compose.yml",
+        "docker/**",
+        "package*.json",
+        "web/package*.json",
+        ".github/workflows/docker.yml",
+      ]
+  schedule:
+    - cron: "43 6 1 * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      TZ: Asia/Karachi
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build and start (db, app, scheduler), waiting until healthy
+        run: docker compose up -d --build --wait
+      - name: The dashboard answers on 127.0.0.1 only, and refuses another Host
+        run: |
+          docker compose port app 3100 | grep -x '127.0.0.1:3100'
+          curl -fsSL http://localhost:3100/ | grep -q 'Talaash'
+          test "$(curl -s -o /dev/null -w '%{http_code}' -H 'Host: example.com' http://127.0.0.1:3100/)" = 403
+      - name: talaash-home is filled in, and nothing personal is in the image
+        run: |
+          test -f talaash-home/config.json
+          grep -q '^DATABASE_URL=postgres://postgres:talaash@db:5432/job_bot$' talaash-home/.env
+          for p in cv/master.json cv/applicant.json config.json .env; do
+            docker compose exec -T app sh -c "test ! -e /app/$p || test -L /app/$p" || { echo "/app/$p is in the image"; exit 1; }
+          done
+      - name: Bot commands run as node, with the database migrated
+        run: |
+          docker compose exec -T app bot migrate | tee migrate.log
+          grep -Eq 'up to date|Applied' migrate.log
+          docker compose exec -T app bot settings:check --kind config --file /app/home/config.json | grep -q '"ok":true'
+          docker compose exec -T app sh -c 'bot stats >/dev/null && stat -c %U /app/home/config.json' | grep -x node
+      - name: Chrome renders the CV PDF from the example CV
+        run: |
+          docker compose exec -T app sh -c 'cp /app/cv/master.example.json /app/home/cv/master.json && chown node:node /app/home/cv/master.json'
+          docker compose exec -T app bot cv:default
+          ls talaash-home/cv/default/*.pdf
+      - name: pg_dump backs the database up into talaash-home
+        run: |
+          docker compose exec -T app bot backup
+          ls talaash-home/data/backups/*.sql.gz
+      - name: The scheduler is running, in the configured time zone
+        run: |
+          test "$(docker compose ps scheduler --format '{{.State}}')" = running
+          docker compose exec -T scheduler date +%Z | grep -x PKT
+      - name: Logs on failure
+        if: failure()
+        run: docker compose logs --no-color --tail 200
+      - name: Clean up
+        if: always()
+        run: docker compose down -v
