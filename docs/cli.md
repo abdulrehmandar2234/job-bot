@@ -36,7 +36,7 @@ npm run bot -- contacts <id>                  # a job's contacts, plus people yo
 npm run bot -- contact:add <id> --name "Jane" [--role recruiter|"hiring manager"|referral|other] [--email x] [--phone x]
                 [--linkedin https://...] [--notes x] [--referral "to ask"]
 npm run bot -- add [--file job.json]          # add a job manually (JSON or stdin)
-npm run bot -- discover <company...> [--add]   # find a company's board (6 ATS by name, or a myworkdayjobs URL); --add validates config.json and writes it atomically
+npm run bot -- discover <company...> [--add]   # find a company's board (7 ATS by name, or a myworkdayjobs URL); --add validates config.json and writes it atomically
 npm run bot -- migrate                        # apply pending database migrations (the dashboard also does this on start)
 npm run bot -- cv:default | cv:build [cluster...] | versions
 npm run bot -- ats <id> [--cv next-nest] [--json] # CV keyword check: shown, hidden but true, missing

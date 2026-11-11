@@ -152,7 +152,7 @@ LinkedIn is searched as a guest (no login, your account is never used), with req
 | `companies[].token`   | text                                                                                                            |                                         | The board's id on that platform, e.g. `careem` for `boards.greenhouse.io/careem`. Workday: `<tenant>/<wdN>/<site>`, e.g. `acme/wd3/AcmeCareers` for `https://acme.wd3.myworkdayjobs.com/en-US/AcmeCareers`. |                                                                                                                                                                     |
 | `companies[].indName` | text, optional                                                                                                  |                                         | The company's legal name on the Dutch IND register when it differs from `name`.                                                                                                                             | Only for `ind-register` countries.                                                                                                                                  |
 
-`discover` tries a name on the six platforms that work by name (Greenhouse, Lever, Ashby, Recruitee, Workable, SmartRecruiters); for Workday, pass the full `myworkdayjobs.com` URL.
+`discover` tries a name on the seven platforms that work by name (Greenhouse, Lever, Ashby, Recruitee, Workable, SmartRecruiters, Personio); for Workday, pass the full `myworkdayjobs.com` URL.
 
 ## Filters and scoring
 
