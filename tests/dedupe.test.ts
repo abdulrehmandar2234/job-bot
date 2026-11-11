@@ -28,6 +28,32 @@ describe('normCompany / normTitle', () => {
   });
 });
 
+describe('non-Latin titles and names', () => {
+  it('keeps the words of an Arabic title, so different jobs stay apart', () => {
+    assert.equal(normTitle('مطور برمجيات أول'), 'مطور برمجيات أول');
+    assert.notEqual(normTitle('مطور برمجيات'), normTitle('مهندس شبكات'));
+  });
+
+  it('does not group different Arabic-only jobs at one company', () => {
+    const rows = [row({ id: 'a', title: 'مطور برمجيات', source: 'bayt' }), row({ id: 'b', title: 'مهندس شبكات', source: 'bayt' })];
+    assert.deepEqual(duplicateLinks(rows), []);
+  });
+
+  it('still groups the same Arabic-only job found twice', () => {
+    const rows = [row({ id: 'a', title: 'مطور برمجيات', source: 'bayt' }), row({ id: 'b', title: 'مطور  برمجيات', source: 'linkedin' })];
+    assert.equal(duplicateLinks(rows).length, 1);
+  });
+
+  it('never groups rows whose title has nothing left after normalising', () => {
+    assert.deepEqual(duplicateLinks([row({ id: 'a', title: '???' }), row({ id: 'b', title: '—' })]), []);
+  });
+
+  it('uses an Arabic company name as it is, so two such companies stay apart', () => {
+    const rows = [row({ id: 'a', company: 'شركة ألف' }), row({ id: 'b', company: 'شركة باء' })];
+    assert.deepEqual(duplicateLinks(rows), []);
+  });
+});
+
 describe('duplicateLinks', () => {
   it('links the same job from several sites to the most direct source', () => {
     const links = duplicateLinks([

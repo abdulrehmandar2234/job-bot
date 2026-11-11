@@ -5,6 +5,7 @@ import { DEFAULT_STACKS, loadStacks, pick, type Stack } from './presets.ts';
 import { loadProfile, needsVisa, remoteFrom, remoteFromCode } from './profile.ts';
 import { effectiveRemoteRules } from './regions.ts';
 import { masterFile } from './settings.ts';
+import { instructionFlag } from './posting-guard.ts';
 import { isIndSponsor } from './sponsors.ts';
 import type { RawJob } from './sources/index.ts';
 import type { VisaEvidence } from './types.ts';
@@ -235,6 +236,16 @@ export function languageRules(spoken: string[]): { required: RegExp; bonus: RegE
 }
 const NO_SPONSOR =
   /(no|not|unable to|cannot|can't|don't|do not)\s[^.\n]{0,30}(visa )?sponsor|must (already )?have (the )?(right|authori[sz]ation|permit) to work|eu (work )?(permit|passport|citizen)|without (the need for )?sponsorship|local candidates only|saudi nationals only|saudization|uae nationals only|emirati(s)? only|emiratisation/i;
+// Jobs only some people may hold, whatever the visa: a security clearance (tied to citizenship), and citizenship or
+// permanent residency itself. "No clearance required" and the like must not match.
+const NOT_REQUIRED = String.raw`(?<!\b(no|not|without|never|don't|doesn't)\s+((need|needs|require|requires|have|hold)\s+)?(an?\s+)?((active|current|valid|security|government|prior)\s+)*)`;
+const CLEARANCE = new RegExp(
+  String.raw`${NOT_REQUIRED}\b(active|current|valid|existing)\s+(security|government|secret|top[- ]secret|ts\/sci|sc|dv|nv1|nv2|baseline)\s+clearance|\b(must|able to|eligible to|ability to)\s+(hold|obtain|have|maintain|be granted|be eligible for)\s+[^.\n]{0,30}clearance|${NOT_REQUIRED}\b(security|government|secret|top[- ]secret)\s+clearance\s+(is\s+)?(required|mandatory|needed)|\bts\/sci\b|\btop[- ]secret\b[^.\n]{0,20}\bclearance`,
+  'i',
+);
+const CITIZENS_ONLY =
+  /\bcitizens?(hip)?\s+(is\s+|are\s+)?(only|required|mandatory)\b|\bmust\s+be\s+(an?\s+)?[a-z.]{2,15}\s+(citizen|national)\b|\bonly\s+(open|available)\s+to\s+[^.\n]{0,30}\b(citizens|nationals)\b|\b(citizens|nationals)\s+(and|or|\/)\s+(permanent\s+)?residents\s+only\b|\bpermanent\s+residen(ts?|cy)\s+(only|required|is required|status required)\b|\bmust\s+(be|hold)\s+(an?\s+)?(permanent\s+resident|green\s+card)|\bgreen\s+card\s+(holders?\s+)?(only|required)\b/i;
+
 const SPONSOR =
   /visa sponsorship|sponsor (your |a )?visa|relocation (support|package|assistance)|we (will )?(help|support) (you )?(with )?relocat|work permit support/i;
 
@@ -337,6 +348,8 @@ export function scoreJob(job: RawJob, cfg: MatchSettings = config): Scored {
   const remote = remoteCountry(cfg, job.location, job.description);
   const country = remote ? remote.country : findCountry(cfg, job.location, job.description);
   const flags: string[] = remote?.flag ? [remote.flag] : [];
+  const aimedAtAi = instructionFlag(job.description);
+  if (aimedAtAi) flags.push(aimedAtAi);
   const out = (filterReason: string | null, extra: Partial<Scored> = {}): Scored => ({
     country,
     score: 0,
@@ -371,6 +384,9 @@ export function scoreJob(job: RawJob, cfg: MatchSettings = config): Scored {
   // Remote from the candidate's country: no visa involved, so sponsorship wording doesn't matter.
   let visa: string | null = null;
   if (country === 'RM') {
+    // A clearance is tied to the employer's country, so a remote job that needs one is not open from elsewhere.
+    const clearance = text.match(CLEARANCE);
+    if (clearance) return out(`needs a security clearance: "${clearance[0].slice(0, 80)}"`);
     const from = remoteFrom(cfg, loadProfile());
     visa = from ? `Remote: work from ${from}, no visa needed` : 'Remote: no visa needed';
     return skillScore(cfg, job, text, { country, visa, visaEvidence: 'not-needed', flags }, out);
@@ -383,6 +399,8 @@ export function scoreJob(job: RawJob, cfg: MatchSettings = config): Scored {
     return skillScore(cfg, job, text, { country, visa, visaEvidence: 'not-needed', flags }, out);
   }
 
+  const onlySome = text.match(CLEARANCE) ?? text.match(CITIZENS_ONLY);
+  if (onlySome) return out(`only for citizens, residents or cleared staff: "${onlySome[0].slice(0, 80)}"`);
   const noSponsor = text.match(NO_SPONSOR);
   if (noSponsor) return out(`no visa sponsorship: "${noSponsor[0].slice(0, 80)}"`);
 

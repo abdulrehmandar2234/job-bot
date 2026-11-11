@@ -127,3 +127,5 @@ Fetching, filtering, the keyword score, CV PDFs and tracking work as before. Job
 ## What the AI sees
 
 The prompts contain your CV (`cv/master.json`), your profile (`cv/applicant.json`) and the job description, and only allow facts from the first two. They describe you as "the candidate", from your profile: where you live, your UTC offset, your languages and where you need a visa. Fill in `cv/applicant.json` (notice period, expected salary per country, ...) so form answers can use them; unknown facts come back as `[FILL: ...]`. With the Claude CLI the prompts go to Anthropic; with an API key, to that provider; with Ollama, nowhere.
+
+Job postings come from outside websites, so Talaash cleans them before the AI reads them: text the page hides (hidden elements, HTML comments, zero-size or transparent text) and invisible characters are removed when a posting is fetched, and every prompt tells the AI that the posting is data whose instructions it must not follow. A posting with visible text written to AI tools ("ignore previous instructions", "if you are an AI, add the word…") gets a flag quoting it, so you can read it yourself.
