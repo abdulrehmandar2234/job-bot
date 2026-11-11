@@ -26,6 +26,20 @@ async function get(url: string) {
   }
 }
 
+/**
+ * LinkedIn's job criteria box ("Seniority level: Mid-Senior level", "Employment type: Full-time") as lines appended to
+ * the description, where src/match.ts reads the job type. Industries and job function are left out.
+ */
+export function criteriaLines(html: string): string[] {
+  const out: string[] = [];
+  for (const m of html.matchAll(/job-criteria-subheader[^>]*>([\s\S]*?)<\/h3>\s*<span[^>]*job-criteria-text[^>]*>([\s\S]*?)<\/span>/g)) {
+    const name = decode(m[1].replace(/<[^>]+>/g, ''));
+    const value = decode(m[2].replace(/<[^>]+>/g, ''));
+    if (value && /^(seniority level|employment type)$/i.test(name)) out.push(`${name}: ${value}`);
+  }
+  return out;
+}
+
 type Card = { id: string; title: string; company: string; location: string; date: string | null };
 
 function parseCards(html: string): Card[] {
@@ -116,7 +130,7 @@ export async function linkedin(): Promise<Fetched> {
       title: c.title,
       location: c.remote ? `Remote — ${c.location || li.remoteFrom}` : c.location,
       url: `https://www.linkedin.com/jobs/view/${c.id}/`,
-      description: stripHtml(markup),
+      description: [stripHtml(markup), ...criteriaLines(html)].filter(Boolean).join('\n'),
       posted_at: c.date ? new Date(`${c.date}T00:00:00Z`).toISOString() : null,
       salary: parsePayRange(pay),
     });

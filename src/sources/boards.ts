@@ -371,7 +371,10 @@ export function freehireJob(j: any, countryName: (code: string) => string | unde
     title: decodeEntities(String(j.title)),
     location: freehireLocation(j, countryName),
     url: j.url,
-    description: String(j.description ?? ''),
+    // freehire's seniority "intern" as the criteria line src/match.ts reads (as for LinkedIn's).
+    description: [String(j.description ?? ''), ...(e.seniority === 'intern' ? ['Seniority level: Internship'] : [])]
+      .filter(Boolean)
+      .join('\n'),
     posted_at: toIso(j.posted_at),
     salary: period ? structuredSalary(e.salary_min, e.salary_max, e.salary_currency, period) : null,
   };

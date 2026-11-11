@@ -24,7 +24,7 @@ export {
 export const isApiProvider = (v: unknown) => v === 'api' || v === 'openai' || v === 'deepseek';
 
 /** The ATS and remote board lists the bot validates against (src/types.ts, importable from client components). */
-export { ATS, DEFAULT_DAILY_TIME, REMOTE_BOARDS } from '../../src/types.ts';
+export { ATS, DEFAULT_DAILY_TIME, DEFAULT_SKIP_JOB_TYPES, JOB_TYPES, REMOTE_BOARDS } from '../../src/types.ts';
 
 // Form field names are the same paths the validator reports (`ai.enabled`, `companies[3].ats`), so errors map
 // straight onto fields. Merging starts from the current file, so keys the form does not show are kept.
@@ -35,6 +35,7 @@ type FieldType = 'number' | 'bool' | 'text' | 'lines' | 'optional' | 'code';
 export const CONFIG_FIELDS: Record<string, FieldType> = {
   minScore: 'number',
   maxAgeDays: 'number',
+  skipJobTypes: 'lines', // empty = keep every job type
   dailyTime: 'optional', // "HH:MM"; empty = 09:00, the built-in default (the key is left out)
   autoCvVersions: 'bool',
   cvTemplate: 'optional', // empty = classic, the built-in default (the key is left out)

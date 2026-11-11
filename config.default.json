@@ -3,6 +3,7 @@
   "autoCvVersions": false,
   "chromePath": "auto",
   "minScore": 45,
+  "skipJobTypes": ["internship", "part-time", "temporary", "volunteer"],
   "maxAgeDays": 14,
   "ai": {
     "enabled": true,

@@ -8,7 +8,7 @@ import { masterFile } from './settings.ts';
 import { instructionFlag } from './posting-guard.ts';
 import { isIndSponsor } from './sponsors.ts';
 import type { RawJob } from './sources/index.ts';
-import type { VisaEvidence } from './types.ts';
+import { DEFAULT_SKIP_JOB_TYPES, type JOB_TYPES, type VisaEvidence } from './types.ts';
 
 type Skill = { name: string; re: RegExp; have: boolean; weight?: number; cv?: RegExp };
 
@@ -253,10 +253,36 @@ const SPONSOR =
 const REMOTE_DESC_DENY =
   /\b(us|u\.s\.|uk|eu)[- ]based (candidates|applicants|only)|must (be|reside|live)[^.\n]{0,30}\b(in|within) the (us|u\.s\.|united states|uk|united kingdom|eu|european union)\b|authori[sz]ed to work in the (us|united states|uk|united kingdom)|(only|exclusively) (hiring|accepting)[^.\n]{0,30}(us|united states|europe|latam|latin america)|us time ?zones? (only|required)/i;
 
+type JobType = (typeof JOB_TYPES)[number];
+
+// The criteria lines a source adds to the description: LinkedIn's "Employment type" and "Seniority level" boxes
+// (src/sources/linkedin.ts), freehire's seniority (src/sources/boards.ts). Only these structured lines count, not
+// free text: "no part-time" or "after the internship" in a description must not filter a job.
+const EMPLOYMENT_LINE = /^employment type:\s*(.+)$/im;
+const SENIORITY_LINE = /^seniority level:\s*(.+)$/im;
+const JOB_TYPE_WORDS: [RegExp, JobType][] = [
+  [/\bintern(ship)?\b/i, 'internship'],
+  [/\bpart[- ]?time\b/i, 'part-time'],
+  [/\btemporary\b|\btemp\b/i, 'temporary'],
+  [/\bcontract(or)?\b|\bfreelance\b/i, 'contract'],
+  [/\bvolunteer\b/i, 'volunteer'],
+];
+
+/** The job type a source stated for the posting, with the line that says it, or null. */
+export function jobTypeOf(description: string): { type: JobType; line: string } | null {
+  for (const re of [SENIORITY_LINE, EMPLOYMENT_LINE]) {
+    const m = description.match(re);
+    if (!m) continue;
+    const hit = JOB_TYPE_WORDS.find(([w]) => w.test(m[1]));
+    if (hit && (re === EMPLOYMENT_LINE || hit[1] === 'internship')) return { type: hit[1], line: m[0].trim() };
+  }
+  return null;
+}
+
 /** The settings scoring reads: passed in, or the CLI's config.json when scoreJob gets none. */
 export type MatchSettings = Pick<
   Config,
-  'countries' | 'remote' | 'linkedin' | 'roleInclude' | 'roleExclude' | 'maxAgeDays' | 'minScore' | 'companies' | 'stacks'
+  'countries' | 'remote' | 'linkedin' | 'roleInclude' | 'roleExclude' | 'maxAgeDays' | 'minScore' | 'companies' | 'stacks' | 'skipJobTypes'
 >;
 
 /**
@@ -367,6 +393,9 @@ export function scoreJob(job: RawJob, cfg: MatchSettings = config): Scored {
   if (!country) return out(`location not in target countries (${job.location || 'unknown'})`);
   if (!re(cfg.roleInclude).test(job.title)) return out('title is not an engineering role');
   if (re(cfg.roleExclude).test(job.title)) return out('title excluded (other stack / non-dev / level)');
+
+  const jobType = jobTypeOf(job.description);
+  if (jobType && (cfg.skipJobTypes ?? DEFAULT_SKIP_JOB_TYPES).includes(jobType.type)) return out(`job type: ${jobType.line}`);
 
   // Re-checked on every fetch, so a matching job drops out once it gets older than maxAgeDays.
   if (job.posted_at) {
