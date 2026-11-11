@@ -48,6 +48,7 @@ Ideas from the last review and from real use, none started yet:
 - **Split CLI:** one file per command in src/commands/; src/cli.ts is the registry.
 - **Versioned migrations:** src/migrate.ts and src/migrations/NNN_name.sql.
 - **HTTP retry and caching:** src/sources/http.ts (backoff with jitter, ETag / Last-Modified cache in data/http-cache).
+- **Database guards (migration 019):** `jobs.status` and `salary_period` take only the values the code knows, and `duplicate_of` must point at an existing job other than itself (deleting a primary makes its copies primaries again). The migration cleans any such value first.
 - **Database backups:** `bot backup` (src/backup.ts: pg_dump + zlib, daily, keeps 14).
 - **Hardening pass (2026-11):** sources survive bad dates and keep LinkedIn partial results, AI replies are validated and time-bounded, `ai:score` takes a lock and dedupe is atomic, settings fail loudly on a missing master CV or a config typo, and the dashboard polls more cheaply with one CV change per job.
 - **Cross-platform:** macOS, Linux and Windows. `bot daily` (src/commands/daily.ts) is the scheduled run on every OS (launchd through scripts/daily-fetch.sh, systemd or cron, Task Scheduler; `bot schedule:print`), notifications per OS (src/notify.ts), npm scripts without shell syntax (scripts/run-tests.mjs).

@@ -264,9 +264,12 @@ const fromName = (cfg: MatchSettings) => remoteFrom(cfg, loadProfile()) ?? 'your
 /** Location words that mark a posting as remote ("Remote — Worldwide", "Anywhere", "Work from home"). */
 const REMOTE_WORDS = /\bremote\b|anywhere|worldwide|work from home/i;
 
-/** The region of a remote location ("Remote — EMEA" → "EMEA", "" for plain "Remote"), or null for a non-remote one. */
+/**
+ * The region of a remote location ("Remote — EMEA" → "EMEA", "" for plain "Remote" or Arbeitnow's "Remote job"),
+ * or null for a non-remote one.
+ */
 function remoteRegion(location: string): string | null {
-  return REMOTE_WORDS.test(location) ? location.replace(/\bremote\b|[—–\-(),:|/]/gi, ' ').trim() : null;
+  return REMOTE_WORDS.test(location) ? location.replace(/\bremote\b|\bjobs?\b|[—–\-(),:|/]/gi, ' ').trim() : null;
 }
 
 /** The remote allow / deny / flag rules for the candidate's country, compiled (from the shared cache). */
