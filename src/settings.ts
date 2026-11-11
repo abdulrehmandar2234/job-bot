@@ -187,6 +187,17 @@ export const applicantSchema = z
     countryCode: z.union([isoCode, z.null()]), // where the candidate lives, ISO 3166-1 alpha-2
     utcOffset: z.union([z.string().regex(UTC_OFFSET, 'like "GMT+5" or "UTC-3:30"'), z.null()]),
     // Only for the Dutch IND salary check (src/ind-salary.ts): the minimum depends on whether the candidate is 30 or over.
+    // birthDate ("1996-06-15") gives the exact age; birthYear alone counts from 1 January.
+    birthDate: z.union([
+      z
+        .string()
+        .regex(/^\d{4}-\d{2}-\d{2}$/, 'a date like "1996-06-15"')
+        .refine((d) => {
+          const t = new Date(`${d}T00:00:00Z`);
+          return !Number.isNaN(t.getTime()) && t.toISOString().startsWith(d) && d >= '1940' && d < '2016';
+        }, 'a real date between 1940 and 2015'),
+      z.null(),
+    ]),
     birthYear: z.union([z.number().int().min(1940).max(2015), z.null()]),
     workAuthorization: fact, // free text, e.g. "Portuguese citizen, may work anywhere in the EU"
     coverLetter: coverLetterSchema,

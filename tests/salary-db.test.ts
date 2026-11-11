@@ -282,14 +282,14 @@ describe('save() and the Dutch IND salary criterion', () => {
   it('flags a Dutch job whose salary is below the minimum (30 or over when the birth year is unknown)', async () => {
     await save(nl('Salary €4,500 - €5,200 per month.'));
     assert.deepEqual(await flagsOf(), [
-      'salary below the IND highly-skilled-migrant minimum of €5,942/month (30 or over; set birthYear in your profile): about €5,200/month',
+      'salary below the IND highly-skilled-migrant minimum of €5,942/month (30 or over; set birthDate in your profile): about €5,200/month',
     ]);
   });
 
   it('a range that only starts below it gets the softer flag; a salary above it and an unknown salary get none', async () => {
     await save(nl('Salary €65.000 - €90.000 per year.'));
     assert.deepEqual(await flagsOf(), [
-      'salary range starts below the IND highly-skilled-migrant minimum of €5,942/month (30 or over; set birthYear in your profile)',
+      'salary range starts below the IND highly-skilled-migrant minimum of €5,942/month (30 or over; set birthDate in your profile)',
     ]);
     await save(nl('Salary €90,000 - €100,000 per year.', { id: 'test:2' }));
     await save(nl('', { id: 'test:3' }));

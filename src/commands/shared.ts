@@ -71,7 +71,7 @@ export function save({ salary: given, ...raw }: RawJob) {
   const s = scoreJob(raw, config);
   const salary = given ?? parseSalary(`${raw.title}\n${raw.description}`, s.country, homeCountry());
   // A Dutch job that needs a sponsored visa: its salary must meet the IND criterion for the candidate's age.
-  const ind = indCheckApplies(s.country) ? indSalaryFlag(salary, loadProfile().birthYear) : null;
+  const ind = indCheckApplies(s.country) ? indSalaryFlag(salary, loadProfile()) : null;
   if (ind) s.flags.push(ind);
   return upsertJob({
     ...raw,

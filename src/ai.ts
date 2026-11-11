@@ -156,13 +156,14 @@ const ANSWERS_SCHEMA = {
 /**
  * Personal facts for forms that the CV lacks (salary, notice period, contact...): cv/applicant.json, kept out of git.
  * Without it every fact is unknown (null). Throws if the file is invalid. The template-letter sentences and the birth
- * year (only for the Dutch visa salary check) are left out.
+ * date and year (only for the Dutch visa salary check) are left out.
  */
 export function applicantFacts(): string {
   const facts = { ...readApplicant() };
   delete facts._help;
   delete facts.coverLetter;
-  delete facts.birthYear; // only for the Dutch visa salary check, never for forms or letters
+  delete facts.birthDate; // only for the Dutch visa salary check, never for forms or letters
+  delete facts.birthYear;
   return JSON.stringify(facts, null, 1);
 }
 

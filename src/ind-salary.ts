@@ -25,8 +25,22 @@ export function indThreshold(year: number): IndThreshold {
   return IND_THRESHOLDS[at];
 }
 
-/** The candidate's age this year from a birth year, or null when unknown. */
-export const ageIn = (year: number, birthYear: number | null | undefined) => (birthYear ? year - birthYear : null);
+/** Who the candidate is, for their age: the birth date ("1996-06-15") or, without one, the birth year. */
+export type Birth = { birthDate?: string | null; birthYear?: number | null } | null | undefined;
+
+/**
+ * The candidate's age on `now`, or null when unknown: exact from the birth date (the IND counts the age on the day of
+ * the application), else this year minus the birth year (which counts the birthday from 1 January, a little early).
+ */
+export function ageOn(now: Date, birth: Birth): number | null {
+  const d = /^(\d{4})-(\d{2})-(\d{2})$/.exec(birth?.birthDate ?? '');
+  if (d) {
+    const [y, m, day] = [Number(d[1]), Number(d[2]), Number(d[3])];
+    const had = now.getMonth() + 1 > m || (now.getMonth() + 1 === m && now.getDate() >= day);
+    return now.getFullYear() - y - (had ? 0 : 1);
+  }
+  return birth?.birthYear ? now.getFullYear() - birth.birthYear : null;
+}
 
 /**
  * A salary as euros per month without holiday allowance, or null for hourly pay or a salary with no amount. Yearly
@@ -41,16 +55,16 @@ export function monthlyEur(s: Salary, which: 'min' | 'max'): number | null {
 
 /**
  * A flag for a Dutch job whose posted salary cannot meet the IND criterion for the candidate: even its top is below
- * the amount for their age (30 or over when the birth year is unknown, the stricter one), or only its bottom is.
+ * the amount for their age (30 or over when it is unknown, the stricter one), or only its bottom is.
  * Null when it meets it, or when the salary is unknown or hourly.
  */
-export function indSalaryFlag(s: Salary | null, birthYear: number | null | undefined, now = new Date()): string | null {
+export function indSalaryFlag(s: Salary | null, birth: Birth, now = new Date()): string | null {
   if (!s) return null;
   const year = now.getFullYear();
-  const age = ageIn(year, birthYear);
+  const age = ageOn(now, birth);
   const t = indThreshold(year);
   const need = age !== null && age < 30 ? t.under30 : t.over30;
-  const who = age === null ? '30 or over; set birthYear in your profile' : age < 30 ? 'under 30' : '30 or over';
+  const who = age === null ? '30 or over; set birthDate in your profile' : age < 30 ? 'under 30' : '30 or over';
   const top = monthlyEur(s, 'max');
   const bottom = monthlyEur(s, 'min');
   if (top === null || bottom === null) return null;

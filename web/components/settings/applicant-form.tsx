@@ -16,7 +16,7 @@ const PROFILE_LABEL: Record<(typeof PROFILE_FIELDS)[number], [string, string?]> 
   countryCode: ['Country code', 'two letters, e.g. PT'],
   utcOffset: ['UTC offset', 'e.g. GMT+1'],
   workAuthorization: ['Work authorisation', 'citizenship, permits'],
-  birthYear: ['Birth year', 'only for the Dutch visa salary check (30 or over)'],
+  birthDate: ['Birth date', 'only for the Dutch visa salary check (30 or over)'],
 };
 
 const LETTER_LABEL: Record<(typeof LETTER_FIELDS)[number], [string, string]> = {
@@ -65,7 +65,7 @@ export function ApplicantForm({ applicant, salaryKeys = ['remote'] }: { applican
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {PROFILE_FIELDS.map((k) => (
               <Field key={k} label={PROFILE_LABEL[k][0]} hint={PROFILE_LABEL[k][1]} name={k} errors={errors}>
-                <input name={k} {...value(k)} className={input} />
+                <input name={k} type={k === 'birthDate' ? 'date' : undefined} {...value(k)} className={input} />
               </Field>
             ))}
           </div>
