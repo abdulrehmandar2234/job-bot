@@ -36,7 +36,7 @@ const clientMajor = (bin: string) => {
 };
 
 describe('backup and restore round trip', { skip: psql && pgDump ? false : 'needs the real pg_dump and psql' }, () => {
-  const dir = mkdtempSync(join(tmpdir(), 'job-bot-restore-'));
+  const dir = mkdtempSync(join(tmpdir(), 'talaash-restore-'));
   const env = { ...process.env, DATABASE_URL: TEST_DB, JOB_BOT_BACKUP_DIR: dir, JOB_BOT_BACKUP_DB: '' };
   const admin = new pg.Client(TEST_DB);
   let file = '';

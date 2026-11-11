@@ -108,7 +108,7 @@ describe('analytics page', () => {
   });
 
   it('shows skip patterns with a roleExclude suggestion based on config.json', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'job-bot-web-analytics-'));
+    const dir = mkdtempSync(join(tmpdir(), 'talaash-web-analytics-'));
     writeFileSync(join(dir, 'config.json'), JSON.stringify({ roleExclude: 'golang' }));
     vi.stubEnv('JOB_BOT_CONFIG', join(dir, 'config.json'));
     try {

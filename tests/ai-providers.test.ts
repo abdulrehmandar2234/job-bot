@@ -430,7 +430,7 @@ describe('askAi over HTTP', () => {
     const t = { preset: 'custom' as const, name: 'Custom endpoint', keyEnv: 'AI_API_KEY' };
     assert.equal(
       keyRejected(t, 401),
-      'Custom endpoint rejected the API key (AI_API_KEY): 401. Make a new key and put it in .env in the job-bot folder as ' +
+      'Custom endpoint rejected the API key (AI_API_KEY): 401. Make a new key and put it in .env in the Talaash folder as ' +
         'AI_API_KEY=<the key>: only the key, with no quotes, spaces or notes. Then restart the dashboard.',
     );
     assert.match(noCredit(t), /Add credit in your account,/);

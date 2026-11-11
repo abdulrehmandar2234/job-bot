@@ -5,7 +5,7 @@ import { pool } from './db';
 
 export type { Task, TaskKind };
 
-// Long bot commands run as background tasks (table `tasks`, see job-bot/src/tasks.ts): the dashboard queues one,
+// Long bot commands run as background tasks (table `tasks`, see talaash/src/tasks.ts): the dashboard queues one,
 // spawns a detached `bot task:run <id>` and returns at once. Queueing and the dead-worker / stale checks are the
 // bot's own (src/task-queue.ts), run on the dashboard's pool; this file adds the labels, the poll throttle and the
 // dashboard's views.

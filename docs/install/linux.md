@@ -1,10 +1,10 @@
-# Install job-bot on Linux
+# Install Talaash on Linux
 
-This guide takes a Linux desktop from nothing to a working job-bot: the bot, the dashboard, the daily run and the Chrome extension. Commands are for **Ubuntu and Debian**; [Fedora and Arch](#fedora-and-arch) differ only in step 1 and 2, noted at the end. Run them in any terminal (bash). Expect 30 to 45 minutes, most of it filling in your CV.
+This guide takes a Linux desktop from nothing to a working Talaash: the bot, the dashboard, the daily run and the Chrome extension. Commands are for **Ubuntu and Debian**; [Fedora and Arch](#fedora-and-arch) differ only in step 1 and 2, noted at the end. Run them in any terminal (bash). Expect 30 to 45 minutes, most of it filling in your CV.
 
 Other systems: [macOS](macos.md) · [Windows](windows.md) · [Start page](../README.md)
 
-Paths below use `~/job-bot` (that is `/home/<you>/job-bot`) for the project folder, where `<you>` is your user name (`whoami` prints it).
+Paths below use `~/talaash` (that is `/home/<you>/talaash`) for the project folder, where `<you>` is your user name (`whoami` prints it).
 
 ## Steps
 
@@ -26,7 +26,7 @@ Paths below use `~/job-bot` (that is `/home/<you>/job-bot`) for the project fold
 
 ## 1. Install Node.js
 
-job-bot needs **Node.js 24 or newer** (it runs its TypeScript directly, with no build step). This guide assumes Git is already installed (`git --version` works). The distribution's own `nodejs` package is usually older, so install Node 24 from NodeSource:
+Talaash needs **Node.js 24 or newer** (it runs its TypeScript directly, with no build step). This guide assumes Git is already installed (`git --version` works). The distribution's own `nodejs` package is usually older, so install Node 24 from NodeSource:
 
 ```bash
 sudo apt-get update
@@ -45,7 +45,7 @@ node --version   # v24.0.0 or newer
 
 ## 2. Install PostgreSQL and create the database
 
-job-bot keeps everything in one local PostgreSQL database called `job_bot` (PostgreSQL 15 or newer).
+Talaash keeps everything in one local PostgreSQL database called `job_bot` (PostgreSQL 15 or newer).
 
 ```bash
 sudo apt-get install -y postgresql
@@ -60,7 +60,7 @@ sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh
 sudo apt-get install -y postgresql-17
 ```
 
-The packaged PostgreSQL starts by itself. job-bot connects over TCP (`127.0.0.1`), where the package asks for a **password**, so create a user with a password for job-bot, and a database it owns:
+The packaged PostgreSQL starts by itself. Talaash connects over TCP (`127.0.0.1`), where the package asks for a **password**, so create a user with a password for Talaash, and a database it owns:
 
 ```bash
 sudo -u postgres createuser --pwprompt jobbot     # type a password twice
@@ -86,13 +86,13 @@ psql "postgres://jobbot:<password>@127.0.0.1:5432/job_bot" -c "SELECT version();
 ## 3. Get the code and install its packages
 
 ```bash
-git clone https://github.com/abdulrehmandar2234/job-bot.git ~/job-bot
-cd ~/job-bot
+git clone https://github.com/abdulrehmandar2234/talaash.git ~/talaash
+cd ~/talaash
 npm install                 # the bot; also sets up the git pre-commit hook
 npm --prefix web install    # the dashboard (it has its own package.json)
 ```
 
-All later commands run in `~/job-bot`.
+All later commands run in `~/talaash`.
 
 **Success:** both installs end with `added N packages` and no `ERR!` lines.
 
@@ -169,7 +169,7 @@ Replace Jane Doe's name, contact, summary, skills, experience, projects and educ
 
 ```bash
 node -e "JSON.parse(require('fs').readFileSync('cv/master.json', 'utf8')); console.log('ok')"
-npm run bot -- cv:preview classic --pdf     # PDF        : /home/<you>/job-bot/data/previews/classic.pdf
+npm run bot -- cv:preview classic --pdf     # PDF        : /home/<you>/talaash/data/previews/classic.pdf
 xdg-open data/previews/classic.pdf
 ```
 
@@ -216,7 +216,7 @@ npm run bot -- cv:default
 
 This is the first command that uses the database: it creates the tables first (from `src/migrations/`), then renders `cv/default/<your cvFileName>`.
 
-**Success:** `default CV rebuilt from master.json → /home/<you>/job-bot/cv/default/<cvFileName>`. Open it and check it.
+**Success:** `default CV rebuilt from master.json → /home/<you>/talaash/cv/default/<cvFileName>`. Open it and check it.
 
 Keep `"autoCvVersions": false` in `config.json` for now: the per-stack CV versions are written for the owner's CV ([why](../your-cv-and-profile.md#cv-versions-and-the-per-stack-framings)).
 
@@ -245,7 +245,7 @@ Open <http://localhost:3100>. Leave the terminal with `npm run web` open: the da
 npm run bot -- schedule:print
 ```
 
-It prints two unit files (shown here for `/home/<you>/job-bot` and a Node in `/usr/bin/node`) and a cron alternative. Save the first as `~/.config/systemd/user/job-bot-fetch.service`:
+It prints two unit files (shown here for `/home/<you>/talaash` and a Node in `/usr/bin/node`) and a cron alternative. Save the first as `~/.config/systemd/user/job-bot-fetch.service`:
 
 ```ini
 [Unit]
@@ -253,7 +253,7 @@ Description=job-bot daily fetch
 
 [Service]
 Type=oneshot
-WorkingDirectory=/home/<you>/job-bot
+WorkingDirectory=/home/<you>/talaash
 ExecStart="/usr/bin/node" --no-warnings --env-file-if-exists=.env src/cli.ts daily
 ```
 
@@ -277,7 +277,7 @@ WantedBy=timers.target
 systemctl --user daemon-reload && systemctl --user enable --now job-bot-fetch.timer
 systemctl --user start job-bot-fetch.service      # run it once now
 systemctl --user list-timers job-bot-fetch.timer  # the next run
-tail -f ~/job-bot/data/fetch.log                  # Ctrl+C to stop watching
+tail -f ~/talaash/data/fetch.log                  # Ctrl+C to stop watching
 ```
 
 Turn it off with `systemctl --user disable --now job-bot-fetch.timer`.
@@ -291,38 +291,38 @@ Turn it off with `systemctl --user disable --now job-bot-fetch.timer`.
 
 ```bash
 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
-0 9 * * * cd '/home/<you>/job-bot' && '/usr/bin/node' --no-warnings --env-file-if-exists=.env src/cli.ts daily
+0 9 * * * cd '/home/<you>/talaash' && '/usr/bin/node' --no-warnings --env-file-if-exists=.env src/cli.ts daily
 ```
 
 **Success:** after `systemctl --user start job-bot-fetch.service`, `data/fetch.log` gets a `===== <date> =====` block with the fetch output and a `notification:` line, and `systemctl --user status job-bot-fetch.service` shows no error.
 
 ## 13. Notifications
 
-job-bot shows a notification when the AI rates a job `strong` (once per job, grouped above three) and after each daily run. On Linux it uses `notify-send`, from libnotify:
+Talaash shows a notification when the AI rates a job `strong` (once per job, grouped above three) and after each daily run. On Linux it uses `notify-send`, from libnotify:
 
 ```bash
 sudo apt-get install -y libnotify-bin
-node --no-warnings -e "import('./src/notify.ts').then((m) => m.notify({ title: 'Job Bot', message: 'Test', url: 'http://localhost:3100' }))"
+node --no-warnings -e "import('./src/notify.ts').then((m) => m.notify({ title: 'Talaash', message: 'Test', url: 'http://localhost:3100' }))"
 ```
 
-The second line shows a test notification through job-bot's own notifier.
+The second line shows a test notification through Talaash's own notifier.
 
-Without `notify-send` (a server, a minimal system), the message only goes to `data/fetch.log` and the terminal (`notification (no notifier on this system)`). To turn job-bot's notifications off, add `JOB_BOT_NOTIFY=off` to `.env`; for strong matches only, set `config.json` → `ai.alertStrong` to `false`. `JOB_BOT_NOTIFY=<program>` runs your own program with the title, message and URL as arguments instead.
+Without `notify-send` (a server, a minimal system), the message only goes to `data/fetch.log` and the terminal (`notification (no notifier on this system)`). To turn Talaash's notifications off, add `JOB_BOT_NOTIFY=off` to `.env`; for strong matches only, set `config.json` → `ai.alertStrong` to `false`. `JOB_BOT_NOTIFY=<program>` runs your own program with the title, message and URL as arguments instead.
 
 **Success:** the test notification appears on your desktop.
 
 ## 14. The Chrome extension
 
-The extension sends the job you are looking at to job-bot, and shows the prepared CV, letter and answers in a side panel while you apply. **Fill this form** types them into the form's empty fields; it never overwrites a field, never clicks a button and never submits. It works in Google Chrome and Chromium.
+The extension sends the job you are looking at to Talaash, and shows the prepared CV, letter and answers in a side panel while you apply. **Fill this form** types them into the form's empty fields; it never overwrites a field, never clicks a button and never submits. It works in Google Chrome and Chromium.
 
 1. Keep the dashboard running (`npm run web`).
 2. Open `chrome://extensions` and turn on **Developer mode** (top right).
-3. Click **Load unpacked** and choose the `extension` folder inside `~/job-bot`.
-4. Pin the job-bot button to the toolbar (puzzle icon → pin).
+3. Click **Load unpacked** and choose the `extension` folder inside `~/talaash`.
+4. Pin the Talaash button to the toolbar (puzzle icon → pin).
 
-It talks only to your local dashboard, `http://localhost:3100` by default; if you run the dashboard on another port, set its address in the extension's options (**Extension options** in the popup). Details and permissions: [extension/README.md](https://github.com/abdulrehmandar2234/job-bot/blob/main/extension/README.md#dashboard-address-options).
+It talks only to your local dashboard, `http://localhost:3100` by default; if you run the dashboard on another port, set its address in the extension's options (**Extension options** in the popup). Details and permissions: [extension/README.md](https://github.com/abdulrehmandar2234/talaash/blob/main/extension/README.md#dashboard-address-options).
 
-**Success:** on any job page, the job-bot button opens a popup with the job's title and company read from the page.
+**Success:** on any job page, the Talaash button opens a popup with the job's title and company read from the page.
 
 ## 15. Check that it works
 

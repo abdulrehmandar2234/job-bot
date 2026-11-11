@@ -1,7 +1,7 @@
 name: Docs
 
 # Builds the documentation site (docs/, VitePress) on every pull request that touches it, which fails on a dead link,
-# and publishes it to GitHub Pages (https://abdulrehmandar2234.github.io/job-bot/) from main. Pages must be set to
+# and publishes it to GitHub Pages (https://abdulrehmandar2234.github.io/talaash/) from main. Pages must be set to
 # "GitHub Actions" as its source in the repository settings once.
 on:
   push:

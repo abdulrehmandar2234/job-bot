@@ -6,7 +6,7 @@ import { botDataDir } from '@/lib/bot';
 import { importToken, isImportToken } from '@/lib/extension';
 
 // The token file goes to a temp data folder (JOB_BOT_DATA_DIR, read on every call), never the real data/.
-const dataDir = mkdtempSync(join(tmpdir(), 'job-bot-web-token-'));
+const dataDir = mkdtempSync(join(tmpdir(), 'talaash-web-token-'));
 const saved = process.env.JOB_BOT_DATA_DIR;
 process.env.JOB_BOT_DATA_DIR = join(dataDir, 'data');
 

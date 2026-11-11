@@ -57,7 +57,7 @@ describe('GET /api/jobs/lookup', () => {
     });
   });
 
-  it('marks every answer as job-bot, with or without a job', async () => {
+  it('marks every answer as Talaash, with or without a job', async () => {
     await insertJob({ id: 'a', url: `${SITE}/1` });
     expect((await (await get(`${SITE}/1`)).json()).app).toBe('job-bot');
   });

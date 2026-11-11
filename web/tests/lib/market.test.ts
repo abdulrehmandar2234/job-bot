@@ -11,7 +11,7 @@ const OWNER_CONFIG = json('config.default.json');
 const OWNER_APPLICANT = json('tests/fixtures/applicant-owner.json');
 const OWNER_MASTER = json('tests/fixtures/master-owner.json');
 
-const dir = mkdtempSync(join(tmpdir(), 'job-bot-market-'));
+const dir = mkdtempSync(join(tmpdir(), 'talaash-market-'));
 const tmp = (name: string, data: unknown) => {
   const f = join(dir, name);
   writeFileSync(f, typeof data === 'string' ? data : JSON.stringify(data));

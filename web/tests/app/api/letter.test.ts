@@ -7,7 +7,7 @@ import { cleanupDb, closeDb, ensureSchema, insertJob, PREFIX } from '../../helpe
 
 // lib/bot.ts resolves BOT_ROOT from the working directory (web/..) at import time, so point the cwd at a temp
 // "web" folder while importing; runBot is mocked and "prints" a PDF into the temp applications/ folder.
-const root = mkdtempSync(join(tmpdir(), 'job-bot-web-letter-'));
+const root = mkdtempSync(join(tmpdir(), 'talaash-web-letter-'));
 const pdfPath = join(root, 'applications', '2026-10-30-acme-engineer', 'cover-letter.pdf');
 const runBot = vi.fn();
 vi.mock('@/lib/bot', async (orig) => ({ ...(await orig<typeof import('@/lib/bot')>()), runBot: (...a: unknown[]) => runBot(...a) }));

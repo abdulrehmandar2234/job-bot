@@ -97,7 +97,7 @@ describe('applyFill', () => {
     expect(value('[name=email]')).toBe('already@typed.com'); // a filled field is never overwritten
     expect((document.querySelector('[name=terms]') as HTMLInputElement).checked).toBe(false);
     expect(events).toEqual(['input', 'change']);
-    expect((document.getElementById('fn') as HTMLElement).title).toBe('Filled by job-bot: check it before you submit');
+    expect((document.getElementById('fn') as HTMLElement).title).toBe('Filled by Talaash: check it before you submit');
     expect(submit).not.toHaveBeenCalled();
     expect(click).not.toHaveBeenCalled();
   });
@@ -127,7 +127,7 @@ describe('applyFill', () => {
 });
 
 describe('fillProfile', () => {
-  const root = mkdtempSync(join(tmpdir(), 'job-bot-fill-profile-'));
+  const root = mkdtempSync(join(tmpdir(), 'talaash-fill-profile-'));
   const files = { master: join(root, 'cv', 'master.json'), applicant: join(root, 'cv', 'applicant.json') };
   afterAll(() => rmSync(root, { recursive: true, force: true }));
 

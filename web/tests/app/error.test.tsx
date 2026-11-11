@@ -24,7 +24,7 @@ describe('app/error.tsx', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
     expect(retry).toHaveBeenCalledOnce();
 
-    expect(screen.getByRole('heading', { level: 1, name: 'Job Bot' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'Talaash' })).toBeInTheDocument();
     expect(screen.getByRole('navigation', { name: 'Dashboard' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'All jobs' })).toHaveAttribute('href', '/');
     expect(screen.getByRole('link', { name: 'Analytics' })).toHaveAttribute('href', '/analytics');

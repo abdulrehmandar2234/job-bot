@@ -19,7 +19,7 @@ import {
 
 // The backup (src/backup.ts, `bot backup`) runs against a fake pg_dump and a temp output dir, so no database is touched.
 const ROOT = join(import.meta.dirname, '..');
-const root = mkdtempSync(join(tmpdir(), 'job-bot-backup-'));
+const root = mkdtempSync(join(tmpdir(), 'talaash-backup-'));
 after(() => rmSync(root, { recursive: true, force: true }));
 
 // Fake pg_dump programs in Node, so the in-process tests run on every OS.

@@ -12,7 +12,7 @@ import { linkedin } from '../src/sources/linkedin.ts';
 import { discover, workdayToken } from '../src/discover.ts';
 import { config, type Company } from '../src/config.ts';
 
-const cacheDir = mkdtempSync(join(tmpdir(), 'job-bot-sources-'));
+const cacheDir = mkdtempSync(join(tmpdir(), 'talaash-sources-'));
 before(() => {
   timing.scale = 0;
   process.env.JOB_BOT_HTTP_CACHE = cacheDir;

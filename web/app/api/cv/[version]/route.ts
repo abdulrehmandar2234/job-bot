@@ -4,7 +4,7 @@ import { CV_VERSION, cvFileName, cvPath } from '@/lib/cv-templates';
 import { isExtensionOrigin } from '@/lib/extension';
 
 /**
- * Serves a CV PDF so it can be opened, downloaded and uploaded to an application form. The job-bot extension may
+ * Serves a CV PDF so it can be opened, downloaded and uploaded to an application form. The Talaash extension may
  * also read it (CORS for its origin only), to attach it to a form's CV field.
  */
 export async function GET(req: NextRequest, ctx: RouteContext<'/api/cv/[version]'>) {

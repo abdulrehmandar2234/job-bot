@@ -1,11 +1,11 @@
 import { Pool } from 'pg';
-// Row types and the follow-up rule come from the bot (job-bot/src/types.ts, src/followup.ts).
+// Row types and the follow-up rule come from the bot (talaash/src/types.ts, src/followup.ts).
 // .ts extensions: the bot's tests (tests/statuses.test.ts) load this file in plain Node too.
 import { FOLLOW_UP_DUE_SQL } from '../../src/followup.ts';
 import { currencyCodes, eurRate } from './currencies.ts';
 import type { FetchRun, FormAnswer, InterviewPrep, Job as JobRow, JobEvent, SalaryPeriod } from '../../src/types';
 
-// Same Postgres database the CLI bot writes to (job-bot/.env and web/.env.local).
+// Same Postgres database the CLI bot writes to (talaash/.env and web/.env.local).
 const g = globalThis as unknown as { jobBotPool?: Pool };
 g.jobBotPool ??= new Pool({ connectionString: process.env.DATABASE_URL, max: 5 });
 export const pool = g.jobBotPool;

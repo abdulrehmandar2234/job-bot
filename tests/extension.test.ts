@@ -321,7 +321,7 @@ describe('api', () => {
     assert.deepEqual(await lookupJob('https://a.example/2', offline), { ok: false, error: OFFLINE });
   });
 
-  it('says another app answers when the reply has no job-bot marker', async () => {
+  it('says another app answers when the reply has no Talaash marker', async () => {
     const wrong = { ok: false, error: wrongAppMessage() };
     assert.match(
       wrongAppMessage(),
@@ -331,13 +331,13 @@ describe('api', () => {
     assert.deepEqual(await lookupJob('https://a.example/2', fake(404, '<!doctype html><h1>Not found</h1>')), wrong);
     assert.deepEqual(await lookupJob('https://a.example/2', fake(200, '<html></html>')), wrong);
     assert.deepEqual(await lookupJob('https://a.example/2', fake(403, { error: 'Forbidden origin' })), wrong);
-    // job-bot's own refusal keeps its message.
+    // Talaash's own refusal keeps its message.
     assert.deepEqual(await lookupJob('https://a.example/2', fake(403, { app: 'job-bot', error: 'Forbidden origin' })), {
       ok: false,
       status: 403,
       error: 'Forbidden origin',
     });
-    // /api/import never answers 404 in job-bot.
+    // /api/import never answers 404 in Talaash.
     assert.deepEqual(await sendJob(job, fake(404, 'Not found')), { ok: false, status: 404, error: wrongAppMessage() });
   });
 
@@ -370,7 +370,7 @@ describe('api', () => {
     );
     assert.equal(
       describeResult({ outcome: 'known', status: 'applied', score: 60, ai_score: 81 }),
-      'Already in job-bot (applied, AI score 81, keyword score 60).',
+      'Already in Talaash (applied, AI score 81, keyword score 60).',
     );
     assert.match(describeResult({ outcome: 'error' }), /could not save/);
   });
@@ -720,12 +720,12 @@ describe('auto-fill plan', () => {
     assert.deepEqual(
       fillSummary({ filled: [], skipped: ['Country (pick from the list)'] }).map((l) => l.text),
       [
-        'No empty fields here that job-bot knows how to fill.',
+        'No empty fields here that Talaash knows how to fill.',
         'Left for you: Country (pick from the list).',
         'Check every field, then submit the form yourself.',
       ],
     );
-    assert.deepEqual(fillSummary({}), [{ text: 'No empty fields here that job-bot knows how to fill.', kind: 'plain' }]);
+    assert.deepEqual(fillSummary({}), [{ text: 'No empty fields here that Talaash knows how to fill.', kind: 'plain' }]);
   });
 });
 

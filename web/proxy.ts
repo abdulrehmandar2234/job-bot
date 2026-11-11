@@ -9,7 +9,7 @@ import { isLocalHost } from '@/lib/local-host';
  * `/?reset=1` forgets the saved filters and shows the list with its defaults.
  */
 export function proxy(req: NextRequest) {
-  if (!isLocalHost(req.headers.get('host'))) return new NextResponse('job-bot only answers on localhost', { status: 403 });
+  if (!isLocalHost(req.headers.get('host'))) return new NextResponse('Talaash only answers on localhost', { status: 403 });
   if (req.method !== 'GET' || req.nextUrl.pathname !== '/') return NextResponse.next();
   const reset = resetTarget(req.nextUrl);
   if (reset) {

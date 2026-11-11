@@ -6,7 +6,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 
 // lib/bot.ts resolves BOT_ROOT from the working directory (web/..) at import time, so point the cwd at a temp
 // "web" folder while importing; runBot is mocked and "prints" the preview.
-const root = mkdtempSync(join(tmpdir(), 'job-bot-web-preview-'));
+const root = mkdtempSync(join(tmpdir(), 'talaash-web-preview-'));
 const pdfPath = join(root, 'data', 'previews', 'compact.pdf');
 const runBot = vi.fn();
 vi.mock('@/lib/bot', async (orig) => ({ ...(await orig<typeof import('@/lib/bot')>()), runBot: (...a: unknown[]) => runBot(...a) }));

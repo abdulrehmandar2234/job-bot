@@ -1,6 +1,6 @@
 # Roadmap: status
 
-What was planned for job-bot and where each part lives now. None of it changes the core rule: the bot never applies on its own.
+What was planned for Talaash and where each part lives now. None of it changes the core rule: the bot never applies on its own.
 
 ## Open
 

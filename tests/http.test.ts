@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { mockFetch } from './helpers.ts';
 import { HttpError, UA, getJson, getText, postJson, pruneCache, request, retryDelay, sleep, timing } from '../src/sources/http.ts';
 
-const cacheDir = mkdtempSync(join(tmpdir(), 'job-bot-http-'));
+const cacheDir = mkdtempSync(join(tmpdir(), 'talaash-http-'));
 before(() => {
   timing.scale = 0;
   process.env.JOB_BOT_HTTP_CACHE = cacheDir;
@@ -124,7 +124,7 @@ describe('request: retries', () => {
     assert.match(perr.message, /^invalid JSON from https:\/\/p\.test\/search: /);
   });
 
-  it('sends the job-bot User-Agent unless the caller sets one', async () => {
+  it('sends the Talaash User-Agent unless the caller sets one', async () => {
     const agents: (string | undefined)[] = [];
     net = mockFetch({
       'g.test': (_u: string, init?: RequestInit) => {

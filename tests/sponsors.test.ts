@@ -9,7 +9,7 @@ import { timing } from '../src/sources/http.ts';
 
 // The Dutch IND sponsor register in a temp file (JOB_BOT_IND_FILE), never data/ind-sponsors.json; the download is a
 // mocked fetch.
-const dir = mkdtempSync(join(tmpdir(), 'job-bot-ind-'));
+const dir = mkdtempSync(join(tmpdir(), 'talaash-ind-'));
 const file = join(dir, 'ind-sponsors.json');
 const was = process.env.JOB_BOT_IND_FILE;
 process.env.JOB_BOT_IND_FILE = file;

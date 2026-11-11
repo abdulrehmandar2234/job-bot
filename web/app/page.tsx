@@ -44,7 +44,7 @@ export default function Page(props: PageProps<'/'>) {
     <main className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6">
       <header className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Job Bot</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Talaash</h1>
           <Suspense fallback={<p className="text-sm text-zinc-500">&nbsp;</p>}>
             <MarketHeader />
           </Suspense>
@@ -74,7 +74,7 @@ export default function Page(props: PageProps<'/'>) {
               One time: drag this button to your bookmarks bar → <BaytBookmarklet />
             </li>
             <li>
-              Open Bayt and click the <b>Bayt → Job Bot</b> bookmark. A progress box appears in the corner (takes ~10 min; keep the tab
+              Open Bayt and click the <b>Bayt → Talaash</b> bookmark. A progress box appears in the corner (takes ~10 min; keep the tab
               open).
             </li>
             <li>

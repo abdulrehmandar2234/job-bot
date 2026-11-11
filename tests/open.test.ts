@@ -15,7 +15,7 @@ import { duplicateLinks, getJob, migrate, pool, setStatus, type DedupeRow } from
 import { prepare } from '../src/commands/prepare.ts';
 import { path } from '../src/config.ts';
 
-const cacheDir = mkdtempSync(join(tmpdir(), 'job-bot-open-'));
+const cacheDir = mkdtempSync(join(tmpdir(), 'talaash-open-'));
 before(async () => {
   timing.scale = 0;
   process.env.JOB_BOT_HTTP_CACHE = cacheDir;

@@ -1,6 +1,6 @@
-# Contributing to job-bot
+# Contributing to Talaash
 
-Thanks for helping. job-bot is [MIT licensed](LICENSE): by opening a pull request you agree that your contribution is released under the same license. Anyone can propose a change: fork the repository, make the change on a branch, and open a pull request. Only the maintainer merges, after review.
+Thanks for helping. Talaash is [MIT licensed](LICENSE): by opening a pull request you agree that your contribution is released under the same license. Anyone can propose a change: fork the repository, make the change on a branch, and open a pull request. Only the maintainer merges, after review.
 
 ## Ground rules
 
@@ -20,8 +20,8 @@ These are the project's hard rules. A pull request that breaks one is not merged
 1. Fork the repository on GitHub, then clone your fork:
 
    ```bash
-   git clone https://github.com/<your-user>/job-bot.git
-   cd job-bot
+   git clone https://github.com/<your-user>/talaash.git
+   cd talaash
    npm install
    npm --prefix web install
    ```

@@ -26,7 +26,7 @@ try { console.log('minScore', config.minScore); } catch (e) { console.log('error
 }
 
 describe('config.ts', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'job-bot-config-lazy-'));
+  const dir = mkdtempSync(join(tmpdir(), 'talaash-config-lazy-'));
 
   it('importing it does not read config.json; the first setting read does, and reports a broken file then', () => {
     const bad = join(dir, 'bad.json');

@@ -1,6 +1,6 @@
-# job-bot dashboard
+# Talaash dashboard
 
-The local web dashboard of [job-bot](../README.md): the job list, job pages, Settings and Analytics. It is a Next.js app that reads the bot's PostgreSQL database directly and starts bot commands (prepare, letters, AI reviews, ...) in the background through the CLI.
+The local web dashboard of [talaash](../README.md): the job list, job pages, Settings and Analytics. It is a Next.js app that reads the bot's PostgreSQL database directly and starts bot commands (prepare, letters, AI reviews, ...) in the background through the CLI.
 
 It only answers on `127.0.0.1` and has no login, so it is meant for your own computer only: never deploy it or expose it to a network.
 

@@ -8,7 +8,7 @@ import { cleanup, keepNewest, removeOldFiles, staleCustomVersions } from '../src
 import { migrate, pool } from '../src/db.ts';
 
 // `bot daily`'s cleanup (src/cleanup.ts) on temp folders and the test database. Jobs use the `cleanup:` id prefix.
-const root = mkdtempSync(join(tmpdir(), 'job-bot-cleanup-'));
+const root = mkdtempSync(join(tmpdir(), 'talaash-cleanup-'));
 after(() => rmSync(root, { recursive: true, force: true }));
 
 const DAY = 86_400_000;

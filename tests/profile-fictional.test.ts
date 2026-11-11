@@ -10,7 +10,7 @@ import type { Job } from '../src/db.ts';
 // bot writes for her. The files are set before the bot is imported, because config.json is loaded at import.
 
 const ROOT = join(import.meta.dirname, '..');
-const dir = mkdtempSync(join(tmpdir(), 'job-bot-jane-'));
+const dir = mkdtempSync(join(tmpdir(), 'talaash-jane-'));
 const cfg = JSON.parse(readFileSync(join(ROOT, 'config.default.json'), 'utf8'));
 cfg.cvFileName = 'jane_doe_resume.pdf';
 cfg.linkedin.remoteFrom = 'Portugal';

@@ -20,7 +20,7 @@ document.getElementById('form').addEventListener('submit', async (e) => {
   status.textContent = `Saved: ${saved.origin}.`;
 });
 
-// Asks the dashboard about a made-up page: job-bot answers with its marker, another app does not.
+// Asks the dashboard about a made-up page: Talaash answers with its marker, another app does not.
 document.getElementById('check').addEventListener('click', async () => {
   const parsed = parseDashboardOrigin(input.value);
   if (!parsed.ok) {
@@ -30,5 +30,5 @@ document.getElementById('check').addEventListener('click', async () => {
   useDashboard(parsed.origin);
   status.textContent = 'Checking…';
   const r = await lookupJob('https://example.com/job-bot-connection-check');
-  status.textContent = r.ok ? `job-bot answers at ${dashboardOrigin()}.` : r.error;
+  status.textContent = r.ok ? `Talaash answers at ${dashboardOrigin()}.` : r.error;
 });

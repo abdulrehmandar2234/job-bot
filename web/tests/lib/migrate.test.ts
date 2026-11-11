@@ -27,7 +27,7 @@ describe('applyMigrations', () => {
     const log = fakeLog();
     expect(await applyMigrations({ run, log })).toBe(true);
     expect(run).toHaveBeenCalledWith(['migrate']);
-    expect(log.log).toHaveBeenCalledWith('[job-bot] Applied 1 migration(s): 027_new_column');
+    expect(log.log).toHaveBeenCalledWith('[talaash] Applied 1 migration(s): 027_new_column');
     expect(log.error).not.toHaveBeenCalled();
   });
 
@@ -38,7 +38,7 @@ describe('applyMigrations', () => {
     const log = fakeLog();
     expect(await applyMigrations({ run, log })).toBe(false);
     const [message] = log.error.mock.calls[0];
-    expect(message).toMatch(/^\[job-bot\] Could not apply the database migrations: Error: connect ECONNREFUSED 127\.0\.0\.1:5432\n/);
+    expect(message).toMatch(/^\[talaash\] Could not apply the database migrations: Error: connect ECONNREFUSED 127\.0\.0\.1:5432\n/);
     expect(message).toMatch(/npm run bot -- migrate/);
   });
 
@@ -47,7 +47,7 @@ describe('applyMigrations', () => {
     // The child inherits DATABASE_URL (this test database), which wins over the bot's .env.
     expect(await applyMigrations({ log })).toBe(true);
     expect(log.error).not.toHaveBeenCalled();
-    expect(log.log.mock.calls[0][0]).toMatch(/^\[job-bot\] (Database is up to date\.|Applied \d+ migration)/);
+    expect(log.log.mock.calls[0][0]).toMatch(/^\[talaash\] (Database is up to date\.|Applied \d+ migration)/);
     const files = readdirSync(join(BOT_ROOT, 'src', 'migrations')).filter((f) => f.endsWith('.sql'));
     const { rows } = await pool.query<{ version: string }>('SELECT version FROM schema_migrations');
     expect(rows.map((r) => r.version).sort()).toEqual(files.map((f) => f.replace(/\.sql$/, '')).sort());

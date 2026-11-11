@@ -30,7 +30,7 @@ async function refresh() {
   // Drop the previous job at once, so its Fill button cannot be used on the new tab while the lookup runs.
   main.replaceChildren(h('p', { className: 'hint' }, 'Loading…'));
   if (!isHttpUrl(current?.url)) {
-    main.replaceChildren(h('p', {}, 'Open a job page to see what job-bot prepared for it.'));
+    main.replaceChildren(h('p', {}, 'Open a job page to see what Talaash prepared for it.'));
     return;
   }
   const tab = { id: current.id, url: current.url };
@@ -140,7 +140,7 @@ function fillSection(j, tab, { profileOnly = false, lastResult = null } = {}) {
       'p',
       { className: 'hint' },
       profileOnly
-        ? 'Types your name, contact details and your original CV into empty fields. No cover letter or answers: this page is not a job in job-bot. It never submits: check every field, then submit yourself.'
+        ? 'Types your name, contact details and your original CV into empty fields. No cover letter or answers: this page is not a job in Talaash. It never submits: check every field, then submit yourself.'
         : 'Types your details, the cover letter, drafted answers and the CV into empty fields. It never submits: check every field, then submit yourself.',
     ),
     status,
@@ -170,7 +170,7 @@ async function fillForm(j, tab, retry, profileOnly) {
     allow.addEventListener('click', async () => {
       if (await chrome.permissions.request({ origins: missing }).catch(() => false)) retry();
     });
-    return { nodes: [h('p', {}, `Part of this form comes from ${sites}. Allow job-bot there too, so it can fill the whole form.`), allow] };
+    return { nodes: [h('p', {}, `Part of this form comes from ${sites}. Allow Talaash there too, so it can fill the whole form.`), allow] };
   }
   // The CV PDF is downloaded only when a form has a CV field; planning needs just its name.
   const data = fillData(j, { profileOnly });
@@ -199,7 +199,7 @@ async function fillForm(j, tab, retry, profileOnly) {
   return { result: { filled, skipped: [...new Set(skipped)], needInput } };
 }
 
-/** A page with no known job: send it to job-bot, or fill just the profile and the original CV. */
+/** A page with no known job: send it to Talaash, or fill just the profile and the original CV. */
 function renderUnknown(basics, tab) {
   const form = h('div');
   const read = h('button', { type: 'button' }, 'Read this page');
@@ -219,7 +219,7 @@ function renderUnknown(basics, tab) {
   const canFill = Object.values(profile).some(Boolean) || Boolean(basics?.cv_url);
   main.replaceChildren(
     ...[
-      h('p', {}, 'This job is not in job-bot yet.'),
+      h('p', {}, 'This job is not in Talaash yet.'),
       read,
       form,
       canFill && fillSection({ profile, cv_url: basics.cv_url, cv_file_name: basics.cv_file_name }, tab, { profileOnly: true }),

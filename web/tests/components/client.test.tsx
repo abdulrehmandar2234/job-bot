@@ -24,7 +24,7 @@ describe('BaytBookmarklet', () => {
   });
 
   const bookmarkletCode = () => {
-    const href = screen.getByText('⇱ Bayt → Job Bot').getAttribute('href')!;
+    const href = screen.getByText('⇱ Bayt → Talaash').getAttribute('href')!;
     expect(href.startsWith('javascript:')).toBe(true);
     return href.slice('javascript:'.length);
   };
@@ -48,7 +48,7 @@ describe('BaytBookmarklet', () => {
 
   it('shows how to use it when clicked instead of navigating', async () => {
     render(<BaytBookmarklet />);
-    await userEvent.click(screen.getByText('⇱ Bayt → Job Bot'));
+    await userEvent.click(screen.getByText('⇱ Bayt → Talaash'));
     expect(alertSpy).toHaveBeenCalledWith('Drag this button to your bookmarks bar, then click it on bayt.com.');
   });
 

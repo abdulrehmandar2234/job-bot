@@ -15,7 +15,7 @@ vi.mock('@/lib/bot', async (importOriginal) => {
   const { join: j } = await import('node:path');
   return {
     ...(await importOriginal<typeof import('@/lib/bot')>()),
-    BOT_ROOT: mkdtempSync(j(tmpdir(), 'job-bot-web-settings-actions-')),
+    BOT_ROOT: mkdtempSync(j(tmpdir(), 'talaash-web-settings-actions-')),
     runBot: vi.fn(),
   };
 });
@@ -25,7 +25,7 @@ vi.mock('@/lib/tasks', () => ({ enqueueTask: vi.fn() }));
 
 const bot = vi.mocked(runBot);
 const enqueue = vi.mocked(enqueueTask);
-const dir = mkdtempSync(join(tmpdir(), 'job-bot-web-settings-files-'));
+const dir = mkdtempSync(join(tmpdir(), 'talaash-web-settings-files-'));
 const CONFIG_FILE = join(dir, 'config.json');
 const APPLICANT_FILE = join(dir, 'applicant.json');
 const tempDir = () => join(botDataDir(), 'settings');

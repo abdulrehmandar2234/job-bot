@@ -121,7 +121,7 @@ describe('ConfigForm', () => {
     expect(screen.getByText(/no API key, usage comes from your Claude plan/)).toBeInTheDocument();
     expect(screen.queryByTestId('ai-key-status')).toBeNull(); // the Claude CLI needs no key
     expect(screen.queryByLabelText(/^API provider/)).toBeNull();
-    expect(screen.getByText(/put AI_API_KEY=\.\.\. in \.env in the job-bot folder/)).toBeInTheDocument();
+    expect(screen.getByText(/put AI_API_KEY=\.\.\. in \.env in the Talaash folder/)).toBeInTheDocument();
 
     await user.selectOptions(select, 'api');
     const preset = screen.getByLabelText(/^API provider/);
@@ -412,7 +412,7 @@ describe('SaveStatus', () => {
 });
 
 describe('Settings page content', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'job-bot-web-settings-page-'));
+  const dir = mkdtempSync(join(tmpdir(), 'talaash-web-settings-page-'));
   afterEach(() => {
     vi.unstubAllEnvs();
   });

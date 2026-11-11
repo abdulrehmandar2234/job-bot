@@ -1,10 +1,10 @@
-# Install job-bot on Windows
+# Install Talaash on Windows
 
-This guide takes a Windows 10 or 11 PC from nothing to a working job-bot: the bot, the dashboard, the daily run and the Chrome extension. Run every command in **PowerShell** (Start menu → "PowerShell"; not "Command Prompt", unless a step says so). Expect 30 to 45 minutes, most of it filling in your CV.
+This guide takes a Windows 10 or 11 PC from nothing to a working Talaash: the bot, the dashboard, the daily run and the Chrome extension. Run every command in **PowerShell** (Start menu → "PowerShell"; not "Command Prompt", unless a step says so). Expect 30 to 45 minutes, most of it filling in your CV.
 
 Other systems: [macOS](macos.md) · [Linux](linux.md) · [Start page](../README.md)
 
-Paths below use `$HOME\job-bot` (that is `C:\Users\<you>\job-bot`) for the project folder, where `<you>` is your Windows user name (`$env:USERNAME` prints it).
+Paths below use `$HOME\talaash` (that is `C:\Users\<you>\talaash`) for the project folder, where `<you>` is your Windows user name (`$env:USERNAME` prints it).
 
 ## Steps
 
@@ -26,7 +26,7 @@ Paths below use `$HOME\job-bot` (that is `C:\Users\<you>\job-bot`) for the proje
 
 ## 1. Install Node.js and PostgreSQL
 
-job-bot needs **Node.js 24 or newer** (it runs its TypeScript directly, with no build step) and **PostgreSQL 15 or newer**. This guide assumes Git is already installed (`git --version` works). With winget (built into Windows 10 and 11):
+Talaash needs **Node.js 24 or newer** (it runs its TypeScript directly, with no build step) and **PostgreSQL 15 or newer**. This guide assumes Git is already installed (`git --version` works). With winget (built into Windows 10 and 11):
 
 ```powershell
 winget install OpenJS.NodeJS.LTS
@@ -54,7 +54,7 @@ npm --version
 
 ## 2. Create the database
 
-job-bot keeps everything in one local PostgreSQL database called `job_bot`. The PostgreSQL tools are not on the PATH; add them for this window (change `17` if you installed another version):
+Talaash keeps everything in one local PostgreSQL database called `job_bot`. The PostgreSQL tools are not on the PATH; add them for this window (change `17` if you installed another version):
 
 ```powershell
 $env:Path += ';C:\Program Files\PostgreSQL\17\bin'
@@ -82,13 +82,13 @@ The daily backup finds `pg_dump.exe` in `C:\Program Files\PostgreSQL\<version>\b
 ## 3. Get the code and install its packages
 
 ```powershell
-git clone https://github.com/abdulrehmandar2234/job-bot.git $HOME\job-bot
-cd $HOME\job-bot
+git clone https://github.com/abdulrehmandar2234/talaash.git $HOME\talaash
+cd $HOME\talaash
 npm install                 # the bot; also sets up the git pre-commit hook
 npm --prefix web install    # the dashboard (it has its own package.json)
 ```
 
-All later commands run in `$HOME\job-bot`. The repository keeps LF line endings on every OS (`.gitattributes`), so Git's `core.autocrlf` setting does not matter.
+All later commands run in `$HOME\talaash`. The repository keeps LF line endings on every OS (`.gitattributes`), so Git's `core.autocrlf` setting does not matter.
 
 **Success:** both installs end with `added N packages` and no `ERR!` lines.
 
@@ -161,7 +161,7 @@ Replace Jane Doe's name, contact, summary, skills, experience, projects and educ
 
 ```powershell
 node -e "JSON.parse(require('fs').readFileSync('cv/master.json', 'utf8')); console.log('ok')"
-npm run bot -- cv:preview classic --pdf     # PDF        : C:\Users\<you>\job-bot\data\previews/classic.pdf
+npm run bot -- cv:preview classic --pdf     # PDF        : C:\Users\<you>\talaash\data\previews/classic.pdf
 Invoke-Item data\previews\classic.pdf
 ```
 
@@ -208,7 +208,7 @@ npm run bot -- cv:default
 
 This is the first command that uses the database: it creates the tables first (from `src\migrations\`), then renders `cv\default\<your cvFileName>`.
 
-**Success:** `default CV rebuilt from master.json → C:\Users\<you>\job-bot\cv\default\<cvFileName>`. Open it and check it.
+**Success:** `default CV rebuilt from master.json → C:\Users\<you>\talaash\cv\default\<cvFileName>`. Open it and check it.
 
 Keep `"autoCvVersions": false` in `config.json` for now: the per-stack CV versions are written for the owner's CV ([why](../your-cv-and-profile.md#cv-versions-and-the-per-stack-framings)).
 
@@ -237,10 +237,10 @@ Open <http://localhost:3100>. Leave the PowerShell window with `npm run web` ope
 npm run bot -- schedule:print
 ```
 
-It prints lines like these (shown for `C:\Users\<you>\job-bot` and Node in `C:\Program Files\nodejs`). Paste the printed PowerShell lines into PowerShell:
+It prints lines like these (shown for `C:\Users\<you>\talaash` and Node in `C:\Program Files\nodejs`). Paste the printed PowerShell lines into PowerShell:
 
 ```powershell
-$action = New-ScheduledTaskAction -Execute 'C:\Program Files\nodejs\node.exe' -Argument '--no-warnings --env-file-if-exists=.env src/cli.ts daily' -WorkingDirectory 'C:\Users\<you>\job-bot'
+$action = New-ScheduledTaskAction -Execute 'C:\Program Files\nodejs\node.exe' -Argument '--no-warnings --env-file-if-exists=.env src/cli.ts daily' -WorkingDirectory 'C:\Users\<you>\talaash'
 $trigger = New-ScheduledTaskTrigger -Daily -At 9am
 $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Hours 2)
 Register-ScheduledTask -TaskName 'job-bot daily fetch' -Action $action -Trigger $trigger -Settings $settings -Force
@@ -250,13 +250,13 @@ Start-ScheduledTask -TaskName 'job-bot daily fetch'   # run it once now to try i
 Watch the log:
 
 ```powershell
-Get-Content $HOME\job-bot\data\fetch.log -Wait     # Ctrl+C to stop watching
+Get-Content $HOME\talaash\data\fetch.log -Wait     # Ctrl+C to stop watching
 ```
 
 Or, in **Command Prompt** (`cmd.exe`) with `schtasks`, which does not catch up a missed run:
 
 ```bat
-schtasks /Create /F /SC DAILY /ST 09:00 /TN "job-bot daily fetch" /TR "\"C:\Program Files\nodejs\node.exe\" --no-warnings \"C:\Users\<you>\job-bot\src\cli.ts\" daily"
+schtasks /Create /F /SC DAILY /ST 09:00 /TN "job-bot daily fetch" /TR "\"C:\Program Files\nodejs\node.exe\" --no-warnings \"C:\Users\<you>\talaash\src\cli.ts\" daily"
 schtasks /Run /TN "job-bot daily fetch"
 ```
 
@@ -270,28 +270,28 @@ schtasks /Run /TN "job-bot daily fetch"
 
 ## 13. Notifications
 
-job-bot shows a notification when the AI rates a job `strong` (once per job, grouped above three) and after each daily run. On Windows it shows a toast through the built-in Windows PowerShell (clicking it opens the dashboard), or a tray balloon if toasts are unavailable. Nothing to install. Try it:
+Talaash shows a notification when the AI rates a job `strong` (once per job, grouped above three) and after each daily run. On Windows it shows a toast through the built-in Windows PowerShell (clicking it opens the dashboard), or a tray balloon if toasts are unavailable. Nothing to install. Try it:
 
 ```powershell
-node --no-warnings -e "import('./src/notify.ts').then((m) => m.notify({ title: 'Job Bot', message: 'Test', url: 'http://localhost:3100' }))"
+node --no-warnings -e "import('./src/notify.ts').then((m) => m.notify({ title: 'Talaash', message: 'Test', url: 'http://localhost:3100' }))"
 ```
 
-If nothing appears, check Settings → System → Notifications: notifications must be on, **Windows PowerShell** must be allowed, and Focus assist / Do not disturb must be off. To turn job-bot's notifications off, add `JOB_BOT_NOTIFY=off` to `.env`; for strong matches only, set `config.json` → `ai.alertStrong` to `false`.
+If nothing appears, check Settings → System → Notifications: notifications must be on, **Windows PowerShell** must be allowed, and Focus assist / Do not disturb must be off. To turn Talaash's notifications off, add `JOB_BOT_NOTIFY=off` to `.env`; for strong matches only, set `config.json` → `ai.alertStrong` to `false`.
 
-**Success:** a "Job Bot: Test" toast appears (a failure prints `notification failed: ...`).
+**Success:** a "Talaash: Test" toast appears (a failure prints `notification failed: ...`).
 
 ## 14. The Chrome extension
 
-The extension sends the job you are looking at to job-bot, and shows the prepared CV, letter and answers in a side panel while you apply. **Fill this form** types them into the form's empty fields; it never overwrites a field, never clicks a button and never submits.
+The extension sends the job you are looking at to Talaash, and shows the prepared CV, letter and answers in a side panel while you apply. **Fill this form** types them into the form's empty fields; it never overwrites a field, never clicks a button and never submits.
 
 1. Keep the dashboard running (`npm run web`).
 2. Open `chrome://extensions` and turn on **Developer mode** (top right).
-3. Click **Load unpacked** and choose the `extension` folder inside `C:\Users\<you>\job-bot`.
-4. Pin the job-bot button to the toolbar (puzzle icon → pin).
+3. Click **Load unpacked** and choose the `extension` folder inside `C:\Users\<you>\talaash`.
+4. Pin the Talaash button to the toolbar (puzzle icon → pin).
 
-It talks only to your local dashboard, `http://localhost:3100` by default; if you run the dashboard on another port, set its address in the extension's options (**Extension options** in the popup). Details and permissions: [extension/README.md](https://github.com/abdulrehmandar2234/job-bot/blob/main/extension/README.md#dashboard-address-options).
+It talks only to your local dashboard, `http://localhost:3100` by default; if you run the dashboard on another port, set its address in the extension's options (**Extension options** in the popup). Details and permissions: [extension/README.md](https://github.com/abdulrehmandar2234/talaash/blob/main/extension/README.md#dashboard-address-options).
 
-**Success:** on any job page, the job-bot button opens a popup with the job's title and company read from the page.
+**Success:** on any job page, the Talaash button opens a popup with the job's title and company read from the page.
 
 ## 15. Check that it works
 

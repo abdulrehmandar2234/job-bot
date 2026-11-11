@@ -224,7 +224,7 @@ export async function runSetup(io: SetupIO, files: SetupFiles = { config: CONFIG
       p.say(`${files.config} is missing or not a JSON object. Start again from the shipped settings: copy config.default.json to it.`);
       return false;
     }
-    p.say('job-bot setup. Press Enter to keep the value in [brackets], type "-" to clear it.\n');
+    p.say('Talaash setup. Press Enter to keep the value in [brackets], type "-" to clear it.\n');
     const url = (await offerEnvFiles(p, files)) ?? process.env.DATABASE_URL;
     await offerDatabase(p, files, url);
     await offerMasterCv(p, files);
@@ -380,7 +380,7 @@ export async function runSetup(io: SetupIO, files: SetupFiles = { config: CONFIG
       if (preset === 'ollama') {
         p.say(`Ollama needs no key; it must be running at ${PRESETS.ollama.baseUrl}.`);
       } else {
-        p.say(`Put your API key in .env (in the job-bot folder) as ${AI_KEY_ENV}=...`);
+        p.say(`Put your API key in .env (in the Talaash folder) as ${AI_KEY_ENV}=...`);
         p.say('The wizard never asks for the key or saves it, and it never goes into config.json.');
       }
       if (preset === 'auto') {

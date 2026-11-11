@@ -271,7 +271,7 @@ export function applyFill(fills, cv) {
     el.dispatchEvent(new Event('change', { bubbles: true }));
     el.style.outline = '2px solid #f59e0b';
     el.style.outlineOffset = '1px';
-    el.title = 'Filled by job-bot: check it before you submit';
+    el.title = 'Filled by Talaash: check it before you submit';
     filled++;
   }
   return filled;

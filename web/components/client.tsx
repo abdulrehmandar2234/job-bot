@@ -24,7 +24,7 @@ export function BaytBookmarklet() {
       }}
       className="btn cursor-grab border-dashed"
     >
-      ⇱ Bayt → Job Bot
+      ⇱ Bayt → Talaash
     </a>
   );
 }

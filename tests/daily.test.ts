@@ -23,7 +23,7 @@ const ROOT = join(import.meta.dirname, '..');
 // The CLI makes config.json from config.default.json when it is missing; pointing it at the shipped file (only read
 // here) keeps the repository free of one.
 const CLI_ENV = { ...process.env, JOB_BOT_CONFIG: join(ROOT, 'config.default.json') };
-const root = mkdtempSync(join(tmpdir(), 'job-bot-daily-'));
+const root = mkdtempSync(join(tmpdir(), 'talaash-daily-'));
 after(() => rmSync(root, { recursive: true, force: true }));
 
 /** runDaily with fake steps: `results` maps a command name to its exit code and output. */
@@ -65,7 +65,7 @@ describe('runDaily', () => {
     });
     assert.deepEqual(calls, ['fetch', 'check:open --limit 100', 'ai:score', 'notify', 'backup', 'prune']);
     assert.deepEqual(notes, [
-      { title: 'Job Bot', message: '10 postings checked, 1 new. 3 jobs scored, 0 failed.', url: 'http://localhost:3100' },
+      { title: 'Talaash', message: '10 postings checked, 1 new. 3 jobs scored, 0 failed.', url: 'http://localhost:3100' },
     ]);
     assert.match(log, /^\n===== 2026-10-30 09:05 =====\n/);
     assert.match(log, /notification: 10 postings checked/);
@@ -385,7 +385,7 @@ describe('scheduleSnippet', () => {
   it('Windows: Register-ScheduledTask in PowerShell (quoted literals) and a schtasks line for cmd.exe', () => {
     const s = scheduleSnippet({
       platform: 'win32',
-      root: "C:\\Users\\O'Neil\\job-bot",
+      root: "C:\\Users\\O'Neil\\talaash",
       node: 'C:\\Program Files\\nodejs\\node.exe',
       user: 'x',
     });
@@ -393,12 +393,12 @@ describe('scheduleSnippet', () => {
       s,
       /-Execute 'C:\\Program Files\\nodejs\\node\.exe' -Argument '--no-warnings --env-file-if-exists=\.env src\/cli\.ts daily'/,
     );
-    assert.match(s, /-WorkingDirectory 'C:\\Users\\O''Neil\\job-bot'/);
+    assert.match(s, /-WorkingDirectory 'C:\\Users\\O''Neil\\talaash'/);
     assert.match(s, /New-ScheduledTaskTrigger -Daily -At 9am/);
     assert.match(s, /-StartWhenAvailable/);
     assert.ok(
       s.includes(
-        'schtasks /Create /F /SC DAILY /ST 09:00 /TN "job-bot daily fetch" /TR "\\"C:\\Program Files\\nodejs\\node.exe\\" --no-warnings \\"C:\\Users\\O\'Neil\\job-bot\\src\\cli.ts\\" daily"',
+        'schtasks /Create /F /SC DAILY /ST 09:00 /TN "job-bot daily fetch" /TR "\\"C:\\Program Files\\nodejs\\node.exe\\" --no-warnings \\"C:\\Users\\O\'Neil\\talaash\\src\\cli.ts\\" daily"',
       ),
       s,
     );

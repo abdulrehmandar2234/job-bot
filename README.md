@@ -1,17 +1,17 @@
-# job-bot
+# Talaash
 
-A personal job-search assistant that runs on your own computer (macOS, Linux or Windows). It finds software engineering jobs in the **countries you target** (onsite, with or without a visa) and **remote jobs open to the country you live in**, filters and scores them against your CV, prepares the right CV version, cover letter and form answers for each one, and tracks where you applied.
+_Talaash_ (Urdu for "search") is a personal job-search assistant that runs on your own computer (macOS, Linux or Windows). It finds software engineering jobs in the **countries you target** (onsite, with or without a visa) and **remote jobs open to the country you live in**, filters and scores them against your CV, prepares the right CV version, cover letter and form answers for each one, and tracks where you applied.
 
 **It never applies on your behalf.** The bot finds, scores and prepares; you review everything and submit every application yourself.
 
-**Documentation:** [abdulrehmandar2234.github.io/job-bot](https://abdulrehmandar2234.github.io/job-bot/) (the same pages are in [docs/](docs/README.md)).
+**Documentation:** [abdulrehmandar2234.github.io/talaash](https://abdulrehmandar2234.github.io/talaash/) (the same pages are in [docs/](docs/README.md)).
 
 ## Quick start
 
 You need Git, Node.js 24+ and PostgreSQL 15+ running, and for the AI a signed-in [Claude Code CLI](docs/ai.md) or one API key of any OpenAI-compatible provider.
 
 ```bash
-git clone https://github.com/abdulrehmandar2234/job-bot.git && cd job-bot
+git clone https://github.com/abdulrehmandar2234/talaash.git && cd talaash
 npm install && npm --prefix web install
 npx playwright-core install chromium-headless-shell   # prints CVs and letters to PDF
 npm run bot -- setup     # writes .env, creates the database, starts your CV, asks for your profile and markets
@@ -65,7 +65,7 @@ A scheduler runs `bot daily` at 9:00 (fetch, dead-link check, AI review, notific
 | [Configuration](docs/configuration.md)                                                                        | Every `config.json` key and environment variable, presets, filters     |
 | [AI](docs/ai.md)                                                                                              | Claude CLI or one API key, presets, models, cost, running without AI   |
 | [Daily use](docs/daily-use.md)                                                                                | The dashboard, the extension, follow-ups, everyday commands            |
-| [Features](docs/features.md)                                                                                  | Everything job-bot does, and every job source                          |
+| [Features](docs/features.md)                                                                                  | Everything Talaash does, and every job source                          |
 | [CLI reference](docs/cli.md)                                                                                  | Every command and the daily run                                        |
 | [How it works](docs/how-it-works.md)                                                                          | Architecture, a job's journey, CV pipeline, database, tests            |
 | [Troubleshooting](docs/troubleshooting.md)                                                                    | Common problems, general and per OS                                    |

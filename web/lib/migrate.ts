@@ -13,14 +13,14 @@ export type MigrateDeps = { run?: (args: string[]) => Promise<string>; log?: Log
 export async function applyMigrations({ run = (args) => runBot(args, 120_000), log = console }: MigrateDeps = {}): Promise<boolean> {
   try {
     const out = (await run(['migrate'])).trim();
-    if (out) log.log(`[job-bot] ${out}`);
+    if (out) log.log(`[talaash] ${out}`);
     return true;
   } catch (e) {
     const err = e as Error & { stderr?: string };
     const why = (err.stderr?.trim() || err.message).slice(0, 2000);
     log.error(
-      `[job-bot] Could not apply the database migrations: ${why}\n` +
-        '[job-bot] Pages that need a new column may fail until this works. Run "npm run bot -- migrate" in the job-bot folder to see why.',
+      `[talaash] Could not apply the database migrations: ${why}\n` +
+        '[talaash] Pages that need a new column may fail until this works. Run "npm run bot -- migrate" in the Talaash folder to see why.',
     );
     return false;
   }

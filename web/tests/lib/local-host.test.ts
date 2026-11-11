@@ -24,7 +24,7 @@ describe('proxy', () => {
     expect(proxy(req('localhost:3100')).headers.get('x-middleware-next')).toBe('1');
     const res = proxy(req('192.168.1.20:3100'));
     expect(res.status).toBe(403);
-    expect(await res.text()).toBe('job-bot only answers on localhost');
+    expect(await res.text()).toBe('Talaash only answers on localhost');
   });
 });
 

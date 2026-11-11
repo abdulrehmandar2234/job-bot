@@ -56,7 +56,7 @@ let realPool: pg.Pool | null = null;
  */
 export function getPool(): pg.Pool {
   if (!realPool) {
-    if (!process.env.DATABASE_URL) throw new UserError('DATABASE_URL is not set: put it in .env in the job-bot folder');
+    if (!process.env.DATABASE_URL) throw new UserError('DATABASE_URL is not set: put it in .env in the Talaash folder');
     realPool = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 4 });
   }
   return realPool;

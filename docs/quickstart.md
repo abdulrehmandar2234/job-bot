@@ -5,7 +5,7 @@ From nothing to your first matching jobs in about ten minutes, plus the time to 
 ## What you need first
 
 - **Git**, **Node.js 24+** and **PostgreSQL 15+**, running on your computer.
-- For the AI features, one of: the [Claude Code CLI](ai.md#option-1-the-claude-code-cli), signed in, or [one API key](ai.md#option-2-one-api-key) of any OpenAI-compatible provider. Without either, job-bot still finds and filters jobs and writes template letters ([running without AI](ai.md#running-without-ai)).
+- For the AI features, one of: the [Claude Code CLI](ai.md#option-1-the-claude-code-cli), signed in, or [one API key](ai.md#option-2-one-api-key) of any OpenAI-compatible provider. Without either, Talaash still finds and filters jobs and writes template letters ([running without AI](ai.md#running-without-ai)).
 
 | Your computer                                   | Full guide                               |
 | ----------------------------------------------- | ---------------------------------------- |
@@ -16,7 +16,7 @@ From nothing to your first matching jobs in about ten minutes, plus the time to 
 ## 1. Get the code
 
 ```bash
-git clone https://github.com/abdulrehmandar2234/job-bot.git && cd job-bot
+git clone https://github.com/abdulrehmandar2234/talaash.git && cd talaash
 npm install && npm --prefix web install
 npx playwright-core install chromium-headless-shell   # prints CVs and letters to PDF
 ```
@@ -51,5 +51,5 @@ The **Matching** tab lists the jobs that passed your filters, best match first.
 
 - [Daily use](daily-use.md): the job list, preparing a CV and letter, the Chrome extension, follow-ups.
 - The morning run: step 12 of your install guide sets up `bot daily` at 9:00 (fetch, AI review, notification, backup).
-- [Features](features.md): everything job-bot can do, and every job source.
+- [Features](features.md): everything Talaash can do, and every job source.
 - [How it works](how-it-works.md): the architecture and the path of one job.

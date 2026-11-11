@@ -131,7 +131,7 @@ export async function runDaily(d: DailyDeps): Promise<void> {
   // The fetch's own timeout is already the message.
   const late = timedOut.filter((s) => s !== 'fetch');
   if (late.length) message += ` Timed out: ${late.join(', ')} (see data/fetch.log).`;
-  const note: Note = { title: 'Job Bot', message, url: DASHBOARD_URL };
+  const note: Note = { title: 'Talaash', message, url: DASHBOARD_URL };
   d.log(`notification: ${note.message}\n`);
   await d.notify(note);
   // Daily database backup (keeps 14).

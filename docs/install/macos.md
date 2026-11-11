@@ -1,10 +1,10 @@
-# Install job-bot on macOS
+# Install Talaash on macOS
 
-This guide takes a Mac (Apple silicon or Intel, macOS 13 or newer) from nothing to a working job-bot: the bot, the dashboard, the daily run and the Chrome extension. Run every command in **Terminal** (zsh, the default shell). Expect 30 to 45 minutes, most of it filling in your CV.
+This guide takes a Mac (Apple silicon or Intel, macOS 13 or newer) from nothing to a working Talaash: the bot, the dashboard, the daily run and the Chrome extension. Run every command in **Terminal** (zsh, the default shell). Expect 30 to 45 minutes, most of it filling in your CV.
 
 Other systems: [Linux](linux.md) · [Windows](windows.md) · [Start page](../README.md)
 
-Paths below use `~/job-bot` for the project folder and `<you>` for your macOS user name (`whoami` prints it).
+Paths below use `~/talaash` for the project folder and `<you>` for your macOS user name (`whoami` prints it).
 
 ## Steps
 
@@ -26,7 +26,7 @@ Paths below use `~/job-bot` for the project folder and `<you>` for your macOS us
 
 ## 1. Install Homebrew and Node.js
 
-job-bot needs **Node.js 24 or newer** (it runs its TypeScript directly, with no build step). This guide assumes Git is already installed (`git --version` works). If you do not have [Homebrew](https://brew.sh) yet, install it first and follow the "Next steps" it prints (they add `brew` to your PATH):
+Talaash needs **Node.js 24 or newer** (it runs its TypeScript directly, with no build step). This guide assumes Git is already installed (`git --version` works). If you do not have [Homebrew](https://brew.sh) yet, install it first and follow the "Next steps" it prints (they add `brew` to your PATH):
 
 ```bash
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
@@ -48,7 +48,7 @@ node --version   # v24.0.0 or newer
 
 ## 2. Install PostgreSQL and create the database
 
-job-bot keeps everything in one local PostgreSQL database called `job_bot` (PostgreSQL 15 or newer). Choose one of the two ways below. Both end with a `postgres` user without a password on `127.0.0.1`, which is what the connection string in step 4 uses.
+Talaash keeps everything in one local PostgreSQL database called `job_bot` (PostgreSQL 15 or newer). Choose one of the two ways below. Both end with a `postgres` user without a password on `127.0.0.1`, which is what the connection string in step 4 uses.
 
 ### Option A: DBngin (a free menu-bar app)
 
@@ -96,13 +96,13 @@ The daily backup finds `pg_dump` by itself in DBngin's, Postgres.app's and Homeb
 Keep the project **outside `~/Desktop`, `~/Documents` and `~/Downloads`**: macOS privacy protection does not let a background job (the daily run) read those folders.
 
 ```bash
-git clone https://github.com/abdulrehmandar2234/job-bot.git ~/job-bot
-cd ~/job-bot
+git clone https://github.com/abdulrehmandar2234/talaash.git ~/talaash
+cd ~/talaash
 npm install                 # the bot; also sets up the git pre-commit hook
 npm --prefix web install    # the dashboard (it has its own package.json)
 ```
 
-All later commands run in `~/job-bot`.
+All later commands run in `~/talaash`.
 
 **Success:** both installs end with `added N packages` and no `ERR!` lines.
 
@@ -175,7 +175,7 @@ Replace Jane Doe's name, contact, summary, skills, experience, projects and educ
 
 ```bash
 node -e "JSON.parse(require('fs').readFileSync('cv/master.json', 'utf8')); console.log('ok')"
-npm run bot -- cv:preview classic --pdf     # PDF        : /Users/<you>/job-bot/data/previews/classic.pdf
+npm run bot -- cv:preview classic --pdf     # PDF        : /Users/<you>/talaash/data/previews/classic.pdf
 open data/previews/classic.pdf
 ```
 
@@ -222,7 +222,7 @@ npm run bot -- cv:default
 
 This is the first command that uses the database: it creates the tables first (from `src/migrations/`), then renders `cv/default/<your cvFileName>`.
 
-**Success:** `default CV rebuilt from master.json → /Users/<you>/job-bot/cv/default/<cvFileName>`. Open it and check it.
+**Success:** `default CV rebuilt from master.json → /Users/<you>/talaash/cv/default/<cvFileName>`. Open it and check it.
 
 Keep `"autoCvVersions": false` in `config.json` for now: the per-stack CV versions are written for the owner's CV ([why](../your-cv-and-profile.md#cv-versions-and-the-per-stack-framings)).
 
@@ -253,7 +253,7 @@ Print the setup for this clone, with your paths filled in:
 npm run bot -- schedule:print
 ```
 
-It prints a plist like this one (shown for a user `<you>` with the project in `~/job-bot`):
+It prints a plist like this one (shown for a user `<you>` with the project in `~/talaash`):
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -262,9 +262,9 @@ It prints a plist like this one (shown for a user `<you>` with the project in `~
 <dict>
   <key>Label</key><string>com.<you>.job-bot.fetch</string>
   <key>ProgramArguments</key>
-  <array><string>/bin/zsh</string><string>/Users/<you>/job-bot/scripts/daily-fetch.sh</string></array>
+  <array><string>/bin/zsh</string><string>/Users/<you>/talaash/scripts/daily-fetch.sh</string></array>
   <key>StartCalendarInterval</key><dict><key>Hour</key><integer>9</integer><key>Minute</key><integer>0</integer></dict>
-  <key>StandardErrorPath</key><string>/Users/<you>/job-bot/data/launchd.err.log</string>
+  <key>StandardErrorPath</key><string>/Users/<you>/talaash/data/launchd.err.log</string>
 </dict>
 </plist>
 ```
@@ -272,10 +272,10 @@ It prints a plist like this one (shown for a user `<you>` with the project in `~
 Save the printed plist as `~/Library/LaunchAgents/com.<you>.job-bot.fetch.plist`, then load it and run it once now:
 
 ```bash
-mkdir -p ~/job-bot/data
+mkdir -p ~/talaash/data
 launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.<you>.job-bot.fetch.plist
 launchctl kickstart gui/$(id -u)/com.<you>.job-bot.fetch
-tail -f ~/job-bot/data/fetch.log      # Ctrl+C to stop watching
+tail -f ~/talaash/data/fetch.log      # Ctrl+C to stop watching
 ```
 
 Turn it off with `launchctl bootout gui/$(id -u)/com.<you>.job-bot.fetch`.
@@ -288,34 +288,34 @@ Turn it off with `launchctl bootout gui/$(id -u)/com.<you>.job-bot.fetch`.
 
 ## 13. Notifications
 
-job-bot shows a notification when the AI rates a job `strong` (once per job, grouped above three) and after each daily run. On macOS it uses `osascript`, built in. For notifications that open the job on the dashboard when clicked, install terminal-notifier (the bot uses it when it is in `/opt/homebrew/bin` or `/usr/local/bin`):
+Talaash shows a notification when the AI rates a job `strong` (once per job, grouped above three) and after each daily run. On macOS it uses `osascript`, built in. For notifications that open the job on the dashboard when clicked, install terminal-notifier (the bot uses it when it is in `/opt/homebrew/bin` or `/usr/local/bin`):
 
 ```bash
 brew install terminal-notifier
 ```
 
-Try it with job-bot's own notifier (terminal-notifier if installed, else osascript):
+Try it with Talaash's own notifier (terminal-notifier if installed, else osascript):
 
 ```bash
-node --no-warnings -e "import('./src/notify.ts').then((m) => m.notify({ title: 'Job Bot', message: 'Test', url: 'http://localhost:3100' }))"
+node --no-warnings -e "import('./src/notify.ts').then((m) => m.notify({ title: 'Talaash', message: 'Test', url: 'http://localhost:3100' }))"
 ```
 
-If nothing appears, allow notifications for **Script Editor** (osascript) or **terminal-notifier** in System Settings → Notifications, and check Focus / Do Not Disturb. To turn job-bot's notifications off, add `JOB_BOT_NOTIFY=off` to `.env`; for strong matches only, set `config.json` → `ai.alertStrong` to `false`.
+If nothing appears, allow notifications for **Script Editor** (osascript) or **terminal-notifier** in System Settings → Notifications, and check Focus / Do Not Disturb. To turn Talaash's notifications off, add `JOB_BOT_NOTIFY=off` to `.env`; for strong matches only, set `config.json` → `ai.alertStrong` to `false`.
 
-**Success:** a "Job Bot: Test" notification appears (a failure prints `notification failed: ...`).
+**Success:** a "Talaash: Test" notification appears (a failure prints `notification failed: ...`).
 
 ## 14. The Chrome extension
 
-The extension sends the job you are looking at to job-bot, and shows the prepared CV, letter and answers in a side panel while you apply. **Fill this form** types them into the form's empty fields; it never overwrites a field, never clicks a button and never submits.
+The extension sends the job you are looking at to Talaash, and shows the prepared CV, letter and answers in a side panel while you apply. **Fill this form** types them into the form's empty fields; it never overwrites a field, never clicks a button and never submits.
 
 1. Keep the dashboard running (`npm run web`).
 2. Open `chrome://extensions` in Chrome and turn on **Developer mode** (top right).
-3. Click **Load unpacked** and choose the `extension` folder inside `~/job-bot` (in the file dialog, Cmd+Shift+G and type `~/job-bot/extension`).
-4. Pin the job-bot button to the toolbar (puzzle icon → pin).
+3. Click **Load unpacked** and choose the `extension` folder inside `~/talaash` (in the file dialog, Cmd+Shift+G and type `~/talaash/extension`).
+4. Pin the Talaash button to the toolbar (puzzle icon → pin).
 
-It talks only to your local dashboard, `http://localhost:3100` by default; if you run the dashboard on another port, set its address in the extension's options (**Extension options** in the popup). Details and permissions: [extension/README.md](https://github.com/abdulrehmandar2234/job-bot/blob/main/extension/README.md#dashboard-address-options).
+It talks only to your local dashboard, `http://localhost:3100` by default; if you run the dashboard on another port, set its address in the extension's options (**Extension options** in the popup). Details and permissions: [extension/README.md](https://github.com/abdulrehmandar2234/talaash/blob/main/extension/README.md#dashboard-address-options).
 
-**Success:** on any job page, the job-bot button opens a popup with the job's title and company read from the page.
+**Success:** on any job page, the Talaash button opens a popup with the job's title and company read from the page.
 
 ## 15. Check that it works
 

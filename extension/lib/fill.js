@@ -202,7 +202,7 @@ export function fillSummary({ filled = [], skipped = [], needInput = 0 } = {}) {
   const left = [...new Set(skipped)];
   const lines = [];
   if (filled.length) lines.push({ text: `Filled ${filled.length} fields (outlined in orange): ${filled.join(', ')}.`, kind: 'plain' });
-  else lines.push({ text: 'No empty fields here that job-bot knows how to fill.', kind: 'plain' });
+  else lines.push({ text: 'No empty fields here that Talaash knows how to fill.', kind: 'plain' });
   if (left.length) lines.push({ text: `Left for you: ${left.join(', ')}.`, kind: 'needs' });
   if (needInput > 0) lines.push({ text: `${needInput} drafted answers need your input, so they were not filled.`, kind: 'needs' });
   if (filled.length || left.length) lines.push({ text: 'Check every field, then submit the form yourself.', kind: 'hint' });

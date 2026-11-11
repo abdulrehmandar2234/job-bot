@@ -1,8 +1,17 @@
-# Updating job-bot
+# Updating Talaash
 
 How to get a newer version. The steps are the same on every OS; only the terminal differs (PowerShell on Windows).
 
 Back to the [start page](README.md).
+
+## From job-bot to Talaash
+
+The project was called job-bot until November 2026. If your copy is older:
+
+- **Nothing breaks.** GitHub forwards the old address to the new one, so `git pull` keeps working. To point your copy at the new name: `git remote set-url origin https://github.com/abdulrehmandar2234/talaash.git`.
+- **Your folder can keep its name.** A clone in `~/job-bot` works as before; the guides now say `~/talaash` only for new installs. If you rename the folder, run `npm run bot -- schedule:print` and set up the daily run again, since the scheduler stores the folder's path.
+- **These names stay as they were,** so your data, settings and daily run need no change: the database `job_bot` (and `job_bot_test*`), every `JOB_BOT_*` environment variable, the scheduler entries (`com.<you>.job-bot.fetch` on macOS, `job-bot-fetch.timer` on Linux, **job-bot daily fetch** on Windows), and the dashboard's saved filters and theme.
+- **Reload the Chrome extension** once (step 6): it is now called Talaash.
 
 ## 0. Back up first
 
@@ -21,21 +30,15 @@ In the terminal where `npm run web` runs, press Ctrl+C.
 ## 2. Pull the new code
 
 ```bash
-cd ~/job-bot             # Windows: cd $HOME\job-bot
+cd ~/talaash             # Windows: cd $HOME\talaash
 git pull
 ```
 
 `config.json`, `cv/applicant.json`, `.env` and `web/.env.local` are not tracked, so a pull never touches them. New default settings arrive in `config.default.json` and `presets/`; your `config.json` keeps your values (compare the two files to pick up a new company board or key).
 
-`cv/master.json` is a tracked file. If you changed it (you will have), `git pull` may stop with a conflict on it. Keep your version:
+Your CV (`cv/master.json`, `cv/default/`, `cv/original/`) is not tracked either, so a pull leaves it alone.
 
-```bash
-git stash                # put your changes aside
-git pull
-git stash pop            # bring them back; fix any conflict it reports, keeping your values
-```
-
-Or keep your own branch (`git switch -c mine`, commit your files there) and merge `main` into it after each `git fetch`.
+**Updating from a version where `cv/master.json` was tracked:** that pull deletes it. Copy it aside first and put it back afterwards, as for `config.json` below (`cp cv/master.json cv/master.json.mine`, pull, then move it back).
 
 **Updating from a version where `config.json` was tracked** (before `config.default.json` existed): that pull deletes your `config.json`. Copy it aside first and put it back afterwards:
 
@@ -87,7 +90,7 @@ npm run bot -- settings:check --kind applicant --file cv/applicant.json
 npm run web
 ```
 
-Then open `chrome://extensions` and press the reload icon on job-bot's card, so Chrome loads the new extension files.
+Then open `chrome://extensions` and press the reload icon on Talaash's card, so Chrome loads the new extension files.
 
 ## 7. The daily run
 

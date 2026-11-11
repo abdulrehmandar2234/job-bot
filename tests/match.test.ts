@@ -472,15 +472,15 @@ describe('scoreJob: a missing or corrupt master CV fails loudly', () => {
 
   it('throws a clear error when cv/master.json is missing, instead of scoring everything 0', async () => {
     const m = await freshMatch('missing-cv');
-    await withMaster(join(tmpdir(), 'job-bot-no-such-cv.json'), () => {
-      assert.throws(() => m.scoreJob(raw()), /Cannot read the master CV at .*job-bot-no-such-cv\.json.*JOB_BOT_MASTER/);
+    await withMaster(join(tmpdir(), 'talaash-no-such-cv.json'), () => {
+      assert.throws(() => m.scoreJob(raw()), /Cannot read the master CV at .*talaash-no-such-cv\.json.*JOB_BOT_MASTER/);
       assert.throws(() => m.scoreJob(raw()), ConfigError);
     });
   });
 
   it('throws a clear error when cv/master.json is not valid JSON', async () => {
     const m = await freshMatch('corrupt-cv');
-    const f = join(mkdtempSync(join(tmpdir(), 'job-bot-cv-')), 'master.json');
+    const f = join(mkdtempSync(join(tmpdir(), 'talaash-cv-')), 'master.json');
     writeFileSync(f, '{ "skills": ');
     await withMaster(f, () => {
       assert.throws(() => m.scoreJob(raw()), /Cannot parse the master CV at .*master\.json as JSON/);

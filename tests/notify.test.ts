@@ -35,7 +35,7 @@ describe('strongAlerts', () => {
   it('sends up to three single notes and groups above that', () => {
     assert.equal(strongAlerts([job(1), job(2), job(3)], name).length, 3);
     assert.deepEqual(strongAlerts([job(1), job(2), job(3), job(4), job(5)], name), [
-      { title: 'Job Bot', message: '5 strong matches: Dev 1 at Co1, Dev 2 at Co2, Dev 3 at Co3…', url: 'http://localhost:3100' },
+      { title: 'Talaash', message: '5 strong matches: Dev 1 at Co1, Dev 2 at Co2, Dev 3 at Co3…', url: 'http://localhost:3100' },
     ]);
     assert.deepEqual(strongAlerts([], name), []);
   });
@@ -91,7 +91,7 @@ describe('notifyCommand', () => {
     const has = (p: string) => p === '/usr/bin/notify-send';
     assert.deepEqual(notifyCommand({ ...n, message: '-x <b>&' }, { PATH: '/nope:/usr/bin' }, has, 'linux'), [
       '/usr/bin/notify-send',
-      ['--app-name=Job Bot', '--', 'T', `-x &lt;b&gt;&amp;\n${n.url}`],
+      ['--app-name=Talaash', '--', 'T', `-x &lt;b&gt;&amp;\n${n.url}`],
     ]);
   });
 
@@ -102,7 +102,7 @@ describe('notifyCommand', () => {
     );
     assert.deepEqual(
       notifyCommand(n, { PATH: '/usr/local/bin' }, () => true, 'freebsd'),
-      [posix.join('/usr/local/bin', 'notify-send'), ['--app-name=Job Bot', '--', 'T', `M\n${n.url}`]],
+      [posix.join('/usr/local/bin', 'notify-send'), ['--app-name=Talaash', '--', 'T', `M\n${n.url}`]],
     );
   });
 
@@ -141,7 +141,7 @@ describe('PowerShell quoting', () => {
   });
 
   it('the texts appear only as quoted literals in the toast script', () => {
-    const script = windowsToastScript({ title: 'Job Bot', message: evil, url: 'http://localhost:3100/jobs/a%27b' });
+    const script = windowsToastScript({ title: 'Talaash', message: evil, url: 'http://localhost:3100/jobs/a%27b' });
     assert.ok(script.includes(`$message = ${psQuote(evil)}`));
     assert.equal(script.split(evil.slice(0, 8)).length, 2, 'the message appears once');
     assert.match(script, /\$xml\.DocumentElement\.SetAttribute\('launch', \$url\)/);
@@ -167,7 +167,7 @@ describe('PowerShell quoting', () => {
     assert.equal(stdout.trim(), Array.from(evil, (c) => c.charCodeAt(0)).join(','));
   });
   it('the toast script parses without errors in Windows PowerShell', { skip: process.platform !== 'win32' }, async () => {
-    const toast = Buffer.from(windowsToastScript({ title: 'Job Bot', message: evil, url: 'http://localhost:3100' }), 'utf16le').toString(
+    const toast = Buffer.from(windowsToastScript({ title: 'Talaash', message: evil, url: 'http://localhost:3100' }), 'utf16le').toString(
       'base64',
     );
     const script = [
@@ -188,8 +188,8 @@ describe('PowerShell quoting', () => {
 
 describe('osascript', () => {
   it('gets the texts as arguments, never inside the script source', () => {
-    const args = osascriptArgs({ title: 'Job Bot', message: evil, url: 'u' });
-    assert.deepEqual(args.slice(-2), ['Job Bot', evil]);
+    const args = osascriptArgs({ title: 'Talaash', message: evil, url: 'u' });
+    assert.deepEqual(args.slice(-2), ['Talaash', evil]);
     assert.ok(args.slice(0, -2).every((a) => !a.includes(evil)));
   });
 

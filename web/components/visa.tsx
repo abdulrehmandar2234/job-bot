@@ -2,7 +2,7 @@ import type { Job } from '@/lib/db';
 
 type VisaInfo = Pick<Job, 'visa'> & Partial<Pick<Job, 'visa_evidence'>>;
 
-// How sure the visa note is (job-bot/src/match.ts): only the posting itself counts as "offered".
+// How sure the visa note is (talaash/src/match.ts): only the posting itself counts as "offered".
 const LABEL = {
   offered: { text: '✓ Visa/relocation offered', tone: 'text-emerald-700 dark:text-emerald-400' },
   'not-needed': { text: '✓ No visa needed', tone: 'text-emerald-700 dark:text-emerald-400' },

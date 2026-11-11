@@ -5,13 +5,13 @@
 import { defineConfig } from 'vitepress';
 import { withMermaid } from 'vitepress-plugin-mermaid';
 
-const REPO = 'https://github.com/abdulrehmandar2234/job-bot';
+const REPO = 'https://github.com/abdulrehmandar2234/talaash';
 
 export default withMermaid(
   defineConfig({
-    title: 'job-bot',
+    title: 'Talaash',
     description: 'A local job-search assistant: finds, scores and prepares software jobs. You apply yourself.',
-    base: '/job-bot/',
+    base: '/talaash/',
     cleanUrls: true,
     lastUpdated: true,
     rewrites: { 'README.md': 'index.md' },
@@ -69,7 +69,7 @@ export default withMermaid(
       search: { provider: 'local' },
       socialLinks: [{ icon: 'github', link: REPO }],
       editLink: { pattern: `${REPO}/edit/main/docs/:path`, text: 'Edit this page on GitHub' },
-      footer: { message: 'MIT licensed. job-bot never applies on your behalf.' },
+      footer: { message: 'MIT licensed. Talaash never applies on your behalf.' },
     },
   }),
 );

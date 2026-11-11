@@ -14,7 +14,7 @@ vi.mock('@/lib/tasks', () => ({ enqueueTask: vi.fn() }));
 const BOT_DB_URL = process.env.DATABASE_URL!.replace(/\/job_bot_test(_[a-z0-9]+)?$/, '/job_bot_test_bot$1');
 const REAL_CONFIG = join(BOT_ROOT, 'config.default.json');
 const realConfigText = readFileSync(REAL_CONFIG, 'utf8');
-const dir = mkdtempSync(join(tmpdir(), 'job-bot-web-settings-rt-'));
+const dir = mkdtempSync(join(tmpdir(), 'talaash-web-settings-rt-'));
 const CONFIG_FILE = join(dir, 'config.json');
 const APPLICANT_FILE = join(dir, 'applicant.json');
 // The temp files go to the data folder, a temp one in tests (JOB_BOT_DATA_DIR, web/tests/setup.ts), never BOT_ROOT/data.

@@ -16,7 +16,7 @@ import {
   salaryKeys,
 } from '@/lib/settings-form';
 
-const dir = mkdtempSync(join(tmpdir(), 'job-bot-web-settings-'));
+const dir = mkdtempSync(join(tmpdir(), 'talaash-web-settings-'));
 const tmp = (name: string, content: string) => {
   const f = join(dir, name);
   writeFileSync(f, content);

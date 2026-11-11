@@ -486,7 +486,7 @@ function oneLineError(res: { code: number; stderr: string }) {
 describe('CLI user errors', () => {
   it('a missing DATABASE_URL is one line with no stack trace, and exit 1', async () => {
     const res = await botExit(['stats'], { DATABASE_URL: '' });
-    assert.equal(oneLineError(res), 'DATABASE_URL is not set: put it in .env in the job-bot folder');
+    assert.equal(oneLineError(res), 'DATABASE_URL is not set: put it in .env in the Talaash folder');
   });
 
   it('a ConfigError (an unreadable master CV) is one line with no stack trace, and exit 1', async () => {
@@ -547,7 +547,7 @@ describe('CLI AI errors', () => {
     const lines = res.stderr.trim().split('\n');
     assert.equal(
       lines.at(-1),
-      'DeepSeek needs an API key: set AI_API_KEY in .env (in the job-bot folder), or set ai.provider to "claude-cli"',
+      'DeepSeek needs an API key: set AI_API_KEY in .env (in the Talaash folder), or set ai.provider to "claude-cli"',
     );
     assert.ok(!lines.some((l) => /^\s+at /.test(l)), res.stderr);
   });

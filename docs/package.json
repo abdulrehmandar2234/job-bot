@@ -1,8 +1,8 @@
 {
-  "name": "job-bot-docs",
+  "name": "talaash-docs",
   "private": true,
   "type": "module",
-  "description": "The job-bot documentation site (VitePress), built from the Markdown pages in this folder.",
+  "description": "The Talaash documentation site (VitePress), built from the Markdown pages in this folder.",
   "scripts": {
     "dev": "vitepress dev . --port 3300",
     "build": "vitepress build .",

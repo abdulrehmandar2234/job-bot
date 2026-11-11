@@ -19,7 +19,7 @@ document.getElementById('helper').addEventListener('click', () => {
 useDashboard(await readDashboard(chrome.storage.sync));
 
 if (!isHttpUrl(tab?.url)) {
-  main.replaceChildren(h('p', {}, 'Open a job page first, then click the job-bot button again.'));
+  main.replaceChildren(h('p', {}, 'Open a job page first, then click the Talaash button again.'));
 } else {
   lookupJob(tab.url).then((r) => {
     if (r.ok && r.job) {
@@ -27,7 +27,7 @@ if (!isHttpUrl(tab?.url)) {
         h(
           'p',
           { className: 'box' },
-          `Already in job-bot: ${r.job.company} — ${r.job.title} (${r.job.status}). `,
+          `Already in Talaash: ${r.job.company} — ${r.job.title} (${r.job.status}). `,
           link(jobPageUrl(r.job.id), 'Open in dashboard'),
         ),
       );

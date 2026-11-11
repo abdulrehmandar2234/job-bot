@@ -18,7 +18,7 @@ const salaryOf = async (id: string) => {
 };
 const AED_MONTH = 'We use Laravel, PHP, React, Node.js and TypeScript. Salary: AED 20,000 - 25,000 per month.';
 
-const cacheDir = mkdtempSync(join(tmpdir(), 'job-bot-salary-'));
+const cacheDir = mkdtempSync(join(tmpdir(), 'talaash-salary-'));
 before(async () => {
   await migrate();
   timing.scale = 0;

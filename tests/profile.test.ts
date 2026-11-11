@@ -123,7 +123,7 @@ describe('profile: building it', () => {
 });
 
 describe('profile: the files', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'job-bot-profile-'));
+  const dir = mkdtempSync(join(tmpdir(), 'talaash-profile-'));
 
   it('a missing applicant.json is all unknown, never the example person', () => {
     const blank = blankApplicant() as Record<string, unknown>;

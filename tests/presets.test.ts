@@ -136,7 +136,7 @@ describe('presets', () => {
   });
 
   it('a broken preset file is reported with its name and field', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'job-bot-presets-'));
+    const dir = mkdtempSync(join(tmpdir(), 'talaash-presets-'));
     mkdirSync(join(dir, 'stacks'));
     writeFileSync(join(dir, 'stacks', 'bad.json'), JSON.stringify({ name: 'Bad' }));
     assert.throws(() => loadStacks(dir), /presets\/stacks\/bad\.json: description/);
@@ -146,7 +146,7 @@ describe('presets', () => {
 
 describe('config.json from config.default.json', () => {
   const setup = () => {
-    const dir = mkdtempSync(join(tmpdir(), 'job-bot-ensure-'));
+    const dir = mkdtempSync(join(tmpdir(), 'talaash-ensure-'));
     const defaults = join(dir, 'config.default.json');
     writeFileSync(defaults, '{"minScore": 1}\n');
     return { home: join(dir, 'config.json'), defaults, dir };

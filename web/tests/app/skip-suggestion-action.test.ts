@@ -17,14 +17,14 @@ vi.mock('@/lib/bot', async (importOriginal) => {
   const { join: j } = await import('node:path');
   return {
     ...(await importOriginal<typeof import('@/lib/bot')>()),
-    BOT_ROOT: mkdtempSync(j(tmpdir(), 'job-bot-web-skip-actions-')),
+    BOT_ROOT: mkdtempSync(j(tmpdir(), 'talaash-web-skip-actions-')),
     runBot: vi.fn(),
     spawnBot: vi.fn(),
   };
 });
 
 const bot = vi.mocked(runBot);
-const dir = mkdtempSync(join(tmpdir(), 'job-bot-web-skip-config-'));
+const dir = mkdtempSync(join(tmpdir(), 'talaash-web-skip-config-'));
 const CONFIG_FILE = join(dir, 'config.json');
 const CONFIG = { minScore: 45, roleExclude: 'golang', futureKey: 'kept' };
 const form = (pattern?: string) => {
