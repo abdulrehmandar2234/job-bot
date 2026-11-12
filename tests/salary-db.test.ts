@@ -62,6 +62,17 @@ describe('save() and salary', () => {
   });
 });
 
+describe('save() and the deadline', () => {
+  it('stores the deadline, and clears it when the posting no longer states one', async () => {
+    const next = new Date(Date.now() + 10 * 86_400_000);
+    const date = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}-${String(next.getDate()).padStart(2, '0')}`;
+    await save(raw({ description: `${AED_MONTH}\nApply by ${date}` }));
+    assert.equal((await getJob('test:1')).deadline, date);
+    await save(raw({ description: AED_MONTH }));
+    assert.equal((await getJob('test:1')).deadline, null);
+  });
+});
+
 describe('save() and hidden text', () => {
   it('stores the posting without invisible characters, also from plain-text sources', async () => {
     await save(raw({ title: 'Senior\u200B Laravel Developer', company: 'Acme\uFEFF', description: `Node\u200D.js ${AED_MONTH}` }));

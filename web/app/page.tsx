@@ -31,7 +31,7 @@ import { Pager } from '@/components/pager';
 import { Triage } from '@/components/triage';
 import { AutoCheckbox, AutoSelect } from '@/components/auto-submit';
 import { VisaBadge } from '@/components/visa';
-import { ago, AiReview, Chips, fmtDate, Posted, PostedOn, Score, STATUS_LABEL } from '@/components/ui';
+import { ago, AiReview, Chips, DeadlineBadge, fmtDate, Posted, PostedOn, Score, STATUS_LABEL } from '@/components/ui';
 import { FirstRunBanner, MarketHeader } from '@/components/profile-banner';
 import { readCountryLabels } from '@/lib/profile';
 import { RESET_PARAM } from '@/lib/filter-memory';
@@ -312,6 +312,7 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<'/'>['searc
                   <div className="flex flex-wrap items-baseline justify-between gap-x-3">
                     <Link href={jobHref(j.id)} data-shortcut="o" aria-keyshortcuts="o" className="font-medium hover:underline">
                       {j.title} <span className="text-zinc-500">· {j.company}</span> <ExpiredBadge job={j} />
+                      <DeadlineBadge job={j} />
                       {everyTab && j.status !== 'expired' && <StatusTag status={j.status} />}
                       <FollowUpBadge job={j} />
                     </Link>

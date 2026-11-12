@@ -41,7 +41,7 @@ export type ScoredJob = Pick<
   | 'status'
   | 'filter_reason'
 > & { posted_at: string | null } & Partial<
-    Pick<Job, 'salary_min' | 'salary_max' | 'salary_currency' | 'salary_period' | 'visa_evidence'>
+    Pick<Job, 'salary_min' | 'salary_max' | 'salary_currency' | 'salary_period' | 'visa_evidence' | 'deadline'>
   > & {
     /** false: scored again from the stored row (rescore, check:open), not seen by a fetch, so fetched_at stays. */
     seen?: boolean;
@@ -215,8 +215,8 @@ export async function upsertJob(j: ScoredJob): Promise<'inserted' | 'updated'> {
     `
     INSERT INTO jobs (id, source, company, title, location, country, url, description, posted_at,
       score, cluster, matched, missing, visa, flags, status, filter_reason,
-      salary_min, salary_max, salary_currency, salary_period, visa_evidence)
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
+      salary_min, salary_max, salary_currency, salary_period, visa_evidence, deadline)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$24)
     ON CONFLICT (id) DO UPDATE SET
       title = EXCLUDED.title, location = EXCLUDED.location, country = EXCLUDED.country, url = EXCLUDED.url,
       description = EXCLUDED.description, posted_at = EXCLUDED.posted_at,
@@ -228,7 +228,7 @@ export async function upsertJob(j: ScoredJob): Promise<'inserted' | 'updated'> {
         THEN left('location (AI): ' || coalesce(jobs.ai_location_reason, 'not open to where you live'), 300)
         ELSE EXCLUDED.filter_reason END,
       salary_min = EXCLUDED.salary_min, salary_max = EXCLUDED.salary_max,
-      salary_currency = EXCLUDED.salary_currency, salary_period = EXCLUDED.salary_period,
+      salary_currency = EXCLUDED.salary_currency, salary_period = EXCLUDED.salary_period, deadline = EXCLUDED.deadline,
       -- Re-scoring may move a job between new <-> filtered, but only while the user hasn't acted on it.
       status = CASE WHEN jobs.status NOT IN ('new', 'filtered') THEN jobs.status
         WHEN EXCLUDED.status = 'new' AND jobs.ai_location = 'no' THEN 'filtered'
@@ -258,6 +258,7 @@ export async function upsertJob(j: ScoredJob): Promise<'inserted' | 'updated'> {
       j.salary_period ?? null,
       j.visa_evidence ?? null,
       j.seen !== false,
+      j.deadline ?? null,
     ],
   );
   return rows[0].inserted ? 'inserted' : 'updated';

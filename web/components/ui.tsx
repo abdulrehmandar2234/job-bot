@@ -1,4 +1,5 @@
 import type { Status } from '@/lib/db';
+import { daysLeft, localToday } from '../../src/deadline.ts';
 
 // Typed on Status so a missing or renamed status fails the typecheck instead of rendering an empty label.
 export const STATUS_LABEL: Record<Status, string> = {
@@ -63,6 +64,27 @@ export function ago(d: Date | null) {
 }
 
 /** "Posted 2d ago (27 Oct)", green while fresh, so old postings stand out. */
+/**
+ * How long is left to apply, when the posting states a deadline: amber within a week, red within two days or once
+ * passed. Shown on jobs still open to act on; a job already applied to or finished does not need it.
+ */
+export function DeadlineBadge({ job, today = localToday() }: { job: { deadline?: string | null; status: string }; today?: string }) {
+  if (!job.deadline || !['new', 'prepared'].includes(job.status)) return null;
+  const days = daysLeft(job.deadline, today);
+  const text = days < 0 ? 'Deadline passed' : days === 0 ? 'Closes today' : days === 1 ? 'Closes tomorrow' : `Closes in ${days} days`;
+  const tone =
+    days <= 2
+      ? 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300'
+      : days <= 7
+        ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
+        : 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300';
+  return (
+    <span title={`Application deadline: ${job.deadline}`} className={`ml-1 rounded-full px-2 py-0.5 text-xs font-medium ${tone}`}>
+      {text}
+    </span>
+  );
+}
+
 export function Posted({ date }: { date: Date | null }) {
   if (!date) return <span>posted: unknown</span>;
   const days = Math.floor((Date.now() - new Date(date).getTime()) / 86_400_000);

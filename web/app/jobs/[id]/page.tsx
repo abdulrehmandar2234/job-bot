@@ -37,7 +37,7 @@ import { allContacts } from '@/lib/contacts-db';
 import { SKIP_LABEL } from '@/lib/skips';
 import { ExpiredBadge, OpenCheck } from '@/components/open-check';
 import { VisaBadge } from '@/components/visa';
-import { Chips, fmtDate, Posted, PostedOn, Score, STATUS_LABEL } from '@/components/ui';
+import { Chips, DeadlineBadge, fmtDate, Posted, PostedOn, Score, STATUS_LABEL } from '@/components/ui';
 import { readCountryLabels } from '@/lib/profile';
 import { aiEnabled } from '@/lib/settings';
 import { AiOffNote } from '@/components/ai-off';
@@ -174,6 +174,7 @@ async function JobDetail({
       <header className="space-y-1">
         <h1 className="text-xl font-semibold">
           {job.title} <ExpiredBadge job={job} />
+          <DeadlineBadge job={job} />
         </h1>
         <p className="text-zinc-600 dark:text-zinc-400">
           {job.company} · {job.country ? (readCountryLabels()[job.country] ?? job.country) : ''} · {job.location}
@@ -214,6 +215,7 @@ async function JobDetail({
               )}
               <p className="text-zinc-500">
                 <Posted date={job.posted_at} /> · first seen {fmtDate(job.first_seen_at)}
+                {job.deadline && ` · apply by ${job.deadline}`}
                 {job.applied_at && <> · applied {fmtDate(job.applied_at)}</>}
               </p>
               <PostedOn postings={postings} />

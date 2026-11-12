@@ -7,6 +7,7 @@ import { daysAgo, raw, seedIndRegister } from './helpers.ts'; // first: it point
 import { indFile, isIndSponsor } from '../src/sponsors.ts';
 import { jobTypeOf, languageRules, pickCluster, remoteOpenToCandidate, scoreJob, SKILLS, titleOk } from '../src/match.ts';
 import { config } from '../src/config.ts';
+import { localToday } from '../src/deadline.ts';
 import { ConfigError } from '../src/errors.ts';
 
 // A small IND register in the test data dir (never the downloaded one in data/), so the register tests always run.
@@ -319,6 +320,23 @@ describe('scoreJob: visa', () => {
     assert.equal(s.filterReason, null);
     assert.equal(s.visaEvidence, 'can-sponsor');
     assert.equal(s.visa, 'Netherlands: company is an IND recognised sponsor, but the posting does not mention visa or relocation');
+  });
+});
+
+describe('application deadline', () => {
+  const inDays = (n: number) => localToday(new Date(Date.now() + n * 86_400_000));
+  const withDeadline = (date: string) => raw({ posted_at: daysAgo(1), description: `${raw().description}\nApplication deadline: ${date}` });
+
+  it('stores the deadline the posting states', () => {
+    const s = scoreJob(withDeadline(inDays(5)));
+    assert.equal(s.filterReason, null);
+    assert.equal(s.deadline, inDays(5));
+    assert.equal(scoreJob(raw()).deadline, null);
+  });
+
+  it('filters a job whose deadline has passed, and keeps one that closes today', () => {
+    assert.equal(scoreJob(withDeadline(inDays(-1))).filterReason, `application deadline passed (${inDays(-1)})`);
+    assert.equal(scoreJob(withDeadline(inDays(0))).filterReason, null);
   });
 });
 

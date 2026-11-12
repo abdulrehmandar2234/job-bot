@@ -100,6 +100,7 @@ export function save({ salary: given, ...posting }: RawJob) {
     salary_max: salary?.max ?? null,
     salary_currency: salary?.currency ?? null,
     salary_period: salary?.period ?? null,
+    deadline: s.deadline,
   });
 }
 

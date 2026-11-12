@@ -59,6 +59,7 @@ Every posting is checked by `src/match.ts`. Jobs that fail a rule are kept with 
   - **? Visa/relocation not mentioned:** the posting is silent. Many Gulf employers sponsor the work visa anyway, but some only hire people already in the country.
 
   Hover a label for the full note. The **Visa/relocation offered (or not needed)** filter on the job list shows only the first two kinds. The AI location check also marks a silent onsite posting `unclear`, not `yes`.
+- **Application deadline:** a deadline the posting states ("Apply by 30 November", "Closing date: 30/11/2026") is stored with the job. Matching and prepared jobs show **Closes in N days** (amber within a week, red within two days), and a job whose deadline has passed is filtered on the next fetch or `rescore`. Only a date right after a deadline phrase counts; numeric dates are read day first.
 - **Job type:** internships, part-time, temporary and volunteer jobs are skipped when the source states the type (LinkedIn's job criteria, freehire's seniority); `skipJobTypes` changes the list (add `contract` for permanent jobs only). **Job types to skip** is on the Settings page.
 - **Age:** postings older than `maxAgeDays` (14) are skipped, and matching jobs expire automatically once they get older.
 - **Keyword score:** a weighted match of the job's skills against yours (a skill counts as yours when `cv/master.json` lists it), with a `minScore` threshold. It also suggests which CV version fits.

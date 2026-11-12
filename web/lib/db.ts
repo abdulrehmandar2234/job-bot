@@ -162,7 +162,7 @@ export async function listJobs(f: JobFilter, page = 1, pageSize = PAGE_SIZE) {
     `SELECT id, source, company, title, location, country, url, '' AS description, posted_at, first_seen_at, score, cluster,
       matched, missing, visa, flags, status, filter_reason, cv_version, NULL AS cover_letter, applied_at, notes,
       ai_score, ai_verdict, ai_summary, ai_reasons, ai_gaps, ai_flags, salary_min, salary_max, salary_currency, salary_period,
-      closed_at, follow_ups, followed_up_at, follow_up_draft, visa_evidence
+      closed_at, follow_ups, followed_up_at, follow_up_draft, visa_evidence, deadline
      FROM jobs WHERE ${where} ORDER BY ${order}, id LIMIT $${params.length - 1} OFFSET $${params.length}`,
     params,
   );
