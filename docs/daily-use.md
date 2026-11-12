@@ -39,6 +39,8 @@ Heavy work (fetch, prepare, AI review, letters, answers, interview prep, follow-
 
 The home page shows four numbers (matching now, new today, applied in the last 7 days, last fetch), the tabs and the filters.
 
+![The job list: four numbers, the status tabs, the filters and a job card with its AI review (demo data)](images/jobs-light.png)
+
 **Tabs**, one per status: **Matching** (`new`), **Prepared**, **Applied**, **Needs follow-up** (applied jobs with no news for 7 days), **Interview**, **Offer**, **Rejected**, **Skipped**, **Expired** (the posting closed) and **Filtered out** (failed a filter; each shows why). Each tab shows its count.
 
 **Search and filters:**
@@ -57,6 +59,8 @@ The home page shows four numbers (matching now, new today, applied in the last 7
 **Triage from the keyboard:** `j` / `k` (or the arrow keys) move between cards, `Enter` opens the posting, `o` the job page, `a` marks applied, `p` prepares the CV, and `s` jumps to the skip reason (`Enter` skips, `Esc` backs out). `x` or shift-click selects cards for **Skip selected**, which skips them all with one optional reason. Press `?` for the full list. The keys are off while you type in a search box or select. Bulk skip is on the **Matching** and **Prepared** tabs only, at most 100 jobs at once; a job that changed status meanwhile (in another tab, say) is left alone.
 
 ## A job's page
+
+![A job's page: the AI review, skills match, letter, CV summary and CV for this job, with the status card on the right (demo data)](images/job.png)
 
 Click a job's title. **← All jobs** at the top goes back to the exact list you came from (tab, filters, search, page), and **Previous** / **Next** walk through that list, also after you mark the job applied or skip it. Keys: `j` next, `k` previous, `Esc` back to the list, `a` marks applied, `s` jumps to the skip reason; they are off while you type.
 

@@ -105,7 +105,10 @@ describe('the docs site', () => {
     const readme = readFileSync(join(ROOT, 'README.md'), 'utf8');
     const local = [...readme.matchAll(/\]\(([^)#\s]+)(#[^)]*)?\)/g)].map((m) => m[1]).filter((l) => !/^https?:/.test(l));
     assert.ok(local.includes('docs/quickstart.md'));
-    const broken = local.filter((l) => !existsSync(join(ROOT, l)));
+    // Images in HTML tags too: <img src>, <source srcset>.
+    const images = [...readme.matchAll(/\b(?:src|srcset)="([^"]+)"/g)].map((m) => m[1]).filter((l) => !/^https?:/.test(l));
+    assert.ok(images.includes('docs/images/hero.svg'));
+    const broken = [...local, ...images].filter((l) => !existsSync(join(ROOT, l)));
     assert.deepEqual(broken, [], `README.md links to missing files: ${broken.join(', ')}`);
   });
 });
