@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 400" role="img" aria-labelledby="t d">
+  <title id="t">Talaash</title>
+  <desc id="d">Talaash: the job search that runs on your own computer. It finds, filters, scores and prepares; you apply yourself.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#042f2e"/>
+      <stop offset="0.55" stop-color="#0f4f4a"/>
+      <stop offset="1" stop-color="#115e59"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.82" cy="0.3" r="0.55">
+      <stop offset="0" stop-color="#5eead4" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#5eead4" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
+      <path d="M32 0H0V32" fill="none" stroke="#99f6e4" stroke-opacity="0.06"/>
+    </pattern>
+  </defs>
+  <rect width="1280" height="400" rx="24" fill="url(#bg)"/>
+  <rect width="1280" height="400" rx="24" fill="url(#grid)"/>
+  <rect width="1280" height="400" rx="24" fill="url(#glow)"/>
+
+  <!-- Magnifier over a stack of job cards -->
+  <g transform="translate(905 70)">
+    <rect x="0" y="40" width="250" height="64" rx="12" fill="#ffffff" fill-opacity="0.07" stroke="#99f6e4" stroke-opacity="0.25"/>
+    <rect x="20" y="112" width="250" height="64" rx="12" fill="#ffffff" fill-opacity="0.1" stroke="#99f6e4" stroke-opacity="0.3"/>
+    <rect x="40" y="184" width="250" height="64" rx="12" fill="#ffffff" fill-opacity="0.95"/>
+    <rect x="56" y="198" width="36" height="36" rx="8" fill="#059669"/>
+    <text x="74" y="222" font-family="ui-sans-serif, -apple-system, Segoe UI, Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#fff" text-anchor="middle">91</text>
+    <rect x="104" y="202" width="120" height="10" rx="5" fill="#134e4a"/>
+    <rect x="104" y="220" width="80" height="8" rx="4" fill="#94a3b8"/>
+    <rect x="232" y="200" width="44" height="16" rx="8" fill="#fef3c7"/>
+    <rect x="16" y="54" width="28" height="28" rx="7" fill="#5eead4" fill-opacity="0.35"/>
+    <rect x="56" y="58" width="110" height="9" rx="4.5" fill="#ccfbf1" fill-opacity="0.45"/>
+    <rect x="56" y="74" width="70" height="7" rx="3.5" fill="#ccfbf1" fill-opacity="0.3"/>
+    <rect x="36" y="126" width="28" height="28" rx="7" fill="#5eead4" fill-opacity="0.5"/>
+    <rect x="76" y="130" width="130" height="9" rx="4.5" fill="#ccfbf1" fill-opacity="0.55"/>
+    <rect x="76" y="146" width="84" height="7" rx="3.5" fill="#ccfbf1" fill-opacity="0.35"/>
+    <circle cx="232" cy="96" r="58" fill="#5eead4" fill-opacity="0.08" stroke="#5eead4" stroke-width="10"/>
+    <path d="M273 137 L318 182" stroke="#5eead4" stroke-width="16" stroke-linecap="round"/>
+  </g>
+
+  <text x="80" y="150" font-family="ui-sans-serif, -apple-system, Segoe UI, Helvetica, Arial, sans-serif" font-size="84" font-weight="800" letter-spacing="-2" fill="#f0fdfa">Talaash</text>
+  <text x="418" y="150" font-family="Noto Nastaliq Urdu, Noto Naskh Arabic, Geeza Pro, Segoe UI, Tahoma, sans-serif" font-size="46" fill="#5eead4" fill-opacity="0.9">تلاش</text>
+  <text x="82" y="200" font-family="ui-sans-serif, -apple-system, Segoe UI, Helvetica, Arial, sans-serif" font-size="28" font-weight="500" fill="#ccfbf1">The job search that runs on your own computer.</text>
+  <text x="82" y="240" font-family="ui-sans-serif, -apple-system, Segoe UI, Helvetica, Arial, sans-serif" font-size="20" fill="#99f6e4" fill-opacity="0.85">Finds, filters, scores and prepares software jobs. You apply yourself.</text>
+
+  <g font-family="ui-sans-serif, -apple-system, Segoe UI, Helvetica, Arial, sans-serif" font-size="17" font-weight="600">
+    <rect x="80" y="292" width="92" height="40" rx="20" fill="#ccfbf1" fill-opacity="0.12" stroke="#5eead4" stroke-opacity="0.45"/>
+    <text x="126" y="318" fill="#f0fdfa" text-anchor="middle">Find</text>
+    <path d="M180 312h18" stroke="#5eead4" stroke-width="2" stroke-linecap="round"/>
+    <rect x="206" y="292" width="92" height="40" rx="20" fill="#ccfbf1" fill-opacity="0.12" stroke="#5eead4" stroke-opacity="0.45"/>
+    <text x="252" y="318" fill="#f0fdfa" text-anchor="middle">Filter</text>
+    <path d="M306 312h18" stroke="#5eead4" stroke-width="2" stroke-linecap="round"/>
+    <rect x="332" y="292" width="92" height="40" rx="20" fill="#ccfbf1" fill-opacity="0.12" stroke="#5eead4" stroke-opacity="0.45"/>
+    <text x="378" y="318" fill="#f0fdfa" text-anchor="middle">Score</text>
+    <path d="M432 312h18" stroke="#5eead4" stroke-width="2" stroke-linecap="round"/>
+    <rect x="458" y="292" width="108" height="40" rx="20" fill="#ccfbf1" fill-opacity="0.12" stroke="#5eead4" stroke-opacity="0.45"/>
+    <text x="512" y="318" fill="#f0fdfa" text-anchor="middle">Prepare</text>
+    <path d="M574 312h18" stroke="#5eead4" stroke-width="2" stroke-linecap="round"/>
+    <rect x="600" y="292" width="124" height="40" rx="20" fill="#5eead4"/>
+    <text x="662" y="318" fill="#042f2e" text-anchor="middle">You apply</text>
+    <path d="M732 312h18" stroke="#5eead4" stroke-width="2" stroke-linecap="round"/>
+    <rect x="758" y="292" width="92" height="40" rx="20" fill="#ccfbf1" fill-opacity="0.12" stroke="#5eead4" stroke-opacity="0.45"/>
+    <text x="804" y="318" fill="#f0fdfa" text-anchor="middle">Track</text>
+  </g>
+</svg>
