@@ -53,3 +53,15 @@ export const normCompany = (s: string) =>
       ' ',
     )
     .replace(/[^a-z0-9]/g, '');
+
+/**
+ * The key two company names are compared by: normCompany, or for a name it leaves empty (only symbols, or a script
+ * it drops, such as Arabic) the trimmed lower-case name, so such a name still matches itself.
+ */
+export const companyKey = (s: string) => normCompany(s) || s.trim().toLowerCase();
+
+/** The entry of `blocked` (config.json blockedCompanies) that names this company, or undefined. */
+export function blockedBy(company: string, blocked: readonly string[] | undefined): string | undefined {
+  const key = companyKey(company);
+  return key ? blocked?.find((b) => companyKey(b) === key) : undefined;
+}

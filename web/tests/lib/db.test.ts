@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  companyHistory,
   countJobs,
   pageSize,
   PAGE_SIZES,
@@ -394,5 +395,35 @@ describe('lastRun', () => {
     const run = await lastRun();
     expect(run).toMatchObject({ id: finished, checked: 120, inserted: 7, new_matches: 3 });
     expect(run!.finished_at).toBeInstanceOf(Date);
+  });
+});
+
+describe('companyHistory', () => {
+  it('lists the jobs at the same company you acted on, newest first, with skip reasons, and counts the waiting ones', async () => {
+    const id = await insertJob({ id: 'ch-self', company: 'Initrode Inc.', status: 'new' });
+    const copy = await insertJob({ id: 'ch-copy', company: 'Initrode', status: 'new', duplicate_of: id });
+    await insertJob({ id: 'ch-applied', company: 'INITRODE', title: 'Backend', status: 'rejected', applied_at: dateDaysAgo(30) });
+    const skipped = await insertJob({
+      id: 'ch-skipped',
+      company: 'initrode.io',
+      title: 'Lead',
+      status: 'skipped',
+      first_seen_at: dateDaysAgo(3),
+    });
+    await pool.query(`INSERT INTO job_events (job_id, from_status, to_status, reason) VALUES ($1, 'new', 'skipped', 'seniority')`, [
+      skipped,
+    ]);
+    await insertJob({ id: 'ch-waiting', company: 'Initrode', status: 'new' });
+    await insertJob({ id: 'ch-filtered', company: 'Initrode', status: 'filtered' });
+    await insertJob({ id: 'ch-other', company: 'Initrode Payments', status: 'applied' });
+
+    const h = await companyHistory({ id, company: 'Initrode Inc.', duplicate_of: null });
+    expect(h.open).toBe(1);
+    expect(h.jobs.map((j) => [j.id, j.status, j.reason])).toEqual([
+      [skipped, 'skipped', 'seniority'],
+      [PREFIX + 'ch-applied', 'rejected', null],
+    ]);
+    // Seen from the copy: the same list, without the primary job itself.
+    expect((await companyHistory({ id: copy, company: 'Initrode', duplicate_of: id })).jobs).toHaveLength(2);
   });
 });

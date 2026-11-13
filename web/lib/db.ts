@@ -1,6 +1,7 @@
 import { Pool } from 'pg';
 // Row types and the follow-up rule come from the bot (talaash/src/types.ts, src/followup.ts).
 // .ts extensions: the bot's tests (tests/statuses.test.ts) load this file in plain Node too.
+import { companyKey } from '../../src/contacts.ts';
 import { FOLLOW_UP_DUE_SQL } from '../../src/followup.ts';
 import { currencyCodes, eurRate } from './currencies.ts';
 import type { FetchRun, FormAnswer, InterviewPrep, Job as JobRow, JobEvent, SalaryPeriod } from '../../src/types';
@@ -256,6 +257,33 @@ export async function weekStats() {
 export async function getJob(id: string) {
   const { rows } = await pool.query<Job>('SELECT * FROM jobs WHERE id = $1', [id]);
   return rows[0] ?? null;
+}
+
+export type CompanyJob = Pick<JobRow, 'id' | 'title' | 'status' | 'applied_at' | 'first_seen_at'> & { reason: string | null };
+export type CompanyHistory = { jobs: CompanyJob[]; open: number };
+
+/**
+ * The other jobs at this job's company (compared by companyKey, so "Acme Inc." and "ACME" are one company): the ones
+ * you acted on (prepared, applied, interview, offer, rejected, skipped, expired), newest first, each with its skip
+ * reason, and how many more are still waiting (status new). The job itself and copies of it are left out.
+ */
+export async function companyHistory(job: { id: string; company: string; duplicate_of?: string | null }): Promise<CompanyHistory> {
+  const key = companyKey(job.company);
+  if (!key) return { jobs: [], open: 0 };
+  const { rows } = await pool.query<CompanyJob & { company: string }>(
+    `SELECT j.id, j.company, j.title, j.status, j.applied_at, j.first_seen_at,
+       (SELECT e.reason FROM job_events e WHERE e.job_id = j.id AND e.to_status = 'skipped' ORDER BY e.at DESC, e.id DESC LIMIT 1) reason
+     FROM jobs j WHERE j.duplicate_of IS NULL AND j.status <> 'filtered' AND j.id <> $1
+     ORDER BY coalesce(j.applied_at, j.first_seen_at) DESC`,
+    [job.duplicate_of ?? job.id],
+  );
+  const same = rows.filter((r) => companyKey(r.company) === key);
+  return {
+    jobs: same
+      .filter((r) => r.status !== 'new')
+      .map(({ company: _, ...r }) => ({ ...r, reason: r.status === 'skipped' ? r.reason : null })),
+    open: same.filter((r) => r.status === 'new').length,
+  };
 }
 
 export async function jobEvents(id: string) {

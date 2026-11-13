@@ -1,6 +1,7 @@
 import { config, type Config } from './config.ts';
 import { masterRaw } from './cv/versions.ts';
 import { ConfigError } from './errors.ts';
+import { blockedBy } from './contacts.ts';
 import { DEFAULT_STACKS, loadStacks, pick, type Stack } from './presets.ts';
 import { loadProfile, needsVisa, remoteFrom, remoteFromCode } from './profile.ts';
 import { effectiveRemoteRules } from './regions.ts';
@@ -284,7 +285,17 @@ export function jobTypeOf(description: string): { type: JobType; line: string } 
 /** The settings scoring reads: passed in, or the CLI's config.json when scoreJob gets none. */
 export type MatchSettings = Pick<
   Config,
-  'countries' | 'remote' | 'linkedin' | 'roleInclude' | 'roleExclude' | 'maxAgeDays' | 'minScore' | 'companies' | 'stacks' | 'skipJobTypes'
+  | 'countries'
+  | 'remote'
+  | 'linkedin'
+  | 'roleInclude'
+  | 'roleExclude'
+  | 'maxAgeDays'
+  | 'minScore'
+  | 'companies'
+  | 'stacks'
+  | 'skipJobTypes'
+  | 'blockedCompanies'
 >;
 
 /**
@@ -394,6 +405,8 @@ export function scoreJob(job: RawJob, cfg: MatchSettings = config): Scored {
     ...extra,
   });
 
+  const hidden = blockedBy(job.company, cfg.blockedCompanies);
+  if (hidden) return out(`company hidden (blockedCompanies: ${hidden})`);
   if (remote?.reason) return out(remote.reason);
   if (!country) return out(`location not in target countries (${job.location || 'unknown'})`);
   if (!re(cfg.roleInclude).test(job.title)) return out('title is not an engineering role');

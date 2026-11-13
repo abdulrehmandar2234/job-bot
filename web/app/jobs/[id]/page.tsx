@@ -17,7 +17,7 @@ import {
   writeLetter,
   writeSummary,
 } from '@/app/actions';
-import { getJob, type Job, jobEvents, postingsFor } from '@/lib/db';
+import { companyHistory, getJob, type Job, jobEvents, postingsFor } from '@/lib/db';
 import { isActive, openTasks } from '@/lib/tasks';
 import { ActionForm } from '@/components/action-form';
 import { CopyButton } from '@/components/client';
@@ -39,7 +39,9 @@ import { ExpiredBadge, OpenCheck } from '@/components/open-check';
 import { VisaBadge } from '@/components/visa';
 import { Chips, DeadlineBadge, fmtDate, Posted, PostedOn, Score, STATUS_LABEL } from '@/components/ui';
 import { readCountryLabels } from '@/lib/profile';
-import { aiEnabled } from '@/lib/settings';
+import { aiEnabled, readConfig } from '@/lib/settings';
+import { CompanyHistory } from '@/components/company-history';
+import { blockedBy } from '../../../../src/contacts.ts';
 import { AiOffNote } from '@/components/ai-off';
 import { JobNav, jobNav } from '@/components/job-nav';
 
@@ -156,7 +158,10 @@ async function JobDetail({
   if (!job) notFound();
   const busy = tasks.filter(isActive).map((t) => t.kind);
   const primaryId = job.duplicate_of ?? job.id;
-  const postings = (await postingsFor([primaryId])).get(primaryId) ?? [];
+  const [postingMap, history] = await Promise.all([postingsFor([primaryId]), companyHistory(job)]);
+  const postings = postingMap.get(primaryId) ?? [];
+  const blocked = readConfig().data?.blockedCompanies;
+  const hiddenAs = blockedBy(job.company, Array.isArray(blocked) ? (blocked as string[]) : []);
   const answers = job.form_answers ?? [];
   // The latest status change, which History offers to undo (undoStatus checks it again).
   const lastChange = events
@@ -242,6 +247,8 @@ async function JobDetail({
           <FollowUp job={job} busy={busy} />
 
           <Contacts job={job} contacts={contacts} />
+
+          <CompanyHistory job={job} history={history} hiddenAs={hiddenAs} />
 
           <section className="space-y-2">
             <h2 className="font-medium">Notes</h2>

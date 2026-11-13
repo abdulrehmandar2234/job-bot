@@ -6,7 +6,6 @@ What was planned for Talaash and where each part lives now. None of it changes t
 
 Ideas from the last review and from real use, none started yet:
 
-- **Company history and block list:** past applications and outcomes per company on the job page, and companies you never want to see again filtered out.
 - **Interview rounds:** several rounds per job with date, type and notes, and an `.ics` file to add each one to a calendar.
 - **Weekly goal and expiring badge:** a target of applications per week on the dashboard, and a badge on matching jobs about to pass `maxAgeDays`.
 - **Postings that apply by email or WhatsApp:** detect them and prepare the message (with the CV attached by you) instead of a form.
@@ -37,6 +36,7 @@ Ideas taken from the two most popular open-source job-search tools on GitHub, bo
 - **Funnel analytics:** `/analytics` (web/app/analytics, web/lib/analytics.ts).
 - **Follow-up reminders:** "Needs follow-up" tab and a section on the job page; `bot follow-ups` / `follow-up` / `followed-up` (src/followup.ts, web/lib/followup.ts).
 - **Interview prep:** `bot prep <id>`; on the job page for applied and interview jobs, run as a background task.
+- **Company history and hidden companies (2026-11):** the job page lists your other jobs at the same company with their outcome; **Never show this company** adds it to `blockedCompanies`, which `scoreJob` filters first (`blockedBy` / `companyKey` in src/contacts.ts, `companyHistory` in web/lib/db.ts).
 - **Application deadline (2026-11):** the deadline a posting states is stored (`jobs.deadline`, migration 020), shown as **Closes in N days** on matching and prepared jobs, and a passed one filters the job (src/deadline.ts).
 - **Job type filter (2026-11):** LinkedIn's employment type and seniority, and freehire's seniority, filter internships, part-time, temporary and volunteer jobs (`skipJobTypes`).
 - **freehire.me source (2026-11, from comparing ai-job-search):** onsite postings per target country and remote ones open to your regions, from freehire's public search over about 50 ATS (`freehire` in `remote.boards`).
