@@ -712,8 +712,18 @@ describe('auto-fill plan', () => {
       [
         { text: 'Filled 2 fields (outlined in orange): Email, Phone.', kind: 'plain' },
         { text: 'Left for you: Country (pick from the list).', kind: 'needs' },
-        { text: '1 drafted answers need your input, so they were not filled.', kind: 'needs' },
+        { text: '1 drafted answer needs your input, so it was not filled.', kind: 'needs' },
         { text: 'Check every field, then submit the form yourself.', kind: 'hint' },
+      ],
+    );
+    // One field and one answer are singular, and a label that ends in a question mark gets no second mark.
+    assert.deepEqual(
+      fillSummary({ filled: ['Why do you want to work here?'], skipped: ['What is your notice period?'], needInput: 2 }).map((l) => l.text),
+      [
+        'Filled 1 field (outlined in orange): Why do you want to work here?',
+        'Left for you: What is your notice period?',
+        '2 drafted answers need your input, so they were not filled.',
+        'Check every field, then submit the form yourself.',
       ],
     );
     // Nothing filled is not "complete" when custom controls are left.

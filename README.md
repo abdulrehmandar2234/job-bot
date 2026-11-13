@@ -80,6 +80,12 @@ Every feature and every source is described in [Features](docs/features.md).
 <img src="docs/images/job.png" alt="A job's page in Talaash: the AI review, skills match and CV keyword check, the cover letter, CV headline and summary for the job, the CV for this job, and the status card with salary, visa label, deadline and actions. Demo data." width="100%">
 </details>
 
+<details>
+<summary><b>See the Chrome extension</b>: send a job to Talaash, then fill the application form from the side panel</summary>
+<br>
+<img src="docs/images/extension-demo.gif" alt="The Chrome extension at work: the Send to Talaash popup on a job posting, then the Apply helper side panel beside an empty application form, and the same form after Fill this form, with the filled fields outlined in orange and the notice period left for the user. Demo data." width="100%">
+</details>
+
 ## Quick start
 
 **With Docker** (nothing else to install: the database, the dashboard and the daily run in one command):

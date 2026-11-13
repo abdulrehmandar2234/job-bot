@@ -6,6 +6,14 @@ To update an existing install, see [Updating](docs/updating.md): pull the new ve
 
 ## [Unreleased]
 
+### Added
+
+- Screenshots and a short GIF of the Chrome extension in the README, [Daily use](docs/daily-use.md#applying-with-the-chrome-extension) and the extension's README.
+
+### Fixed
+
+- The side panel's fill summary says "1 field" and "1 drafted answer needs your input", and adds no full stop after a field label that ends in a question mark.
+
 ## [0.1.0] - 2026-11-13
 
 The first release: everything Talaash does today, used daily for one real job search since October 2026.
