@@ -319,6 +319,23 @@ describe('pruning', () => {
 describe('cliArgs', () => {
   const t = (kind: Task['kind'], args: Record<string, string> = {}, job_id: string | null = JOB) => ({ kind, job_id, args });
 
+  it('cv_import runs cv:import on its uploaded file, and only on a file in data/cv-import', () => {
+    const file = dataPath('cv-import', 'upload.pdf');
+    assert.deepEqual(cliArgs(t('cv_import', { file }, null)), ['cv:import', file]);
+    assert.deepEqual(cliArgs(t('cv_import', { file, name: '../My CV --apply.pdf' }, null)), [
+      'cv:import',
+      file,
+      '--name=My CV --apply.pdf',
+    ]);
+    const bad: Record<string, string>[] = [
+      {},
+      { file: '/etc/passwd' },
+      { file: dataPath('upload.pdf') },
+      { file: dataPath('cv-import', 'x', 'upload.pdf') },
+    ];
+    for (const args of bad) assert.throws(() => cliArgs(t('cv_import', args, null)), /without its uploaded file/);
+  });
+
   it('maps each kind to its CLI command', () => {
     assert.deepEqual(cliArgs(t('fetch', {}, null)), ['fetch']);
     assert.deepEqual(cliArgs(t('rescore', {}, null)), ['rescore']);

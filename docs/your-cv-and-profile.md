@@ -34,6 +34,19 @@ The bot only re-orders, re-frames, shortens or selects what is in `cv/master.jso
 cp cv/master.example.json cv/master.json          # Windows PowerShell: Copy-Item cv\master.example.json cv\master.json -Force
 ```
 
+### Import the CV you already have
+
+Writing this file by hand is the slowest step, so Talaash can read your current CV for you (it needs the AI):
+
+```bash
+npm run bot -- cv:import ~/Documents/my-cv.pdf   # also .docx, .txt or .md, at most 5 MB
+npm run bot -- cv:import --apply                 # after you read the draft: it becomes cv/master.json
+```
+
+`cv:import` reads the file's text (and the web addresses behind its links), and the AI sorts it into the fields below, keeping your own words. It never adds anything the file does not say: a skill that is not in the file's text is left out, and an employer, school or name it cannot find in the text is listed for you to check. The result is a **draft** in `data/cv-import/draft.json`; your `cv/master.json` only changes with `--apply`, after a copy of it goes to `data/cv-backups/`. `--discard` throws the draft away. A scanned CV is an image with no text: export it from Word or Google Docs instead.
+
+On the dashboard, the same is **Settings → Your profile → Import your CV**: upload the file, wait for the import, read the draft and click **Use this as my CV** (or **Discard**). Afterwards fill in `tags` on your jobs and projects if you use CV versions, run `cv:default` and `rescore`.
+
 The file is not schema-validated like `config.json`: every field below must be present with the right type, or rendering the PDF fails (`projects` and `education` may be empty arrays).
 
 | Field              | Type                        | What it is                                                                                                                                                                                                    | Example                                                                                            |

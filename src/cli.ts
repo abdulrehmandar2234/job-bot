@@ -51,6 +51,7 @@ const commands: Record<string, () => Promise<Command>> = {
   contacts: async () => (await import('./commands/contacts.ts')).contacts,
   'contact:add': async () => (await import('./commands/contacts.ts')).contactAdd,
   'cv:default': async () => (await import('./commands/cv.ts')).cvDefault,
+  'cv:import': async () => (await import('./commands/cv-import.ts')).cvImport,
   'cv:build': async () => (await import('./commands/cv.ts')).cvBuild,
   versions: async () => (await import('./commands/cv.ts')).versions,
   ats: async () => (await import('./commands/ats.ts')).ats,
@@ -67,6 +68,7 @@ const commands: Record<string, () => Promise<Command>> = {
 // Commands that only touch files, or manage their own connection (backup, restore): no pool and no migrations first.
 // restore especially: migrating the database it is about to replace would only be undone.
 const NO_DB = [
+  'cv:import',
   'settings:check',
   'settings:save',
   'setup',
@@ -140,6 +142,9 @@ const HELP = `Commands:
   contacts <id>                   contacts for a job, plus people you know at the same company
   contact:add <id> --name "Jane Doe" [--role recruiter|"hiring manager"|referral|other] [--email x]
                                   [--linkedin https://linkedin.com/in/x] [--phone x] [--notes x] [--referral "to ask"]
+  cv:import <file>                read your CV (PDF, .docx, .txt, .md) into a draft master CV with the AI; skills
+                                  not in the file are left out. --apply makes the draft cv/master.json (with a
+                                  backup), --discard removes it
   cv:default                      rebuild default CV PDF from cv/master.json
   cv:build [cluster...]           pre-build CV versions
   versions                        list CV versions and usage

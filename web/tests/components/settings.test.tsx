@@ -11,8 +11,20 @@ import { Settings } from '@/components/settings-page';
 import { SETTINGS_GROUPS } from '@/lib/settings-sections';
 import type { SettingsFile } from '@/lib/settings';
 
-vi.mock('@/app/settings/actions', () => ({ saveConfig: vi.fn(), saveApplicant: vi.fn(), saveJson: vi.fn() }));
+vi.mock('@/app/settings/actions', () => ({
+  saveConfig: vi.fn(),
+  saveApplicant: vi.fn(),
+  saveJson: vi.fn(),
+  importCv: vi.fn(),
+  applyCvImport: vi.fn(),
+  discardCvImport: vi.fn(),
+}));
 vi.mock('next/server', () => ({ connection: vi.fn(async () => {}) }));
+// The CV import panel shows its task with <TaskBar>, whose watcher refreshes through the app router.
+vi.mock('next/navigation', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('next/navigation')>()),
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
 
 const CONFIG = {
   minScore: 45,

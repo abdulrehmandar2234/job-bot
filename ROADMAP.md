@@ -17,6 +17,8 @@ Ideas from the last review and from real use, none started yet:
 
 Ideas taken from the two most popular open-source job-search tools on GitHub, boss-agent-cli (one Chinese job site, Python) and Jobsmith (Taiwan's job market, desktop app). Their auto-apply, platform logins and bulk messaging are left out on purpose: they break the rule above and risk the user's accounts. Most useful first:
 
+- **Skills radar:** the skills that matching jobs ask for most often, split into those the CV shows and those it does not, from the `missing` skills already stored per job. A section on `/analytics`.
+- **Screenshots and a demo GIF:** the dashboard, a job page and the extension, in the README and the docs site.
 - **CV import:** `bot cv:import <file.pdf|docx>` and an upload on the dashboard. The AI turns an existing CV into `cv/master.json` with only what the CV says, and the user checks it before it is saved. Writing the JSON by hand is the hardest step for a new user today.
 - **Extension screenshots and a demo GIF:** the extension at work and a short GIF, next to the dashboard screenshots already in the README and the docs site.
 - **Repository basics:** GitHub topics, a first release (`v0.1.0`) with a CHANGELOG, issue templates and `SECURITY.md`.
@@ -33,6 +35,7 @@ Ideas taken from the two most popular open-source job-search tools on GitHub, bo
 - **Funnel analytics:** `/analytics` (web/app/analytics, web/lib/analytics.ts).
 - **Follow-up reminders:** "Needs follow-up" tab and a section on the job page; `bot follow-ups` / `follow-up` / `followed-up` (src/followup.ts, web/lib/followup.ts).
 - **Interview prep:** `bot prep <id>`; on the job page for applied and interview jobs, run as a background task.
+- **CV import (2026-11, from comparing similar projects):** `bot cv:import <file>` (PDF, .docx, .txt, .md) and **Import your CV** on the Settings page: the AI sorts the CV's text into `cv/master.json` fields, skills the text does not contain are dropped, and the draft only replaces the master CV after the user applies it, with a backup (src/cv/import.ts, src/commands/cv-import.ts, the `cv_import` task, migration 022).
 - **Company history and hidden companies (2026-11):** the job page lists your other jobs at the same company with their outcome; **Never show this company** adds it to `blockedCompanies`, which `scoreJob` filters first (`blockedBy` / `companyKey` in src/contacts.ts, `companyHistory` in web/lib/db.ts).
 - **Letter check (2026-11, from comparing similar projects):** after the AI writes or rewrites a letter, a second call checks it against the CV and the posting and fixes unsupported claims, company facts the posting does not state, commitments and placeholders; the job page lists what it fixed (`aiCheckLetter` in src/ai.ts, `jobs.cover_letter_check`, migration 021, `ai.checkLetters`).
 - **Skills radar (2026-11, from comparing similar projects):** a section on `/analytics` with the skills matching jobs of the last 90 days ask for most, split into those the CV shows and those it does not (`skillDemand` in web/lib/analytics.ts).

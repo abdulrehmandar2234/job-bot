@@ -5,6 +5,9 @@ import { SettingsNav } from '@/components/settings-nav';
 import { salaryKeys } from '@/lib/settings-form';
 import { SETTINGS_GROUPS } from '@/lib/settings-sections';
 import { aiKeyStatus, readApplicant, readConfig } from '@/lib/settings';
+import { CvImport } from '@/components/settings/cv-import';
+import { readImportDraft } from '@/lib/cv-import';
+import { openTasks } from '@/lib/tasks';
 
 /** Reads both files on every request: they change outside the dashboard too. */
 export async function Settings() {
@@ -12,6 +15,8 @@ export async function Settings() {
   const config = readConfig();
   const applicant = readApplicant();
   const [search, profile] = SETTINGS_GROUPS;
+  const imported = readImportDraft();
+  const importTasks = (await openTasks()).filter((t) => t.kind === 'cv_import');
   return (
     <div className="mt-4 grid gap-6 lg:grid-cols-[13rem_minmax(0,1fr)] lg:gap-8">
       <SettingsNav />
@@ -35,6 +40,7 @@ export async function Settings() {
               cv/applicant.json · signs your cover letters and follow-ups, and tells the AI and the filters who you are.
             </p>
           </div>
+          <CvImport draft={imported.draft} error={imported.error} tasks={importTasks} />
           <ApplicantForm applicant={applicant} salaryKeys={salaryKeys(config.data)} />
           <JsonEditor kind="applicant" file={applicant} />
         </section>
