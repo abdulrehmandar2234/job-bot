@@ -4,6 +4,7 @@
   "chromePath": "auto",
   "minScore": 45,
   "skipJobTypes": ["internship", "part-time", "temporary", "volunteer"],
+  "blockedCompanies": [],
   "maxAgeDays": 14,
   "ai": {
     "enabled": true,
