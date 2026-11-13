@@ -108,8 +108,8 @@ const HELP = `Commands:
   fetch [--company name]          pull jobs from company boards, filter + score
   rescore                         re-apply filters/scoring to stored jobs (after config changes)
   discover <slug...> [--add]      find a company's job board (7 ATS, or a myworkdayjobs URL); --add saves hits
-  list [--status new] [--country NL] [--min 60] [--limit 30]
-  show <id> [--full]              details (+ full description)
+  list [--status new] [--country NL] [--min 60] [--limit 30] [--json]
+  show <id> [--full] [--json]     details (+ full description); --json: the whole job as JSON
   prepare <id> [--cv cluster]     default CV (or --cv version); checks the posting is still open first (--force
                                   skips that); --letter also writes the cover letter
   letter <id> [--template]        write or rewrite the cover letter (AI from the description, else the template)

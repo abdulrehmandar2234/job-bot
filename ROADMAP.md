@@ -18,7 +18,6 @@ Ideas from the last review and from real use, none started yet:
 Ideas taken from the two most popular open-source job-search tools on GitHub, boss-agent-cli (one Chinese job site, Python) and Jobsmith (Taiwan's job market, desktop app). Their auto-apply, platform logins and bulk messaging are left out on purpose: they break the rule above and risk the user's accounts. Most useful first:
 
 - **Mock interview:** questions from the job and the CV, the user's answers, and feedback with a score per answer, next to the interview prep.
-- **JSON output:** `--json` on `list` and `show` (as `ats` has), so scripts and AI agents can use Talaash.
 - **MCP server:** Talaash's jobs, scores, letters and answers as tools for MCP apps such as Claude Desktop (read and prepare only, never apply).
 - **Running without PostgreSQL:** an embedded database (SQLite or similar) so a new user needs only Node.js. A large change across the bot and the dashboard.
 
@@ -30,6 +29,7 @@ Ideas taken from the two most popular open-source job-search tools on GitHub, bo
 - **Funnel analytics:** `/analytics` (web/app/analytics, web/lib/analytics.ts).
 - **Follow-up reminders:** "Needs follow-up" tab and a section on the job page; `bot follow-ups` / `follow-up` / `followed-up` (src/followup.ts, web/lib/followup.ts).
 - **Interview prep:** `bot prep <id>`; on the job page for applied and interview jobs, run as a background task.
+- **JSON output (2026-11, from comparing similar projects):** `list --json` (the fields needed to pick a job) and `show <id> --json` (the whole job), for scripts and AI agents (`LIST_FIELDS` in src/commands/list.ts, docs/cli.md).
 - **CV import (2026-11, from comparing similar projects):** `bot cv:import <file>` (PDF, .docx, .txt, .md) and **Import your CV** on the Settings page: the AI sorts the CV's text into `cv/master.json` fields, skills the text does not contain are dropped, and the draft only replaces the master CV after the user applies it, with a backup (src/cv/import.ts, src/commands/cv-import.ts, the `cv_import` task, migration 022).
 - **Company history and hidden companies (2026-11):** the job page lists your other jobs at the same company with their outcome; **Never show this company** adds it to `blockedCompanies`, which `scoreJob` filters first (`blockedBy` / `companyKey` in src/contacts.ts, `companyHistory` in web/lib/db.ts).
 - **Letter check (2026-11, from comparing similar projects):** after the AI writes or rewrites a letter, a second call checks it against the CV and the posting and fixes unsupported claims, company facts the posting does not state, commitments and placeholders; the job page lists what it fixed (`aiCheckLetter` in src/ai.ts, `jobs.cover_letter_check`, migration 021, `ai.checkLetters`).

@@ -11,6 +11,7 @@ import { daysAgo, TEST_DB } from './helpers.ts';
 import { getJob, migrate, pool } from '../src/db.ts';
 import { path } from '../src/config.ts';
 import { slug } from '../src/commands/shared.ts';
+import { LIST_FIELDS } from '../src/commands/list.ts';
 
 /** The job's newest applications/<date>-<company>-<title> folder (what prepare and letter write to). */
 function applicationDirOf(j: { company: string; title: string }) {
@@ -100,6 +101,34 @@ describe('CLI', () => {
     assert.match(show, /Laravel, PHP, Vue\.js/);
     assert.match(await bot(['stats']), /new\s+AE\s+1/);
     await expectNotFound(['show', 'nope']);
+  });
+
+  it('list --json and show --json print JSON for scripts', async () => {
+    const id = idOf(await bot(['add', '--file', addFile([posting({ url: 'https://example.com/jobs/json-output' })])]));
+    const jobs = JSON.parse(await bot(['list', '--json', '--limit', '100']));
+    const item = jobs.find((j: { id: string }) => j.id === id);
+    assert.deepEqual(Object.keys(item), [...LIST_FIELDS]);
+    assert.equal(item.company, 'Testco Cli');
+    assert.equal(item.status, 'new');
+    assert.ok(item.matched.includes('Laravel'));
+    assert.match(item.first_seen_at, /^\d{4}-\d\d-\d\dT/);
+    assert.equal(item.description, undefined);
+    // The same filters as the text list; nothing matching is an empty array, not a message.
+    assert.equal(await bot(['list', '--country', 'sa', '--json']), '[]\n');
+
+    const job = JSON.parse(await bot(['show', id, '--json']));
+    assert.equal(job.id, id);
+    assert.match(job.description, /Laravel/);
+    assert.ok('cover_letter' in job && 'form_answers' in job);
+    await expectNotFound(['show', 'nope', '--json']);
+  });
+
+  it('list refuses a --limit that is not a whole number of at least 1', async () => {
+    for (const limit of ['abc', '0', '2.5']) {
+      const res = await botExit(['list', '--limit', limit]);
+      assert.equal(res.code, 1);
+      assert.match(oneLineError(res)!, /^Usage: list \[--limit N\]/);
+    }
   });
 
   it('migrate applies pending migrations and says when there are none (the dashboard runs it at startup)', async () => {
@@ -526,7 +555,7 @@ describe('CLI user errors', () => {
 
   it('a command that needs a job id prints its usage line without one, and exit 1', async () => {
     for (const [cmd, line] of [
-      ['show', 'show <id> [--full]'],
+      ['show', 'show <id> [--full] [--json]'],
       ['cv:feedback', 'cv:feedback <id> --feedback "…"'],
       ['mark', 'mark <id> <status> [note]'],
       ['letter:pdf', 'letter:pdf <id>'],

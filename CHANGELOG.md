@@ -8,10 +8,12 @@ To update an existing install, see [Updating](docs/updating.md): pull the new ve
 
 ### Added
 
+- `list --json` and `show <id> --json` print jobs as JSON for scripts and AI agents ([CLI reference](docs/cli.md#json-output-for-scripts)).
 - Screenshots and a short GIF of the Chrome extension in the README, [Daily use](docs/daily-use.md#applying-with-the-chrome-extension) and the extension's README.
 
 ### Fixed
 
+- `list --limit` with something other than a whole number of at least 1 prints the usage line instead of a database error.
 - The side panel's fill summary says "1 field" and "1 drafted answer needs your input", and adds no full stop after a field label that ends in a question mark.
 
 ## [0.1.0] - 2026-11-13
