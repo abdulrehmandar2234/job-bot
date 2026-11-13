@@ -4,6 +4,8 @@ How to get a newer version. The steps are the same on every OS; only the termina
 
 Back to the [start page](README.md).
 
+What changed in each version, and anything you need to do for it, is in the [changelog](https://github.com/abdulrehmandar2234/talaash/blob/main/CHANGELOG.md). Read it before you update.
+
 ## From job-bot to Talaash
 
 The project was called job-bot until November 2026. If your copy is older:

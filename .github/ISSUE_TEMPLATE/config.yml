@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Documentation
+    url: https://abdulrehmandar2234.github.io/talaash/
+    about: Installation, settings, daily use and troubleshooting.
+  - name: Report a security problem
+    url: https://github.com/abdulrehmandar2234/talaash/security/advisories/new
+    about: Privately, not as a public issue.

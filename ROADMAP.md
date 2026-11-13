@@ -21,7 +21,6 @@ Ideas taken from the two most popular open-source job-search tools on GitHub, bo
 - **Screenshots and a demo GIF:** the dashboard, a job page and the extension, in the README and the docs site.
 - **CV import:** `bot cv:import <file.pdf|docx>` and an upload on the dashboard. The AI turns an existing CV into `cv/master.json` with only what the CV says, and the user checks it before it is saved. Writing the JSON by hand is the hardest step for a new user today.
 - **Extension screenshots and a demo GIF:** the extension at work and a short GIF, next to the dashboard screenshots already in the README and the docs site.
-- **Repository basics:** GitHub topics, a first release (`v0.1.0`) with a CHANGELOG, issue templates and `SECURITY.md`.
 - **Mock interview:** questions from the job and the CV, the user's answers, and feedback with a score per answer, next to the interview prep.
 - **JSON output:** `--json` on `list` and `show` (as `ats` has), so scripts and AI agents can use Talaash.
 - **MCP server:** Talaash's jobs, scores, letters and answers as tools for MCP apps such as Claude Desktop (read and prepare only, never apply).
@@ -77,6 +76,7 @@ Ideas taken from the two most popular open-source job-search tools on GitHub, bo
 
 ### Quality and tooling
 
+- **Releases and repository basics (2026-11):** the first release `v0.1.0` with CHANGELOG.md, issue templates (bug report, feature request), SECURITY.md with private vulnerability reporting, and GitHub topics.
 - **CI:** .github/workflows/test.yml (Ubuntu with a Postgres service: lint, typecheck, backend and web suites, a dashboard build and an informational coverage summary; Windows on Node 24 and 26: typecheck and the tests that need no database), on pull requests, pushes to main and a monthly schedule; Dependabot opens monthly npm update PRs (.github/dependabot.yml).
 - **Lint and format:** Biome (`biome.json`), `npm run lint` / `npm run format`, and a pre-commit hook in `.githooks/` that checks staged files.
 - **Coverage report:** `npm run test:coverage` and `npm run test:web:coverage`.

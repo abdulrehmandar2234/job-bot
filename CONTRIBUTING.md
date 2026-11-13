@@ -66,10 +66,12 @@ CI runs Biome, the typecheck and both suites on Ubuntu with PostgreSQL, plus the
 
 ## Reporting bugs
 
-Open an issue with:
+[Open an issue](https://github.com/abdulrehmandar2234/talaash/issues/new/choose) with:
 
 - what you did, what you expected and what happened;
 - your OS, your Node version (`node --version`) and the AI provider;
 - the relevant lines of `data/fetch.log` or the terminal output.
 
 Remove personal data (CV text, emails, keys) before you paste logs.
+
+The **Bug report** issue form asks for all of this. A security problem never goes in a public issue: see [SECURITY.md](SECURITY.md).

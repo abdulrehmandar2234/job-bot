@@ -112,3 +112,28 @@ describe('the docs site', () => {
     assert.deepEqual(broken, [], `README.md links to missing files: ${broken.join(', ')}`);
   });
 });
+
+describe('release files', () => {
+  const ROOT = join(import.meta.dirname, '..');
+  const read = (...p: string[]) => readFileSync(join(ROOT, ...p), 'utf8');
+
+  it('CHANGELOG.md has a dated section and a link for the version in package.json, and an Unreleased section', () => {
+    const { version } = JSON.parse(read('package.json')) as { version: string };
+    const changelog = read('CHANGELOG.md');
+    assert.match(changelog, /^## \[Unreleased\]$/m);
+    assert.match(changelog, new RegExp(`^## \\[${version.replace(/\./g, '\\.')}\\] - \\d{4}-\\d{2}-\\d{2}$`, 'm'));
+    assert.match(
+      changelog,
+      new RegExp(`^\\[${version.replace(/\./g, '\\.')}\\]: https://github\\.com/.+/releases/tag/v${version.replace(/\./g, '\\.')}$`, 'm'),
+    );
+    assert.equal(JSON.parse(read('web', 'package.json')).version, version, 'the dashboard has the same version');
+  });
+
+  it('has SECURITY.md and issue templates that ask for no personal data', () => {
+    assert.match(read('SECURITY.md'), /Report a vulnerability/);
+    const dir = join(ROOT, '.github', 'ISSUE_TEMPLATE');
+    assert.deepEqual(readdirSync(dir).sort(), ['bug_report.yml', 'config.yml', 'feature_request.yml']);
+    assert.match(read('.github', 'ISSUE_TEMPLATE', 'bug_report.yml'), /leave out anything personal/);
+    assert.match(read('.github', 'ISSUE_TEMPLATE', 'feature_request.yml'), /never applies on your behalf/);
+  });
+});

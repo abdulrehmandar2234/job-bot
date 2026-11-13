@@ -1,0 +1,27 @@
+name: Feature request
+description: An idea for Talaash.
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Talaash never applies on your behalf, never adds anything untrue to a CV, and never automates logins or CAPTCHAs on job sites. Ideas that need one of those cannot be accepted. ROADMAP.md lists what is already planned.
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What is hard or slow in your job search today?
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: Your idea
+      description: How Talaash could help with it.
+    validations:
+      required: true
+  - type: textarea
+    id: other
+    attributes:
+      label: Anything else
+      description: Job sites, countries or examples it concerns.
