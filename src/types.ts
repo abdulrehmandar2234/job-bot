@@ -182,10 +182,11 @@ export type TaskKind =
   | 'cv_template'
   | 'cv_feedback'
   | 'cv_review'
-  | 'headline';
+  | 'headline'
+  | 'cv_import';
 export type TaskStatus = 'queued' | 'running' | 'done' | 'failed';
 
-/** One row of `tasks`. `args` holds the command's options, e.g. { cv, force } for prepare, { questions } for answers, { feedback } for letter, summary, headline and cv_feedback, or { template } for cv_template. */
+/** One row of `tasks`. `args` holds the command's options, e.g. { cv, force } for prepare, { questions } for answers, { feedback } for letter, summary, headline and cv_feedback, or { template } for cv_template, or { file } (in data/cv-import) for cv_import. */
 export type Task = {
   id: number;
   kind: TaskKind;

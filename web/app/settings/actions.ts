@@ -2,9 +2,12 @@
 
 import { randomUUID } from 'node:crypto';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { extname, join } from 'node:path';
 import { refresh } from 'next/cache';
+import { guarded, botFailure } from '@/lib/action-state';
 import { botDataDir, runBot } from '@/lib/bot';
+import { IMPORT_TYPES, importDir, MAX_IMPORT_BYTES } from '@/lib/cv-import';
+import type { TextFormState } from '@/lib/written-text';
 import { readApplicant, readConfig } from '@/lib/settings';
 import { enqueueTask } from '@/lib/tasks';
 import { skipInsights } from '@/lib/skip-insights';
@@ -101,4 +104,46 @@ export async function addRoleExclude(_prev: SaveState, fd: FormData): Promise<Sa
   const { suggestions } = await skipInsights(roleExclude);
   if (typeof pattern !== 'string' || !suggestions.some((s) => s.pattern === pattern)) return fail('That suggestion is no longer valid.');
   return save('config', JSON.stringify({ ...cur.data, roleExclude: roleExclude ? `${roleExclude}|${pattern}` : pattern }, null, 2));
+}
+
+/**
+ * "Import your CV" on the Settings page: saves the uploaded file in data/cv-import and queues `bot cv:import <file>`
+ * as a background task, which writes a draft. Nothing changes cv/master.json until the draft is applied.
+ */
+export async function importCv(_prev: TextFormState, fd: FormData): Promise<TextFormState> {
+  const file = fd.get('cv');
+  if (!(file instanceof File) || !file.size) return { ok: false, message: 'Choose your CV file first.' };
+  const ext = extname(file.name).toLowerCase();
+  if (!(IMPORT_TYPES as readonly string[]).includes(ext)) return { ok: false, message: `Use a ${IMPORT_TYPES.join(', ')} file.` };
+  if (file.size > MAX_IMPORT_BYTES) return { ok: false, message: `The file is larger than ${MAX_IMPORT_BYTES / 1024 / 1024} MB.` };
+  return guarded(async () => {
+    await mkdir(importDir(), { recursive: true });
+    const path = join(importDir(), `upload${ext}`);
+    await writeFile(path, Buffer.from(await file.arrayBuffer()));
+    const { created } = await enqueueTask('cv_import', null, { file: path, name: file.name });
+    refresh();
+    return created ? null : { ok: false, message: 'A CV import is already running.' };
+  });
+}
+
+/** The imported draft's "Use this as my CV" (`cv:import --apply`) or "Discard" (`--discard`). */
+async function draftCommand(flag: '--apply' | '--discard', done: string): Promise<TextFormState> {
+  try {
+    await runBot(['cv:import', flag], 30_000);
+  } catch (e) {
+    return { ok: false, message: botFailure(e) };
+  }
+  refresh();
+  return { ok: true, message: done };
+}
+
+export async function applyCvImport(_prev: TextFormState, _fd: FormData): Promise<TextFormState> {
+  return draftCommand(
+    '--apply',
+    'Saved as your master CV (the previous one is in data/cv-backups). Rebuild your CV and re-score the jobs next.',
+  );
+}
+
+export async function discardCvImport(_prev: TextFormState, _fd: FormData): Promise<TextFormState> {
+  return draftCommand('--discard', 'Draft removed. Your master CV is unchanged.');
 }

@@ -19,7 +19,6 @@ Ideas from the last review and from real use, none started yet:
 
 Ideas taken from the two most popular open-source job-search tools on GitHub, boss-agent-cli (one Chinese job site, Python) and Jobsmith (Taiwan's job market, desktop app). Their auto-apply, platform logins and bulk messaging are left out on purpose: they break the rule above and risk the user's accounts. Most useful first:
 
-- **CV import:** `bot cv:import <file.pdf|docx>` and an upload on the dashboard. The AI turns an existing CV into `cv/master.json` with only what the CV says, and the user checks it before it is saved. Writing the JSON by hand is the hardest step for a new user today.
 - **Skills radar:** the skills that matching jobs ask for most often, split into those the CV shows and those it does not, from the `missing` skills already stored per job. A section on `/analytics`.
 - **Screenshots and a demo GIF:** the dashboard, a job page and the extension, in the README and the docs site.
 - **Repository basics:** GitHub topics, a first release (`v0.1.0`) with a CHANGELOG, issue templates and `SECURITY.md`.
@@ -37,6 +36,7 @@ Ideas taken from the two most popular open-source job-search tools on GitHub, bo
 - **Funnel analytics:** `/analytics` (web/app/analytics, web/lib/analytics.ts).
 - **Follow-up reminders:** "Needs follow-up" tab and a section on the job page; `bot follow-ups` / `follow-up` / `followed-up` (src/followup.ts, web/lib/followup.ts).
 - **Interview prep:** `bot prep <id>`; on the job page for applied and interview jobs, run as a background task.
+- **CV import (2026-11, from comparing similar projects):** `bot cv:import <file>` (PDF, .docx, .txt, .md) and **Import your CV** on the Settings page: the AI sorts the CV's text into `cv/master.json` fields, skills the text does not contain are dropped, and the draft only replaces the master CV after the user applies it, with a backup (src/cv/import.ts, src/commands/cv-import.ts, the `cv_import` task, migration 022).
 - **Application deadline (2026-11):** the deadline a posting states is stored (`jobs.deadline`, migration 020), shown as **Closes in N days** on matching and prepared jobs, and a passed one filters the job (src/deadline.ts).
 - **Job type filter (2026-11):** LinkedIn's employment type and seniority, and freehire's seniority, filter internships, part-time, temporary and volunteer jobs (`skipJobTypes`).
 - **freehire.me source (2026-11, from comparing ai-job-search):** onsite postings per target country and remote ones open to your regions, from freehire's public search over about 50 ATS (`freehire` in `remote.boards`).

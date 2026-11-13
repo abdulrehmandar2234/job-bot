@@ -519,3 +519,61 @@ Rules:
   );
   return res.message.trim() + '\n';
 }
+
+const CV_SCHEMA = {
+  type: 'object',
+  properties: {
+    name: str,
+    title: str,
+    contact: {
+      type: 'object',
+      properties: { phone: str, email: str, location: str, linkedin: str },
+      required: ['phone', 'email', 'location', 'linkedin'],
+    },
+    summary: str,
+    skills: {
+      type: 'array',
+      items: { type: 'object', properties: { group: str, items: strs }, required: ['group', 'items'] },
+    },
+    experience: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: { role: str, company: str, location: str, dates: str, tags: strs, bullets: strs },
+        required: ['role', 'company', 'location', 'dates', 'tags', 'bullets'],
+      },
+    },
+    projects: {
+      type: 'array',
+      items: { type: 'object', properties: { name: str, url: str, tags: strs, text: str }, required: ['name', 'url', 'tags', 'text'] },
+    },
+    education: {
+      type: 'array',
+      items: { type: 'object', properties: { school: str, degree: str, dates: str }, required: ['school', 'degree', 'dates'] },
+    },
+  },
+  required: ['name', 'title', 'contact', 'summary', 'skills', 'experience', 'projects', 'education'],
+};
+
+/**
+ * Turns the text of an existing CV into the master CV's fields (`cv:import`). The AI only sorts what the text says
+ * into fields; src/cv/import.ts then drops any skill the text does not contain and saves a draft for the user to check.
+ */
+export async function aiImportCv(text: string): Promise<Cv> {
+  const system = `You convert the text of one person's CV into JSON fields. Rules:
+- Use ONLY what the CV TEXT says. Never add a skill, technology, employer, project, number, date, title, degree or
+  achievement it does not state, and never make one stronger than written.
+- Keep the person's own words: copy job bullets and the summary as written (fix only broken line wraps and bullet
+  symbols). If the CV has no summary, "summary" is "".
+- "title": the professional title the CV states (e.g. under the name or the latest role), as written.
+- "contact": phone, email, location and LinkedIn URL as written; "" for anything the CV does not give.
+- "skills": the skills and technologies the CV lists, grouped as the CV groups them (or in sensible groups such as
+  "Languages", "Frameworks", "Databases", "Tools" when it does not), each item exactly as written.
+- "experience": one entry per job, newest first, with role, company, location, dates exactly as written (e.g.
+  "Jan 2023 — Present"), and its bullets. "tags" is [] (the user adds them later).
+- "projects": only projects the CV lists, with their URL if given (else ""), "tags" [] and a one-sentence "text" from
+  the CV's own words. [] when there are none.
+- "education": school, degree and dates as written.
+- Plain text everywhere, no markdown.`;
+  return askAi<Cv>(`CV TEXT:\n${text.slice(0, 30_000)}`, CV_SCHEMA, 'letter', system);
+}
