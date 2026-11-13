@@ -517,6 +517,35 @@ describe('job page', () => {
       expect(within(letterSection()).queryByRole('note')).toBeNull();
     });
 
+    it('shows what the letter check fixed, a short line when it fixed nothing, and nothing once the letter is edited', async () => {
+      const problem = "Claims Kubernetes experience ('ran Kubernetes'), which the CV does not show.";
+      await insertJob({ id, cover_letter: 'Dear Acme', cover_letter_ai: true, cover_letter_check: [problem] });
+      await renderJob(id);
+      const note = within(letterSection()).getByRole('note');
+      expect(note).toHaveTextContent('Checked against your CV and this posting: fixed 1 thing they do not support.');
+      expect(within(note).getByRole('listitem')).toHaveTextContent(problem);
+
+      for (const [over, text] of [
+        [{ cover_letter_check: [] }, 'every claim is in one of them'],
+        [{ cover_letter_check: [problem], cover_letter_edited_at: new Date() }, null],
+        [{ cover_letter_check: null }, null],
+      ] as const) {
+        await cleanupDb();
+        document.body.innerHTML = '';
+        await insertJob({
+          id,
+          cover_letter: 'Dear Acme',
+          cover_letter_ai: true,
+          ...over,
+          cover_letter_check: over.cover_letter_check && [...over.cover_letter_check],
+        });
+        await renderJob(id);
+        expect(within(letterSection()).queryByRole('note')).toBeNull();
+        if (text) expect(letterSection()).toHaveTextContent(text);
+        else expect(letterSection()).not.toHaveTextContent('Checked against your CV');
+      }
+    });
+
     it('hides Edit and feedback while the letter is rewritten', async () => {
       await insertJob({ id, cover_letter: 'Dear Acme', cover_letter_ai: true });
       await addTask('letter');

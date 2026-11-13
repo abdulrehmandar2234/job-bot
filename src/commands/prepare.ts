@@ -5,7 +5,7 @@ import { cvFile, jobTemplate, masterRaw, versionFor } from '../cv/versions.ts';
 import { htmlToPdf, letterHtml, type Cv } from '../cv/render.ts';
 import { PROFILES } from '../cv/profiles.ts';
 import { coverLetter } from '../cover.ts';
-import { aiCoverLetter, aiHeadline, aiSummary } from '../ai.ts';
+import { aiCheckLetter, aiCoverLetter, aiHeadline, aiSummary } from '../ai.ts';
 import { unsupportedClaims } from '../cv/feedback.ts';
 import { FEEDBACK_CAP } from '../types.ts';
 import { isOpen } from '../sources/open.ts';
@@ -53,6 +53,8 @@ export function feedbackFlag(flags: Flags): string | null {
  * template (which would throw the current letter away) and throws instead.
  * Stores it on the job and in the job's applications/ folder. Returns where it went, whether the AI wrote it, the
  * AI's note on feedback it did not follow, and why the AI failed when the template was used (also stored on the job).
+ * An AI letter is then checked against the CV and the posting (aiCheckLetter, unless config.json ai.checkLetters is
+ * false): what the check fixed is stored in cover_letter_check, and a failed check keeps the letter as written.
  */
 export async function writeLetter(j: Job, flags: Flags = {}, feedback = '') {
   let letter = coverLetter(j);
@@ -72,13 +74,30 @@ export async function writeLetter(j: Job, flags: Flags = {}, feedback = '') {
       console.log(`AI cover letter failed, using template: ${aiError}`);
     }
   }
+  let check: string[] | null = null;
+  if (ai && config.ai.checkLetters !== false) {
+    try {
+      ({ letter, problems: check } = await aiCheckLetter(j, letter));
+    } catch (e) {
+      console.log(`Letter check failed, the letter is stored unchecked: ${(e as Error).message}`);
+    }
+  }
   const file = `${applicationDir(j)}/cover-letter.txt`;
   writeFileSync(file, letter);
   await pool.query(
-    'UPDATE jobs SET cover_letter = $2, cover_letter_ai = $3, cover_letter_ai_error = $4, cover_letter_edited_at = NULL WHERE id = $1',
-    [j.id, letter, ai, aiError],
+    `UPDATE jobs SET cover_letter = $2, cover_letter_ai = $3, cover_letter_ai_error = $4, cover_letter_check = $5,
+       cover_letter_edited_at = NULL WHERE id = $1`,
+    [j.id, letter, ai, aiError, check],
   );
-  return { file, ai, note, aiError };
+  return { file, ai, note, aiError, check };
+}
+
+/** What the letter check did, under the "Cover" line; nothing when the letter was not checked. */
+function printCheck(check: string[] | null) {
+  if (!check) return;
+  if (!check.length) return console.log('Checked    : every claim is in the CV or the posting');
+  console.log(`Checked    : fixed ${check.length} thing${check.length === 1 ? '' : 's'} the CV or the posting does not support`);
+  for (const p of check) console.log(`  - ${p}`);
 }
 
 /**
@@ -102,6 +121,7 @@ export async function letter(args: string[], flags: Flags) {
   const how = feedback ? '(rewritten by AI with your feedback)' : res.ai ? '(written by AI from the job description)' : '(template)';
   console.log(`Cover      : ${res.file} ${how}`);
   if (res.note) console.log(`Note       : ${res.note}`);
+  printCheck(res.check);
 }
 
 /**
@@ -262,6 +282,7 @@ export async function prepare(args: string[], flags: Flags) {
       ? `Cover      : ${written.file} ${written.ai ? '(written by AI from the job description)' : '(template)'}`
       : `Cover      : not written yet (npm run bot -- letter ${j.id}, or "Write letter" on the job page)`,
   );
+  if (written) printCheck(written.check);
   console.log(`Apply at   : ${j.url}`);
   console.log(`\nAfter submitting: npm run bot -- mark ${j.id} applied`);
 }

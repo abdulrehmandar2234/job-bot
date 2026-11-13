@@ -146,8 +146,36 @@ describe('CLI', () => {
       assert.equal(readFileSync(join(dir, 'cover-letter.txt'), 'utf8'), `${letter}\n`);
       const j = await getJob(id);
       assert.deepEqual([j.status, j.cv_version, j.cover_letter, j.cover_letter_ai], ['prepared', 'default', `${letter}\n`, true]);
+      // The check found nothing (no problems in the reply): the letter is stored as written, and says it was checked.
+      assert.deepEqual(j.cover_letter_check, []);
+      assert.match(out, /Checked {4}: every claim is in the CV or the posting/);
       await bot(['letter', id], { FAKE_CLAUDE_OUT: JSON.stringify({ letter: 'Dear Testco Cli Hiring Team,\nSecond' }) });
       assert.match((await getJob(id)).cover_letter!, /Second/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('letter stores the checked letter and what the check fixed; ai.checkLetters false skips it', async () => {
+    const id = idOf(await bot(['add', '--file', addFile([posting()])]));
+    const problem = "Claims Kubernetes experience ('ran Kubernetes'), which the CV does not show.";
+    // The fake AI gives every call the same reply: the letter call reads `letter`, the check reads both.
+    const reply = JSON.stringify({ letter: 'Dear Testco Cli Hiring Team,\nFixed letter', problems: [problem] });
+    const out = await bot(['letter', id], { FAKE_CLAUDE_OUT: reply });
+    const dir = out.match(/Cover {6}: (\S+)\/cover-letter\.txt/)![1];
+    try {
+      assert.match(out, /Checked {4}: fixed 1 thing the CV or the posting does not support\n {2}- Claims Kubernetes/);
+      const j = await getJob(id);
+      assert.deepEqual([j.cover_letter, j.cover_letter_check], ['Dear Testco Cli Hiring Team,\nFixed letter\n', [problem]]);
+
+      const cfg = JSON.parse(readFileSync(path('config.default.json'), 'utf8'));
+      const off = join(mkdtempSync(join(tmpdir(), 'talaash-check-off-')), 'config.json');
+      writeFileSync(off, JSON.stringify({ ...cfg, ai: { ...cfg.ai, checkLetters: false } }));
+      const log = join(dirname(off), 'calls.jsonl');
+      const unchecked = await bot(['letter', id], { FAKE_CLAUDE_OUT: reply, JOB_BOT_CONFIG: off, FAKE_CLAUDE_LOG: log });
+      assert.doesNotMatch(unchecked, /Checked/);
+      assert.equal(readFileSync(log, 'utf8').trim().split('\n').length, 1, 'one AI call: the letter, no check');
+      assert.equal((await getJob(id)).cover_letter_check, null);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

@@ -58,6 +58,7 @@ export const CONFIG_FIELDS: Record<string, FieldType> = {
   'remote.fromCode': 'code',
   'ai.enabled': 'bool',
   'ai.alertStrong': 'bool',
+  'ai.checkLetters': 'bool',
   'ai.scoreModel': 'text',
   'ai.letterModel': 'text',
   'ai.maxScorePerRun': 'number',

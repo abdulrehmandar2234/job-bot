@@ -127,6 +127,7 @@ export const configSchema = z.object({
     maxScorePerRun: count, // cap per `ai:score` run
     concurrency: z.number().int().positive(),
     alertStrong: z.boolean().optional(), // macOS notification for each new `strong` verdict; missing = on
+    checkLetters: z.boolean().optional(), // a second AI call checks each AI letter against the CV and the posting; missing = on
   }),
   linkedin: z.object({
     enabled: z.boolean(),

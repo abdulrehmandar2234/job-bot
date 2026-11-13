@@ -9,6 +9,8 @@ import {
   recentFetchRuns,
   responseDays,
   responseRates,
+  skillCounts,
+  splitSkills,
   weeklyActivity,
   type Funnel,
 } from '@/lib/analytics';
@@ -271,5 +273,40 @@ describe('fetch runs', () => {
     expect(await lastFetchErrorCount()).toBe(2);
     await insertFetchRun({ finished_at: new Date() });
     expect(await lastFetchErrorCount()).toBe(0);
+  });
+});
+
+describe('skills radar', () => {
+  const S = (skill: string, jobs: number, have: number) => ({ skill, jobs, have });
+
+  it('splits skills by whether most of their jobs matched them, most asked first, `limit` each', () => {
+    const skills = [S('php', 9, 9), S('kubernetes', 8, 0), S('react', 6, 4), S('go', 4, 2), S('vue', 3, 3)];
+    expect(splitSkills(skills)).toEqual({
+      onCv: [S('php', 9, 9), S('react', 6, 4), S('vue', 3, 3)],
+      notOnCv: [S('kubernetes', 8, 0), S('go', 4, 2)],
+    });
+    expect(splitSkills(skills, 1)).toEqual({ onCv: [S('php', 9, 9)], notOnCv: [S('kubernetes', 8, 0)] });
+  });
+
+  it('counts skills over recent primary jobs that passed the filters and were not skipped', async () => {
+    const before = await skillCounts();
+    const k = (n: string) => `webtest-skill-${n}`;
+    await insertJob({ id: 'sk-1', status: 'new', matched: [k('a')], missing: [k('b')] });
+    await insertJob({ id: 'sk-2', status: 'applied', matched: [k('a'), k('b')], missing: [] });
+    const primary = await insertJob({ id: 'sk-3', status: 'prepared', matched: [], missing: [k('b')] });
+    // None of these count: a copy, a filtered job, a skipped job and one seen long ago.
+    await insertJob({ id: 'sk-copy', status: 'new', matched: [k('a')], duplicate_of: primary });
+    await insertJob({ id: 'sk-filtered', status: 'filtered', matched: [k('a')] });
+    await insertJob({ id: 'sk-skipped', status: 'skipped', matched: [k('a')] });
+    await insertJob({ id: 'sk-old', status: 'new', matched: [k('a')], first_seen_at: dateDaysAgo(120) });
+
+    const after = await skillCounts();
+    expect(after.jobs - before.jobs).toBe(3);
+    const mine = after.skills.filter((s) => s.skill.startsWith('webtest-skill-'));
+    expect(mine).toEqual([
+      { skill: k('b'), jobs: 3, have: 1 },
+      { skill: k('a'), jobs: 2, have: 2 },
+    ]);
+    expect((await skillCounts(200)).skills.find((s) => s.skill === k('a'))?.jobs).toBe(3);
   });
 });

@@ -194,6 +194,11 @@ describe('mergeConfig', () => {
     expect(mergeConfig({ ...CONFIG, blockedCompanies: ['Acme'] }, configForm({ blockedCompanies: '' })).blockedCompanies).toEqual([]);
   });
 
+  it('saves ai.checkLetters as a checkbox', () => {
+    expect(get(mergeConfig(CONFIG, configForm({ 'ai.checkLetters': 'on' })), 'ai.checkLetters')).toBe(true);
+    expect(get(mergeConfig(CONFIG, configForm()), 'ai.checkLetters')).toBe(false);
+  });
+
   it('saves ai.alertStrong as a checkbox', () => {
     expect(get(mergeConfig(CONFIG, configForm({ 'ai.alertStrong': 'on' })), 'ai.alertStrong')).toBe(true);
     expect(get(mergeConfig(CONFIG, configForm()), 'ai.alertStrong')).toBe(false);

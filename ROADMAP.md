@@ -11,7 +11,6 @@ Ideas from the last review and from real use, none started yet:
 - **Postings that apply by email or WhatsApp:** detect them and prepare the message (with the CV attached by you) instead of a form.
 - **Discover boards from seen companies:** suggest `discover` for companies that keep showing up on LinkedIn or the boards but have no ATS entry in `companies`.
 - **Rejection stage and reason:** record where and why an application ended (screening, technical, final, ghosted), shown on `/analytics`.
-- **Pre-submit checklist:** on the job page before **Mark applied**: CV version, letter, answers with `[FILL: ...]` left, contacts asked for a referral.
 - **Referral drafts:** an AI-drafted message to a contact at the company asking for a referral (you send it yourself).
 
 ### From comparing similar projects (2026-11)
@@ -19,10 +18,8 @@ Ideas from the last review and from real use, none started yet:
 Ideas taken from the two most popular open-source job-search tools on GitHub, boss-agent-cli (one Chinese job site, Python) and Jobsmith (Taiwan's job market, desktop app). Their auto-apply, platform logins and bulk messaging are left out on purpose: they break the rule above and risk the user's accounts. Most useful first:
 
 - **CV import:** `bot cv:import <file.pdf|docx>` and an upload on the dashboard. The AI turns an existing CV into `cv/master.json` with only what the CV says, and the user checks it before it is saved. Writing the JSON by hand is the hardest step for a new user today.
-- **Skills radar:** the skills that matching jobs ask for most often, split into those the CV shows and those it does not, from the `missing` skills already stored per job. A section on `/analytics`.
-- **Screenshots and a demo GIF:** the dashboard, a job page and the extension, in the README and the docs site.
+- **Extension screenshots and a demo GIF:** the extension at work and a short GIF, next to the dashboard screenshots already in the README and the docs site.
 - **Repository basics:** GitHub topics, a first release (`v0.1.0`) with a CHANGELOG, issue templates and `SECURITY.md`.
-- **Letter critic:** after the AI writes a letter, a second call checks it for claims the CV does not support or company facts the posting does not state, and has it fixed (Jobsmith's own check moved its pass rate from 60% to 100%).
 - **Mock interview:** questions from the job and the CV, the user's answers, and feedback with a score per answer, next to the interview prep.
 - **JSON output:** `--json` on `list` and `show` (as `ats` has), so scripts and AI agents can use Talaash.
 - **MCP server:** Talaash's jobs, scores, letters and answers as tools for MCP apps such as Claude Desktop (read and prepare only, never apply).
@@ -37,6 +34,9 @@ Ideas taken from the two most popular open-source job-search tools on GitHub, bo
 - **Follow-up reminders:** "Needs follow-up" tab and a section on the job page; `bot follow-ups` / `follow-up` / `followed-up` (src/followup.ts, web/lib/followup.ts).
 - **Interview prep:** `bot prep <id>`; on the job page for applied and interview jobs, run as a background task.
 - **Company history and hidden companies (2026-11):** the job page lists your other jobs at the same company with their outcome; **Never show this company** adds it to `blockedCompanies`, which `scoreJob` filters first (`blockedBy` / `companyKey` in src/contacts.ts, `companyHistory` in web/lib/db.ts).
+- **Letter check (2026-11, from comparing similar projects):** after the AI writes or rewrites a letter, a second call checks it against the CV and the posting and fixes unsupported claims, company facts the posting does not state, commitments and placeholders; the job page lists what it fixed (`aiCheckLetter` in src/ai.ts, `jobs.cover_letter_check`, migration 021, `ai.checkLetters`).
+- **Skills radar (2026-11, from comparing similar projects):** a section on `/analytics` with the skills matching jobs of the last 90 days ask for most, split into those the CV shows and those it does not (`skillDemand` in web/lib/analytics.ts).
+- **README visuals (2026-11):** a banner, dashboard and job page screenshots from demo data, and a diagram, in the README and on the Daily use page.
 - **Application deadline (2026-11):** the deadline a posting states is stored (`jobs.deadline`, migration 020), shown as **Closes in N days** on matching and prepared jobs, and a passed one filters the job (src/deadline.ts).
 - **Job type filter (2026-11):** LinkedIn's employment type and seniority, and freehire's seniority, filter internships, part-time, temporary and volunteer jobs (`skipJobTypes`).
 - **freehire.me source (2026-11, from comparing ai-job-search):** onsite postings per target country and remote ones open to your regions, from freehire's public search over about 50 ATS (`freehire` in `remote.boards`).

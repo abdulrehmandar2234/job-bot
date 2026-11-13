@@ -4,7 +4,7 @@ import { existsSync, mkdtempSync, readFileSync, utimesSync, writeFileSync } from
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { mockFetch, OWNER_MASTER } from './helpers.ts';
-import { aiAnswers, aiCoverLetter, aiHeadline, aiScore, aiSummary, applicantFacts, cvText } from '../src/ai.ts';
+import { aiAnswers, aiCheckLetter, aiCoverLetter, aiHeadline, aiScore, aiSummary, applicantFacts, cvText } from '../src/ai.ts';
 import { AI_BUDGET, AiError, askClaude, CLI_KILL_GRACE_MS } from '../src/ai-providers.ts';
 import { aiScore as aiScoreCommand, MAX_TIMEOUTS_IN_A_ROW } from '../src/commands/ai.ts';
 import { config } from '../src/config.ts';
@@ -232,6 +232,29 @@ describe('prompts', () => {
       /CV:[\s\S]*JOB:[\s\S]*CURRENT LETTER:\nDear Acme Hiring Team,\nThe old long letter\.\n\nFEEDBACK FROM THE CANDIDATE:\nshorter, and mention Kubernetes$/,
     );
     assert.deepEqual(JSON.parse(arg(argv, '--json-schema')).required, ['letter', 'note']);
+  });
+
+  it('aiCheckLetter sends the CV, the job and the letter, and returns the fixed letter with what it fixed', async () => {
+    const problem = "Claims Kubernetes experience ('deployed with Kubernetes'), which the CV does not show.";
+    process.env.FAKE_CLAUDE_OUT = JSON.stringify({ problems: [` ${problem} `, ' '], letter: ' Dear Acme Hiring Team,\nFixed ' });
+    const res = await aiCheckLetter(job(), 'Dear Acme Hiring Team,\nI deployed with Kubernetes.\n');
+    assert.deepEqual(res, { problems: [problem], letter: 'Dear Acme Hiring Team,\nFixed\n' });
+    const [{ argv, stdin }] = calls();
+    assert.equal(arg(argv, '--model'), 'sonnet');
+    assert.match(stdin, /CV:[\s\S]*JOB:[\s\S]*LETTER:\nDear Acme Hiring Team,\nI deployed with Kubernetes\.$/);
+    const system = arg(argv, '--system-prompt');
+    assert.match(system, /claim about the candidate the CV does not support/);
+    assert.match(system, /the JOB text does not state/);
+    assert.match(system, /Keep\s+every other word/);
+    assert.deepEqual(JSON.parse(arg(argv, '--json-schema')).required, ['problems', 'letter']);
+  });
+
+  it('aiCheckLetter keeps the letter exactly as written when nothing is wrong or the fix is empty', async () => {
+    const letter = 'Dear Acme Hiring Team,\nAll true.\n';
+    process.env.FAKE_CLAUDE_OUT = JSON.stringify({ problems: [], letter: 'Dear Acme Hiring Team,\nReworded anyway.' });
+    assert.deepEqual(await aiCheckLetter(job(), letter), { problems: [], letter });
+    process.env.FAKE_CLAUDE_OUT = JSON.stringify({ problems: ['Something'], letter: '  ' });
+    assert.deepEqual(await aiCheckLetter(job(), letter), { problems: ['Something'], letter });
   });
 
   it('aiSummary writes a summary for the job with the letter model and the truthfulness rules', async () => {

@@ -13,7 +13,8 @@
     "letterModel": "sonnet",
     "maxScorePerRun": 80,
     "concurrency": 2,
-    "alertStrong": true
+    "alertStrong": true,
+    "checkLetters": true
   },
   "linkedin": {
     "enabled": true,
