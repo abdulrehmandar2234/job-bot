@@ -161,7 +161,7 @@ The same pages are a website: [abdulrehmandar2234.github.io/talaash](https://abd
 
 ## Contributing
 
-Pull requests are welcome: fork the repository, change it on a branch and open a pull request. [CONTRIBUTING.md](CONTRIBUTING.md) has the ground rules (the bot never applies, CVs stay truthful, nothing personal in commits), the development setup and the checks to run. [ROADMAP.md](ROADMAP.md) lists what is done and what is still open.
+Pull requests are welcome: fork the repository, change it on a branch and open a pull request. [CONTRIBUTING.md](CONTRIBUTING.md) has the ground rules (the bot never applies, CVs stay truthful, nothing personal in commits), the development setup and the checks to run. [ROADMAP.md](ROADMAP.md) lists what is done and what is still open, and [CHANGELOG.md](CHANGELOG.md) what changed in each release. Found a bug or have an idea? [Open an issue](https://github.com/abdulrehmandar2234/talaash/issues/new/choose). A security problem goes privately through [SECURITY.md](SECURITY.md).
 
 The screenshots use demo data: fictional companies and the example profile, never a real search.
 
