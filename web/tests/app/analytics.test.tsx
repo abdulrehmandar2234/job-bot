@@ -127,4 +127,17 @@ describe('analytics page', () => {
       rmSync(dir, { recursive: true, force: true });
     }
   });
+
+  it('shows the skills radar, split into skills on the CV and not on it', async () => {
+    await insertJob({ id: 'radar-1', status: 'new', matched: ['webtest-radar-php'], missing: ['webtest-radar-k8s'] });
+    await renderAnalytics();
+    const radar = section('Skills radar');
+    const on = within(radar).getByRole('table', { name: 'On your CV' });
+    const off = within(radar).getByRole('table', { name: 'Not on your CV' });
+    expect(radar).toHaveTextContent('I have this');
+    expect(on).toHaveTextContent('webtest-radar-php');
+    expect(off).toHaveTextContent('webtest-radar-k8s');
+    expect(off).not.toHaveTextContent('webtest-radar-php');
+    expect(on).not.toHaveTextContent('webtest-radar-k8s');
+  });
 });
