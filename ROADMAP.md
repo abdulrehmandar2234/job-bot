@@ -17,9 +17,6 @@ Ideas from the last review and from real use, none started yet:
 
 Ideas taken from the two most popular open-source job-search tools on GitHub, boss-agent-cli (one Chinese job site, Python) and Jobsmith (Taiwan's job market, desktop app). Their auto-apply, platform logins and bulk messaging are left out on purpose: they break the rule above and risk the user's accounts. Most useful first:
 
-- **Skills radar:** the skills that matching jobs ask for most often, split into those the CV shows and those it does not, from the `missing` skills already stored per job. A section on `/analytics`.
-- **Screenshots and a demo GIF:** the dashboard, a job page and the extension, in the README and the docs site.
-- **CV import:** `bot cv:import <file.pdf|docx>` and an upload on the dashboard. The AI turns an existing CV into `cv/master.json` with only what the CV says, and the user checks it before it is saved. Writing the JSON by hand is the hardest step for a new user today.
 - **Extension screenshots and a demo GIF:** the extension at work and a short GIF, next to the dashboard screenshots already in the README and the docs site.
 - **Mock interview:** questions from the job and the CV, the user's answers, and feedback with a score per answer, next to the interview prep.
 - **JSON output:** `--json` on `list` and `show` (as `ats` has), so scripts and AI agents can use Talaash.
