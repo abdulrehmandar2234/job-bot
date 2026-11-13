@@ -45,6 +45,13 @@ export function ConfigForm({ config, keys, bot = 'npm run bot --' }: { config: S
           <Field label="Job types to skip" hint={`one per line, empty = keep all: ${JOB_TYPES.join(', ')}`} {...f('skipJobTypes')}>
             <textarea name="skipJobTypes" rows={3} defaultValue={lines(c.skipJobTypes ?? DEFAULT_SKIP_JOB_TYPES)} className={input} />
           </Field>
+          <Field
+            label="Companies to hide"
+            hint='one per line; "Acme Inc." also hides "ACME". Their new jobs are filtered out'
+            {...f('blockedCompanies')}
+          >
+            <textarea name="blockedCompanies" rows={3} defaultValue={lines(c.blockedCompanies)} className={input} />
+          </Field>
           <Check label="Pick a CV version automatically (autoCvVersions)" name="autoCvVersions" value={c.autoCvVersions} />
           <Field label="CV template" hint="the design of new CVs; a job can use another one" {...f('cvTemplate')}>
             {/* Classic is the built-in default, so choosing it leaves the key out of config.json. */}

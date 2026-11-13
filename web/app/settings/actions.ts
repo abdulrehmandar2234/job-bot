@@ -4,7 +4,10 @@ import { randomUUID } from 'node:crypto';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { refresh } from 'next/cache';
+import { blockedBy } from '../../../src/contacts.ts';
 import { botDataDir, runBot } from '@/lib/bot';
+import { getJob } from '@/lib/db';
+import type { TextFormState } from '@/lib/written-text';
 import { readApplicant, readConfig } from '@/lib/settings';
 import { enqueueTask } from '@/lib/tasks';
 import { skipInsights } from '@/lib/skip-insights';
@@ -101,4 +104,22 @@ export async function addRoleExclude(_prev: SaveState, fd: FormData): Promise<Sa
   const { suggestions } = await skipInsights(roleExclude);
   if (typeof pattern !== 'string' || !suggestions.some((s) => s.pattern === pattern)) return fail('That suggestion is no longer valid.');
   return save('config', JSON.stringify({ ...cur.data, roleExclude: roleExclude ? `${roleExclude}|${pattern}` : pattern }, null, 2));
+}
+
+/**
+ * "Never show this company" on a job page: adds the job's company to config.json blockedCompanies. Saving re-scores
+ * the stored jobs, so its waiting jobs move to Filtered out; jobs you already acted on keep their status.
+ */
+export async function blockCompany(_prev: TextFormState, fd: FormData): Promise<SaveState> {
+  const id = fd.get('id');
+  const job = typeof id === 'string' ? await getJob(id) : null;
+  if (!job) return fail('That job no longer exists.');
+  const cur = readConfig();
+  if (!cur.data) return unreadable('config.json', cur.error);
+  const list = Array.isArray(cur.data.blockedCompanies) ? (cur.data.blockedCompanies as string[]) : [];
+  const company = job.company.trim();
+  const already = blockedBy(company, list);
+  if (already) return fail(`${company} is already hidden (as "${already}" under Settings, Companies to hide).`);
+  const res = await save('config', JSON.stringify({ ...cur.data, blockedCompanies: [...list, company] }, null, 2));
+  return res?.ok ? { ...res, message: `${company} is hidden. ${res.message}` } : res;
 }

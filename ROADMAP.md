@@ -6,7 +6,6 @@ What was planned for Talaash and where each part lives now. None of it changes t
 
 Ideas from the last review and from real use, none started yet:
 
-- **Company history and block list:** past applications and outcomes per company on the job page, and companies you never want to see again filtered out.
 - **Interview rounds:** several rounds per job with date, type and notes, and an `.ics` file to add each one to a calendar.
 - **Weekly goal and expiring badge:** a target of applications per week on the dashboard, and a badge on matching jobs about to pass `maxAgeDays`.
 - **Postings that apply by email or WhatsApp:** detect them and prepare the message (with the CV attached by you) instead of a form.
@@ -34,6 +33,7 @@ Ideas taken from the two most popular open-source job-search tools on GitHub, bo
 - **Funnel analytics:** `/analytics` (web/app/analytics, web/lib/analytics.ts).
 - **Follow-up reminders:** "Needs follow-up" tab and a section on the job page; `bot follow-ups` / `follow-up` / `followed-up` (src/followup.ts, web/lib/followup.ts).
 - **Interview prep:** `bot prep <id>`; on the job page for applied and interview jobs, run as a background task.
+- **Company history and hidden companies (2026-11):** the job page lists your other jobs at the same company with their outcome; **Never show this company** adds it to `blockedCompanies`, which `scoreJob` filters first (`blockedBy` / `companyKey` in src/contacts.ts, `companyHistory` in web/lib/db.ts).
 - **Letter check (2026-11, from comparing similar projects):** after the AI writes or rewrites a letter, a second call checks it against the CV and the posting and fixes unsupported claims, company facts the posting does not state, commitments and placeholders; the job page lists what it fixed (`aiCheckLetter` in src/ai.ts, `jobs.cover_letter_check`, migration 021, `ai.checkLetters`).
 - **Skills radar (2026-11, from comparing similar projects):** a section on `/analytics` with the skills matching jobs of the last 90 days ask for most, split into those the CV shows and those it does not (`skillDemand` in web/lib/analytics.ts).
 - **README visuals (2026-11):** a banner, dashboard and job page screenshots from demo data, and a diagram, in the README and on the Daily use page.
