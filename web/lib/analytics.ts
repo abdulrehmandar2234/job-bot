@@ -126,6 +126,51 @@ export function median(values: number[]) {
   return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
 }
 
+/** How many days of jobs the skills radar looks at. */
+export const SKILL_DAYS = 90;
+
+export type SkillCount = { skill: string; jobs: number; have: number };
+export type SkillDemand = { jobs: number; onCv: SkillCount[]; notOnCv: SkillCount[] };
+
+// Jobs that count for the skills radar: primary jobs first seen in the last `days` days that passed the filters and
+// were not skipped (a skipped job is often the wrong stack, so its skills say little about what you aim for).
+const DEMAND_JOBS = `FROM jobs WHERE duplicate_of IS NULL AND status NOT IN ('filtered', 'skipped')
+  AND first_seen_at > now() - make_interval(days => $1)`;
+
+/**
+ * Per skill, in how many of those jobs it appears and in how many the CV showed it (`matched`), from the skills that
+ * scoring stored on each job (`matched` = on the CV, `missing` = not). Most asked first.
+ */
+export async function skillCounts(days = SKILL_DAYS) {
+  const [{ rows }, total] = await Promise.all([
+    pool.query<SkillCount>(
+      `SELECT skill, count(*)::int jobs, count(*) FILTER (WHERE have)::int have FROM (
+        SELECT unnest(matched) skill, true have ${DEMAND_JOBS}
+        UNION ALL SELECT unnest(missing), false ${DEMAND_JOBS}
+      ) s GROUP BY skill ORDER BY jobs DESC, skill`,
+      [days],
+    ),
+    pool.query<{ n: number }>(`SELECT count(*)::int n ${DEMAND_JOBS}`, [days]),
+  ]);
+  return { jobs: total.rows[0].n, skills: rows };
+}
+
+/**
+ * The most asked skills split into those the CV shows and those it does not, `limit` of each. A skill counts as on
+ * the CV when most of its jobs matched it: jobs scored before the CV changed keep their old answer until `rescore`.
+ */
+export function splitSkills(skills: SkillCount[], limit = 10) {
+  const onCv = skills.filter((s) => s.have * 2 > s.jobs);
+  const notOnCv = skills.filter((s) => s.have * 2 <= s.jobs);
+  return { onCv: onCv.slice(0, limit), notOnCv: notOnCv.slice(0, limit) };
+}
+
+/** Everything the "Skills radar" section on /analytics shows. */
+export async function skillDemand(days = SKILL_DAYS, limit = 10): Promise<SkillDemand> {
+  const { jobs, skills } = await skillCounts(days);
+  return { jobs, ...splitSkills(skills, limit) };
+}
+
 export type FetchError = { company: string; error: string };
 export type FetchRunRow = {
   id: number;
