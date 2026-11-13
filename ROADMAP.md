@@ -23,7 +23,6 @@ Ideas taken from the two most popular open-source job-search tools on GitHub, bo
 - **Skills radar:** the skills that matching jobs ask for most often, split into those the CV shows and those it does not, from the `missing` skills already stored per job. A section on `/analytics`.
 - **Screenshots and a demo GIF:** the dashboard, a job page and the extension, in the README and the docs site.
 - **Repository basics:** GitHub topics, a first release (`v0.1.0`) with a CHANGELOG, issue templates and `SECURITY.md`.
-- **Letter critic:** after the AI writes a letter, a second call checks it for claims the CV does not support or company facts the posting does not state, and has it fixed (Jobsmith's own check moved its pass rate from 60% to 100%).
 - **Mock interview:** questions from the job and the CV, the user's answers, and feedback with a score per answer, next to the interview prep.
 - **JSON output:** `--json` on `list` and `show` (as `ats` has), so scripts and AI agents can use Talaash.
 - **MCP server:** Talaash's jobs, scores, letters and answers as tools for MCP apps such as Claude Desktop (read and prepare only, never apply).
@@ -37,6 +36,7 @@ Ideas taken from the two most popular open-source job-search tools on GitHub, bo
 - **Funnel analytics:** `/analytics` (web/app/analytics, web/lib/analytics.ts).
 - **Follow-up reminders:** "Needs follow-up" tab and a section on the job page; `bot follow-ups` / `follow-up` / `followed-up` (src/followup.ts, web/lib/followup.ts).
 - **Interview prep:** `bot prep <id>`; on the job page for applied and interview jobs, run as a background task.
+- **Letter check (2026-11, from comparing similar projects):** after the AI writes or rewrites a letter, a second call checks it against the CV and the posting and fixes unsupported claims, company facts the posting does not state, commitments and placeholders; the job page lists what it fixed (`aiCheckLetter` in src/ai.ts, `jobs.cover_letter_check`, migration 021, `ai.checkLetters`).
 - **Application deadline (2026-11):** the deadline a posting states is stored (`jobs.deadline`, migration 020), shown as **Closes in N days** on matching and prepared jobs, and a passed one filters the job (src/deadline.ts).
 - **Job type filter (2026-11):** LinkedIn's employment type and seniority, and freehire's seniority, filter internships, part-time, temporary and volunteer jobs (`skipJobTypes`).
 - **freehire.me source (2026-11, from comparing ai-job-search):** onsite postings per target country and remote ones open to your regions, from freehire's public search over about 50 ATS (`freehire` in `remote.boards`).

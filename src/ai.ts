@@ -277,6 +277,46 @@ ${signature(loadProfile())}
   return { letter: res.letter.trim() + '\n', note: (res.note ?? '').trim() };
 }
 
+/** What the letter check found and the letter with only those problems fixed. */
+export type LetterCheck = { letter: string; problems: string[] };
+
+const CHECK_SCHEMA = {
+  type: 'object',
+  properties: { problems: { type: 'array', items: { type: 'string' } }, letter: { type: 'string' } },
+  required: ['problems', 'letter'],
+};
+
+/**
+ * Checks an AI-written cover letter against the CV and the job posting before it is stored: claims about the
+ * candidate the CV does not support, facts about the company the posting does not state, commitments made for the
+ * candidate, and placeholders. Returns one sentence per problem and the letter with only those phrases fixed.
+ */
+export async function aiCheckLetter(job: Job, letter: string): Promise<LetterCheck> {
+  const system = `You check one cover letter before the candidate sends it. Compare the LETTER with the CV and the JOB. Problems:
+- A claim about the candidate the CV does not support: a skill, technology, employer, project, number, year, title,
+  seniority, certification or achievement that is not in the CV, or one stated more strongly than the CV shows.
+- A fact about the company, its products, customers, size, mission or the role that the JOB text does not state.
+- A commitment made for the candidate: working hours or time-zone overlap, salary, notice period or start date,
+  assessments, background checks.
+- A placeholder or leftover such as [Company], [Your Name] or text in square brackets.
+Rules:
+- List each problem in "problems" as one short sentence that quotes the phrase, e.g. "Claims Kubernetes experience
+  ('deployed with Kubernetes'), which the CV does not show." Nothing else counts: style, tone and length are not problems.
+- "letter": the letter with only those phrases fixed by removing them or saying only what the CV or JOB supports. Keep
+  every other word, the greeting, the paragraphs and the signature exactly as they are.
+- No problems: "problems" is [] and "letter" is the LETTER unchanged.`;
+  const res = await askAi<{ problems?: string[]; letter?: string }>(
+    `CV:\n${cvText()}\n\nJOB:\n${jobText(job)}\n\nLETTER:\n${letter.trim()}`,
+    CHECK_SCHEMA,
+    'letter',
+    system,
+  );
+  const problems = (res.problems ?? []).map((p) => p.trim()).filter(Boolean);
+  // Without problems, or without a usable fixed letter, the letter stays exactly as written.
+  const fixed = res.letter?.trim();
+  return { problems, letter: problems.length && fixed ? `${fixed}\n` : letter };
+}
+
 /**
  * Writes the CV headline for one job: the line under the candidate's name ("Senior Full Stack Engineer · Laravel,
  * React & Node.js"), from the CV and the job description. With `feedback`, rewrites the job's current headline

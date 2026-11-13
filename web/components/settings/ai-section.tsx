@@ -41,6 +41,11 @@ export function AiSection({ c, errors, keys }: { c: Json; errors: SettingsError[
         name="ai.alertStrong"
         value={get(c, 'ai.alertStrong') !== false}
       />
+      <Check
+        label="Check each AI letter against my CV and the posting (one more AI call per letter)"
+        name="ai.checkLetters"
+        value={get(c, 'ai.checkLetters') !== false}
+      />
       <Field
         label="AI provider"
         hint={
