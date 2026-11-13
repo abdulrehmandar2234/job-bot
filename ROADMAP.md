@@ -21,7 +21,6 @@ Ideas taken from the two most popular open-source job-search tools on GitHub, bo
 - **CV import:** `bot cv:import <file.pdf|docx>` and an upload on the dashboard. The AI turns an existing CV into `cv/master.json` with only what the CV says, and the user checks it before it is saved. Writing the JSON by hand is the hardest step for a new user today.
 - **Extension screenshots and a demo GIF:** the extension at work and a short GIF, next to the dashboard screenshots already in the README and the docs site.
 - **Repository basics:** GitHub topics, a first release (`v0.1.0`) with a CHANGELOG, issue templates and `SECURITY.md`.
-- **Letter critic:** after the AI writes a letter, a second call checks it for claims the CV does not support or company facts the posting does not state, and has it fixed (Jobsmith's own check moved its pass rate from 60% to 100%).
 - **Mock interview:** questions from the job and the CV, the user's answers, and feedback with a score per answer, next to the interview prep.
 - **JSON output:** `--json` on `list` and `show` (as `ats` has), so scripts and AI agents can use Talaash.
 - **MCP server:** Talaash's jobs, scores, letters and answers as tools for MCP apps such as Claude Desktop (read and prepare only, never apply).
@@ -35,6 +34,7 @@ Ideas taken from the two most popular open-source job-search tools on GitHub, bo
 - **Funnel analytics:** `/analytics` (web/app/analytics, web/lib/analytics.ts).
 - **Follow-up reminders:** "Needs follow-up" tab and a section on the job page; `bot follow-ups` / `follow-up` / `followed-up` (src/followup.ts, web/lib/followup.ts).
 - **Interview prep:** `bot prep <id>`; on the job page for applied and interview jobs, run as a background task.
+- **Letter check (2026-11, from comparing similar projects):** after the AI writes or rewrites a letter, a second call checks it against the CV and the posting and fixes unsupported claims, company facts the posting does not state, commitments and placeholders; the job page lists what it fixed (`aiCheckLetter` in src/ai.ts, `jobs.cover_letter_check`, migration 021, `ai.checkLetters`).
 - **Skills radar (2026-11, from comparing similar projects):** a section on `/analytics` with the skills matching jobs of the last 90 days ask for most, split into those the CV shows and those it does not (`skillDemand` in web/lib/analytics.ts).
 - **README visuals (2026-11):** a banner, dashboard and job page screenshots from demo data, and a diagram, in the README and on the Daily use page.
 - **Application deadline (2026-11):** the deadline a posting states is stored (`jobs.deadline`, migration 020), shown as **Closes in N days** on matching and prepared jobs, and a passed one filters the job (src/deadline.ts).
