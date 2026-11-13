@@ -6,6 +6,14 @@ To update an existing install, see [Updating](docs/updating.md): pull the new ve
 
 ## [Unreleased]
 
+### Added
+
+- `list --json` and `show <id> --json` print jobs as JSON for scripts and AI agents ([CLI reference](docs/cli.md#json-output-for-scripts)).
+
+### Fixed
+
+- `list --limit` with something other than a whole number of at least 1 prints the usage line instead of a database error.
+
 ## [0.1.0] - 2026-11-13
 
 The first release: everything Talaash does today, used daily for one real job search since October 2026.
