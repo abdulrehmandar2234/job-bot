@@ -112,7 +112,7 @@ An `applied` job with no news for 7 days shows a "Follow up · N days" badge and
 ## Settings and Analytics
 
 - **Settings** (`/settings`): your profile, the cover-letter sentences, form facts, the search and filter settings, the CV template and the AI provider, validated with the same schemas as the CLI before they are saved. After changing filters, run `npm run bot -- rescore`.
-- **Analytics** (`/analytics`): the application funnel, response rates per source, country, CV version and AI verdict, weekly activity, time to a reply, skip patterns and fetch health (recent fetches and the sources that failed).
+- **Analytics** (`/analytics`): the application funnel, response rates per source, country, CV version and AI verdict, weekly activity, time to a reply, the skills radar (the skills matching jobs of the last 90 days ask for most, split into those your CV shows and those it does not), skip patterns and fetch health (recent fetches and the sources that failed).
 
 ## CLI commands for every day
 

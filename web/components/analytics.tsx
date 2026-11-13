@@ -1,6 +1,15 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
-import { lastFetchErrorCount, rate, type FetchRunRow, type Funnel, type RateRow, type WeekRow } from '@/lib/analytics';
+import {
+  lastFetchErrorCount,
+  rate,
+  type FetchRunRow,
+  type Funnel,
+  type RateRow,
+  type SkillCount,
+  type SkillDemand,
+  type WeekRow,
+} from '@/lib/analytics';
 import { fmtDate, STATUS_LABEL } from '@/components/ui';
 
 export const pctText = (r: number | null) => (r == null ? '—' : `${Math.round(r * 100)}%`);
@@ -143,6 +152,72 @@ export function WeeklyBars({ weeks }: { weeks: WeekRow[] }) {
         ))}
       </tbody>
     </table>
+  );
+}
+
+/** One column of the skills radar: each skill with the share of jobs that ask for it. */
+function SkillList({
+  title,
+  skills,
+  jobs,
+  tone,
+  empty,
+}: {
+  title: string;
+  skills: SkillCount[];
+  jobs: number;
+  tone: string;
+  empty: string;
+}) {
+  const max = Math.max(0, ...skills.map((s) => s.jobs));
+  return (
+    <table className="w-full text-sm">
+      <caption className="mb-1 text-left text-xs font-medium uppercase tracking-wide text-zinc-500">{title}</caption>
+      <tbody>
+        {skills.length === 0 && (
+          <tr>
+            <td className="text-zinc-500">{empty}</td>
+          </tr>
+        )}
+        {skills.map((s) => (
+          <tr key={s.skill}>
+            <td className="max-w-36 truncate whitespace-nowrap py-1 pr-3">{s.skill}</td>
+            <td className="w-full py-1 pr-2">
+              <Bar value={s.jobs} max={max} tone={tone} />
+            </td>
+            <td className="whitespace-nowrap py-1 text-right tabular-nums">
+              {pctText(rate(s.jobs, jobs))}{' '}
+              <span className="text-xs text-zinc-500">
+                ({s.jobs} job{s.jobs === 1 ? '' : 's'})
+              </span>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+/** The skills matching jobs ask for most, split into those your CV shows and those it does not. */
+export function SkillsRadar({ demand }: { demand: SkillDemand }) {
+  if (!demand.jobs) return <p className="text-sm text-zinc-500">No matching jobs in this period yet.</p>;
+  return (
+    <div className="space-y-3">
+      <div className="grid gap-5 sm:grid-cols-2">
+        <SkillList title="On your CV" skills={demand.onCv} jobs={demand.jobs} tone="bg-emerald-500" empty="None yet" />
+        <SkillList
+          title="Not on your CV"
+          skills={demand.notOnCv}
+          jobs={demand.jobs}
+          tone="bg-amber-500"
+          empty="Your CV shows every skill these jobs ask for"
+        />
+      </div>
+      <p className="text-xs text-zinc-500">
+        Not on your CV but true? Confirm it with <b>I have this</b> on a job page, then run <code>rescore</code>. Your CV only ever shows
+        skills you really have.
+      </p>
+    </div>
   );
 }
 
