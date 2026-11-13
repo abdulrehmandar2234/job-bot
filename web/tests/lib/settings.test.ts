@@ -186,6 +186,19 @@ describe('mergeConfig', () => {
     expect(mergeConfig({ ...CONFIG, cvTemplate: 'modern' }, configForm()).cvTemplate).toBe('modern'); // not in the form: kept
   });
 
+  it('saves blockedCompanies one per line, and an empty box as an empty list', () => {
+    expect(mergeConfig(CONFIG, configForm({ blockedCompanies: ' Acme Inc. \n\nGlobex\n' })).blockedCompanies).toEqual([
+      'Acme Inc.',
+      'Globex',
+    ]);
+    expect(mergeConfig({ ...CONFIG, blockedCompanies: ['Acme'] }, configForm({ blockedCompanies: '' })).blockedCompanies).toEqual([]);
+  });
+
+  it('saves ai.checkLetters as a checkbox', () => {
+    expect(get(mergeConfig(CONFIG, configForm({ 'ai.checkLetters': 'on' })), 'ai.checkLetters')).toBe(true);
+    expect(get(mergeConfig(CONFIG, configForm()), 'ai.checkLetters')).toBe(false);
+  });
+
   it('saves ai.alertStrong as a checkbox', () => {
     expect(get(mergeConfig(CONFIG, configForm({ 'ai.alertStrong': 'on' })), 'ai.alertStrong')).toBe(true);
     expect(get(mergeConfig(CONFIG, configForm()), 'ai.alertStrong')).toBe(false);

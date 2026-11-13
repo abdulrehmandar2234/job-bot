@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { refresh } from 'next/cache';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { addRoleExclude } from '@/app/settings/actions';
+import { addRoleExclude, blockCompany } from '@/app/settings/actions';
 import { BOT_ROOT, runBot, spawnBot } from '@/lib/bot';
 import { pool } from '@/lib/db';
 import { MIN_SKIPS } from '@/lib/skip-insights';
@@ -103,6 +103,38 @@ describe('addRoleExclude', () => {
       ok: false,
       message: expect.stringContaining('cannot be read'),
     });
+    expect(bot).not.toHaveBeenCalled();
+  });
+});
+
+describe('blockCompany', () => {
+  const job = (id?: string) => {
+    const fd = new FormData();
+    if (id !== undefined) fd.set('id', id);
+    return fd;
+  };
+
+  it("adds the job's company to blockedCompanies through settings:save, keeping the other keys, then queues a re-score", async () => {
+    const id = await insertJob({ id: 'block-1', company: ' Acme Inc. ' });
+    writeFileSync(CONFIG_FILE, JSON.stringify({ ...CONFIG, blockedCompanies: ['Globex'] }));
+    const res = await blockCompany(null, job(id));
+    expect(res).toEqual({ ok: true, message: 'Acme Inc. is hidden. Saved. Re-scoring jobs in the background.', errors: [] });
+    expect(saved).toHaveLength(1);
+    expect(saved[0].json).toEqual({ ...CONFIG, blockedCompanies: ['Globex', 'Acme Inc.'] });
+    const { rows } = await pool.query(`SELECT kind FROM tasks WHERE kind = 'rescore'`);
+    expect(rows).toHaveLength(1);
+  });
+
+  it('refuses a company already hidden under another spelling, and a missing job, without running the bot', async () => {
+    const id = await insertJob({ id: 'block-2', company: 'ACME' });
+    writeFileSync(CONFIG_FILE, JSON.stringify({ ...CONFIG, blockedCompanies: ['Acme Inc.'] }));
+    expect(await blockCompany(null, job(id))).toEqual({
+      ok: false,
+      message: 'ACME is already hidden (as "Acme Inc." under Settings, Companies to hide).',
+      errors: [],
+    });
+    for (const fd of [job(), job('webtest:nope')])
+      expect(await blockCompany(null, fd)).toEqual({ ok: false, message: 'That job no longer exists.', errors: [] });
     expect(bot).not.toHaveBeenCalled();
   });
 });

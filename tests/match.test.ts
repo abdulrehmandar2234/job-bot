@@ -9,6 +9,7 @@ import { jobTypeOf, languageRules, pickCluster, remoteOpenToCandidate, scoreJob,
 import { config } from '../src/config.ts';
 import { localToday } from '../src/deadline.ts';
 import { ConfigError } from '../src/errors.ts';
+import { blockedBy, companyKey } from '../src/contacts.ts';
 
 // A small IND register in the test data dir (never the downloaded one in data/), so the register tests always run.
 seedIndRegister(indFile(), ['Adyen B.V.', 'Booking.com B.V.']);
@@ -371,6 +372,26 @@ describe('job type (skipJobTypes)', () => {
       scoreJob(withLine('Employment type: Contract'), { ...config, skipJobTypes: ['contract'] }).filterReason ?? '',
       /^job type:/,
     );
+  });
+});
+
+describe('hidden companies (blockedCompanies)', () => {
+  it('companyKey ignores case, legal forms and domains, and keeps a name it would otherwise empty', () => {
+    assert.equal(companyKey('Acme Inc.'), companyKey('ACME'));
+    assert.equal(companyKey('acme.io'), 'acme');
+    assert.equal(companyKey(' شركة '), 'شركة');
+    assert.equal(blockedBy('ACME Technologies', ['Globex', 'Acme Inc.']), 'Acme Inc.');
+    assert.equal(blockedBy('Acme Payments', ['Acme Inc.']), undefined, 'another company that starts the same way stays');
+    assert.equal(blockedBy('Acme', undefined), undefined);
+    assert.equal(blockedBy('   ', ['   ']), undefined, 'an empty name never matches');
+  });
+
+  it('filters a hidden company first, with the entry that hid it; others and a missing list are unaffected', () => {
+    const job = raw({ company: 'ACME B.V.' });
+    assert.equal(scoreJob(job, { ...config, blockedCompanies: ['Acme'] }).filterReason, 'company hidden (blockedCompanies: Acme)');
+    assert.equal(scoreJob(job, { ...config, blockedCompanies: ['Globex'] }).filterReason, null);
+    const { blockedCompanies: _, ...rest } = config;
+    assert.equal(scoreJob(job, rest).filterReason, null);
   });
 });
 

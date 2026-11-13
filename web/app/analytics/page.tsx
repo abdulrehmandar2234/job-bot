@@ -1,7 +1,18 @@
 import Link from 'next/link';
 import { Suspense } from 'react';
-import { DIMENSIONS, funnel, median, MIN_N, recentFetchRuns, responseDays, responseRates, weeklyActivity } from '@/lib/analytics';
-import { FetchRuns, FunnelChart, RateTable, Section, WeeklyBars } from '@/components/analytics';
+import {
+  DIMENSIONS,
+  funnel,
+  median,
+  MIN_N,
+  recentFetchRuns,
+  responseDays,
+  responseRates,
+  SKILL_DAYS,
+  skillDemand,
+  weeklyActivity,
+} from '@/lib/analytics';
+import { FetchRuns, FunnelChart, RateTable, Section, SkillsRadar, WeeklyBars } from '@/components/analytics';
 import { SkipPatterns } from '@/components/skip-patterns';
 import { readCountryLabels } from '@/lib/profile';
 import { readConfig } from '@/lib/settings';
@@ -24,13 +35,14 @@ export default function Page() {
 async function Analytics() {
   const roleExclude = readConfig().data?.roleExclude;
   const countries = readCountryLabels();
-  const [f, rates, weeks, days, runs, skips] = await Promise.all([
+  const [f, rates, weeks, days, runs, skips, demand] = await Promise.all([
     funnel(),
     Promise.all(DIMENSIONS.map(responseRates)),
     weeklyActivity(),
     responseDays(),
     recentFetchRuns(),
     skipInsights(typeof roleExclude === 'string' ? roleExclude : null),
+    skillDemand(),
   ]);
   const med = median(days.map((d) => d.days));
 
@@ -74,6 +86,13 @@ async function Analytics() {
       )}
       <Section title="Activity" sub="Last 12 weeks">
         <WeeklyBars weeks={weeks} />
+      </Section>
+      <Section
+        id="skills"
+        title="Skills radar"
+        sub={`The skills that matching jobs of the last ${SKILL_DAYS} days ask for most, and the share of those jobs that ask for each`}
+      >
+        <SkillsRadar demand={demand} />
       </Section>
       <Section id="skips" title="Skip patterns" sub="Why you skip jobs, and what roleExclude could filter out for you">
         <SkipPatterns insights={skips} />

@@ -4,6 +4,7 @@
   "chromePath": "auto",
   "minScore": 45,
   "skipJobTypes": ["internship", "part-time", "temporary", "volunteer"],
+  "blockedCompanies": [],
   "maxAgeDays": 14,
   "ai": {
     "enabled": true,
@@ -12,7 +13,8 @@
     "letterModel": "sonnet",
     "maxScorePerRun": 80,
     "concurrency": 2,
-    "alertStrong": true
+    "alertStrong": true,
+    "checkLetters": true
   },
   "linkedin": {
     "enabled": true,

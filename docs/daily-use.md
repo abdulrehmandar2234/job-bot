@@ -69,10 +69,11 @@ From top to bottom:
 - **Check if still open:** asks the job board whether the posting still exists. **Prepare CV** checks this first and stops on a closed posting.
 - The full description, the AI review (score, verdict, reasons, gaps, red flags, location check) and the **CV keyword check**: which of the job's skills the CV shows near the top, which you have but this CV keeps further down, and which are not on your CV. Tick **I have this** for a skill you really have (with an optional note for the AI) and **Add to my CV and improve it for this job** adds it to your master CV and revises this job's CV.
 - **CV for this job:** the CV version and its template, **Apply template** (classic, modern, compact; previews open in a new tab), **Download CV**, **What should change in this CV?** → **Improve CV with feedback**, and **Suggest improvements** (its suggestions can be copied into the box with **Use as feedback**). See [your-cv-and-profile.md](your-cv-and-profile.md#improving-a-jobs-cv-with-feedback).
-- **Cover letter:** **Write letter**, **Rewrite letter**, **Copy**, **Download PDF**, **What should change?** → **Rewrite with feedback**, and **Edit** / **Save** to change it yourself.
+- **Cover letter:** **Write letter**, **Rewrite letter**, **Copy**, **Download PDF**, **What should change?** → **Rewrite with feedback**, and **Edit** / **Save** to change it yourself. Above an AI letter, a note says what the letter check fixed (claims your CV or the posting does not support); read the letter once more before you send it.
 - **CV summary for this job:** **Write summary**, then **Rewrite summary**, **Copy**, and **Use in my CV for this job**, which builds a one-off CV with it so **Download CV** serves that one.
 - **Form answers:** paste the questions from the application form and **Draft answers**. The AI answers from your CV and profile only; personal decisions it cannot know (salary, notice period, start date) come back as `[FILL: ...]`, highlighted. Each answer has a **Copy** button.
 - **Interview prep** (applied and interview jobs): likely technical questions, behavioural questions with STAR stories from your CV, a short company brief from the posting alone (unsure points are marked "verify before interview"), questions to ask, and the requirements mapped to your CV. **Regenerate** writes it again.
+- **Your history with the company:** the other jobs at this company you prepared, applied to or skipped, with their status (and skip reason), and how many more wait in Matching. **Never show this company** hides it: its waiting and new jobs move to Filtered out, and Settings, **Companies to hide**, takes it back.
 - **Contacts:** recruiters, hiring managers and referrals for this job, plus people you know at the same company, with an "ask for a referral before applying" reminder on jobs you have not applied to.
 - Notes and the status history. **Undo** under History moves the job back along its last status change (an `applied` date or a skip reason is restored); an undo cannot itself be undone, and `/analytics` ignores an undone change (it counts real status changes only, not follow-up notes). A status button in an old browser tab whose job has moved on (to Interview, say) is refused with a message instead of moving it back.
 
@@ -112,7 +113,7 @@ An `applied` job with no news for 7 days shows a "Follow up · N days" badge and
 ## Settings and Analytics
 
 - **Settings** (`/settings`): your profile, the cover-letter sentences, form facts, the search and filter settings, the CV template and the AI provider, validated with the same schemas as the CLI before they are saved. After changing filters, run `npm run bot -- rescore`.
-- **Analytics** (`/analytics`): the application funnel, response rates per source, country, CV version and AI verdict, weekly activity, time to a reply, skip patterns and fetch health (recent fetches and the sources that failed).
+- **Analytics** (`/analytics`): the application funnel, response rates per source, country, CV version and AI verdict, weekly activity, time to a reply, the skills radar (the skills matching jobs of the last 90 days ask for most, split into those your CV shows and those it does not), skip patterns and fetch health (recent fetches and the sources that failed).
 
 ## CLI commands for every day
 

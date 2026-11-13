@@ -17,7 +17,7 @@ import {
   writeLetter,
   writeSummary,
 } from '@/app/actions';
-import { getJob, type Job, jobEvents, postingsFor } from '@/lib/db';
+import { companyHistory, getJob, type Job, jobEvents, postingsFor } from '@/lib/db';
 import { isActive, openTasks } from '@/lib/tasks';
 import { ActionForm } from '@/components/action-form';
 import { CopyButton } from '@/components/client';
@@ -39,7 +39,9 @@ import { ExpiredBadge, OpenCheck } from '@/components/open-check';
 import { VisaBadge } from '@/components/visa';
 import { Chips, DeadlineBadge, fmtDate, Posted, PostedOn, Score, STATUS_LABEL } from '@/components/ui';
 import { readCountryLabels } from '@/lib/profile';
-import { aiEnabled } from '@/lib/settings';
+import { aiEnabled, readConfig } from '@/lib/settings';
+import { CompanyHistory } from '@/components/company-history';
+import { blockedBy } from '../../../../src/contacts.ts';
 import { AiOffNote } from '@/components/ai-off';
 import { JobNav, jobNav } from '@/components/job-nav';
 
@@ -156,7 +158,10 @@ async function JobDetail({
   if (!job) notFound();
   const busy = tasks.filter(isActive).map((t) => t.kind);
   const primaryId = job.duplicate_of ?? job.id;
-  const postings = (await postingsFor([primaryId])).get(primaryId) ?? [];
+  const [postingMap, history] = await Promise.all([postingsFor([primaryId]), companyHistory(job)]);
+  const postings = postingMap.get(primaryId) ?? [];
+  const blocked = readConfig().data?.blockedCompanies;
+  const hiddenAs = blockedBy(job.company, Array.isArray(blocked) ? (blocked as string[]) : []);
   const answers = job.form_answers ?? [];
   // The latest status change, which History offers to undo (undoStatus checks it again).
   const lastChange = events
@@ -242,6 +247,8 @@ async function JobDetail({
           <FollowUp job={job} busy={busy} />
 
           <Contacts job={job} contacts={contacts} />
+
+          <CompanyHistory job={job} history={history} hiddenAs={hiddenAs} />
 
           <section className="space-y-2">
             <h2 className="font-medium">Notes</h2>
@@ -369,6 +376,9 @@ async function JobDetail({
                 <span className="font-medium">The AI could not write this letter, so this is the template letter.</span>{' '}
                 {job.cover_letter_ai_error}
               </p>
+            )}
+            {job.cover_letter && job.cover_letter_ai && !job.cover_letter_edited_at && job.cover_letter_check && (
+              <LetterCheck problems={job.cover_letter_check} />
             )}
             {job.cover_letter && (
               <FoldedText preview={job.cover_letter} label="letter">
@@ -572,5 +582,26 @@ async function JobDetail({
         </main>
       </div>
     </div>
+  );
+}
+
+/** What the letter check fixed before the AI letter was stored (src/ai.ts aiCheckLetter). */
+function LetterCheck({ problems }: { problems: string[] }) {
+  if (!problems.length)
+    return <p className="text-xs text-zinc-500">✓ Checked against your CV and this posting: every claim is in one of them.</p>;
+  return (
+    <details role="note" className="rounded-xl border border-sky-200 bg-sky-50 p-3 text-sm dark:border-sky-900 dark:bg-sky-950/30">
+      <summary className="cursor-pointer">
+        <span className="font-medium">
+          Checked against your CV and this posting: fixed {problems.length} thing{problems.length === 1 ? '' : 's'} they do not support.
+        </span>{' '}
+        Read the letter once more before you send it.
+      </summary>
+      <ul className="mt-2 list-disc space-y-1 pl-5 text-zinc-700 dark:text-zinc-300">
+        {problems.map((p, i) => (
+          <li key={i}>{p}</li>
+        ))}
+      </ul>
+    </details>
   );
 }

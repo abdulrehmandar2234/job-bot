@@ -1,5 +1,5 @@
 import pg from 'pg';
-import { normCompany } from './contacts.ts';
+import { companyKey, normCompany } from './contacts.ts';
 import { FOLLOW_UP_DUE_SQL } from './followup.ts';
 import { runMigrations } from './migrate.ts';
 import { UserError } from './errors.ts';
@@ -168,7 +168,7 @@ export function duplicateLinks(rows: DedupeRow[]): [string, string][] {
   for (const r of rows) {
     // A name with nothing left after normalising (only symbols, or a script normCompany drops) says nothing about
     // which posting it is: such a row is never grouped, rather than grouped with every other such row.
-    const company = normCompany(r.company) || r.company.trim().toLowerCase();
+    const company = companyKey(r.company);
     const title = normTitle(r.title);
     if (!company || !title) continue;
     const key = `${company}|${title}`;
