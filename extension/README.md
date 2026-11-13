@@ -4,6 +4,8 @@ Sends the job you are looking at to your local Talaash, and shows what Talaash p
 
 The day-to-day flow is in [docs/daily-use.md](../docs/daily-use.md#applying-with-the-chrome-extension); installing it is step 14 of each [install guide](../docs/README.md), and problems with the Bayt bookmarklet's import token are in [docs/troubleshooting.md](../docs/troubleshooting.md#missing-or-wrong-import-token-bayt-bookmarklet).
 
+![The popup sends a job to Talaash, and the Apply helper side panel fills the empty fields of an application form (demo data)](../docs/images/extension-demo.gif)
+
 ## What it does
 
 - **Send to Talaash** (toolbar button). When you click it, the popup reads the job from the open tab:

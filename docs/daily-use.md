@@ -83,12 +83,16 @@ Rewriting a letter, CV summary or headline you edited by hand asks first, since 
 
 With the dashboard running and the extension loaded (see your install guide):
 
+![The Apply helper side panel beside an application form after Fill this form: the filled fields are outlined in orange, and the notice period is left for you (demo data)](images/extension-panel.png)
+
 1. Open the job's posting and click the Talaash button. If the job is not in Talaash yet, **Send to Talaash** adds it (it goes through the same filters and scoring as fetched jobs).
 2. Open the **Apply helper** side panel: it shows the job's status, scores, the prepared CV (download link), the cover letter and the drafted answers, each with **Copy**.
 3. On the application form, click **Fill this form**. It types your name, email, phone, LinkedIn and location, the cover letter, matching drafted answers and the CV PDF into the form's **empty** fields (outlined in orange), also inside embedded Greenhouse or Workday forms. It never overwrites what you typed, never fills `[FILL: ...]` answers, passwords, checkboxes or radios, and never clicks a button or submits.
    Custom dropdowns, listboxes, radio groups and Yes/No buttons are never typed into: empty ones are listed under **Left for you** as "pick from the list". The panel also works on the application page itself (Lever `/apply`, Ashby `/application`, Workday's steps) and remembers the job through a multi-step form. On a form whose job is not in Talaash, **Fill profile + CV only** types just your contact details and default CV. If the dashboard runs on another port than 3100, set it in the extension's options.
 4. Check everything, fill in the rest, and submit it yourself.
 5. **Mark applied (in dashboard)** opens the job on the dashboard, where you mark it **Applied**.
+
+![The Send to Talaash popup on a job posting: the title, company and location read from the page, ready to send (demo data)](images/extension-popup.png)
 
 Details: [extension/README.md](https://github.com/abdulrehmandar2234/talaash/blob/main/extension/README.md).
 

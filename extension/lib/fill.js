@@ -192,6 +192,14 @@ export function fillData(j, { profileOnly = false } = {}) {
   };
 }
 
+const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+
+/** "Lead: a, b, c." without a second mark after a label that already ends in one ("Why Initech?"). */
+const listSentence = (lead, items) => {
+  const text = `${lead} ${items.join(', ')}`;
+  return /[.?!:]$/.test(text) ? text : `${text}.`;
+};
+
 /**
  * The result lines of a fill, as data so the side panel can keep them for the tab (lib/tab-memory.js) and show them
  * again on the next step of a form: [{ text, kind: 'plain' | 'needs' | 'hint' }].
@@ -201,10 +209,12 @@ export function fillData(j, { profileOnly = false } = {}) {
 export function fillSummary({ filled = [], skipped = [], needInput = 0 } = {}) {
   const left = [...new Set(skipped)];
   const lines = [];
-  if (filled.length) lines.push({ text: `Filled ${filled.length} fields (outlined in orange): ${filled.join(', ')}.`, kind: 'plain' });
+  if (filled.length)
+    lines.push({ text: listSentence(`Filled ${plural(filled.length, 'field')} (outlined in orange):`, filled), kind: 'plain' });
   else lines.push({ text: 'No empty fields here that Talaash knows how to fill.', kind: 'plain' });
-  if (left.length) lines.push({ text: `Left for you: ${left.join(', ')}.`, kind: 'needs' });
-  if (needInput > 0) lines.push({ text: `${needInput} drafted answers need your input, so they were not filled.`, kind: 'needs' });
+  if (left.length) lines.push({ text: listSentence('Left for you:', left), kind: 'needs' });
+  if (needInput === 1) lines.push({ text: '1 drafted answer needs your input, so it was not filled.', kind: 'needs' });
+  else if (needInput > 1) lines.push({ text: `${needInput} drafted answers need your input, so they were not filled.`, kind: 'needs' });
   if (filled.length || left.length) lines.push({ text: 'Check every field, then submit the form yourself.', kind: 'hint' });
   return lines;
 }
