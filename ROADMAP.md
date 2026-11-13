@@ -17,7 +17,6 @@ Ideas from the last review and from real use, none started yet:
 
 Ideas taken from the two most popular open-source job-search tools on GitHub, boss-agent-cli (one Chinese job site, Python) and Jobsmith (Taiwan's job market, desktop app). Their auto-apply, platform logins and bulk messaging are left out on purpose: they break the rule above and risk the user's accounts. Most useful first:
 
-- **Extension screenshots and a demo GIF:** the extension at work and a short GIF, next to the dashboard screenshots already in the README and the docs site.
 - **Mock interview:** questions from the job and the CV, the user's answers, and feedback with a score per answer, next to the interview prep.
 - **JSON output:** `--json` on `list` and `show` (as `ats` has), so scripts and AI agents can use Talaash.
 - **MCP server:** Talaash's jobs, scores, letters and answers as tools for MCP apps such as Claude Desktop (read and prepare only, never apply).
@@ -35,7 +34,7 @@ Ideas taken from the two most popular open-source job-search tools on GitHub, bo
 - **Company history and hidden companies (2026-11):** the job page lists your other jobs at the same company with their outcome; **Never show this company** adds it to `blockedCompanies`, which `scoreJob` filters first (`blockedBy` / `companyKey` in src/contacts.ts, `companyHistory` in web/lib/db.ts).
 - **Letter check (2026-11, from comparing similar projects):** after the AI writes or rewrites a letter, a second call checks it against the CV and the posting and fixes unsupported claims, company facts the posting does not state, commitments and placeholders; the job page lists what it fixed (`aiCheckLetter` in src/ai.ts, `jobs.cover_letter_check`, migration 021, `ai.checkLetters`).
 - **Skills radar (2026-11, from comparing similar projects):** a section on `/analytics` with the skills matching jobs of the last 90 days ask for most, split into those the CV shows and those it does not (`skillDemand` in web/lib/analytics.ts).
-- **README visuals (2026-11):** a banner, dashboard and job page screenshots from demo data, and a diagram, in the README and on the Daily use page.
+- **README visuals (2026-11):** a banner, dashboard and job page screenshots from demo data, and a diagram, in the README and on the Daily use page; the extension's popup and side panel as screenshots and a short GIF (docs/images/extension-*).
 - **Application deadline (2026-11):** the deadline a posting states is stored (`jobs.deadline`, migration 020), shown as **Closes in N days** on matching and prepared jobs, and a passed one filters the job (src/deadline.ts).
 - **Job type filter (2026-11):** LinkedIn's employment type and seniority, and freehire's seniority, filter internships, part-time, temporary and volunteer jobs (`skipJobTypes`).
 - **freehire.me source (2026-11, from comparing ai-job-search):** onsite postings per target country and remote ones open to your regions, from freehire's public search over about 50 ATS (`freehire` in `remote.boards`).
