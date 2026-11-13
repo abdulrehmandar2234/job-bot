@@ -9,8 +9,8 @@ npm run bot -- setup                          # first run: your profile and targ
 npm run bot -- doctor                         # check the setup: Node, packages, settings, CV, database, PDF renderer, AI
 npm run bot -- fetch [--company <name>]       # fetch all sources (or those whose name contains <name>, e.g. linkedin)
 npm run bot -- rescore                        # re-apply filters after editing config.json, no downloads
-npm run bot -- list [--status new] [--country NL] [--min 60] [--limit 30]   # --status filtered shows the reasons
-npm run bot -- show <id> [--full]
+npm run bot -- list [--status new] [--country NL] [--min 60] [--limit 30] [--json]   # --status filtered shows the reasons
+npm run bot -- show <id> [--full] [--json]
 npm run bot -- ai:score [--id <id>] [--limit N] [--all]   # AI fit review of new matches (--all: review them again)
 npm run bot -- prepare <id> [--cv laravel] [--force] [--letter]   # CV only; --letter also writes the letter
 npm run bot -- letter <id> [--template]       # write or rewrite the cover letter
@@ -63,6 +63,19 @@ npm run bot -- restore <file> [--into db] [--yes]  # load a backup with psql; a 
   "description": "full job text"
 }
 ```
+
+## JSON output for scripts
+
+`list --json` prints the jobs as one JSON array (an empty list is `[]`), and `show <id> --json` prints one job as a JSON object. Scripts and AI agents can read them instead of the text tables. Dates are ISO strings, and a job that is not found still prints `Not found` on stderr with exit code 1.
+
+- **`list --json`:** per job the fields needed to pick one: `id`, `source`, `company`, `title`, `location`, `country`, `url`, `status`, `score`, `ai_score`, `ai_verdict`, `cluster`, `matched`, `missing`, `visa`, `visa_evidence`, `flags`, `filter_reason`, the salary fields, `deadline`, `posted_at`, `first_seen_at`, `applied_at`, `cv_version` and `duplicate_of`. It takes the same `--status`, `--country`, `--min` and `--limit` options.
+- **`show <id> --json`:** the whole job, including the description, the cover letter, the AI review, form answers and interview prep.
+
+```bash
+npm run bot -- list --min 70 --json | jq -r '.[] | "\(.score) \(.company) \(.url)"'
+```
+
+The output is for reading only. Talaash still never applies for you.
 
 ## Daily fetch
 
