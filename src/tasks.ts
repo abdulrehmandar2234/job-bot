@@ -1,8 +1,10 @@
+import { basename, dirname } from 'node:path';
 import { pool } from './db.ts';
 import * as queue from './task-queue.ts';
 import { CV_VERSION, FEEDBACK_CAP, KEEP_FINISHED_DAYS, type Task, type TaskKind } from './types.ts';
 import { isTemplate } from './cv/templates/index.ts';
 import { parseSkills } from './cv/confirm-skills.ts';
+import { dataPath } from './settings.ts';
 
 // The background task queue (table `tasks`, src/migrations/002_tasks.sql).
 // The dashboard enqueues (web/lib/tasks.ts, with the shared rules in src/task-queue.ts) and spawns a detached
@@ -31,6 +33,7 @@ export const TASK_TIMEOUT_MS: Record<TaskKind, number> = {
   cv_template: 4 * 60_000,
   cv_feedback: AI_TASK_MS,
   cv_review: AI_TASK_MS,
+  cv_import: AI_TASK_MS,
 };
 /** Extra time before a running task counts as stale, so the worker can record its own timeout first. */
 export const DEADLINE_GRACE_MS = 60_000;
@@ -125,6 +128,14 @@ export function cliArgs(task: Pick<Task, 'kind' | 'job_id' | 'args'>, questionsF
       return ['headline', job(), ...feedbackArgs(task.args)];
     case 'tailored_cv':
       return ['cv:tailor', job()];
+    case 'cv_import': {
+      // Only a file the dashboard saved in data/cv-import: the task row is the only input, so check it here too.
+      const file = task.args.file;
+      if (typeof file !== 'string' || dirname(file) !== dataPath('cv-import')) throw new Error('cv_import task without its uploaded file');
+      // The name the file had on the user's computer, for the draft ("Draft from my-cv.pdf"); one --name=value argument.
+      const name = typeof task.args.name === 'string' ? basename(task.args.name).slice(0, 120) : '';
+      return ['cv:import', file, ...(name ? [`--name=${name}`] : [])];
+    }
     case 'cv_template': {
       const template = task.args.template;
       if (!isTemplate(template)) throw new Error(`Unknown CV template ${JSON.stringify(template)}`);

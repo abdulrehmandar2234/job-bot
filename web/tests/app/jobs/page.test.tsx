@@ -226,6 +226,40 @@ describe('job page', () => {
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Encoded');
   });
 
+  it('shows the history with the company and offers to hide it, or says it is hidden', async () => {
+    await insertJob({ id, company: 'Vandelay Inc.' });
+    const other = await insertJob({
+      id: 'page-vandelay',
+      company: 'VANDELAY',
+      title: 'Importer',
+      status: 'rejected',
+      applied_at: new Date(),
+    });
+    await insertJob({ id: 'page-vandelay-new', company: 'Vandelay', status: 'new' });
+    await renderJob(id);
+    const company = screen.getByRole('heading', { name: 'Your history with Vandelay Inc.' }).closest('section')!;
+    expect(within(company).getByRole('link', { name: 'Importer' })).toHaveAttribute('href', `/jobs/${encodeURIComponent(other)}`);
+    expect(company).toHaveTextContent('Importer · Rejected · applied');
+    expect(company).toHaveTextContent('1 more job at Vandelay Inc. waiting in Matching.');
+    expect(within(company).getByRole('button', { name: 'Never show this company' })).toBeInTheDocument();
+
+    const { mkdtempSync, writeFileSync } = await import('node:fs');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const file = join(mkdtempSync(join(tmpdir(), 'talaash-web-block-')), 'config.json');
+    writeFileSync(file, JSON.stringify({ blockedCompanies: ['Vandelay'] }));
+    vi.stubEnv('JOB_BOT_CONFIG', file);
+    try {
+      cleanup();
+      await renderJob(id);
+      const hidden = screen.getByRole('heading', { name: 'Your history with Vandelay Inc.' }).closest('section')!;
+      expect(hidden).toHaveTextContent('Hidden: new jobs from this company are filtered out (Settings, Companies to hide: “Vandelay”).');
+      expect(within(hidden).queryByRole('button')).toBeNull();
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   describe('layout', () => {
     const aside = () => screen.getByRole('complementary', { name: 'Job summary and actions' });
 

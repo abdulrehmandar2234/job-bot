@@ -4,6 +4,8 @@ import { join } from 'node:path';
 const nextConfig: NextConfig = {
   /* config options here */
   cacheComponents: true,
+  // An imported CV (Settings, "Import your CV") is posted to a server action; src/cv/import.ts allows up to 5 MB.
+  experimental: { serverActions: { bodySizeLimit: '6mb' } },
   partialPrefetching: true,
   turbopack: {
     // The repo root, not web/: the dashboard imports the bot's pure modules from ../src (profile rules, follow-up rule,

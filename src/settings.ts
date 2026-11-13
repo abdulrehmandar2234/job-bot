@@ -106,6 +106,8 @@ export const configSchema = z.object({
     .optional(),
   // Job types to filter out when a source states them (src/match.ts jobTypeOf). Missing = DEFAULT_SKIP_JOB_TYPES.
   skipJobTypes: z.array(z.enum(JOB_TYPES)).optional(),
+  // Companies never to show (src/match.ts): compared by companyKey, so "Acme Inc." also hides "ACME". Missing = none.
+  blockedCompanies: z.array(text).optional(),
   countries: z.record(z.string(), countrySchema),
   companies: z.array(companySchema),
   // Stack presets (presets/stacks) whose skills and CV clusters drive the keyword score (src/match.ts).

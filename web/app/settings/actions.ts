@@ -2,9 +2,14 @@
 
 import { randomUUID } from 'node:crypto';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { extname, join } from 'node:path';
 import { refresh } from 'next/cache';
+import { blockedBy } from '../../../src/contacts.ts';
 import { botDataDir, runBot } from '@/lib/bot';
+import { getJob } from '@/lib/db';
+import { guarded, botFailure } from '@/lib/action-state';
+import { IMPORT_TYPES, importDir, MAX_IMPORT_BYTES } from '@/lib/cv-import';
+import type { TextFormState } from '@/lib/written-text';
 import { readApplicant, readConfig } from '@/lib/settings';
 import { enqueueTask } from '@/lib/tasks';
 import { skipInsights } from '@/lib/skip-insights';
@@ -101,4 +106,64 @@ export async function addRoleExclude(_prev: SaveState, fd: FormData): Promise<Sa
   const { suggestions } = await skipInsights(roleExclude);
   if (typeof pattern !== 'string' || !suggestions.some((s) => s.pattern === pattern)) return fail('That suggestion is no longer valid.');
   return save('config', JSON.stringify({ ...cur.data, roleExclude: roleExclude ? `${roleExclude}|${pattern}` : pattern }, null, 2));
+}
+
+/**
+ * "Import your CV" on the Settings page: saves the uploaded file in data/cv-import and queues `bot cv:import <file>`
+ * as a background task, which writes a draft. Nothing changes cv/master.json until the draft is applied.
+ */
+export async function importCv(_prev: TextFormState, fd: FormData): Promise<TextFormState> {
+  const file = fd.get('cv');
+  if (!(file instanceof File) || !file.size) return { ok: false, message: 'Choose your CV file first.' };
+  const ext = extname(file.name).toLowerCase();
+  if (!(IMPORT_TYPES as readonly string[]).includes(ext)) return { ok: false, message: `Use a ${IMPORT_TYPES.join(', ')} file.` };
+  if (file.size > MAX_IMPORT_BYTES) return { ok: false, message: `The file is larger than ${MAX_IMPORT_BYTES / 1024 / 1024} MB.` };
+  return guarded(async () => {
+    await mkdir(importDir(), { recursive: true });
+    const path = join(importDir(), `upload${ext}`);
+    await writeFile(path, Buffer.from(await file.arrayBuffer()));
+    const { created } = await enqueueTask('cv_import', null, { file: path, name: file.name });
+    refresh();
+    return created ? null : { ok: false, message: 'A CV import is already running.' };
+  });
+}
+
+/** The imported draft's "Use this as my CV" (`cv:import --apply`) or "Discard" (`--discard`). */
+async function draftCommand(flag: '--apply' | '--discard', done: string): Promise<TextFormState> {
+  try {
+    await runBot(['cv:import', flag], 30_000);
+  } catch (e) {
+    return { ok: false, message: botFailure(e) };
+  }
+  refresh();
+  return { ok: true, message: done };
+}
+
+export async function applyCvImport(_prev: TextFormState, _fd: FormData): Promise<TextFormState> {
+  return draftCommand(
+    '--apply',
+    'Saved as your master CV (the previous one is in data/cv-backups). Rebuild your CV and re-score the jobs next.',
+  );
+}
+
+export async function discardCvImport(_prev: TextFormState, _fd: FormData): Promise<TextFormState> {
+  return draftCommand('--discard', 'Draft removed. Your master CV is unchanged.');
+}
+
+/**
+ * "Never show this company" on a job page: adds the job's company to config.json blockedCompanies. Saving re-scores
+ * the stored jobs, so its waiting jobs move to Filtered out; jobs you already acted on keep their status.
+ */
+export async function blockCompany(_prev: TextFormState, fd: FormData): Promise<SaveState> {
+  const id = fd.get('id');
+  const job = typeof id === 'string' ? await getJob(id) : null;
+  if (!job) return fail('That job no longer exists.');
+  const cur = readConfig();
+  if (!cur.data) return unreadable('config.json', cur.error);
+  const list = Array.isArray(cur.data.blockedCompanies) ? (cur.data.blockedCompanies as string[]) : [];
+  const company = job.company.trim();
+  const already = blockedBy(company, list);
+  if (already) return fail(`${company} is already hidden (as "${already}" under Settings, Companies to hide).`);
+  const res = await save('config', JSON.stringify({ ...cur.data, blockedCompanies: [...list, company] }, null, 2));
+  return res?.ok ? { ...res, message: `${company} is hidden. ${res.message}` } : res;
 }

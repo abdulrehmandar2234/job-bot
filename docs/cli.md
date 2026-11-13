@@ -38,6 +38,8 @@ npm run bot -- contact:add <id> --name "Jane" [--role recruiter|"hiring manager"
 npm run bot -- add [--file job.json]          # add a job manually (JSON or stdin)
 npm run bot -- discover <company...> [--add]   # find a company's board (7 ATS by name, or a myworkdayjobs URL); --add validates config.json and writes it atomically
 npm run bot -- migrate                        # apply pending database migrations (the dashboard also does this on start)
+npm run bot -- cv:import <cv.pdf|.docx|.txt|.md>  # the AI reads your CV into a draft master CV (only what the file says)
+npm run bot -- cv:import --apply | --discard     # make the draft cv/master.json (backup first), or throw it away
 npm run bot -- cv:default | cv:build [cluster...] | versions
 npm run bot -- ats <id> [--cv next-nest] [--json] # CV keyword check: shown, hidden but true, missing
 npm run bot -- sponsors:update | stats | dedupe

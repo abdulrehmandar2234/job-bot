@@ -102,7 +102,7 @@ npm run bot -- setup     # writes .env, creates the database, starts your CV, as
 npm run bot -- doctor    # checks the whole setup and says how to fix what is missing
 ```
 
-Then put your own CV in `cv/master.json` (it starts as the fictional Jane Doe), and:
+Then put your own CV in `cv/master.json` (it starts as the fictional Jane Doe): `npm run bot -- cv:import my-cv.pdf` reads the CV you already have into a draft, and `cv:import --apply` saves it after you check it. Then:
 
 ```bash
 npm run bot -- cv:default   # your CV as a PDF

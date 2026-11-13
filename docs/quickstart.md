@@ -33,7 +33,7 @@ The wizard offers ready-made **presets**: markets (`gulf`, `india`, `netherlands
 
 ## 3. Put in your CV
 
-`cv/master.json` starts as the fictional Jane Doe. Replace it with your own CV ([the format, field by field](your-cv-and-profile.md#your-cv-cvmasterjson)), then:
+`cv/master.json` starts as the fictional Jane Doe. Replace it with your own CV ([the format, field by field](your-cv-and-profile.md#your-cv-cvmasterjson)). The quickest way is to import the CV you already have: `npm run bot -- cv:import my-cv.pdf`, read the draft it saves, then `npm run bot -- cv:import --apply` ([how it works](your-cv-and-profile.md#import-the-cv-you-already-have)). Then:
 
 ```bash
 npm run bot -- cv:default   # your CV as a PDF

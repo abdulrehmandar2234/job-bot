@@ -31,6 +31,7 @@ export const TASK_LABEL: Record<TaskKind, string> = {
   cv_template: 'Applying CV template',
   cv_feedback: 'Improving CV with feedback',
   cv_review: 'Reviewing CV',
+  cv_import: 'Importing your CV',
 };
 
 export const isActive = (t: Pick<Task, 'status'>) => t.status === 'queued' || t.status === 'running';
