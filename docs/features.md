@@ -93,6 +93,7 @@ Every posting is checked by `src/match.ts`. Jobs that fail a rule are kept with 
 - Free-text notes per job (recruiter name, contacts, follow-ups).
 - **Company history and hidden companies:** the job page lists the other jobs at the same company you prepared, applied to or skipped, with their outcome (and the skip reason), and how many more are waiting. **Never show this company** adds it to `blockedCompanies`: its waiting and new jobs are filtered out ("company hidden"); jobs you acted on keep their status.
 - **Contacts per job** (`bot contacts` / `contact:add`, and on the job page): recruiters, hiring managers and referrals, plus people you know at the same company, with a "ask for a referral before applying" reminder on jobs you have not applied to.
+- **JSON for scripts:** `bot list --json` and `bot show <id> --json` print jobs as JSON, so scripts and AI agents can read them ([CLI reference](cli.md#json-output-for-scripts)).
 - **Skip reasons:** skipping a job asks why (`mark <id> skipped --reason stack|seniority|salary|location|company|language|other`, or the Skip button), and `/analytics` shows the patterns.
 - **Database backup and restore:** the daily fetch keeps a `pg_dump` of the last 14 days in `data/backups/` (`bot backup`; gzip in Node, so only `pg_dump` is needed, on any OS). `bot restore <file>` loads one back with `psql`, in one transaction, after a fresh backup of the database it replaces ([how](troubleshooting.md#restore-a-backup)). Backups hold the database only, not `config.json`, `cv/` or `applications/`.
 

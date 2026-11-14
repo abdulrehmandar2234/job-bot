@@ -38,10 +38,10 @@ The project has two parts that share one PostgreSQL database:
 ## A job's journey
 
 1. **Fetch.** `bot fetch` loads every source, four at a time. Each adapter in `src/sources/` turns the API response into a common `RawJob` (id, company, title, location, url, description, posted date). Requests use a shared paced `sleep` (`src/sources/http.ts`).
-2. **Score.** Every job goes through `scoreJob()` in `src/match.ts`. It detects the country, applies the filters, computes the keyword score and picks a CV cluster. The result is upserted into `jobs` with status `new` or `filtered` (+ reason).
+2. **Score.** Every job goes through `scoreJob()` in `src/match.ts`. It first drops companies you hid (`blockedCompanies`), then detects the country, applies the filters, computes the keyword score and picks a CV cluster. The result is upserted into `jobs` with status `new` or `filtered` (+ reason).
 3. **Group.** `dedupe()` links copies of the same job (normalized company + title + country, letters of any script) to one primary row, preferring the company's own site or the copy you already worked on.
 4. **AI review.** `bot ai:score` sends each new match plus your CV to the AI provider with a JSON schema and stores the score, verdict, reasons, gaps, flags and the location check (a `no` moves the job to `filtered`). `ai:score --all` reviews every matching job again.
-5. **Prepare.** `bot prepare <id>` picks the CV version (default, or `--cv <cluster>`), renders the PDF if that version does not exist yet, and sets the status to `prepared`. It writes no cover letter: `bot letter <id>` ("Write letter" on the job page) does that on request, or `prepare --letter` for both at once.
+5. **Prepare.** `bot prepare <id>` picks the CV version (default, or `--cv <cluster>`), renders the PDF if that version does not exist yet, and sets the status to `prepared`. It writes no cover letter: `bot letter <id>` ("Write letter" on the job page) does that on request, or `prepare --letter` for both at once. A second AI call then checks an AI letter against your CV and the posting and fixes unsupported claims (`ai.checkLetters`).
 6. **Answer.** `bot answer <id>` drafts application-form answers and stores them on the job.
 7. **Apply (you).** You open the posting, upload the CV, paste the letter and answers, submit, then mark the job `applied`.
 
@@ -102,7 +102,7 @@ src/
   db.ts             Postgres access, upsert, status changes, dedupe
   migrate.ts        migration runner (applied on start)
   migrations/       numbered schema files (001_baseline.sql, ...)
-  ai.ts             AI prompts and schemas: review, letter, CV summary, form answers, interview prep, follow-up
+  ai.ts             AI prompts and schemas: review, letter, letter check, CV summary, form answers, interview prep, follow-up, CV import
   ai-providers.ts   AI providers: Claude CLI or one API key (askAi)
   ai-presets.ts     API presets: URLs, default models, JSON mode, key detection
   profile.ts        your profile from cv/applicant.json (+ cv/master.json fallbacks), visa and remote-from rules
@@ -112,12 +112,12 @@ src/
   backup.ts         pg_dump + gzip of the database, keeping 14; restore of a backup with psql
   cleanup.ts        daily cleanup: temp files, old cv-backups, one-off CVs of finished jobs
   followup.ts       follow-up reminders and template
-  contacts.ts       contact and referral rules shared with the dashboard
+  contacts.ts       contact and referral rules shared with the dashboard, company keys and hidden companies
   cover.ts          template cover letter
   sponsors.ts       IND recognised-sponsor register
   discover.ts       find a company's ATS board
   sources/          ATS adapters, job boards, LinkedIn, dead-link check, paced and cached HTTP
-  cv/               profiles, versioning, PDF rendering, templates/ (CV designs), feedback.ts (master-CV check)
+  cv/               profiles, versioning, PDF rendering, templates/ (CV designs), feedback.ts (master-CV check), import.ts (reading a CV file for cv:import)
 web/
   app/              pages, server actions, API routes
   components/       UI and client components
