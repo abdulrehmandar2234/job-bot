@@ -8,7 +8,7 @@ Every command of the bot. Run them from the Talaash folder as `npm run bot -- <c
 npm run bot -- setup                          # first run: your profile and target markets (asks, validates, saves)
 npm run bot -- doctor                         # check the setup: Node, packages, settings, CV, database, PDF renderer, AI
 npm run bot -- fetch [--company <name>]       # fetch all sources (or those whose name contains <name>, e.g. linkedin)
-npm run bot -- rescore                        # re-apply filters after editing config.json, no downloads
+npm run bot -- rescore                        # re-apply filters after editing config.json or cv/master.json, no downloads
 npm run bot -- list [--status new] [--country NL] [--min 60] [--limit 30] [--json]   # --status filtered shows the reasons
 npm run bot -- show <id> [--full] [--json]
 npm run bot -- ai:score [--id <id>] [--limit N] [--all]   # AI fit review of new matches (--all: review them again)
@@ -21,7 +21,7 @@ npm run bot -- cv:templates                   # list the CV templates (classic, 
 npm run bot -- cv:template <id> <template>    # use a template for this job; re-renders its CV as a new version
 npm run bot -- cv:preview <template> [--pdf]  # your master CV in a template (HTML, or data/previews/<template>.pdf)
 npm run bot -- cv:feedback <id> --feedback "put Laravel experience first"  # AI revises the job's CV (master CV content only)
-npm run bot -- cv:feedback <id> --add-skills "Docker,GraphQL"         # add job skills you really have to the master CV, then revise
+npm run bot -- cv:feedback <id> --add-skills "Docker,GraphQL"         # add job skills you really have to this job's CV only, then revise
 npm run bot -- cv:review <id>                 # AI suggests how to improve the job's CV for this job
 npm run bot -- letter:pdf <id>                # cover letter as a PDF in the job's applications/ folder
 npm run bot -- check:open [<id>...] [--status new,prepared] [--limit N]  # mark closed postings expired

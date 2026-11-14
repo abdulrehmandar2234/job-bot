@@ -6,6 +6,10 @@ To update an existing install, see [Updating](docs/updating.md): pull the new ve
 
 ## [Unreleased]
 
+### Changed
+
+- **I have this** on a job page adds the skill to that job's CV only (`jobs.cv_skills`, migration 023). Before, it went into `cv/master.json`, so every later job was matched and every later CV was built as if you had it. Skills added that way earlier stay in your master CV until you remove them.
+
 ### Added
 
 - `list --json` and `show <id> --json` print jobs as JSON for scripts and AI agents ([CLI reference](docs/cli.md#json-output-for-scripts)).
@@ -13,6 +17,7 @@ To update an existing install, see [Updating](docs/updating.md): pull the new ve
 
 ### Fixed
 
+- `rescore` also updates the skills match of jobs you already acted on (prepared, applied and so on), keeping their status and score, so a skill removed from `cv/master.json` no longer shows as "you have" on them.
 - `list --limit` with something other than a whole number of at least 1 prints the usage line instead of a database error.
 - The side panel's fill summary says "1 field" and "1 drafted answer needs your input", and adds no full stop after a field label that ends in a question mark.
 

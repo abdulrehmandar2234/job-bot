@@ -11,6 +11,7 @@ export type AtsReport = {
   missing: string[];
   total: number;
   suggestion: { version: string; shows: number; gains: string[] } | null;
+  jobSkills?: string[]; // skills confirmed for this job only ("I have this"); not on the master CV
 };
 
 // Enough for a browsing session of job-detail views; cleared wholesale when full, which is fine for a

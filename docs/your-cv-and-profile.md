@@ -279,4 +279,6 @@ npm run bot -- ats <id> [--cv <cluster>] [--json]
 
 Also on the job page. It splits the job's skill keywords into those the CV version shows near the top, those you have (in `cv/master.json`) but this version keeps further down, and real gaps that are not on your CV at all, and names the CV version that shows the most of them. Gaps are only listed, never added on their own.
 
-On the job page, tick **I have this** for a gap you really have (with an optional note for the AI) and **Add to my CV and improve it for this job** (`npm run bot -- cv:feedback <id> --add-skills "Docker,GraphQL"`): only the ticked skills go into `cv/master.json`, in the group that fits them, and the job's CV is revised to show them. A copy of `cv/master.json` is saved to `data/cv-backups/` first; the daily run keeps the newest 20 copies and deletes older ones.
+On the job page, tick **I have this** for a gap you really have (with an optional note for the AI) and **Add to this job's CV and improve it** (`npm run bot -- cv:feedback <id> --add-skills "Docker,GraphQL"`): the ticked skills go on this job's CV only, in the group that fits them, and the job's CV is revised to show them. **Download CV** then gives you that CV. `cv/master.json` is not changed, so every other job is still matched against your own CV and its CVs do not show the skill. The keyword check lists them as "Added to this job's CV only".
+
+A skill you have for good belongs in `cv/master.json` itself: add it there, then run `npm run bot -- rescore` so every job is matched again.

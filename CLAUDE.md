@@ -18,7 +18,7 @@ Local job-search helper: Node CLI bot (`src/`, TypeScript run directly by Node 2
 - Run one test file at a time while working (`node --test tests/x.test.ts` with the test DATABASE_URL, or `npx vitest run <file>` in web/), and avoid overlapping full runs.
 - Everything in the project is written in English: code, comments, UI text, docs (README, ROADMAP), commit messages and PR descriptions.
 - The AI provider is `config.json` `ai.provider`: `claude-cli` (default) or `api`, any OpenAI-compatible API with one key (`src/ai-providers.ts`, presets in `src/ai-presets.ts`, which the dashboard's Settings page imports). The key is `AI_API_KEY` in the environment (`.env`) only, never config.json, and never appears in logs, error messages or the dashboard (which shows only the variable name and the detected provider).
-- The CV may only be re-framed, never given skills or claims that are not in `cv/master.json` (tests/cv.test.ts checks this).
+- The CV may only be re-framed, never given skills or claims that are not in `cv/master.json` (tests/cv.test.ts checks this). The one exception: skills the user confirmed with "I have this" for one job (`jobs.cv_skills`, `jobMaster()` in src/cv/confirm-skills.ts) may appear in that job's CVs and texts only; they never change `cv/master.json` or the scoring of any job.
 
 ## Project overview for Claude
 

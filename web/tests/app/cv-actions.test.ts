@@ -95,7 +95,7 @@ describe('addSkillsToCv', () => {
   it('queues `cv:feedback --add-skills` with the ticked skills, and the note when there is one', async () => {
     expect(await addSkillsToCv(null, skillsForm(['Docker', 'C#/.NET'], '  '))).toEqual({
       ok: true,
-      message: 'Adding the skills to your master CV and improving this CV…',
+      message: "Adding the skills to this job's CV and improving it…",
     });
     const [t] = await tasks();
     expect(t).toMatchObject({ kind: 'cv_feedback', args: { skills: 'Docker,C#/.NET' } });

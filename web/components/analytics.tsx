@@ -214,8 +214,8 @@ export function SkillsRadar({ demand }: { demand: SkillDemand }) {
         />
       </div>
       <p className="text-xs text-zinc-500">
-        Not on your CV but true? Confirm it with <b>I have this</b> on a job page, then run <code>rescore</code>. Your CV only ever shows
-        skills you really have.
+        Not on your CV but true? Add it to cv/master.json, then run <code>rescore</code>. <b>I have this</b> on a job page adds a skill to
+        that job's CV only. Your CV only ever shows skills you really have.
       </p>
     </div>
   );

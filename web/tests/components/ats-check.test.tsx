@@ -34,6 +34,14 @@ beforeEach(() => {
 });
 
 describe('AtsLists', () => {
+  it('lists the skills confirmed for this job only, and nothing when there are none', () => {
+    const { unmount } = render(<AtsLists report={report({ jobSkills: ['Python', 'Go'] })} />);
+    expect(screen.getByText("Added to this job's CV only (you confirmed them here):").parentElement).toHaveTextContent('PythonGo');
+    unmount();
+    render(<AtsLists report={report()} />);
+    expect(screen.queryByText(/Added to this job's CV only/)).toBeNull();
+  });
+
   it('shows the version, the three lists and the suggestion', () => {
     render(<AtsLists report={report()} />);
     expect(screen.getByRole('heading', { name: /CV keyword check/ })).toHaveTextContent('laravel-v2 (prepared) shows 2 of 5 job keywords');
@@ -75,7 +83,7 @@ describe('AtsLists', () => {
   it('offers the missing keywords as "I have this" checkboxes when they can be added', () => {
     render(<AtsLists report={report({ missing: ['Kubernetes', 'Kafka'] })} confirmFor="greenhouse:acme:1" />);
     expect(screen.getAllByRole('checkbox').map((c) => (c as HTMLInputElement).value)).toEqual(['Kubernetes', 'Kafka']);
-    expect(screen.getByRole('button', { name: 'Add to my CV and improve it for this job' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: "Add to this job's CV and improve it" })).toBeInTheDocument();
     expect(screen.queryByText(/add one only if you really have it/)).not.toBeInTheDocument();
   });
 

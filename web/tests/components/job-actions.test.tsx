@@ -56,6 +56,7 @@ const job = (over: Partial<Job> = {}): Job => ({
   follow_up_draft_at: null,
   deadline: null,
   cover_letter_check: null,
+  cv_skills: [],
   ...over,
 });
 

@@ -7,6 +7,7 @@ import { PROFILES } from '../cv/profiles.ts';
 import { coverLetter } from '../cover.ts';
 import { aiCheckLetter, aiCoverLetter, aiHeadline, aiSummary } from '../ai.ts';
 import { unsupportedClaims } from '../cv/feedback.ts';
+import { jobMaster } from '../cv/confirm-skills.ts';
 import { FEEDBACK_CAP } from '../types.ts';
 import { isOpen } from '../sources/open.ts';
 import { record } from './open.ts';
@@ -186,7 +187,7 @@ export async function headline(args: string[], flags: Flags) {
     process.exitCode = 1;
     return;
   }
-  const extra = unsupportedClaims(res.headline, JSON.parse(masterRaw()) as Cv);
+  const extra = unsupportedClaims(res.headline, jobMaster(JSON.parse(masterRaw()) as Cv, j.cv_skills));
   if (!res.headline || res.headline.length > HEADLINE_CAP || extra.length) {
     const why = extra.length ? `it names ${extra.join(', ')}, which your CV does not show` : 'it was empty or too long';
     console.error(`The AI headline was not used${unchanged}: ${why}. Try again, or edit it yourself on the job page.`);

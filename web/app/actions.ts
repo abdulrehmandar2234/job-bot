@@ -323,8 +323,8 @@ export async function improveCv(_prev: TextFormState, formData: FormData): Promi
 const SKILL_NAME = /^[A-Za-z0-9][A-Za-z0-9 .#/+-]{0,29}$/;
 
 /**
- * "I have this" on the CV keyword check: adds the ticked job skills to the master CV, then the AI improves the job's
- * CV with them and the optional note (`bot cv:feedback <id> --add-skills … [--feedback …]`).
+ * "I have this" on the CV keyword check: keeps the ticked job skills for this job only, then the AI improves the job's
+ * CV with them and the optional note (`bot cv:feedback <id> --add-skills … [--feedback …]`). The master CV is unchanged.
  */
 export async function addSkillsToCv(_prev: TextFormState, formData: FormData): Promise<TextFormState> {
   return guarded(async () => {
@@ -343,7 +343,7 @@ export async function addSkillsToCv(_prev: TextFormState, formData: FormData): P
     const busy = await enqueueCvChange('cv_feedback', id, { skills: skills.join(','), ...(feedback ? { feedback } : {}) });
     if (busy) return busy;
     refresh();
-    return { ok: true, message: 'Adding the skills to your master CV and improving this CV…' };
+    return { ok: true, message: "Adding the skills to this job's CV and improving it…" };
   });
 }
 
