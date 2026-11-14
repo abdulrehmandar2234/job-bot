@@ -21,7 +21,7 @@ npm run bot -- cv:templates                   # list the CV templates (classic, 
 npm run bot -- cv:template <id> <template>    # use a template for this job; re-renders its CV as a new version
 npm run bot -- cv:preview <template> [--pdf]  # your master CV in a template (HTML, or data/previews/<template>.pdf)
 npm run bot -- cv:feedback <id> --feedback "put Laravel experience first"  # AI revises the job's CV (master CV content only)
-npm run bot -- cv:feedback <id> --add-skills "Docker,GraphQL"         # add job skills you really have to the master CV, then revise
+npm run bot -- cv:feedback <id> --add-skills "Docker,GraphQL"         # add job skills you really have to this job's CV only, then revise
 npm run bot -- cv:review <id>                 # AI suggests how to improve the job's CV for this job
 npm run bot -- letter:pdf <id>                # cover letter as a PDF in the job's applications/ folder
 npm run bot -- check:open [<id>...] [--status new,prepared] [--limit N]  # mark closed postings expired

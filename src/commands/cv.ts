@@ -15,11 +15,14 @@ import {
 import { renderPdf, type Cv } from '../cv/render.ts';
 import { PROFILES } from '../cv/profiles.ts';
 import { keepToMaster } from '../cv/feedback.ts';
-import { confirmSkills, parseSkills } from '../cv/confirm-skills.ts';
+import { addSkills, jobMaster, parseSkills } from '../cv/confirm-skills.ts';
 import { isTemplate, TEMPLATE_IDS } from '../cv/templates/index.ts';
 import { aiCvFeedback, aiCvReview } from '../ai.ts';
 import { feedbackFlag } from './prepare.ts';
 import { AI_OFF, slug, type Flags, notFound, readJsonInput, usage } from './shared.ts';
+
+/** The CV facts for a job: the master CV plus the skills confirmed for this job only. */
+const jobCv = (j: Pick<Job, 'cv_skills'>) => jobMaster(JSON.parse(masterRaw()) as Cv, j.cv_skills);
 
 /** The slug of a job's one-off CV folders: custom-<slug>-v<N>. */
 const jobSlug = (j: Pick<Job, 'company' | 'title'>) => slug(`${j.company}-${j.title}`).slice(0, 40);
@@ -53,7 +56,7 @@ export async function custom(args: string[], flags: Flags) {
   const j = await getJob(args[0]);
   if (!j) return notFound();
   const overrides = readJsonInput(flags.overrides);
-  const meta = await customVersion(jobSlug(j), j.cluster ?? 'default', j.id, overrides, jobTemplate(j));
+  const meta = await customVersion(jobSlug(j), j.cluster ?? 'default', j.id, overrides, jobTemplate(j), jobCv(j));
   await pool.query('UPDATE jobs SET cv_version = $2 WHERE id = $1', [j.id, meta.id]);
   console.log(`Custom CV: ${cvFile(meta.id)}`);
 }
@@ -83,7 +86,7 @@ export async function cvTailor(args: string[]) {
     return;
   }
   const overrides = { ...(j.cv_headline && { title: j.cv_headline }), ...(j.cv_summary && { summary: j.cv_summary }) };
-  const meta = await customVersion(jobSlug(j), baseCluster(j), j.id, overrides, jobTemplate(j));
+  const meta = await customVersion(jobSlug(j), baseCluster(j), j.id, overrides, jobTemplate(j), jobCv(j));
   await pool.query('UPDATE jobs SET cv_version = $2 WHERE id = $1', [j.id, meta.id]);
   const used = [j.cv_headline && 'headline', j.cv_summary && 'summary'].filter(Boolean).join(' and ');
   console.log(`${j.company} — ${j.title}`);
@@ -130,8 +133,8 @@ export async function cvTemplate(args: string[]) {
 
 /** The feedback the AI gets when the candidate only confirmed skills and wrote nothing. */
 export const confirmedFeedback = (skills: string[]) =>
-  `I have these skills, now on my master CV: ${skills.join(', ')}. This job asks for them: show them where it will see ` +
-  'them (near the top of the skills, and in the summary where they fit).';
+  `I have these skills, now on my CV for this job: ${skills.join(', ')}. This job asks for them: show them where it will ` +
+  'see them (near the top of the skills, and in the summary where they fit).';
 
 /**
  * cv:feedback <id> --feedback "…" [--add-skills "Docker,GraphQL"]: the AI revises the job's CV (its current version,
@@ -139,8 +142,8 @@ export const confirmedFeedback = (skills: string[]) =>
  * result is a new one-off version in the job's template that becomes the job's CV; the note says what the AI and the
  * check left out.
  * --add-skills: skills the job asks for that the candidate confirmed they have ("I have this" on the job page). They
- * are added to the master CV first (src/cv/confirm-skills.ts, with a backup), so the revision may show them. With
- * them, --feedback is optional.
+ * are kept for this job only (`jobs.cv_skills`, src/cv/confirm-skills.ts jobMaster), so this job's CVs may show them;
+ * cv/master.json and every other job stay as they are. With them, --feedback is optional.
  */
 export async function cvFeedback(args: string[], flags: Flags) {
   const feedback = feedbackFlag(flags);
@@ -159,13 +162,20 @@ export async function cvFeedback(args: string[], flags: Flags) {
   const j = await getJob(args[0]);
   if (!j) return notFound();
   if (!config.ai.enabled) return console.log(`${AI_OFF}: improving the CV with feedback needs it, so the CV is unchanged.`);
+  const own = JSON.parse(masterRaw()) as Cv;
+  let jobSkills = j.cv_skills ?? [];
   if (skills.length) {
-    const { added, backup } = confirmSkills(skills);
-    if (added.length) console.log(`Master CV  : added ${added.join(', ')} (the CV before: ${backup})`);
+    // Skills the master CV already shows need no confirming for this job.
+    const added = skills.filter((s) => !jobSkills.includes(s) && addSkills(own, [s]).added.length > 0);
     const already = skills.filter((s) => !added.includes(s));
-    if (already.length) console.log(`Master CV  : already shows ${already.join(', ')}`);
+    if (added.length) {
+      jobSkills = [...jobSkills, ...added];
+      await pool.query('UPDATE jobs SET cv_skills = $2 WHERE id = $1', [j.id, jobSkills]);
+      console.log(`This job   : added ${added.join(', ')} to this job's CV only (your master CV is unchanged)`);
+    }
+    if (already.length) console.log(`This job   : the CV already shows ${already.join(', ')}`);
   }
-  const master = JSON.parse(masterRaw()) as Cv;
+  const master = jobMaster(own, jobSkills);
   const current = versionCv(j.cv_version);
   let res: Awaited<ReturnType<typeof aiCvFeedback>>;
   try {
@@ -200,7 +210,7 @@ export async function cvReview(args: string[]) {
   if (!config.ai.enabled) return console.log(`${AI_OFF}: the CV review is written by the AI, so there is none.`);
   let review: string;
   try {
-    review = await aiCvReview(j, JSON.parse(masterRaw()) as Cv, versionCv(j.cv_version));
+    review = await aiCvReview(j, jobCv(j), versionCv(j.cv_version));
   } catch (e) {
     console.error(`AI CV review failed: ${(e as Error).message}`);
     process.exitCode = 1;

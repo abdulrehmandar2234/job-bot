@@ -65,6 +65,12 @@ export function AtsLists({ report: r, confirmFor }: { report: AtsReport; confirm
           <Chips items={r.hiddenButTrue} tone="warn" />
         </div>
       )}
+      {(r.jobSkills?.length ?? 0) > 0 && (
+        <div>
+          <span className="text-zinc-500">Added to this job's CV only (you confirmed them here):</span>{' '}
+          <Chips items={r.jobSkills!} tone="good" />
+        </div>
+      )}
       {r.missing.length > 0 &&
         (confirmFor ? (
           <MissingSkills id={confirmFor} missing={r.missing} add={addSkillsToCv} />

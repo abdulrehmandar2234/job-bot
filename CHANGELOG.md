@@ -6,6 +6,10 @@ To update an existing install, see [Updating](docs/updating.md): pull the new ve
 
 ## [Unreleased]
 
+### Changed
+
+- **I have this** on a job page adds the skill to that job's CV only (`jobs.cv_skills`, migration 023). Before, it went into `cv/master.json`, so every later job was matched and every later CV was built as if you had it. Skills added that way earlier stay in your master CV until you remove them.
+
 ### Added
 
 - `list --json` and `show <id> --json` print jobs as JSON for scripts and AI agents ([CLI reference](docs/cli.md#json-output-for-scripts)).

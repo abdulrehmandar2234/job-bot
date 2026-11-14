@@ -4,6 +4,7 @@ import { getJob } from '../db.ts';
 import { atsReport, versionCv, type AtsReport } from '../ats.ts';
 import { masterRaw, type VersionMeta } from '../cv/versions.ts';
 import type { Cv } from '../cv/render.ts';
+import { jobMaster } from '../cv/confirm-skills.ts';
 import { notFound, type Flags } from './shared.ts';
 
 /**
@@ -28,12 +29,14 @@ export async function ats(args: string[], flags: Flags) {
   if (!j) return notFound();
   const id = flags.cv && flags.cv !== 'true' ? flags.cv : (j.cv_version ?? j.cluster ?? 'default');
   const source = flags.cv && flags.cv !== 'true' ? 'chosen with --cv' : j.cv_version ? 'prepared' : 'suggested';
-  const master = JSON.parse(masterRaw()) as Cv;
+  // The master CV plus the skills confirmed for this job only: those are on this job's CV, not missing.
+  const master = jobMaster(JSON.parse(masterRaw()) as Cv, j.cv_skills);
   const { cluster, cv } = loadVersion(master, id);
-  const r: AtsReport & { label: string; source: string } = {
+  const r: AtsReport & { label: string; source: string; jobSkills: string[] } = {
     ...atsReport(`${j.title}\n${j.description}`, master, cv, cluster),
     label: id,
     source,
+    jobSkills: j.cv_skills ?? [],
   };
   if (flags.json) return console.log(JSON.stringify(r));
   console.log(`CV keyword check — ${j.company} — ${j.title}`);
@@ -41,6 +44,7 @@ export async function ats(args: string[], flags: Flags) {
   console.log(`Shown          : ${list(r.present)}`);
   console.log(`Hidden but true: ${list(r.hiddenButTrue)}   (on your CV, but not near the top of this version)`);
   console.log(`Missing        : ${list(r.missing)}   (not on your CV; only if you really have one: cv:feedback ${j.id} --add-skills "…")`);
+  if (r.jobSkills.length) console.log(`For this job   : ${list(r.jobSkills)}   (you confirmed them for this job only)`);
   if (r.suggestion) {
     console.log(
       `Suggestion     : the "${r.suggestion.version}" version shows ${r.suggestion.shows} (+ ${list(r.suggestion.gains)})` +

@@ -1,14 +1,12 @@
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { dataPath, masterFile } from '../settings.ts';
+import { dataPath } from '../settings.ts';
 import { SKILLS } from '../match.ts';
 import type { Cv } from './render.ts';
 
 // "I have this skill" on the job page's CV keyword check: the job asks for a skill the master CV does not show, and the
-// candidate confirms they have it. Only then is it added to cv/master.json, so every later CV may show it. A skill
-// nobody confirmed is never added: the CV rule ("only what is in cv/master.json") stays the check that counts.
-// Before the master changes, a copy is kept in data/cv-backups/ (JOB_BOT_CV_BACKUP_DIR overrides it, then
-// JOB_BOT_DATA_DIR); `bot daily` keeps the newest 20 (src/cleanup.ts).
+// candidate confirms they have it. The skill is kept for that one job (`jobs.cv_skills`): the job's CVs, keyword check
+// and AI texts use jobMaster(), the master CV plus those skills. cv/master.json, the matching of every job and every
+// other job's CV stay as they are, so a skill confirmed for one job never leaks into the rest. A skill nobody
+// confirmed is never added.
 
 /** The skill names that can be confirmed: the job keyword vocabulary of src/match.ts. */
 export const SKILL_NAMES: readonly string[] = SKILLS.map((s) => s.name);
@@ -111,20 +109,16 @@ export function parseSkills(flag: string | undefined): string[] | { error: strin
   return names;
 }
 
-/** The folder the master CV is copied to before confirmed skills change it. */
-export const backupDir = () => process.env.JOB_BOT_CV_BACKUP_DIR || dataPath('cv-backups');
+/**
+ * The CV facts for one job: the master CV plus the skills confirmed for that job only (`jobs.cv_skills`), each in its
+ * group (addSkills). The master CV itself is never written.
+ */
+export function jobMaster<T extends Pick<Cv, 'skills'>>(master: T, jobSkills: readonly string[] | null | undefined): T {
+  return jobSkills?.length ? addSkills(master, [...jobSkills]).cv : master;
+}
 
 /**
- * Adds the confirmed skills to the master CV file. Writes a backup of the file as it was first, and writes nothing
- * when every skill is already on it. Returns what was added and where the backup is (null when nothing changed).
+ * The folder for copies of the master CV made before it is replaced (cv:import --apply). JOB_BOT_CV_BACKUP_DIR
+ * overrides it, then JOB_BOT_DATA_DIR; `bot daily` keeps the newest 20 (src/cleanup.ts).
  */
-export function confirmSkills(names: string[], now = new Date()): { added: string[]; backup: string | null } {
-  const raw = readFileSync(masterFile(), 'utf8');
-  const { cv, added } = addSkills(JSON.parse(raw) as Cv, names);
-  if (!added.length) return { added, backup: null };
-  mkdirSync(backupDir(), { recursive: true });
-  const backup = join(backupDir(), `master-${now.toISOString().replace(/[:.]/g, '-')}.json`);
-  writeFileSync(backup, raw);
-  writeFileSync(masterFile(), `${JSON.stringify(cv, null, 2)}\n`);
-  return { added, backup };
-}
+export const backupDir = () => process.env.JOB_BOT_CV_BACKUP_DIR || dataPath('cv-backups');

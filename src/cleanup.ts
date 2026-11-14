@@ -5,7 +5,7 @@ import type pg from 'pg';
 // Housekeeping for files the bot leaves behind, run by `bot daily` (src/commands/daily.ts):
 // - data/questions/*.txt and data/settings/*.json are temp files removed in a `finally`, which does not run when the
 //   process is killed (SIGKILL, a timeout): anything older than a day is a leftover.
-// - data/cv-backups gets a copy of the master CV per `cv:add-skills`: the newest CV_BACKUPS_KEEP stay.
+// - data/cv-backups gets a copy of the master CV per `cv:import --apply`: the newest CV_BACKUPS_KEEP stay.
 // - cv/versions/custom-* (one-off CVs for a single job) are removed once their job is skipped, expired or rejected
 //   and has not changed status for CUSTOM_VERSION_MAX_AGE_DAYS, unless a job with another status still uses it.
 // Every function takes its folders (and the pool) as parameters and returns what it removed, so it is tested on

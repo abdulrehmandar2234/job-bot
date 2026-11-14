@@ -36,6 +36,16 @@ export function cvText(): string {
   return cvCache.text;
 }
 
+/**
+ * The CV facts for texts written for one job (letter, headline, summary, answers, prep, follow-up): the master CV plus
+ * the skills the candidate confirmed for this job only (`jobs.cv_skills`). The AI review uses cvText() alone, so every
+ * job is scored against the same CV.
+ */
+export function jobCvText(job: Pick<Job, 'cv_skills'>): string {
+  const extra = job.cv_skills ?? [];
+  return extra.length ? `${cvText()}\nSKILLS CONFIRMED FOR THIS JOB: ${extra.join(', ')}` : cvText();
+}
+
 /** "(remote; candidate would work from Portugal)" for remote jobs. */
 function remoteNote(job: Job): string {
   if (job.country !== 'RM') return '';
@@ -215,7 +225,7 @@ Rules:
   person, plain text, no clichés. Link the job's requirements to concrete CV experience.
 - ${situationRule(job, 'answers')}`;
   const res = await askAi<{ answers: FormAnswer[] }>(
-    `CV:\n${cvText()}\n\nAPPLICANT FACTS (null = unknown):\n${applicantFacts()}\n\nJOB:\n${jobText(job)}\n\nFORM QUESTIONS:\n${questions.slice(0, 8000)}`,
+    `CV:\n${jobCvText(job)}\n\nAPPLICANT FACTS (null = unknown):\n${applicantFacts()}\n\nJOB:\n${jobText(job)}\n\nFORM QUESTIONS:\n${questions.slice(0, 8000)}`,
     ANSWERS_SCHEMA,
     'letter',
     system,
@@ -269,7 +279,7 @@ ${signature(loadProfile())}
 - ${situationRule(job, 'letter')}
 - Confident and specific, no clichés like "I am writing to express my interest".${revising ? feedbackRules('letter') : ''}`;
   const res = await askAi<{ letter: string; note?: string }>(
-    `CV:\n${cvText()}\n\nJOB:\n${jobText(job)}${revising ? feedbackPrompt('letter', job.cover_letter, feedback!) : ''}`,
+    `CV:\n${jobCvText(job)}\n\nJOB:\n${jobText(job)}${revising ? feedbackPrompt('letter', job.cover_letter, feedback!) : ''}`,
     textSchema('letter', revising),
     'letter',
     system,
@@ -306,7 +316,7 @@ Rules:
   every other word, the greeting, the paragraphs and the signature exactly as they are.
 - No problems: "problems" is [] and "letter" is the LETTER unchanged.`;
   const res = await askAi<{ problems?: string[]; letter?: string }>(
-    `CV:\n${cvText()}\n\nJOB:\n${jobText(job)}\n\nLETTER:\n${letter.trim()}`,
+    `CV:\n${jobCvText(job)}\n\nJOB:\n${jobText(job)}\n\nLETTER:\n${letter.trim()}`,
     CHECK_SCHEMA,
     'letter',
     system,
@@ -333,7 +343,7 @@ export async function aiHeadline(job: Job, feedback?: string): Promise<Revised<'
 - One line, at most 90 characters, plain text: no quotes, no full stop at the end, no emoji, no company name.
 - No clichés ("passionate", "rockstar", "ninja", "results-driven").${revising ? feedbackRules('headline') : ''}`;
   const res = await askAi<{ headline: string; note?: string }>(
-    `CV:\n${cvText()}\n\nJOB:\n${jobText(job)}${revising ? feedbackPrompt('headline', job.cv_headline, feedback!) : ''}`,
+    `CV:\n${jobCvText(job)}\n\nJOB:\n${jobText(job)}${revising ? feedbackPrompt('headline', job.cv_headline, feedback!) : ''}`,
     textSchema('headline', revising),
     'letter',
     system,
@@ -365,7 +375,7 @@ export async function aiSummary(job: Job, feedback?: string): Promise<Revised<'s
 - It is part of the CV, not a letter: do not address the employer or name the company.
 - Specific and plain, no clichés like "results-driven", "passionate" or "team player".${revising ? feedbackRules('summary') : ''}`;
   const res = await askAi<{ summary: string; note?: string }>(
-    `CV:\n${cvText()}\n\nJOB:\n${jobText(job)}${revising ? feedbackPrompt('summary', job.cv_summary, feedback!) : ''}`,
+    `CV:\n${jobCvText(job)}\n\nJOB:\n${jobText(job)}${revising ? feedbackPrompt('summary', job.cv_summary, feedback!) : ''}`,
     textSchema('summary', revising),
     'letter',
     system,
@@ -535,7 +545,7 @@ export function aiInterviewPrep(job: Job): Promise<InterviewPrep> {
 - questions_to_ask: thoughtful questions the candidate can ask them, specific to this posting.
 - requirements: the job's key requirements, each mapped to CV evidence, or gap true with what is missing.
 - Plain text in every string, no markdown, concise.`;
-  return askAi<InterviewPrep>(`CV:\n${cvText()}\n\nJOB:\n${jobText(job)}`, PREP_SCHEMA, 'letter', system);
+  return askAi<InterviewPrep>(`CV:\n${jobCvText(job)}\n\nJOB:\n${jobText(job)}`, PREP_SCHEMA, 'letter', system);
 }
 
 /** A short follow-up message for an application with no answer yet. The user reviews and sends it. */
@@ -552,7 +562,7 @@ Rules:
 - ${job.follow_ups > 0 ? 'The candidate has followed up before: acknowledge it briefly and keep this one even shorter.' : 'This is their first follow-up.'}
 - Polite and confident, never pushy or apologetic; no new commitments (salary, start date, hours).`;
   const res = await askAi<{ message: string }>(
-    `CV:\n${cvText()}\n\nAPPLIED ON: ${applied}\n\nJOB:\n${jobText(job)}`,
+    `CV:\n${jobCvText(job)}\n\nAPPLIED ON: ${applied}\n\nJOB:\n${jobText(job)}`,
     { type: 'object', properties: { message: { type: 'string' } }, required: ['message'] },
     'letter',
     system,

@@ -49,7 +49,7 @@ Ideas taken from the two most popular open-source job-search tools on GitHub, bo
 - **Learn from skips:** skip reasons (`mark <id> skipped --reason`, Skip button) and skip patterns on `/analytics` (web/lib/skip-insights.ts).
 - **Dead-link check:** `bot check:open`; `prepare` checks first; status `expired` with its own tab (src/sources/open.ts).
 - **ATS keyword check:** `bot ats <id>` and on the job page (src/ats.ts); its folded heading counts the job skills the CV is missing.
-- **Confirm missing skills:** "I have this" on the job page and `cv:feedback <id> --add-skills` add confirmed job skills to the master CV, with a backup first (src/cv/confirm-skills.ts).
+- **Confirm missing skills:** "I have this" on the job page and `cv:feedback <id> --add-skills` add confirmed job skills to that job's CV only (`jobs.cv_skills`, migration 023; since 2026-11 the master CV and other jobs no longer change, src/cv/confirm-skills.ts).
 - **Day / night theme:** a toggle in the dashboard header (web/components/theme-toggle.tsx) that follows the system until a choice is saved.
 - **Salary extraction:** src/salary.ts; shown on cards, minimum-salary filter on the job list.
 - **Contacts per job:** `bot contacts` / `contact:add`, and on the job page with referral reminders.

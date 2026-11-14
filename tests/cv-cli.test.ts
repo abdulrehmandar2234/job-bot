@@ -45,7 +45,7 @@ const fails = (args: string[], env: Record<string, string> = {}) =>
     (e: { stderr: string; code: number }) => ({ stderr: e.stderr, code: e.code }),
   );
 
-async function addJob(company: string) {
+async function addJob(company: string, description = 'React, Next.js, Node.js, PostgreSQL and REST APIs.') {
   const f = join(tmp, `add-${Math.random()}.json`);
   const posting = {
     source: 'bayt',
@@ -53,7 +53,7 @@ async function addJob(company: string) {
     title: 'Senior React Developer',
     location: 'Dubai, UAE',
     url: `https://www.bayt.com/en/uae/jobs/${encodeURIComponent(company)}/`,
-    description: 'React, Next.js, Node.js, PostgreSQL and REST APIs.',
+    description,
     posted_at: daysAgo(1),
   };
   writeFileSync(f, JSON.stringify([posting]));
@@ -279,11 +279,13 @@ describe('cv:feedback', () => {
 });
 
 describe('cv:feedback --add-skills', () => {
-  it('adds the confirmed skills to the master CV with a backup, and the revised CV keeps them', { skip: noChrome }, async () => {
-    const id = await addJob('Skillsco Cli');
+  it("keeps the confirmed skills for this job's CVs only: the master CV and other jobs stay as they are", { skip: noChrome }, async () => {
+    const asks = 'React, Node.js, PostgreSQL, Docker and Kubernetes.';
+    const id = await addJob('Skillsco Cli', asks);
+    const other = await addJob('Skillsco Other', asks);
     const file = join(tmp, 'master-skills.json');
     writeFileSync(file, readFileSync(MASTER));
-    const backups = join(tmp, 'cv-backups');
+    const backups = join(tmp, 'cv-backups-skills');
     const log = join(tmp, 'claude-skills.jsonl');
     const proposal = {
       cv: {
@@ -296,26 +298,34 @@ describe('cv:feedback --add-skills', () => {
       },
       note: '',
     };
-    const out = await bot(['cv:feedback', id, '--add-skills=Kubernetes,Docker'], {
-      JOB_BOT_MASTER: file,
-      JOB_BOT_CV_BACKUP_DIR: backups,
-      FAKE_CLAUDE_OUT: JSON.stringify(proposal),
-      FAKE_CLAUDE_LOG: log,
-    });
-    assert.match(out, /Master CV {2}: added Kubernetes \(the CV before: .*cv-backups\/master-.*\.json\)/);
-    assert.match(out, /Master CV {2}: already shows Docker/);
-    assert.deepEqual(
-      readdirSync(backups).map((f) => readFileSync(join(backups, f), 'utf8')),
-      [readFileSync(MASTER, 'utf8')],
-    );
-    const devops = (JSON.parse(readFileSync(file, 'utf8')) as Cv).skills.find((g) => g.group === 'DevOps & Tools')!;
-    assert.deepEqual(devops.items, ['Docker', 'AWS', 'Git', 'Kubernetes']);
+    const env = { JOB_BOT_MASTER: file, JOB_BOT_CV_BACKUP_DIR: backups, FAKE_CLAUDE_OUT: JSON.stringify(proposal), FAKE_CLAUDE_LOG: log };
+    const out = await bot(['cv:feedback', id, '--add-skills=Kubernetes,Docker'], env);
+    assert.match(out, /This job {3}: added Kubernetes to this job's CV only \(your master CV is unchanged\)/);
+    assert.match(out, /This job {3}: the CV already shows Docker/);
+    // The master CV is not written, and no backup is needed.
+    assert.equal(readFileSync(file, 'utf8'), readFileSync(MASTER, 'utf8'));
+    assert.equal(existsSync(backups), false);
+    assert.deepEqual((await getJob(id))!.cv_skills, ['Kubernetes']);
 
     const v = versionOf(out);
     assert.deepEqual(cvJson(v).skills[0], { group: 'DevOps & Tools', items: ['Kubernetes', 'Docker'] }, 'not left out');
     assert.equal(meta(v).feedbackNote, undefined);
     const { stdin } = JSON.parse(readFileSync(log, 'utf8').trim()) as { stdin: string };
-    assert.match(stdin, /"Kubernetes"[\s\S]*FEEDBACK FROM THE CANDIDATE:\nI have these skills, now on my master CV: Kubernetes, Docker\./);
+    assert.match(
+      stdin,
+      /"Kubernetes"[\s\S]*FEEDBACK FROM THE CANDIDATE:\nI have these skills, now on my CV for this job: Kubernetes, Docker\./,
+    );
+
+    // A later revision of this job's CV keeps the skill; it is no longer missing in this job's keyword check.
+    const again = await bot(['cv:feedback', id, '--feedback', 'shorter'], env);
+    assert.ok(cvJson(versionOf(again)).skills.some((g) => g.items.includes('Kubernetes')));
+    const mine = JSON.parse(await bot(['ats', id, '--json'], env));
+    assert.deepEqual(mine.jobSkills, ['Kubernetes']);
+    assert.ok(!mine.missing.includes('Kubernetes'));
+    // Another job asking for Kubernetes still sees it as missing: the skill was confirmed for one job only.
+    const theirs = JSON.parse(await bot(['ats', other, '--json'], env));
+    assert.deepEqual(theirs.jobSkills, []);
+    assert.ok(theirs.missing.includes('Kubernetes'));
   });
 
   it('refuses unknown skills and changes nothing', async () => {

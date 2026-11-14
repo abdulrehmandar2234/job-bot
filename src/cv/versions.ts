@@ -167,7 +167,8 @@ export function claimCustomId(slug: string): string {
 
 /**
  * One-off variant for a single job, in a new folder every time (claimCustomId). `overrides` may only re-frame:
- * title, summary, and orderings. It is merged over the cluster profile (fittedProfile) or the master CV.
+ * title, summary, and orderings. It is merged over the cluster profile (fittedProfile) or `master`: the master CV, or
+ * for a job with skills confirmed for it only, src/cv/confirm-skills.ts jobMaster().
  */
 export async function customVersion(
   slug: string,
@@ -175,8 +176,8 @@ export async function customVersion(
   jobId: string,
   overrides: Partial<Profile>,
   template: TemplateId = DEFAULT_TEMPLATE,
+  master: Cv = JSON.parse(masterRaw()) as Cv,
 ) {
-  const master = JSON.parse(masterRaw()) as Cv;
   const base = (await fittedProfile(cluster)) ?? {
     title: master.title,
     summary: master.summary,

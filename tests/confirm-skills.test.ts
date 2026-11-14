@@ -1,15 +1,15 @@
 import { afterEach, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import './owner-cv.ts'; // the master CV for match.ts's skill list
 import { path } from '../src/config.ts';
 import { SKILLS } from '../src/match.ts';
-import { addSkills, backupDir, confirmSkills, cvItem, groupFor, OTHER_GROUP, parseSkills, SKILL_NAMES } from '../src/cv/confirm-skills.ts';
+import { addSkills, backupDir, cvItem, groupFor, jobMaster, OTHER_GROUP, parseSkills, SKILL_NAMES } from '../src/cv/confirm-skills.ts';
 import type { Cv } from '../src/cv/render.ts';
 
-// "I have this" on the CV keyword check: confirmed job skills go on the master CV, in the right group, with a backup.
+// "I have this" on the CV keyword check: confirmed job skills go on that job's CV only, each in the right group.
 
 const example = () => JSON.parse(readFileSync(path('cv', 'master.example.json'), 'utf8')) as Cv;
 const groups = example().skills.map((g) => g.group);
@@ -69,11 +69,23 @@ describe('parseSkills', () => {
   });
 });
 
-describe('confirmSkills', () => {
-  const env = { master: process.env.JOB_BOT_MASTER, backups: process.env.JOB_BOT_CV_BACKUP_DIR, data: process.env.JOB_BOT_DATA_DIR };
+describe('jobMaster', () => {
+  it('adds the skills confirmed for one job to a copy of the master CV, and leaves the master as it is', () => {
+    const master = example();
+    const before = JSON.stringify(master);
+    const cv = jobMaster(master, ['Kubernetes', 'Docker']);
+    assert.deepEqual(cv.skills.find((g) => g.group === 'DevOps & Tools')!.items, ['Docker', 'AWS', 'Git', 'Kubernetes']);
+    assert.equal(JSON.stringify(master), before, 'the master CV is not changed');
+    // No job skills: the master CV itself.
+    assert.equal(jobMaster(master, []), master);
+    assert.equal(jobMaster(master, null), master);
+  });
+});
+
+describe('backupDir', () => {
+  const env = { backups: process.env.JOB_BOT_CV_BACKUP_DIR, data: process.env.JOB_BOT_DATA_DIR };
   afterEach(() => {
     for (const [k, v] of [
-      ['JOB_BOT_MASTER', env.master],
       ['JOB_BOT_CV_BACKUP_DIR', env.backups],
       ['JOB_BOT_DATA_DIR', env.data],
     ] as const)
@@ -81,36 +93,11 @@ describe('confirmSkills', () => {
       else process.env[k] = v;
   });
 
-  it('backs the master CV up, then writes it with the skills added', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'jobbot-confirm-'));
-    const file = join(dir, 'master.json');
-    const before = readFileSync(path('cv', 'master.example.json'), 'utf8');
-    writeFileSync(file, before);
-    process.env.JOB_BOT_MASTER = file;
-    process.env.JOB_BOT_CV_BACKUP_DIR = join(dir, 'backups');
-
-    const res = confirmSkills(['Kubernetes'], new Date('2026-11-03T10:20:30.400Z'));
-    assert.deepEqual(res, { added: ['Kubernetes'], backup: join(dir, 'backups', 'master-2026-11-03T10-20-30-400Z.json') });
-    assert.equal(readFileSync(res.backup!, 'utf8'), before);
-    const after = readFileSync(file, 'utf8');
-    assert.ok(after.endsWith('}\n'));
-    assert.ok((JSON.parse(after) as Cv).skills.some((g) => g.items.includes('Kubernetes')));
-
-    assert.deepEqual(confirmSkills(['Kubernetes', 'Docker']), { added: [], backup: null }, 'nothing new: nothing written');
-    assert.equal(readdirSync(join(dir, 'backups')).length, 1);
-  });
-
-  it('without JOB_BOT_CV_BACKUP_DIR backs up into cv-backups in the data dir (JOB_BOT_DATA_DIR)', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'jobbot-confirm-data-'));
-    const file = join(dir, 'master.json');
-    writeFileSync(file, readFileSync(path('cv', 'master.example.json'), 'utf8'));
-    process.env.JOB_BOT_MASTER = file;
+  it('is cv-backups in the data dir (JOB_BOT_DATA_DIR), unless JOB_BOT_CV_BACKUP_DIR says otherwise', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'jobbot-backups-'));
     delete process.env.JOB_BOT_CV_BACKUP_DIR;
     process.env.JOB_BOT_DATA_DIR = join(dir, 'data');
     assert.equal(backupDir(), join(dir, 'data', 'cv-backups'));
-    const res = confirmSkills(['Kubernetes'], new Date('2026-11-03T10:20:30.400Z'));
-    assert.equal(res.backup, join(dir, 'data', 'cv-backups', 'master-2026-11-03T10-20-30-400Z.json'));
-    // The explicit override still wins over the data dir.
     process.env.JOB_BOT_CV_BACKUP_DIR = join(dir, 'elsewhere');
     assert.equal(backupDir(), join(dir, 'elsewhere'));
   });

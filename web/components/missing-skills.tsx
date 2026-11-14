@@ -7,7 +7,8 @@ type Action = (prev: TextFormState, fd: FormData) => Promise<TextFormState>;
 
 /**
  * The job's keywords that are not on the master CV, each with "I have this", plus a note for the AI. Ticked skills
- * are added to the master CV (`bot cv:feedback --add-skills`); unticked ones never go on a CV.
+ * go on this job's CV only (`bot cv:feedback --add-skills`, kept in `jobs.cv_skills`); the master CV and every other
+ * job stay as they are, and unticked ones never go on a CV.
  */
 export function MissingSkills({ id, missing, add }: { id: string; missing: string[]; add: Action }) {
   const { state, pending, onSubmit } = useTextForm(add);
@@ -38,13 +39,13 @@ export function MissingSkills({ id, missing, add }: { id: string; missing: strin
       </label>
       <div className="flex flex-wrap items-center gap-2">
         <button type="submit" disabled={pending} className={`btn ${pending ? 'cursor-wait opacity-60' : ''}`}>
-          {pending ? 'Starting…' : 'Add to my CV and improve it for this job'}
+          {pending ? 'Starting…' : "Add to this job's CV and improve it"}
         </button>
         <Problem state={state} />
       </div>
       <p className="text-xs text-zinc-500">
-        Ticked skills go on your master CV (a copy of it is kept first), so later CVs can show them too. Unticked ones stay off your CV. You
-        get a new CV version for this job.
+        Ticked skills go on this job's CV only: your master CV, the matching of other jobs and their CVs stay as they are. Unticked ones
+        stay off your CV. You get a new CV version for this job, ready for <b>Download CV</b>.
       </p>
     </form>
   );
