@@ -47,7 +47,7 @@
     </td>
     <td width="50%" valign="top">
       <h3>🧹 Filters out what does not fit</h3>
-      Country, visa, remote region, role and seniority in the title, job type, language, posting age and passed deadlines. Every rejected job keeps its reason, so you can see why it was left out.
+      Country, visa, remote region, role and seniority in the title, job type, language, posting age, passed deadlines and companies you chose to hide. Every rejected job keeps its reason, so you can see why it was left out.
     </td>
   </tr>
   <tr>
@@ -57,7 +57,7 @@
     </td>
     <td valign="top">
       <h3>📝 Prepares the application</h3>
-      The right CV version and template, a cover letter, a CV headline and summary for the job, and form answers. Only facts from your own CV, never invented skills.
+      The right CV version and template, a cover letter, a CV headline and summary for the job, and form answers. Only facts from your own CV, never invented skills: a second AI pass checks each letter against your CV and the posting. Starting out? Import the CV you already have.
     </td>
   </tr>
   <tr>
@@ -67,7 +67,7 @@
     </td>
     <td valign="top">
       <h3>📊 Tracks every application</h3>
-      Statuses, notes, contacts, follow-up reminders and drafts, dead-link checks, deadlines and analytics: your funnel, response rates and time to response.
+      Statuses, notes, contacts, follow-up reminders and drafts, dead-link checks, deadlines, your history with each company, and analytics: your funnel, response rates, time to response and the skills jobs ask for most. Scripts can read it all with <code>list --json</code>.
     </td>
   </tr>
 </table>
