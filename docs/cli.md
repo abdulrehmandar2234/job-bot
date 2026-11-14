@@ -8,7 +8,7 @@ Every command of the bot. Run them from the Talaash folder as `npm run bot -- <c
 npm run bot -- setup                          # first run: your profile and target markets (asks, validates, saves)
 npm run bot -- doctor                         # check the setup: Node, packages, settings, CV, database, PDF renderer, AI
 npm run bot -- fetch [--company <name>]       # fetch all sources (or those whose name contains <name>, e.g. linkedin)
-npm run bot -- rescore                        # re-apply filters after editing config.json, no downloads
+npm run bot -- rescore                        # re-apply filters after editing config.json or cv/master.json, no downloads
 npm run bot -- list [--status new] [--country NL] [--min 60] [--limit 30] [--json]   # --status filtered shows the reasons
 npm run bot -- show <id> [--full] [--json]
 npm run bot -- ai:score [--id <id>] [--limit N] [--all]   # AI fit review of new matches (--all: review them again)

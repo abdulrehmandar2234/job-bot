@@ -501,6 +501,21 @@ describe('CLI', () => {
     assert.match((await getJob(id)).filter_reason!, /posted 40 days ago/);
   });
 
+  it('rescore brings the skills match of a job you acted on up to date, and keeps its status and score', async () => {
+    const id = idOf(await bot(['add', '--file', addFile([posting({ url: 'https://example.com/jobs/rescore-acted' })])]));
+    // As if the job was scored while the master CV still listed Go, which it does not (any more).
+    await pool.query(
+      `UPDATE jobs SET status = 'prepared', score = 77, matched = array_append(matched, 'Go'), missing = '{}' WHERE id = $1`,
+      [id],
+    );
+    await bot(['rescore']);
+    const j = await getJob(id);
+    assert.equal(j.status, 'prepared');
+    assert.equal(j.score, 77);
+    assert.ok(!j.matched.includes('Go'), 'Go is not on the master CV');
+    assert.ok(j.matched.includes('Laravel'));
+  });
+
   it('groups duplicates after adding', async () => {
     const out = await bot([
       'add',

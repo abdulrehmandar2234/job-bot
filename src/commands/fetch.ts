@@ -157,15 +157,29 @@ export function saveAgain(j: Job, location = j.location) {
 export async function rescore() {
   const { rows } = await pool.query<Job>(`SELECT * FROM jobs WHERE status IN ('new', 'filtered')`);
   for (const j of rows) await saveAgain(j);
-  // Jobs the user acted on are not re-scored, but their salary and visa note are filled in (or corrected) too.
+  // Jobs the user acted on keep their status and score, but their salary and visa note are filled in (or corrected),
+  // and their skills match follows the master CV as it is now (a skill removed from it is no longer "you have").
+  // A job the filters would now drop keeps its old skills match: scoring stopped before it compared the skills.
   const { rows: acted } = await pool.query<Job>(`SELECT * FROM jobs WHERE status NOT IN ('new', 'filtered')`);
   for (const j of acted) {
     const s = keptSalary(j) ?? parseSalary(`${j.title}\n${j.description}`, j.country, homeCountry());
     const scored = scoreJob({ ...j, posted_at: null }, config);
+    const skills = scored.filterReason ? null : scored;
     await pool.query(
       `UPDATE jobs SET salary_min = $2, salary_max = $3, salary_currency = $4, salary_period = $5,
-        visa = coalesce($6, visa), visa_evidence = coalesce($7, visa_evidence) WHERE id = $1`,
-      [j.id, s?.min ?? null, s?.max ?? null, s?.currency ?? null, s?.period ?? null, scored.visa, scored.visaEvidence],
+        visa = coalesce($6, visa), visa_evidence = coalesce($7, visa_evidence),
+        matched = coalesce($8, matched), missing = coalesce($9, missing) WHERE id = $1`,
+      [
+        j.id,
+        s?.min ?? null,
+        s?.max ?? null,
+        s?.currency ?? null,
+        s?.period ?? null,
+        scored.visa,
+        scored.visaEvidence,
+        skills?.matched ?? null,
+        skills?.missing ?? null,
+      ],
     );
   }
   console.log(`${rows.length} jobs re-scored. ${await waitingCount()} matching jobs waiting (status=new).`);
